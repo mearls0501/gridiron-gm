@@ -1,8 +1,53 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Background Colors */
+  --background: #f3f4f6;
+  --foreground: #1f2937;
+
+  /* Navigation Colors */
+  --nav-bg-primary: #1a1a1a;
+  --nav-bg-secondary: #2d2d2d;
+  --nav-bg-tertiary: #3a3a3a;
+  --nav-text: #ffffff;
+  --nav-accent: #ffd700;
+  --nav-hover: #4a5568;
+
+  /* Panel Colors */
+  --panel-bg: #ffffff;
+  --panel-header-start: #4a5568;
+  --panel-header-end: #2d3748;
+  --panel-border: #cbd5e0;
+  --panel-shadow: rgba(0, 0, 0, 0.1);
+
+  /* Table Colors */
+  --table-header-start: #2d3748;
+  --table-header-end: #1a202c;
+  --table-row-even: #f7fafc;
+  --table-row-hover: #edf2f7;
+  --table-border: #e2e8f0;
+
+  /* Status Colors */
+  --color-success: #48bb78;
+  --color-warning: #ed8936;
+  --color-error: #f56565;
+  --color-info: #4299e1;
+
+  /* Text Colors */
+  --text-primary: #1a202c;
+  --text-secondary: #4a5568;
+  --text-muted: #718096;
+
+  /* Button Colors */
+  --button-primary-start: #3b82f6;
+  --button-primary-end: #2563eb;
+  --button-secondary: #6b7280;
+  --button-success: #10b981;
+  --button-danger: #ef4444;
+  --button-warning: #f59e0b;
+
+  /* Accent */
+  --accent: #fbbf24;
 }
 
 @theme inline {
@@ -14,13 +59,389 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #111827;
+    --foreground: #f3f4f6;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
+    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography */
+.ootp-page-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.ootp-section-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.ootp-text-muted {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.ootp-text-secondary {
+  color: var(--text-secondary);
+}
+
+/* OOTP-style table styling */
+.ootp-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  box-shadow: 0 1px 3px var(--panel-shadow);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ootp-table th {
+  background: linear-gradient(
+    to bottom,
+    var(--table-header-start),
+    var(--table-header-end)
+  );
+  color: white;
+  padding: 10px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-bottom: 2px solid var(--table-header-end);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ootp-table th:hover {
+  background: linear-gradient(to bottom, #374151, #2d3748);
+}
+
+.ootp-table th.sortable {
+  position: relative;
+  padding-right: 24px;
+}
+
+.ootp-table th.sortable::after {
+  content: "⇅";
+  position: absolute;
+  right: 8px;
+  opacity: 0.5;
+  font-size: 0.75rem;
+}
+
+.ootp-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--table-border);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.ootp-table tbody tr {
+  transition: background-color 0.15s;
+}
+
+.ootp-table tbody tr:hover {
+  background-color: var(--table-row-hover);
+  cursor: pointer;
+}
+
+.ootp-table tbody tr:nth-child(even) {
+  background-color: var(--table-row-even);
+}
+
+.ootp-table tbody tr:nth-child(even):hover {
+  background-color: var(--table-row-hover);
+}
+
+.ootp-table tbody tr.selected {
+  background-color: #dbeafe;
+}
+
+/* Table container for scrolling */
+.ootp-table-container {
+  overflow-x: auto;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px var(--panel-shadow);
+}
+
+/* Status indicators */
+.ootp-status-success {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.ootp-status-warning {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.ootp-status-error {
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+.ootp-status-info {
+  color: var(--color-info);
+  font-weight: 600;
+}
+
+/* Layout utilities */
+.ootp-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.ootp-section {
+  margin-bottom: 2rem;
+}
+
+.ootp-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.ootp-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.ootp-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 1024px) {
+  .ootp-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .ootp-grid-2,
+  .ootp-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Panel styling */
+.ootp-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  box-shadow: 0 2px 4px var(--panel-shadow);
+  overflow: hidden;
+}
+
+.ootp-panel-header {
+  background: linear-gradient(
+    to bottom,
+    var(--panel-header-start),
+    var(--panel-header-end)
+  );
+  color: white;
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 1rem;
+  border-bottom: 2px solid var(--table-header-end);
+  border-radius: 4px 4px 0 0;
+}
+
+.ootp-panel-body {
+  padding: 1rem 1.5rem;
+}
+
+.ootp-panel-footer {
+  padding: 12px 16px;
+  background: #f7fafc;
+  border-top: 1px solid var(--panel-border);
+  border-radius: 0 0 4px 4px;
+}
+
+/* Card styling */
+.ootp-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px var(--panel-shadow);
+  transition: box-shadow 0.2s;
+}
+
+.ootp-card:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+.ootp-card-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--panel-border);
+  font-weight: 600;
+}
+
+.ootp-card-body {
+  padding: 16px;
+}
+
+/* Badge/Pill styling */
+.ootp-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ootp-badge-primary {
+  background: var(--button-primary-start);
+  color: white;
+}
+
+.ootp-badge-success {
+  background: var(--color-success);
+  color: white;
+}
+
+.ootp-badge-warning {
+  background: var(--color-warning);
+  color: white;
+}
+
+.ootp-badge-danger {
+  background: var(--color-error);
+  color: white;
+}
+
+.ootp-badge-secondary {
+  background: var(--button-secondary);
+  color: white;
+}
+
+/* Divider */
+.ootp-divider {
+  height: 1px;
+  background: var(--table-border);
+  margin: 1rem 0;
+}
+
+.ootp-divider-vertical {
+  width: 1px;
+  height: 100%;
+  background: var(--table-border);
+  margin: 0 1rem;
+}
+
+/* Button styling */
+.ootp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  text-decoration: none;
+  gap: 0.5rem;
+}
+
+.ootp-button-primary {
+  background: linear-gradient(
+    to bottom,
+    var(--button-primary-start),
+    var(--button-primary-end)
+  );
+  color: white;
+  border: 1px solid #1e40af;
+}
+
+.ootp-button-primary:hover {
+  background: linear-gradient(to bottom, #2563eb, #1d4ed8);
+}
+
+.ootp-button-secondary {
+  background: var(--button-secondary);
+  color: white;
+  border: 1px solid #4b5563;
+}
+
+.ootp-button-secondary:hover {
+  background: #4b5563;
+}
+
+.ootp-button-success {
+  background: var(--button-success);
+  color: white;
+  border: 1px solid #059669;
+}
+
+.ootp-button-success:hover {
+  background: #059669;
+}
+
+.ootp-button-danger {
+  background: var(--button-danger);
+  color: white;
+  border: 1px solid #dc2626;
+}
+
+.ootp-button-danger:hover {
+  background: #dc2626;
+}
+
+.ootp-button-warning {
+  background: var(--button-warning);
+  color: white;
+  border: 1px solid #d97706;
+}
+
+.ootp-button-warning:hover {
+  background: #d97706;
+}
+
+.ootp-button:active {
+  transform: translateY(1px);
+}
+
+.ootp-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ootp-button-sm {
+  padding: 6px 12px;
+  font-size: 0.75rem;
+}
+
+.ootp-button-lg {
+  padding: 12px 24px;
+  font-size: 1rem;
+}
+
+/* Toast notification animation */
+@keyframes fadeInSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

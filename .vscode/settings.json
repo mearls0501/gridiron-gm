@@ -1,0 +1,65 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "tailwindCSS.experimental.classRegex": [
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["cn\\(([^)]*)\\)", "(?:'|\"|`)([^\"'`]*)(?:'|\"|`)"]
+  ],
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "css.validate": false,
+  "tailwindCSS.validate": true,
+  "cSpell.words": [
+    "supabase",
+    "gridiron",
+    "PGRST",
+    "upsert",
+    "doesn",
+    "Seahawks",
+    "Bills",
+    "Dolphins",
+    "Patriots",
+    "Jets",
+    "Ravens",
+    "Bengals",
+    "Browns",
+    "Steelers",
+    "Texans",
+    "Colts",
+    "Jaguars",
+    "Titans",
+    "Broncos",
+    "Chiefs",
+    "Raiders",
+    "Chargers",
+    "Cowboys",
+    "Giants",
+    "Eagles",
+    "Commanders",
+    "Bears",
+    "Lions",
+    "Packers",
+    "Vikings",
+    "Falcons",
+    "Panthers",
+    "Saints",
+    "Buccaneers",
+    "Cardinals",
+    "Rams"
+  ]
+}
