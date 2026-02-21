@@ -19,12 +19,16 @@ import { calculateFinalScores, normalizeScore } from "./scoring-adjuster";
 
 /**
  * Load a team with its roster from the database
+ * Optimized: Uses single query with join instead of 2 separate queries
  */
-async function loadTeamWithRoster(teamId: string): Promise<TeamWithRoster> {
-  // Fetch team
+export async function loadTeamWithRoster(teamId: string): Promise<TeamWithRoster> {
+  // Fetch team with players in a single query using Supabase relation syntax
   const { data: team, error: teamError } = await supabase
     .from("teams")
-    .select("*")
+    .select(`
+      *,
+      players (*)
+    `)
     .eq("id", teamId)
     .single();
 
@@ -32,18 +36,8 @@ async function loadTeamWithRoster(teamId: string): Promise<TeamWithRoster> {
     throw new Error(`Team not found: ${teamId}`);
   }
 
-  // Fetch players
-  const { data: players, error: playersError } = await supabase
-    .from("players")
-    .select("*")
-    .eq("team_id", teamId);
-
-  if (playersError) {
-    throw new Error(`Failed to load players: ${playersError.message}`);
-  }
-
   // Parse traits if they're strings
-  const parsedPlayers: Player[] = (players || []).map((p) => ({
+  const parsedPlayers: Player[] = ((team.players as any[]) || []).map((p) => ({
     ...p,
     traits:
       typeof p.traits === "string"
@@ -51,8 +45,11 @@ async function loadTeamWithRoster(teamId: string): Promise<TeamWithRoster> {
         : p.traits || { speed: 0, strength: 0, awareness: 0 },
   }));
 
+  // Remove players from team object to avoid duplication
+  const { players, ...teamData } = team;
+
   return {
-    ...team,
+    ...teamData,
     players: parsedPlayers,
   };
 }
@@ -92,14 +89,40 @@ function calculateDown(
 }
 
 /**
+ * Load multiple teams with rosters in batch
+ * Optimized: Uses parallel loading for better performance
+ */
+export async function loadTeamsWithRosters(
+  teamIds: string[]
+): Promise<Map<string, TeamWithRoster>> {
+  const uniqueTeamIds = [...new Set(teamIds)];
+  const teamMap = new Map<string, TeamWithRoster>();
+
+  // Load all teams in parallel
+  const loadPromises = uniqueTeamIds.map(async (teamId) => {
+    try {
+      const team = await loadTeamWithRoster(teamId);
+      teamMap.set(teamId, team);
+    } catch (error) {
+      console.error(`Failed to load team ${teamId}:`, error);
+      throw error;
+    }
+  });
+
+  await Promise.all(loadPromises);
+  return teamMap;
+}
+
+/**
  * Simulate a complete game
  */
 export async function simulateGame(
-  config: SimulationConfig
+  config: SimulationConfig,
+  preloadedTeams?: Map<string, TeamWithRoster>
 ): Promise<GameResult> {
-  // 1. Load teams with rosters
-  const homeTeam = await loadTeamWithRoster(config.homeTeamId);
-  const awayTeam = await loadTeamWithRoster(config.awayTeamId);
+  // 1. Load teams with rosters (use preloaded if available)
+  const homeTeam = preloadedTeams?.get(config.homeTeamId) || await loadTeamWithRoster(config.homeTeamId);
+  const awayTeam = preloadedTeams?.get(config.awayTeamId) || await loadTeamWithRoster(config.awayTeamId);
 
   // 2. Calculate team strengths
   const homeStrength = calculateTeamStrength(homeTeam);
@@ -117,7 +140,15 @@ export async function simulateGame(
   // 4. Simulate game - optimized for speed (fewer plays, still realistic)
   // Reduced to 60-80 plays for much faster simulation while maintaining realism
   const totalPlays = 60 + Math.floor(Math.random() * 20); // 60-80 plays (faster, still realistic)
-  const plays: Play[] = [];
+  
+  // Conditionally track play-by-play data (default to true for backward compatibility)
+  const includePlayByPlay = config.includePlayByPlay !== false;
+  const plays: Play[] = includePlayByPlay ? [] : undefined;
+  
+  // Track plays per team separately to avoid O(n²) filtering on each iteration
+  // Always needed for down/distance calculation, even if not storing play-by-play
+  const homePlays: Play[] = [];
+  const awayPlays: Play[] = [];
 
   let homeScore = 0;
   let awayScore = 0;
@@ -148,7 +179,18 @@ export async function simulateGame(
       playNumber
     );
 
-    plays.push(play);
+    // Track play in play-by-play array if enabled
+    if (includePlayByPlay && plays) {
+      plays.push(play);
+    }
+    
+    // Track play in team-specific array for efficient down/distance calculation
+    // Always needed for down/distance calculation, even if not storing play-by-play
+    if (isHomeOnOffense) {
+      homePlays.push(play);
+    } else {
+      awayPlays.push(play);
+    }
 
     // Record play in stats tracker
     statsTracker.recordPlay(
@@ -200,7 +242,7 @@ export async function simulateGame(
         // Normal play - update yard line
         homeYardLine = play.yardLine;
         const downDist = calculateDown(
-          plays.filter((p) => p.playNumber <= playNumber && homePossession),
+          homePlays,
           homeDown,
           homeDistance
         );
@@ -222,7 +264,7 @@ export async function simulateGame(
         // Normal play - update yard line
         awayYardLine = play.yardLine;
         const downDist = calculateDown(
-          plays.filter((p) => p.playNumber <= playNumber && !homePossession),
+          awayPlays,
           awayDown,
           awayDistance
         );
@@ -287,6 +329,6 @@ export async function simulateGame(
     homeScore,
     awayScore,
     playerStats,
-    playByPlay: plays,
+    playByPlay: includePlayByPlay ? plays : undefined,
   };
 }

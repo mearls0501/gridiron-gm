@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS public.draft_prospects (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   season INTEGER NOT NULL,
+  save_game_id UUID NOT NULL REFERENCES public.save_games(id) ON DELETE CASCADE,
   full_name TEXT NOT NULL,
   position TEXT NOT NULL,
   age INTEGER NOT NULL,
@@ -18,34 +19,22 @@ CREATE TABLE IF NOT EXISTS public.draft_prospects (
   signing_bonus DECIMAL(10, 2),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   
-  -- Ensure unique prospects per season (by name and position as identifier)
-  UNIQUE(season, full_name, position)
-);
-
--- Create draft_classes table to track draft class metadata
-CREATE TABLE IF NOT EXISTS public.draft_classes (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  season INTEGER NOT NULL,
-  csv_url TEXT,
-  prospect_count INTEGER DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT draft_classes_season_unique UNIQUE(season)
+  -- Ensure unique prospects per season and save game (by name and position as identifier)
+  UNIQUE(save_game_id, season, full_name, position)
 );
 
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_draft_prospects_season ON public.draft_prospects(season);
+CREATE INDEX IF NOT EXISTS idx_draft_prospects_save_game ON public.draft_prospects(save_game_id, season);
 CREATE INDEX IF NOT EXISTS idx_draft_prospects_position ON public.draft_prospects(position);
 CREATE INDEX IF NOT EXISTS idx_draft_prospects_overall ON public.draft_prospects(overall DESC);
 CREATE INDEX IF NOT EXISTS idx_draft_prospects_potential ON public.draft_prospects(potential DESC);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.draft_prospects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.draft_classes ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist, then create new ones
 DROP POLICY IF EXISTS "Allow all operations on draft_prospects" ON public.draft_prospects;
-DROP POLICY IF EXISTS "Allow all operations on draft_classes" ON public.draft_classes;
 
 -- Create policies to allow all operations (adjust based on your auth needs)
 CREATE POLICY "Allow all operations on draft_prospects" ON public.draft_prospects
@@ -53,12 +42,7 @@ CREATE POLICY "Allow all operations on draft_prospects" ON public.draft_prospect
   USING (true)
   WITH CHECK (true);
 
-CREATE POLICY "Allow all operations on draft_classes" ON public.draft_classes
-  FOR ALL
-  USING (true)
-  WITH CHECK (true);
-
 -- Add comments
-COMMENT ON TABLE public.draft_prospects IS 'Draft prospects for each season';
-COMMENT ON TABLE public.draft_classes IS 'Metadata for draft classes';
+COMMENT ON TABLE public.draft_prospects IS 'Draft prospects for each season, isolated by save game';
+COMMENT ON COLUMN public.draft_prospects.save_game_id IS 'Links this draft prospect to a specific save game for data isolation';
 

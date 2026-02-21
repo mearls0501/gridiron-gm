@@ -12,7 +12,8 @@ export async function POST(req: Request) {
       gameState,
     } = await req.json();
 
-    if (!saveName || !currentSeason || !currentWeek) {
+    // Validate required fields - note: currentWeek can be 0 (preseason), so check for null/undefined explicitly
+    if (!saveName || currentSeason === undefined || currentSeason === null || currentWeek === undefined || currentWeek === null) {
       return NextResponse.json(
         { error: "saveName, currentSeason, and currentWeek are required" },
         { status: 400 }

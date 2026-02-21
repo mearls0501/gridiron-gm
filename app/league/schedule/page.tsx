@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase-client";
+import { useGameStore } from "@/lib/store/game-store";
 import Link from "next/link";
 // Removed generateSchedule import - we only use database games
 
@@ -30,16 +31,18 @@ interface GameWithTeams extends Game {
 }
 
 export default function SchedulePage() {
+  const { currentSeason, saveGameId } = useGameStore();
   const [teams, setTeams] = useState<Team[]>([]);
   const [games, setGames] = useState<GameWithTeams[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
-  const [season, setSeason] = useState<number>(2025);
+  const [season, setSeason] = useState<number>(currentSeason);
   const [loading, setLoading] = useState(true);
   const [teamGameCounts, setTeamGameCounts] = useState<Record<string, number>>(
     {}
   );
   const [error, setError] = useState<string | null>(null);
+  const [generatingSchedule, setGeneratingSchedule] = useState(false);
 
   useEffect(() => {
     fetchTeams();
@@ -68,15 +71,28 @@ export default function SchedulePage() {
   const [loadingGames, setLoadingGames] = useState(false);
 
   useEffect(() => {
+    setSeason(currentSeason);
+  }, [currentSeason]);
+
+  useEffect(() => {
     async function loadGamesFromDatabase() {
       setLoadingGames(true);
       try {
-        const { data: games, error } = await supabase
+        let gamesQuery = supabase
           .from("games")
           .select("*")
           .eq("season", season)
           .order("week", { ascending: true })
           .order("home_team_id", { ascending: true });
+        
+        // Filter by save_game_id if available
+        if (saveGameId) {
+          gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+        } else {
+          gamesQuery = gamesQuery.is("save_game_id", null);
+        }
+        
+        const { data: games, error } = await gamesQuery;
 
         if (error) {
           console.error("Error loading games:", error);
@@ -119,7 +135,7 @@ export default function SchedulePage() {
     if (teams.length > 0) {
       loadGamesFromDatabase();
     }
-  }, [teams, season]);
+  }, [teams, season, saveGameId]);
 
   // ONLY use database games - no fallback generation
   // Schedule must be generated via /api/generate-schedule and stored in database
@@ -134,7 +150,7 @@ export default function SchedulePage() {
         // Only use database games - no generation
         if (gamesToDisplay.length === 0) {
           setError(
-            `No schedule found in database for season ${season}. Please generate a schedule first using the Admin → Generate Schedule page.`
+            `No schedule found in database for season ${season}${saveGameId ? ` (save game: ${saveGameId.substring(0, 8)}...)` : ''}.`
           );
           setGames([]);
           setTeamGameCounts({});
@@ -206,6 +222,34 @@ export default function SchedulePage() {
   const weeks = Object.keys(gamesByWeek)
     .map(Number)
     .sort((a, b) => a - b);
+
+  // Generate schedule handler
+  const handleGenerateSchedule = async () => {
+    setGeneratingSchedule(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/generate-schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          season,
+          saveGameId: saveGameId || null,
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        // Reload games after generation
+        window.location.reload();
+      } else {
+        setError(data.error || 'Failed to generate schedule');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate schedule');
+    } finally {
+      setGeneratingSchedule(false);
+    }
+  };
 
   // Find teams with incorrect game counts
   const teamsWithIssues = teams.filter((team) => {
@@ -563,6 +607,13 @@ export default function SchedulePage() {
                 <p className="text-sm text-red-800 mb-3">{error}</p>
                 <div className="flex gap-3">
                   <button
+                    onClick={handleGenerateSchedule}
+                    disabled={generatingSchedule}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:text-gray-700 disabled:cursor-not-allowed text-sm"
+                  >
+                    {generatingSchedule ? 'Generating...' : 'Generate Schedule'}
+                  </button>
+                  <button
                     onClick={() => {
                       setError(null);
                       // Force regeneration by updating season (triggers useMemo)
@@ -574,7 +625,7 @@ export default function SchedulePage() {
                   </button>
                   <Link
                     href="/teams"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
                   >
                     View Teams
                   </Link>

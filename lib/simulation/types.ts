@@ -33,6 +33,7 @@ export interface SimulationConfig {
   gameId: string;
   season: number;
   week: number;
+  includePlayByPlay?: boolean; // Optional: defaults to true for backward compatibility
 }
 
 export interface GameResult {

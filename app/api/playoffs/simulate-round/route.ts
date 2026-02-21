@@ -7,7 +7,7 @@ import { simulateGame } from "@/lib/simulation/engine";
  */
 export async function POST(req: Request) {
   try {
-    const { season, round } = await req.json();
+    const { season, round, saveGameId } = await req.json();
 
     if (!season || !round) {
       return NextResponse.json(
@@ -16,13 +16,21 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get all unplayed games for this round
-    const { data: games, error: gamesError } = await supabase
+    // Get all unplayed games for this round - filter by save_game_id
+    let gamesQuery = supabase
       .from("playoff_games")
       .select("*")
       .eq("season", season)
       .eq("round", round)
       .eq("played", false);
+    
+    if (saveGameId) {
+      gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+    } else {
+      gamesQuery = gamesQuery.is("save_game_id", null);
+    }
+    
+    const { data: games, error: gamesError } = await gamesQuery;
 
     if (gamesError) {
       return NextResponse.json(
@@ -69,9 +77,14 @@ export async function POST(req: Request) {
           throw new Error("Game ended in a tie - playoff games cannot tie");
         }
 
-        // Collect player stats
+        // Collect player stats with save_game_id
         if (result.playerStats && result.playerStats.length > 0) {
-          allPlayerStats.push(...result.playerStats);
+          const effectiveSaveGameId = saveGameId || game.save_game_id || null;
+          const statsWithSaveGameId = result.playerStats.map((stat) => ({
+            ...stat,
+            save_game_id: effectiveSaveGameId,
+          }));
+          allPlayerStats.push(...statsWithSaveGameId);
         }
 
         // Update playoff game
@@ -114,13 +127,22 @@ export async function POST(req: Request) {
       const batchSize = 1000;
       for (let i = 0; i < allPlayerStats.length; i += batchSize) {
         const batch = allPlayerStats.slice(i, i + batchSize);
-        const { error: statsError } = await supabase
+        const { error: statsError, data: insertedStats } = await supabase
           .from("player_game_stats")
-          .insert(batch);
+          .insert(batch)
+          .select();
 
         if (statsError) {
-          console.error("Error saving player stats:", statsError);
+          console.error(`Error saving stats chunk ${i}-${i + batchSize}:`, statsError);
+          console.error("Error details:", {
+            message: statsError.message,
+            code: statsError.code,
+            details: statsError.details,
+            hint: statsError.hint,
+          });
           // Don't fail the request if stats fail
+        } else {
+          console.log(`Successfully saved ${insertedStats?.length || 0} stats in chunk ${i}-${i + batchSize}`);
         }
       }
     }

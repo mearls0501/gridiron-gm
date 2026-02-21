@@ -7,6 +7,7 @@ export async function GET(req: Request) {
     const teamId = searchParams.get("teamId");
     const status = searchParams.get("status");
     const season = searchParams.get("season");
+    const saveGameId = searchParams.get("saveGameId");
 
     let query = supabase
       .from("trades")
@@ -34,6 +35,13 @@ export async function GET(req: Request) {
 
     if (season) {
       query = query.eq("season", parseInt(season));
+    }
+    
+    // Filter by save_game_id if provided
+    if (saveGameId) {
+      query = query.eq("save_game_id", saveGameId);
+    } else {
+      query = query.is("save_game_id", null);
     }
 
     const { data: trades, error } = await query.limit(50);

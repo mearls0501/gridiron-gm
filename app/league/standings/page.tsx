@@ -45,7 +45,7 @@ interface ConferenceStandings {
 }
 
 export default function StandingsPage() {
-  const { currentSeason, currentWeek } = useGameStore();
+  const { currentSeason, currentWeek, saveGameId } = useGameStore();
   const [season, setSeason] = useState<number>(currentSeason);
   const [standings, setStandings] = useState<TeamStanding[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,23 +61,30 @@ export default function StandingsPage() {
     if (mounted) {
       loadStandings();
     }
-  }, [season, mounted]);
+  }, [season, mounted, saveGameId]);
 
   async function loadStandings() {
     setLoading(true);
     setError(null);
     try {
       // First, try to get standings from team_season_stats
-      const { data: seasonData } = await supabase
+      let seasonQuery = supabase
         .from("seasons")
         .select("id")
-        .eq("year", season)
-        .single();
+        .eq("year", season);
+      
+      if (saveGameId) {
+        seasonQuery = seasonQuery.eq("save_game_id", saveGameId);
+      } else {
+        seasonQuery = seasonQuery.is("save_game_id", null);
+      }
+      
+      const { data: seasonData } = await seasonQuery.single();
 
       let teamStats: any[] = [];
 
       if (seasonData) {
-        const { data: statsData } = await supabase
+        let statsQuery = supabase
           .from("team_season_stats")
           .select(
             `
@@ -86,6 +93,14 @@ export default function StandingsPage() {
           `
           )
           .eq("season_id", seasonData.id);
+        
+        if (saveGameId) {
+          statsQuery = statsQuery.eq("save_game_id", saveGameId);
+        } else {
+          statsQuery = statsQuery.is("save_game_id", null);
+        }
+        
+        const { data: statsData } = await statsQuery;
 
         if (statsData && statsData.length > 0) {
           teamStats = statsData;
@@ -167,11 +182,20 @@ export default function StandingsPage() {
 
   async function calculateStandingsFromGames(season: number): Promise<any[]> {
     // Get all played games for this season
-    const { data: games } = await supabase
+    let gamesQuery = supabase
       .from("games")
       .select("home_team_id, away_team_id, home_score, away_score")
       .eq("season", season)
       .eq("played", true);
+    
+    // Filter by save_game_id if available
+    if (saveGameId) {
+      gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+    } else {
+      gamesQuery = gamesQuery.is("save_game_id", null);
+    }
+    
+    const { data: games } = await gamesQuery;
 
     if (!games || games.length === 0) {
       return [];
@@ -238,11 +262,20 @@ export default function StandingsPage() {
     season: number
   ): Promise<TeamStanding[]> {
     // Get all played games
-    const { data: games } = await supabase
+    let gamesQuery = supabase
       .from("games")
       .select("home_team_id, away_team_id, home_score, away_score")
       .eq("season", season)
       .eq("played", true);
+    
+    // Filter by save_game_id if available
+    if (saveGameId) {
+      gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+    } else {
+      gamesQuery = gamesQuery.is("save_game_id", null);
+    }
+    
+    const { data: games } = await gamesQuery;
 
     if (!games || games.length === 0) {
       return standings;

@@ -51,7 +51,7 @@ interface Transaction {
 }
 
 export default function TransactionsPage() {
-  const { currentSeason, currentWeek } = useGameStore();
+  const { currentSeason, currentWeek, saveGameId } = useGameStore();
   const [season, setSeason] = useState<number>(currentSeason);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,7 +68,7 @@ export default function TransactionsPage() {
     if (mounted) {
       loadTransactions();
     }
-  }, [season, mounted]);
+  }, [season, mounted, saveGameId]);
 
   async function loadTransactions() {
     setLoading(true);
@@ -76,7 +76,7 @@ export default function TransactionsPage() {
       const allTransactions: Transaction[] = [];
 
       // 1. Load trades
-      const { data: trades, error: tradesError } = await supabase
+      let tradesQuery = supabase
         .from("trades")
         .select(
           `
@@ -86,7 +86,15 @@ export default function TransactionsPage() {
         `
         )
         .eq("season", season)
-        .in("status", ["executed", "accepted"])
+        .in("status", ["executed", "accepted"]);
+      
+      if (saveGameId) {
+        tradesQuery = tradesQuery.eq("save_game_id", saveGameId);
+      } else {
+        tradesQuery = tradesQuery.is("save_game_id", null);
+      }
+      
+      const { data: trades, error: tradesError } = await tradesQuery
         .order("executed_at", { ascending: false })
         .order("proposed_at", { ascending: false });
 
@@ -169,7 +177,7 @@ export default function TransactionsPage() {
       }
 
       // 2. Load general transactions (signings, releases, etc.)
-      const { data: generalTransactions, error: transError } = await supabase
+      let transactionsQuery = supabase
         .from("transactions")
         .select(
           `
@@ -179,7 +187,15 @@ export default function TransactionsPage() {
           to_team:teams!transactions_to_team_id_fkey (id, name, abbreviation)
         `
         )
-        .eq("season", season)
+        .eq("season", season);
+      
+      if (saveGameId) {
+        transactionsQuery = transactionsQuery.eq("save_game_id", saveGameId);
+      } else {
+        transactionsQuery = transactionsQuery.is("save_game_id", null);
+      }
+      
+      const { data: generalTransactions, error: transError } = await transactionsQuery
         .order("occurred_at", { ascending: false });
 
       if (!transError && generalTransactions) {

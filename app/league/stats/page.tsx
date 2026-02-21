@@ -49,7 +49,7 @@ interface PlayerSeasonStat {
 }
 
 function LeagueStatsPageClient() {
-  const { currentSeason } = useGameStore();
+  const { currentSeason, saveGameId } = useGameStore();
   const [season, setSeason] = useState<number>(currentSeason);
   const [selectedCategory, setSelectedCategory] = useState<string>("passing");
   const [loading, setLoading] = useState(true);
@@ -65,16 +65,57 @@ function LeagueStatsPageClient() {
     if (mounted) {
       loadStats();
     }
-  }, [season, mounted]);
+  }, [season, mounted, saveGameId]);
 
   async function loadStats() {
     setLoading(true);
     try {
       // Load season stats with player and team info
       // Try to load from player_season_stats first, fallback to aggregating from game stats
-      let seasonStats: any[] = [];
+      type SeasonStatWithRelations = {
+        player_id: string;
+        team_id: string;
+        season: number;
+        save_game_id?: string | null;
+        passing_yards?: number | null;
+        passing_tds?: number | null;
+        interceptions?: number | null;
+        completions?: number | null;
+        attempts?: number | null;
+        rushing_yards?: number | null;
+        rushing_tds?: number | null;
+        rushing_attempts?: number | null;
+        receiving_yards?: number | null;
+        receiving_tds?: number | null;
+        receptions?: number | null;
+        targets?: number | null;
+        fumbles?: number | null;
+        tackles?: number | null;
+        solo_tackles?: number | null;
+        sacks?: number | string | null;
+        defensive_interceptions?: number | null;
+        forced_fumbles?: number | null;
+        fumble_recoveries?: number | null;
+        passes_defended?: number | null;
+        tfl?: number | null;
+        field_goals_made?: number | null;
+        field_goals_attempted?: number | null;
+        extra_points_made?: number | null;
+        punts?: number | null;
+        punt_yards?: number | null;
+        games_played?: number | null;
+        games_started?: number | null;
+        avg_performance_rating?: number | null;
+        players: { id: string; full_name: string; position: string } | null;
+        teams: { id: string; name: string; abbreviation: string } | null;
+      };
+      let seasonStats: SeasonStatWithRelations[] = [];
 
-      const { data: statsData, error: statsError } = await supabase
+      console.log(
+        `[Stats] Loading stats for season ${season}, saveGameId: ${saveGameId || "null"}`
+      );
+
+      let statsQuery = supabase
         .from("player_season_stats")
         .select(
           `
@@ -85,55 +126,136 @@ function LeagueStatsPageClient() {
         )
         .eq("season", season);
 
-      if (!statsError && statsData && statsData.length > 0) {
-        seasonStats = statsData;
+      // Filter by save_game_id if available
+      // Note: NULL save_game_id is stored as sentinel UUID '00000000-0000-0000-0000-000000000000' in the database
+      const SENTINEL_UUID = "00000000-0000-0000-0000-000000000000";
+      if (saveGameId) {
+        statsQuery = statsQuery.eq("save_game_id", saveGameId);
       } else {
-        // If no season stats exist, try to aggregate them
-        console.log("No season stats found, attempting to aggregate...");
-        try {
-          const { aggregateSeasonStats } = await import(
-            "@/lib/simulation/player-development"
-          );
-          await aggregateSeasonStats(season);
-
-          // Retry loading after aggregation
-          const { data: retryData } = await supabase
-            .from("player_season_stats")
-            .select(
-              `
-              *,
-              players!inner (id, full_name, position),
-              teams!inner (id, name, abbreviation)
-            `
-            )
-            .eq("season", season);
-
-          if (retryData) {
-            seasonStats = retryData;
-          }
-        } catch (aggError) {
-          console.error("Error aggregating stats:", aggError);
-        }
+        // For legacy data, check for both NULL and sentinel UUID
+        statsQuery = statsQuery.or(
+          `save_game_id.is.null,save_game_id.eq.${SENTINEL_UUID}`
+        );
       }
+
+      const { data: statsData, error: statsError } = await statsQuery;
+
+      console.log(
+        `[Stats] Initial query result: ${statsData?.length || 0} stats found, error:`,
+        statsError?.message || "none"
+      );
 
       if (statsError) {
         console.error("Error loading stats:", statsError);
         setStats([]);
+        setLoading(false);
         return;
+      }
+
+      if (statsData && statsData.length > 0) {
+        seasonStats = statsData;
+      } else {
+        // Check if there are any game stats to aggregate first
+        let gameStatsQuery = supabase
+          .from("player_game_stats")
+          .select("id", { count: "exact", head: true })
+          .eq("season", season);
+
+        if (saveGameId) {
+          gameStatsQuery = gameStatsQuery.eq("save_game_id", saveGameId);
+        } else {
+          gameStatsQuery = gameStatsQuery.is("save_game_id", null);
+        }
+
+        const { count: gameStatsCount, error: gameStatsCountError } =
+          await gameStatsQuery;
+
+        console.log(
+          `[Stats] Game stats check: ${gameStatsCount || 0} found, error:`,
+          gameStatsCountError?.message || "none"
+        );
+
+        // Only attempt aggregation if there are game stats to aggregate
+        if (gameStatsCount && gameStatsCount > 0) {
+          console.log(
+            `[Stats] Found ${gameStatsCount} game stats, attempting to aggregate...`
+          );
+          try {
+            const { aggregateSeasonStats } = await import(
+              "@/lib/simulation/player-development"
+            );
+
+            // Add timeout to prevent hanging (reduced to 15 seconds)
+            const aggregationPromise = aggregateSeasonStats(season, saveGameId);
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("Aggregation timeout")), 15000)
+            );
+
+            await Promise.race([aggregationPromise, timeoutPromise]);
+
+            // Retry loading after aggregation
+            let retryQuery = supabase
+              .from("player_season_stats")
+              .select(
+                `
+              *,
+              players!inner (id, full_name, position),
+              teams!inner (id, name, abbreviation)
+            `
+              )
+              .eq("season", season);
+
+            // Filter by save_game_id if available
+            // Note: NULL save_game_id is stored as sentinel UUID '00000000-0000-0000-0000-000000000000' in the database
+            const SENTINEL_UUID = "00000000-0000-0000-0000-000000000000";
+            if (saveGameId) {
+              retryQuery = retryQuery.eq("save_game_id", saveGameId);
+            } else {
+              // For legacy data, check for both NULL and sentinel UUID
+              retryQuery = retryQuery.or(
+                `save_game_id.is.null,save_game_id.eq.${SENTINEL_UUID}`
+              );
+            }
+
+            const { data: retryData, error: retryError } = await retryQuery;
+
+            if (retryError) {
+              console.error(
+                "Error retrying stats after aggregation:",
+                retryError
+              );
+            }
+
+            if (retryData && retryData.length > 0) {
+              seasonStats = retryData;
+            } else {
+              console.log(
+                "Aggregation completed but no stats returned. This may be normal if no players have stats yet."
+              );
+            }
+          } catch (aggError) {
+            console.error("Error aggregating stats:", aggError);
+            // Continue with empty stats rather than hanging
+          }
+        } else {
+          console.log(
+            "No game stats found for this save game, skipping aggregation"
+          );
+        }
       }
 
       // Parse and enrich the stats
       const enrichedStats: PlayerSeasonStat[] = (seasonStats || []).map(
-        (stat: any) => {
-          const player = stat.players || {};
-          const team = stat.teams || {};
+        (stat: SeasonStatWithRelations) => {
+          const player = stat.players;
+          const team = stat.teams;
           return {
             player_id: stat.player_id,
-            full_name: player.full_name || "Unknown",
-            position: player.position || "?",
+            full_name: player?.full_name || "Unknown",
+            position: player?.position || "?",
             team_id: stat.team_id,
-            team_name: team.name || "Unknown",
-            team_abbreviation: team.abbreviation || "?",
+            team_name: team?.name || "Unknown",
+            team_abbreviation: team?.abbreviation || "?",
             season: stat.season,
             passing_yards: stat.passing_yards || 0,
             passing_tds: stat.passing_tds || 0,
@@ -305,6 +427,93 @@ function LeagueStatsPageClient() {
 type SortField = string;
 type SortDirection = "asc" | "desc" | null;
 
+// Sort icon component - defined outside to avoid recreation
+function SortIcon({
+  field,
+  sortField,
+  sortDirection,
+}: {
+  field: SortField;
+  sortField: SortField | null;
+  sortDirection: SortDirection;
+}) {
+  if (sortField !== field) {
+    return <ArrowUpDown className="w-3 h-3 text-slate-400" />;
+  }
+  if (sortDirection === "asc") {
+    return <ArrowUp className="w-3 h-3 text-blue-600" />;
+  }
+  if (sortDirection === "desc") {
+    return <ArrowDown className="w-3 h-3 text-blue-600" />;
+  }
+  return <ArrowUpDown className="w-3 h-3 text-slate-400" />;
+}
+
+// Sortable header components - defined outside to avoid recreation
+function SortableHeader({
+  field,
+  children,
+  className = "",
+  onSort,
+  sortField,
+  sortDirection,
+}: {
+  field: SortField;
+  children: React.ReactNode;
+  className?: string;
+  onSort: (field: SortField) => void;
+  sortField: SortField | null;
+  sortDirection: SortDirection;
+}) {
+  return (
+    <th
+      className={`${className} cursor-pointer hover:bg-slate-100 transition-colors select-none`}
+      onClick={() => onSort(field)}
+    >
+      <div className="flex items-center justify-end gap-1">
+        {children}
+        <SortIcon
+          field={field}
+          sortField={sortField}
+          sortDirection={sortDirection}
+        />
+      </div>
+    </th>
+  );
+}
+
+function SortableHeaderLeft({
+  field,
+  children,
+  className = "",
+  onSort,
+  sortField,
+  sortDirection,
+}: {
+  field: SortField;
+  children: React.ReactNode;
+  className?: string;
+  onSort: (field: SortField) => void;
+  sortField: SortField | null;
+  sortDirection: SortDirection;
+}) {
+  return (
+    <th
+      className={`${className} cursor-pointer hover:bg-slate-100 transition-colors select-none`}
+      onClick={() => onSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        <SortIcon
+          field={field}
+          sortField={sortField}
+          sortDirection={sortDirection}
+        />
+      </div>
+    </th>
+  );
+}
+
 function StatsTable({
   category,
   stats,
@@ -338,8 +547,8 @@ function StatsTable({
     }
 
     const sorted = [...stats].sort((a, b) => {
-      let aValue: any;
-      let bValue: any;
+      let aValue: string | number;
+      let bValue: string | number;
 
       switch (sortField) {
         case "player":
@@ -371,8 +580,8 @@ function StatsTable({
           bValue = b.attempts || 0;
           break;
         case "rating":
-          aValue = a.attempts > 0 ? calculateQBRating(a) : 0;
-          bValue = b.attempts > 0 ? calculateQBRating(b) : 0;
+          aValue = (a.attempts || 0) > 0 ? calculateQBRating(a) : 0;
+          bValue = (b.attempts || 0) > 0 ? calculateQBRating(b) : 0;
           break;
         case "rushing_yards":
           aValue = a.rushing_yards || 0;
@@ -440,64 +649,15 @@ function StatsTable({
           : bValue.localeCompare(aValue);
       }
 
-      return sortDirection === "asc" ? aValue - bValue : bValue - aValue;
+      // Both values are numbers at this point
+      const aNum = typeof aValue === "number" ? aValue : Number(aValue);
+      const bNum = typeof bValue === "number" ? bValue : Number(bValue);
+      return sortDirection === "asc" ? aNum - bNum : bNum - aNum;
     });
 
     return sorted;
   }, [stats, sortField, sortDirection]);
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) {
-      return <ArrowUpDown className="w-3 h-3 text-slate-400" />;
-    }
-    if (sortDirection === "asc") {
-      return <ArrowUp className="w-3 h-3 text-blue-600" />;
-    }
-    if (sortDirection === "desc") {
-      return <ArrowDown className="w-3 h-3 text-blue-600" />;
-    }
-    return <ArrowUpDown className="w-3 h-3 text-slate-400" />;
-  };
-
-  const SortableHeader = ({
-    field,
-    children,
-    className = "",
-  }: {
-    field: SortField;
-    children: React.ReactNode;
-    className?: string;
-  }) => (
-    <th
-      className={`${className} cursor-pointer hover:bg-slate-100 transition-colors select-none`}
-      onClick={() => handleSort(field)}
-    >
-      <div className="flex items-center justify-end gap-1">
-        {children}
-        <SortIcon field={field} />
-      </div>
-    </th>
-  );
-
-  const SortableHeaderLeft = ({
-    field,
-    children,
-    className = "",
-  }: {
-    field: SortField;
-    children: React.ReactNode;
-    className?: string;
-  }) => (
-    <th
-      className={`${className} cursor-pointer hover:bg-slate-100 transition-colors select-none`}
-      onClick={() => handleSort(field)}
-    >
-      <div className="flex items-center gap-1">
-        {children}
-        <SortIcon field={field} />
-      </div>
-    </th>
-  );
   if (category === "passing") {
     return (
       <div className="overflow-x-auto">
@@ -510,48 +670,72 @@ function StatsTable({
               <SortableHeaderLeft
                 field="player"
                 className="text-left py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 Player
               </SortableHeaderLeft>
               <SortableHeaderLeft
                 field="team"
                 className="text-left py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 Team
               </SortableHeaderLeft>
               <SortableHeader
                 field="completions"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 CMP
               </SortableHeader>
               <SortableHeader
                 field="attempts"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 ATT
               </SortableHeader>
               <SortableHeader
                 field="passing_yards"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 YDS
               </SortableHeader>
               <SortableHeader
                 field="passing_tds"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 TD
               </SortableHeader>
               <SortableHeader
                 field="interceptions"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 INT
               </SortableHeader>
               <SortableHeader
                 field="rating"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 RTG
               </SortableHeader>
@@ -617,36 +801,54 @@ function StatsTable({
               <SortableHeaderLeft
                 field="player"
                 className="text-left py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 Player
               </SortableHeaderLeft>
               <SortableHeaderLeft
                 field="team"
                 className="text-left py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 Team
               </SortableHeaderLeft>
               <SortableHeader
                 field="rushing_attempts"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 ATT
               </SortableHeader>
               <SortableHeader
                 field="rushing_yards"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 YDS
               </SortableHeader>
               <SortableHeader
                 field="rushing_avg"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 AVG
               </SortableHeader>
               <SortableHeader
                 field="rushing_tds"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 TD
               </SortableHeader>
@@ -705,36 +907,54 @@ function StatsTable({
               <SortableHeaderLeft
                 field="player"
                 className="text-left py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 Player
               </SortableHeaderLeft>
               <SortableHeaderLeft
                 field="team"
                 className="text-left py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 Team
               </SortableHeaderLeft>
               <SortableHeader
                 field="receptions"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 REC
               </SortableHeader>
               <SortableHeader
                 field="receiving_yards"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 YDS
               </SortableHeader>
               <SortableHeader
                 field="receiving_avg"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 AVG
               </SortableHeader>
               <SortableHeader
                 field="receiving_tds"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 TD
               </SortableHeader>
@@ -793,42 +1013,63 @@ function StatsTable({
               <SortableHeaderLeft
                 field="player"
                 className="text-left py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 Player
               </SortableHeaderLeft>
               <SortableHeaderLeft
                 field="team"
                 className="text-left py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 Team
               </SortableHeaderLeft>
               <SortableHeader
                 field="tackles"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 TKL
               </SortableHeader>
               <SortableHeader
                 field="solo_tackles"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 SOLO
               </SortableHeader>
               <SortableHeader
                 field="sacks"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 SCK
               </SortableHeader>
               <SortableHeader
                 field="defensive_interceptions"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 INT
               </SortableHeader>
               <SortableHeader
                 field="passes_defended"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
               >
                 PD
               </SortableHeader>

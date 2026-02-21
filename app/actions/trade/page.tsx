@@ -136,7 +136,7 @@ export default function TradePage() {
 }
 
 function CreateTradeTab() {
-  const { currentSeason, currentWeek, selectedTeamId: userTeamId } = useGameStore();
+  const { currentSeason, currentWeek, selectedTeamId: userTeamId, saveGameId } = useGameStore();
   const [yourTeam, setYourTeam] = useState<Team | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [teams, setTeams] = useState<Team[]>([]);
@@ -427,6 +427,7 @@ function CreateTradeTab() {
             playerId: item.type === "player" ? item.id : undefined,
             draftPickId: item.type === "draft_pick" ? item.id : undefined,
           })),
+          saveGameId: saveGameId,
           itemsToTeam: itemsToTeam.map((item) => ({
             type: item.type,
             playerId: item.type === "player" ? item.id : undefined,
@@ -1302,7 +1303,7 @@ function CreateTradeTab() {
 }
 
 function TradeHistoryTab() {
-  const { currentSeason, selectedTeamId } = useGameStore();
+  const { currentSeason, selectedTeamId, saveGameId } = useGameStore();
   const [trades, setTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -1315,14 +1316,15 @@ function TradeHistoryTab() {
     if (mounted && selectedTeamId) {
       loadTrades();
     }
-  }, [mounted, selectedTeamId, currentSeason]);
+  }, [mounted, selectedTeamId, currentSeason, saveGameId]);
 
   async function loadTrades() {
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/trades/list?teamId=${selectedTeamId}&season=${currentSeason}`
-      );
+      const url = saveGameId
+        ? `/api/trades/list?teamId=${selectedTeamId}&season=${currentSeason}&saveGameId=${saveGameId}`
+        : `/api/trades/list?teamId=${selectedTeamId}&season=${currentSeason}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
         setTrades(

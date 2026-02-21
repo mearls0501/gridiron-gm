@@ -39,7 +39,7 @@ interface TeamPicks {
 }
 
 export default function DraftPicksPage() {
-  const { currentSeason } = useGameStore();
+  const { currentSeason, saveGameId } = useGameStore();
   const [season, setSeason] = useState<number>(currentSeason);
   const [picks, setPicks] = useState<DraftPick[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +58,7 @@ export default function DraftPicksPage() {
     if (mounted) {
       loadPicks();
     }
-  }, [season, mounted]);
+  }, [season, mounted, saveGameId]);
 
   async function loadPicks() {
     setLoading(true);
@@ -66,7 +66,7 @@ export default function DraftPicksPage() {
     try {
       // Load picks for current season and 3 future seasons
       const seasonsToLoad = [season, season + 1, season + 2, season + 3];
-      const { data, error: fetchError } = await supabase
+      let picksQuery = supabase
         .from("draft_picks")
         .select(
           `
@@ -75,7 +75,15 @@ export default function DraftPicksPage() {
           original_team:teams!draft_picks_original_team_id_fkey (id, name, abbreviation)
         `
         )
-        .in("season", seasonsToLoad)
+        .in("season", seasonsToLoad);
+      
+      if (saveGameId) {
+        picksQuery = picksQuery.eq("save_game_id", saveGameId);
+      } else {
+        picksQuery = picksQuery.is("save_game_id", null);
+      }
+      
+      const { data, error: fetchError } = await picksQuery
         .order("season", { ascending: true })
         .order("pick_overall", { ascending: true });
 
@@ -101,7 +109,7 @@ export default function DraftPicksPage() {
       const response = await fetch("/api/draft-picks/recalculate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ season }),
+        body: JSON.stringify({ season, saveGameId }),
       });
 
       const data = await response.json();
@@ -127,7 +135,11 @@ export default function DraftPicksPage() {
       const res = await fetch("/api/initialize-draft-picks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ season }),
+        body: JSON.stringify({
+          season,
+          saveGameId,
+          futureSeasons: 4, // Creates picks for 5 seasons total
+        }),
       });
 
       const data = await res.json();
@@ -415,14 +427,19 @@ export default function DraftPicksPage() {
                   {/* Future Seasons */}
                   {futureSeasons.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-3">
-                        Future Seasons
-                      </h4>
+                      <div className="flex items-center gap-2 mb-3">
+                        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">
+                          Future Seasons (Projected)
+                        </h4>
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
+                          Based on Team Strength
+                        </span>
+                      </div>
                       <div className="grid grid-cols-7 gap-2">
                         {futureSeasons.map((pick) => (
                           <div
                             key={pick.id}
-                            className="p-3 rounded-lg border-2 border-slate-200 bg-slate-50 text-center opacity-75"
+                            className="p-3 rounded-lg border-2 border-purple-200 bg-purple-50 text-center"
                           >
                             <div className="text-xs text-slate-600 mb-1">
                               {pick.season} • Round {pick.round}
@@ -432,6 +449,9 @@ export default function DraftPicksPage() {
                             </div>
                             <div className="text-xs text-slate-500">
                               Pick {pick.pick_in_round} in Round
+                            </div>
+                            <div className="text-xs text-purple-600 mt-1 font-medium">
+                              Projected
                             </div>
                             {pick.original_team_id !== pick.owning_team_id && pick.original_team && (
                               <div className="text-xs text-orange-600 mt-1 font-medium">

@@ -38,6 +38,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       saveGame: saveGame,
+      saveGameId: saveGame.id, // Include save_game_id in response
       gameState: {
         currentSeason: saveGame.current_season,
         currentWeek: saveGame.current_week,

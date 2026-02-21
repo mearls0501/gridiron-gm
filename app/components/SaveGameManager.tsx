@@ -25,7 +25,13 @@ export default function SaveGameManager({
   onClose: () => void;
   onLoad?: () => void;
 }) {
-  const { currentSeason, currentWeek, selectedTeamId, setCurrentSeason, setCurrentWeek, setSelectedTeam } = useGameStore();
+  const { currentSeason, currentWeek, selectedTeamId, setCurrentSeason, setCurrentWeek, setSelectedTeam, setSaveGameId, initializeFromStorage } = useGameStore();
+  
+  // Ensure store is initialized on mount
+  useEffect(() => {
+    initializeFromStorage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [saveGames, setSaveGames] = useState<SaveGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -63,6 +69,15 @@ export default function SaveGameManager({
       return;
     }
 
+    // Ensure we have valid season and week values
+    const seasonToSave = currentSeason || 2025;
+    const weekToSave = currentWeek !== undefined && currentWeek !== null ? currentWeek : 0;
+
+    if (!seasonToSave || weekToSave === undefined || weekToSave === null) {
+      alert(`Cannot save: Missing game state. Season: ${seasonToSave}, Week: ${weekToSave}`);
+      return;
+    }
+
     setSaving(true);
     try {
       const res = await fetch("/api/save-game", {
@@ -71,9 +86,9 @@ export default function SaveGameManager({
         body: JSON.stringify({
           saveName: saveName.trim(),
           description: saveDescription.trim() || null,
-          currentSeason,
-          currentWeek,
-          selectedTeamId,
+          currentSeason: seasonToSave,
+          currentWeek: weekToSave,
+          selectedTeamId: selectedTeamId || null,
           gameState: {
             // Can add more game state here if needed
             timestamp: new Date().toISOString(),
@@ -83,6 +98,10 @@ export default function SaveGameManager({
 
       const data = await res.json();
       if (data.success) {
+        // Update save_game_id in store after saving
+        if (data.saveGame?.id) {
+          setSaveGameId(data.saveGame.id);
+        }
         await loadSaveGames();
         setShowSaveForm(false);
         setSaveName("");
@@ -122,6 +141,11 @@ export default function SaveGameManager({
         setCurrentWeek(data.gameState.currentWeek);
         if (data.gameState.selectedTeamId) {
           setSelectedTeam(data.gameState.selectedTeamId);
+        }
+        
+        // Set save_game_id in store
+        if (data.saveGameId) {
+          setSaveGameId(data.saveGameId);
         }
         
         // Call onLoad callback if provided
@@ -249,8 +273,13 @@ export default function SaveGameManager({
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="text-sm text-blue-800">
                 <p className="font-medium mb-1">Current Game State:</p>
-                <p>Season {currentSeason} • Week {currentWeek}</p>
+                <p>Season {currentSeason || 2025} • Week {currentWeek !== undefined && currentWeek !== null ? currentWeek : 0}</p>
                 {selectedTeamId && <p className="mt-1">Team Selected: {selectedTeamId}</p>}
+                {(!currentSeason || currentWeek === undefined || currentWeek === null) && (
+                  <p className="mt-2 text-orange-700 font-medium">
+                    ⚠️ Warning: Some game state values are missing. Defaults will be used when saving.
+                  </p>
+                )}
               </div>
             </div>
           </div>

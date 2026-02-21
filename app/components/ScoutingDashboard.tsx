@@ -35,8 +35,9 @@ interface ScoutingReport {
   potential_estimate?: number;
   accuracy_percentage: number;
   confidence_level: "high" | "medium" | "low";
-  traits_scouted: Record<string, { value: number; confidence: string }>;
-  character_assessment?: Record<string, string | number | boolean>;
+  traits_scouted: Record<string, any>; // Can be {low, high, estimate} or number or string
+  athletic_bands?: Record<string, any>; // Can be {low, high} or "Elite"/"Good"/"Average"
+  character_assessment?: Record<string, any>; // Can be {low, high}, {value, confidence}, or string
   injury_risk?: "low" | "medium" | "high";
   scheme_fit?: string;
   scout_notes?: string;
@@ -50,9 +51,9 @@ interface ScoutingReport {
 }
 
 interface ScoutingResources {
-  scouting_points: number;
   scouting_budget: number;
-  points_regenerated_per_week: number;
+  // Note: scouting_points and points_regenerated_per_week are deprecated
+  // Points are now tracked per-scout in scout_priority table
 }
 
 interface Prospect {
@@ -71,49 +72,35 @@ const scoutingMethods = [
     value: "initial",
     label: "Initial Scouting",
     cost: 1,
-    description: "Basic overview - minimal information revealed",
+    description: "Basic overview - OVR/POT bands, round projection",
     availableInSeason: true, // Available during regular season
   },
   {
-    value: "tape",
+    value: "game_tape",
     label: "Game Tape Review",
     cost: 3,
-    description: "Film study - reveals on-field performance traits",
+    description: "Film study - reveals traits, technique, scheme fit",
     availableInSeason: true, // Available during regular season
   },
   {
     value: "combine",
     label: "NFL Combine",
     cost: 5,
-    description: "Official measurables - speed, strength, agility",
+    description: "Athletic measurables (Athletic Analyst sees actual bands)",
     availableInSeason: false, // Offseason only
   },
   {
-    value: "pro_day",
-    label: "Pro Day",
-    cost: 6,
-    description: "Position-specific drills and testing",
-    availableInSeason: false, // Offseason only
-  },
-  {
-    value: "workout",
-    label: "Private Workout",
-    cost: 12,
-    description: "Exclusive evaluation - highest accuracy available",
+    value: "interview",
+    label: "Team Interview",
+    cost: 3,
+    description: "Character assessment (Character Coach sees bust/boom risk)",
     availableInSeason: false, // Offseason only
   },
   {
     value: "medical",
     label: "Medical Evaluation",
     cost: 4,
-    description: "Injury history and health assessment",
-    availableInSeason: false, // Offseason only
-  },
-  {
-    value: "team_interview",
-    label: "Team Interview",
-    cost: 3,
-    description: "Background investigation and intangibles",
+    description: "Durability assessment (Character Coach gets reliable info)",
     availableInSeason: false, // Offseason only
   },
 ];
@@ -173,10 +160,17 @@ function getProspectType(
 }
 
 export default function ScoutingDashboard() {
-  const { selectedTeamId, currentSeason, currentWeek } = useGameStore();
+  const { selectedTeamId, currentSeason, currentWeek, saveGameId } = useGameStore();
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [reports, setReports] = useState<ScoutingReport[]>([]);
   const [resources, setResources] = useState<ScoutingResources | null>(null);
+  const [scouts, setScouts] = useState<Array<{
+    id: string;
+    name: string;
+    archetype: string;
+    priority: { level: number; weekly_points: number } | null;
+    availablePoints?: number;
+  }>>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProspect, setSelectedProspect] = useState<string | null>(null);
   // Determine if we're in offseason (after week 18 or before week 1)
@@ -245,7 +239,7 @@ export default function ScoutingDashboard() {
       const res = await fetch("/api/scouting/initialize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId: selectedTeamId, season: currentSeason }),
+        body: JSON.stringify({ teamId: selectedTeamId, season: currentSeason, saveGameId }),
       });
 
       if (!res.ok) {
@@ -276,9 +270,10 @@ export default function ScoutingDashboard() {
       const data = await res.json();
       if (data.success) {
         // Reload data after initialization
-        const resourcesRes = await fetch(
-          `/api/scouting/resources?teamId=${selectedTeamId}&season=${currentSeason}&currentWeek=${currentWeek}`
-        );
+        const resourcesUrl = saveGameId
+          ? `/api/scouting/resources?teamId=${selectedTeamId}&season=${currentSeason}&currentWeek=${currentWeek}&saveGameId=${saveGameId}`
+          : `/api/scouting/resources?teamId=${selectedTeamId}&season=${currentSeason}&currentWeek=${currentWeek}`;
+        const resourcesRes = await fetch(resourcesUrl);
         if (resourcesRes.ok) {
           const resourcesData = await resourcesRes.json();
           if (resourcesData.success) {
@@ -333,43 +328,117 @@ export default function ScoutingDashboard() {
     setLoading(true);
     try {
       // Load prospects
-      const { data: prospectsData, error: prospectsError } = await supabase
+      // Draft prospects are for the current season's draft
+      // Year 1 prospects are generated in Year 1 preseason and scouted throughout Year 1
+      const draftSeason = currentSeason;
+      
+      let prospectsQuery = supabase
         .from("draft_prospects")
-        .select("*")
-        .eq("season", currentSeason)
+        .select("*");
+      
+      // Filter by save_game_id first (most important filter)
+      if (saveGameId) {
+        prospectsQuery = prospectsQuery.eq("save_game_id", saveGameId);
+      } else {
+        prospectsQuery = prospectsQuery.is("save_game_id", null);
+      }
+      
+      // Filter by current season
+      prospectsQuery = prospectsQuery.eq("season", draftSeason);
+      
+      const { data: prospectsData, error: prospectsError } = await prospectsQuery
         .order("overall", { ascending: false });
 
       if (prospectsError) {
         console.error("Error loading prospects:", prospectsError);
+        console.error("Prospects query error details:", {
+          message: prospectsError.message,
+          code: prospectsError.code,
+          details: prospectsError.details,
+        });
         setProspects([]);
       } else {
+        console.log(`Loaded ${prospectsData?.length || 0} prospects for season ${draftSeason} with saveGameId: ${saveGameId}`);
+        if (prospectsData && prospectsData.length > 0) {
+          // Log a sample to verify the data
+          console.log("Sample prospect:", {
+            id: prospectsData[0].id,
+            name: prospectsData[0].full_name,
+            season: prospectsData[0].season,
+            save_game_id: prospectsData[0].save_game_id,
+          });
+        }
         setProspects(prospectsData || []);
       }
 
-      // Load scouting reports
+      // Load scouted prospects (new system)
       try {
-        // Scouting is for the next draft season (currentSeason + 1)
-        const draftSeason = currentSeason + 1;
-        const reportsRes = await fetch(
-          `/api/scouting/reports?teamId=${selectedTeamId}&season=${draftSeason}`
-        );
-        if (!reportsRes.ok) {
-          console.error("Failed to fetch reports:", reportsRes.statusText);
+        let scoutedQuery = supabase
+          .from("scouted_prospects")
+          .select("*")
+          .eq("team_id", selectedTeamId);
+        
+        if (saveGameId) {
+          scoutedQuery = scoutedQuery.eq("save_game_id", saveGameId);
+        } else {
+          scoutedQuery = scoutedQuery.is("save_game_id", null);
+        }
+        
+        const { data: scoutedData, error: scoutedError } = await scoutedQuery;
+        
+        if (scoutedError) {
+          console.error("Error loading scouted prospects:", scoutedError);
           setReports([]);
         } else {
-          const reportsData = await reportsRes.json();
-          setReports(reportsData.reports || []);
+          // Convert scouted_prospects to ScoutingReport format for compatibility
+          const convertedReports = (scoutedData || []).map((sp: any) => ({
+            id: sp.id,
+            prospect_id: sp.prospect_id,
+            overall_min: sp.est_overall_low,
+            overall_max: sp.est_overall_high,
+            overall_estimate: sp.est_overall_low && sp.est_overall_high 
+              ? Math.round((sp.est_overall_low + sp.est_overall_high) / 2)
+              : undefined,
+            potential_min: sp.est_potential_low,
+            potential_max: sp.est_potential_high,
+            potential_estimate: sp.est_potential_low && sp.est_potential_high
+              ? Math.round((sp.est_potential_low + sp.est_potential_high) / 2)
+              : undefined,
+            confidence_level: sp.confidence 
+              ? (sp.confidence >= 70 ? "high" : sp.confidence >= 50 ? "medium" : "low")
+              : "low",
+            traits_scouted: sp.trait_reveals || {},
+            athletic_bands: sp.athletic_bands || {},
+            character_assessment: sp.psych_reveals || {},
+            injury_risk: sp.psych_reveals?.durability 
+              ? (sp.psych_reveals.durability.includes("High") ? "high" : sp.psych_reveals.durability.includes("Low") ? "low" : "medium")
+              : undefined,
+            scheme_fit: sp.scheme_fit,
+            scouted_at: sp.created_at,
+            updated_at: sp.updated_at,
+            // Legacy fields for compatibility
+            total_points_invested: 0,
+            scouting_progress: sp.confidence || 0,
+            accuracy_percentage: sp.confidence || 0,
+          }));
+          
+          // Filter to only include reports for prospects we loaded
+          const prospectIds = new Set((prospectsData || []).map((p: any) => p.id));
+          const filteredReports = convertedReports.filter((r: any) => prospectIds.has(r.prospect_id));
+          
+          setReports(filteredReports);
         }
       } catch (reportsError) {
-        console.error("Error fetching scouting reports:", reportsError);
+        console.error("Error fetching scouted prospects:", reportsError);
         setReports([]);
       }
 
       // Load resources
       try {
-        const resourcesRes = await fetch(
-          `/api/scouting/resources?teamId=${selectedTeamId}&season=${currentSeason}&currentWeek=${currentWeek}`
-        );
+        const resourcesUrl = saveGameId
+          ? `/api/scouting/resources?teamId=${selectedTeamId}&season=${currentSeason}&currentWeek=${currentWeek}&saveGameId=${saveGameId}`
+          : `/api/scouting/resources?teamId=${selectedTeamId}&season=${currentSeason}&currentWeek=${currentWeek}`;
+        const resourcesRes = await fetch(resourcesUrl);
         if (!resourcesRes.ok) {
           console.error("Failed to fetch resources:", resourcesRes.statusText);
           // Resources don't exist - set to null but don't auto-initialize
@@ -391,12 +460,42 @@ export default function ScoutingDashboard() {
         console.error("Error fetching scouting resources:", resourcesError);
         setResources(null);
       }
+
+      // Load scouts with priorities and weekly points (consolidated API call)
+      if (saveGameId) {
+        try {
+          // Fetch team scouts with priorities and weekly points in a single API call
+          const scoutsUrl = `/api/scouting/team-scouts?teamId=${selectedTeamId}&saveGameId=${saveGameId}&season=${currentSeason}&week=${currentWeek}&_t=${Date.now()}`;
+          const scoutsRes = await fetch(scoutsUrl);
+          if (scoutsRes.ok) {
+            const scoutsData = await scoutsRes.json();
+            if (scoutsData.success && scoutsData.scouts) {
+              // Scouts already include availablePoints from the consolidated endpoint
+              const scoutsWithPoints = scoutsData.scouts.map((scout: any) => {
+                return {
+                  id: scout.id,
+                  name: scout.name,
+                  archetype: scout.archetype,
+                  priority: scout.priority,
+                  availablePoints: scout.availablePoints || 0,
+                };
+              });
+
+              console.log("✅ Setting scouts state:", scoutsWithPoints);
+              setScouts(scoutsWithPoints);
+            }
+          }
+        } catch (scoutsError) {
+          console.error("Error fetching scouts:", scoutsError);
+          setScouts([]);
+        }
+      }
     } catch (error) {
       console.error("Error loading scouting data:", error);
     } finally {
       setLoading(false);
     }
-  }, [selectedTeamId, currentSeason, currentWeek]);
+  }, [selectedTeamId, currentSeason, currentWeek, saveGameId]);
 
   useEffect(() => {
     // Reset attempt flags when team or season changes
@@ -435,22 +534,52 @@ export default function ScoutingDashboard() {
 
     setScouting(true);
     try {
+      // Map old method names to new action types
+      const actionTypeMap: Record<string, string> = {
+        initial: "initial",
+        tape: "game_tape",
+        game_tape: "game_tape",
+        combine: "combine",
+        interview: "interview",
+        medical: "medical",
+      };
+      
+      const actionType = actionTypeMap[selectedMethod] || selectedMethod;
+
       const res = await fetch("/api/scout-prospect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           teamId: selectedTeamId,
           prospectId: selectedProspect,
-          method: selectedMethod,
+          actionType: actionType,
+          saveGameId,
+          season: currentSeason,
+          week: currentWeek,
         }),
       });
 
       const data = await res.json();
       if (data.success) {
+        console.log("Scouting successful, response:", {
+          success: data.success,
+          result: data.result,
+          scout: data.scout,
+          pointsUsed: data.pointsUsed,
+        });
+        
+        // Small delay to ensure database write completes
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Force reload data - specifically reload scouts with updated points
+        console.log("Reloading scouting data...");
+        
+        // Reload all data including scouts - loadData will handle refreshing scouts
         await loadData();
+        
         setSelectedProspect(null);
         setToast({
-          message: `Scouting complete! ${data.points_remaining} points remaining`,
+          message: `Scouting complete! Scout: ${data.scout?.name || "Unknown"} (${data.scout?.archetype || "Unknown"}) - ${data.pointsUsed || 0} pts used`,
           type: "success",
         });
         // Auto-dismiss toast after 4 seconds
@@ -458,9 +587,6 @@ export default function ScoutingDashboard() {
       } else {
         // Show detailed error message
         let errorMsg = data.error || "Failed to scout prospect";
-        if (data.instructions) {
-          errorMsg += ". " + data.instructions.join(". ");
-        }
         setToast({
           message: errorMsg,
           type: "error",
@@ -484,6 +610,11 @@ export default function ScoutingDashboard() {
   function getProspectReport(prospectId: string): ScoutingReport | null {
     // Get the aggregated report for this prospect (one per team/prospect)
     const report = reports.find((r) => r.prospect_id === prospectId);
+    if (!report && reports.length > 0) {
+      // Debug: log when we can't find a report for a prospect
+      console.debug(`No report found for prospect ${prospectId}. Available report prospect_ids:`, 
+        reports.map(r => r.prospect_id).slice(0, 5));
+    }
     return report || null;
   }
 
@@ -502,6 +633,56 @@ export default function ScoutingDashboard() {
       confidence: report.confidence_level,
       overallEstimate: report.overall_estimate,
     };
+  }
+
+  /**
+   * Get revealed attribute value from scouting report
+   * Returns the estimate if available, or null if not scouted
+   */
+  function getRevealedAttribute(
+    report: ScoutingReport | null,
+    attributeKey: string,
+    source: "trait" | "athletic" | "psych" = "trait"
+  ): number | string | null {
+    if (!report) return null;
+
+    let value: any = null;
+    if (source === "trait" && report.traits_scouted) {
+      value = report.traits_scouted[attributeKey];
+      if (value && typeof value === "object") {
+        if ("estimate" in value) {
+          return value.estimate;
+        }
+        if ("low" in value && "high" in value) {
+          return Math.round((value.low + value.high) / 2);
+        }
+      } else if (typeof value === "number") {
+        return value;
+      }
+    } else if (source === "athletic" && report.athletic_bands) {
+      value = report.athletic_bands[attributeKey];
+      if (value && typeof value === "object") {
+        if ("low" in value && "high" in value) {
+          return `${value.low}-${value.high}`;
+        }
+      } else if (typeof value === "string") {
+        return value; // "Elite", "Good", "Average"
+      }
+    } else if (source === "psych" && report.character_assessment) {
+      value = report.character_assessment[attributeKey];
+      if (value && typeof value === "object") {
+        if ("low" in value && "high" in value) {
+          return Math.round((value.low + value.high) / 2);
+        }
+        if ("value" in value) {
+          return value.value;
+        }
+      } else if (typeof value === "string") {
+        return value;
+      }
+    }
+
+    return null;
   }
 
   const filteredProspects = prospects.filter((p) => {
@@ -634,35 +815,65 @@ export default function ScoutingDashboard() {
                 Scouting Department
               </h2>
               <p className="text-slate-300 text-sm mt-0.5">
-                {currentSeason} Draft Class Evaluation
+                {currentSeason} Draft Class Evaluation ({prospects.length} prospects loaded)
               </p>
             </div>
           </div>
-          <div className="flex gap-6">
-            <div className="bg-slate-800/50 rounded-lg px-6 py-4 border border-slate-700">
-              <div className="flex items-center gap-2 mb-1">
-                <Zap className="w-4 h-4 text-yellow-400" />
-                <div className="text-xs text-slate-400 uppercase tracking-wide">Scouting Points</div>
+          <div className="flex gap-6 flex-wrap">
+            {/* Scout Weekly Points */}
+            {scouts.length > 0 && (
+              <div className="bg-slate-800/50 rounded-lg px-6 py-4 border border-slate-700 flex-1 min-w-[300px]">
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap className="w-4 h-4 text-yellow-400" />
+                  <div className="text-xs text-slate-400 uppercase tracking-wide">Weekly Scouting Points</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {scouts.map((scout) => {
+                    const priorityLabels: Record<number, string> = {
+                      1: "Primary",
+                      2: "Secondary",
+                      3: "Tertiary",
+                      4: "Quaternary",
+                    };
+                    const priorityColors: Record<number, string> = {
+                      1: "text-purple-400",
+                      2: "text-blue-400",
+                      3: "text-yellow-400",
+                      4: "text-slate-400",
+                    };
+                    
+                    return (
+                      <div key={scout.id} className="bg-slate-900/50 rounded p-2 border border-slate-700">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="text-xs font-semibold text-slate-300 truncate">
+                            {scout.name}
+                          </div>
+                          {scout.priority && (
+                            <span className={`text-xs font-bold ${priorityColors[scout.priority.level] || "text-slate-400"}`}>
+                              {priorityLabels[scout.priority.level] || `P${scout.priority.level}`}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className={`text-lg font-bold ${scout.availablePoints && scout.availablePoints > 0 ? "text-yellow-400" : "text-slate-500"}`}>
+                            {scout.availablePoints || 0}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            / {scout.priority?.weekly_points || 0} pts
+                          </div>
+                        </div>
+                        <div className="text-xs text-slate-600 mt-0.5 capitalize">
+                          {scout.archetype?.replace('_', ' ')}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="text-xs text-slate-500 mt-2 italic">
+                  Points regenerate each week based on priority
+                </div>
               </div>
-              <div className="text-3xl font-bold text-yellow-400">
-                {resources.scouting_points}
-              </div>
-              <div className="text-xs text-slate-500 mt-1">
-                {resources.points_regenerated_per_week} pts/week regen
-              </div>
-            </div>
-            <div className="bg-slate-800/50 rounded-lg px-6 py-4 border border-slate-700">
-              <div className="flex items-center gap-2 mb-1">
-                <DollarSign className="w-4 h-4 text-green-400" />
-                <div className="text-xs text-slate-400 uppercase tracking-wide">Budget</div>
-              </div>
-              <div className="text-3xl font-bold text-green-400">
-                ${(resources.scouting_budget / 1000000).toFixed(1)}M
-              </div>
-              <div className="text-xs text-slate-500 mt-1">
-                Available for scouting
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -714,7 +925,9 @@ export default function ScoutingDashboard() {
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {scoutingMethods.map((method) => {
-                      const canAfford = resources.scouting_points >= method.cost;
+                      // Note: In new system, points are per-scout. The API will auto-select a scout with enough points.
+                      // For now, we'll allow all methods (the API will check if any scout has enough points)
+                      const canAfford = true; // API will handle point checking
                       const isSelected = selectedMethod === method.value;
                       const isAvailable = method.availableInSeason || isOffseason;
                       
@@ -756,9 +969,9 @@ export default function ScoutingDashboard() {
                               Available during offseason only
                             </p>
                           )}
-                          {isAvailable && !canAfford && (
-                            <p className="text-xs text-red-600 mt-1">
-                              Need {method.cost - resources.scouting_points} more points
+                          {isAvailable && (
+                            <p className="text-xs text-slate-500 mt-1 italic">
+                              Points checked per-scout automatically
                             </p>
                           )}
                         </button>
@@ -777,13 +990,12 @@ export default function ScoutingDashboard() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm text-slate-600">Points Remaining</div>
-                      <div className={`text-2xl font-bold ${
-                        (resources.scouting_points - (scoutingMethods.find((m) => m.value === selectedMethod)?.cost || 0)) < 0
-                          ? "text-red-600"
-                          : "text-green-600"
-                      }`}>
-                        {resources.scouting_points - (scoutingMethods.find((m) => m.value === selectedMethod)?.cost || 0)}
+                      <div className="text-sm text-slate-600">Scout Selection</div>
+                      <div className="text-lg font-bold text-blue-600">
+                        Auto-Selected
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1">
+                        Best scout chosen automatically
                       </div>
                     </div>
                   </div>
@@ -795,8 +1007,6 @@ export default function ScoutingDashboard() {
                     onClick={scoutProspect}
                   disabled={
                     scouting ||
-                    resources.scouting_points <
-                      (scoutingMethods.find((m) => m.value === selectedMethod)?.cost || 0) ||
                     !availableMethods.some((m) => m.value === selectedMethod)
                   }
                     className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg transition-all flex items-center justify-center gap-2"
@@ -901,6 +1111,24 @@ export default function ScoutingDashboard() {
                 </th>
                 <th className="text-right py-4 px-4 font-bold text-slate-800 text-xs uppercase tracking-wider">
                   Potential
+                </th>
+                <th className="text-center py-4 px-4 font-bold text-slate-800 text-xs uppercase tracking-wider">
+                  Speed
+                </th>
+                <th className="text-center py-4 px-4 font-bold text-slate-800 text-xs uppercase tracking-wider">
+                  Strength
+                </th>
+                <th className="text-center py-4 px-4 font-bold text-slate-800 text-xs uppercase tracking-wider">
+                  Awareness
+                </th>
+                <th className="text-center py-4 px-4 font-bold text-slate-800 text-xs uppercase tracking-wider">
+                  Instincts
+                </th>
+                <th className="text-center py-4 px-4 font-bold text-slate-800 text-xs uppercase tracking-wider">
+                  Technique
+                </th>
+                <th className="text-center py-4 px-4 font-bold text-slate-800 text-xs uppercase tracking-wider">
+                  Leadership
                 </th>
                 <th className="text-center py-4 px-4 font-bold text-slate-800 text-xs uppercase tracking-wider">
                   Type
@@ -1033,6 +1261,145 @@ export default function ScoutingDashboard() {
                           <span className="text-slate-400 text-lg font-bold">??</span>
                         </div>
                       )}
+                    </td>
+                    {/* Speed */}
+                    <td className="text-center py-4 px-4">
+                      {(() => {
+                        const speed = getRevealedAttribute(report, "speed", "athletic") || 
+                                     getRevealedAttribute(report, "speed", "trait");
+                        if (speed) {
+                          if (typeof speed === "string") {
+                            return (
+                              <span className={`text-xs font-semibold ${
+                                speed === "Elite" ? "text-purple-600" : 
+                                speed === "Good" ? "text-blue-600" : "text-slate-600"
+                              }`}>
+                                {speed}
+                              </span>
+                            );
+                          }
+                          if (typeof speed === "number") {
+                            return (
+                              <span className={`text-sm font-bold ${
+                                speed >= 85 ? "text-purple-600" : 
+                                speed >= 70 ? "text-blue-600" : "text-slate-700"
+                              }`}>
+                                {speed}
+                              </span>
+                            );
+                          }
+                          if (typeof speed === "string" && speed.includes("-")) {
+                            return <span className="text-xs text-slate-600">{speed}</span>;
+                          }
+                        }
+                        return <span className="text-slate-400 text-sm">??</span>;
+                      })()}
+                    </td>
+                    {/* Strength */}
+                    <td className="text-center py-4 px-4">
+                      {(() => {
+                        const strength = getRevealedAttribute(report, "strength", "athletic") || 
+                                        getRevealedAttribute(report, "strength", "trait");
+                        if (strength) {
+                          if (typeof strength === "string") {
+                            return (
+                              <span className={`text-xs font-semibold ${
+                                strength === "Elite" ? "text-purple-600" : 
+                                strength === "Good" ? "text-blue-600" : "text-slate-600"
+                              }`}>
+                                {strength}
+                              </span>
+                            );
+                          }
+                          if (typeof strength === "number") {
+                            return (
+                              <span className={`text-sm font-bold ${
+                                strength >= 85 ? "text-purple-600" : 
+                                strength >= 70 ? "text-blue-600" : "text-slate-700"
+                              }`}>
+                                {strength}
+                              </span>
+                            );
+                          }
+                          if (typeof strength === "string" && strength.includes("-")) {
+                            return <span className="text-xs text-slate-600">{strength}</span>;
+                          }
+                        }
+                        return <span className="text-slate-400 text-sm">??</span>;
+                      })()}
+                    </td>
+                    {/* Awareness */}
+                    <td className="text-center py-4 px-4">
+                      {(() => {
+                        const awareness = getRevealedAttribute(report, "awareness", "trait");
+                        if (awareness && typeof awareness === "number") {
+                          return (
+                            <span className={`text-sm font-bold ${
+                              awareness >= 85 ? "text-purple-600" : 
+                              awareness >= 70 ? "text-blue-600" : "text-slate-700"
+                            }`}>
+                              {awareness}
+                            </span>
+                          );
+                        }
+                        return <span className="text-slate-400 text-sm">??</span>;
+                      })()}
+                    </td>
+                    {/* Instincts */}
+                    <td className="text-center py-4 px-4">
+                      {(() => {
+                        const instincts = getRevealedAttribute(report, "instincts", "trait");
+                        if (instincts && typeof instincts === "number") {
+                          return (
+                            <span className={`text-sm font-bold ${
+                              instincts >= 85 ? "text-purple-600" : 
+                              instincts >= 70 ? "text-blue-600" : "text-slate-700"
+                            }`}>
+                              {instincts}
+                            </span>
+                          );
+                        }
+                        return <span className="text-slate-400 text-sm">??</span>;
+                      })()}
+                    </td>
+                    {/* Technique */}
+                    <td className="text-center py-4 px-4">
+                      {(() => {
+                        const technique = getRevealedAttribute(report, "technique", "trait");
+                        if (technique && typeof technique === "number") {
+                          return (
+                            <span className={`text-sm font-bold ${
+                              technique >= 85 ? "text-purple-600" : 
+                              technique >= 70 ? "text-blue-600" : "text-slate-700"
+                            }`}>
+                              {technique}
+                            </span>
+                          );
+                        }
+                        return <span className="text-slate-400 text-sm">??</span>;
+                      })()}
+                    </td>
+                    {/* Leadership */}
+                    <td className="text-center py-4 px-4">
+                      {(() => {
+                        const leadership = getRevealedAttribute(report, "leadership", "psych");
+                        if (leadership) {
+                          if (typeof leadership === "number") {
+                            return (
+                              <span className={`text-sm font-bold ${
+                                leadership >= 85 ? "text-purple-600" : 
+                                leadership >= 70 ? "text-blue-600" : "text-slate-700"
+                              }`}>
+                                {leadership}
+                              </span>
+                            );
+                          }
+                          if (typeof leadership === "string") {
+                            return <span className="text-xs text-slate-600">{leadership}</span>;
+                          }
+                        }
+                        return <span className="text-slate-400 text-sm">??</span>;
+                      })()}
                     </td>
                     <td className="text-center py-4 px-4">
                       {prospectType === "gem" && (

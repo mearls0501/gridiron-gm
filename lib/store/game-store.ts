@@ -5,10 +5,12 @@ interface GameState {
   currentSeason: number;
   seasonPhase: string | null;
   selectedTeamId: string | null;
+  saveGameId: string | null;
   setCurrentWeek: (week: number) => void;
   setCurrentSeason: (season: number) => void;
   setSeasonPhase: (phase: string | null) => void;
   setSelectedTeam: (teamId: string | null) => void;
+  setSaveGameId: (saveGameId: string | null) => void;
   initializeFromStorage: () => void;
 }
 
@@ -21,20 +23,22 @@ function getInitialState() {
       currentSeason: 2025,
       seasonPhase: null,
       selectedTeamId: null,
+      saveGameId: null,
     };
   }
 
   const storedTeamId = localStorage.getItem("selectedTeamId");
   const storedWeek = localStorage.getItem("currentWeek");
   const storedSeason = localStorage.getItem("currentSeason");
-
   const storedPhase = localStorage.getItem("seasonPhase");
+  const storedSaveGameId = localStorage.getItem("saveGameId");
 
   return {
     currentWeek: storedWeek ? parseInt(storedWeek, 10) : 1,
     currentSeason: storedSeason ? parseInt(storedSeason, 10) : 2025,
     seasonPhase: storedPhase,
     selectedTeamId: storedTeamId,
+    saveGameId: storedSaveGameId,
   };
 }
 
@@ -69,6 +73,16 @@ export const useGameStore = create<GameState>((set) => ({
         localStorage.setItem("selectedTeamId", teamId);
       } else {
         localStorage.removeItem("selectedTeamId");
+      }
+    }
+  },
+  setSaveGameId: (saveGameId) => {
+    set({ saveGameId });
+    if (typeof window !== "undefined") {
+      if (saveGameId) {
+        localStorage.setItem("saveGameId", saveGameId);
+      } else {
+        localStorage.removeItem("saveGameId");
       }
     }
   },

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-client";
-import { simulateGame } from "@/lib/simulation/engine";
+import { simulateGame, loadTeamsWithRosters } from "@/lib/simulation/engine";
 import { PlayerGameStat } from "@/lib/simulation/types";
 
 export async function POST(req: Request) {
   try {
-    const { season, week } = await req.json();
+    const { season, week, saveGameId } = await req.json();
 
-    if (!season || !week) {
+    // Validate required fields - note: week can be 0 (preseason), so check for null/undefined explicitly
+    if (!season || week === null || week === undefined) {
       return NextResponse.json(
         { error: "Season and week are required" },
         { status: 400 }
@@ -15,12 +16,21 @@ export async function POST(req: Request) {
     }
 
     // Get all unplayed games for this week
-    const { data: games, error: gamesError } = await supabase
+    let gamesQuery = supabase
       .from("games")
       .select("*")
       .eq("season", season)
       .eq("week", week)
       .eq("played", false);
+    
+    // Filter by save_game_id if provided
+    if (saveGameId) {
+      gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+    } else {
+      gamesQuery = gamesQuery.is("save_game_id", null);
+    }
+    
+    const { data: games, error: gamesError } = await gamesQuery;
 
     if (gamesError) {
       return NextResponse.json(
@@ -35,6 +45,17 @@ export async function POST(req: Request) {
         { status: 404 }
       );
     }
+
+    // Batch load all teams before simulation to avoid redundant queries
+    const allTeamIds = new Set<string>();
+    games.forEach(game => {
+      allTeamIds.add(game.home_team_id);
+      allTeamIds.add(game.away_team_id);
+    });
+
+    console.log(`[Simulate Week] Batch loading ${allTeamIds.size} unique teams...`);
+    const preloadedTeams = await loadTeamsWithRosters(Array.from(allTeamIds));
+    console.log(`[Simulate Week] Successfully loaded ${preloadedTeams.size} teams`);
 
     // Simulate games sequentially with progress tracking
     // Process in smaller batches for better progress visibility
@@ -67,11 +88,18 @@ export async function POST(req: Request) {
             gameId: game.id,
             season: game.season,
             week: game.week,
-          });
+          }, preloadedTeams);
 
           // Collect stats and updates for batch operations
           if (result.playerStats && result.playerStats.length > 0) {
-            allPlayerStats.push(...result.playerStats);
+            // Use saveGameId from request, fall back to game's save_game_id
+            const effectiveSaveGameId = saveGameId || game.save_game_id || null;
+            
+            const statsWithSaveGameId = result.playerStats.map(stat => ({
+              ...stat,
+              save_game_id: effectiveSaveGameId,
+            }));
+            allPlayerStats.push(...statsWithSaveGameId);
           }
 
           gameUpdates.push({
@@ -142,12 +170,21 @@ export async function POST(req: Request) {
       const chunkSize = 1000;
       for (let i = 0; i < allPlayerStats.length; i += chunkSize) {
         const chunk = allPlayerStats.slice(i, i + chunkSize);
-        const { error: statsError } = await supabase
+        const { error: statsError, data: insertedStats } = await supabase
           .from("player_game_stats")
-          .insert(chunk);
+          .insert(chunk)
+          .select();
 
         if (statsError) {
-          console.error(`Error saving stats chunk:`, statsError);
+          console.error(`Error saving stats chunk ${i}-${i + chunkSize}:`, statsError);
+          console.error("Error details:", {
+            message: statsError.message,
+            code: statsError.code,
+            details: statsError.details,
+            hint: statsError.hint,
+          });
+        } else {
+          console.log(`Successfully saved ${insertedStats?.length || 0} stats in chunk ${i}-${i + chunkSize}`);
         }
       }
     }
@@ -160,9 +197,33 @@ export async function POST(req: Request) {
             const { aggregateSeasonStats } = await import(
               "@/lib/simulation/player-development"
             );
-            await aggregateSeasonStats(season);
+            await aggregateSeasonStats(season, saveGameId);
           } catch (err) {
             console.error("Error aggregating season stats:", err);
+          }
+        })
+        .catch(() => {});
+
+      // Recalculate draft positions for current season based on updated standings (non-blocking)
+      Promise.resolve()
+        .then(async () => {
+          try {
+            if (saveGameId) {
+              // Import and call recalculate function directly (more efficient than HTTP)
+              const { recalculateDraftPicksForSeason } = await import(
+                "@/lib/draft/weekly-recalculator"
+              );
+              await recalculateDraftPicksForSeason(season, saveGameId);
+              console.log(
+                `[Simulate Week] Draft positions recalculated for season ${season}`
+              );
+            }
+          } catch (err) {
+            console.error(
+              "[Simulate Week] Error recalculating draft positions:",
+              err
+            );
+            // Don't fail the request if recalculation fails
           }
         })
         .catch(() => {});

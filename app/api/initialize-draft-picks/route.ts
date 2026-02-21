@@ -16,7 +16,7 @@ interface TeamStanding {
 
 export async function POST(req: Request) {
   try {
-    const { season, futureSeasons = 3 } = await req.json();
+    const { season, futureSeasons = 4, saveGameId } = await req.json();
 
     if (!season) {
       return NextResponse.json(
@@ -25,11 +25,23 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!saveGameId) {
+      return NextResponse.json(
+        { error: "saveGameId is required" },
+        { status: 400 }
+      );
+    }
+
     // Check if draft picks already exist for any of the seasons we're about to create
-    const seasonsToCreate = [season, season + 1, season + 2, season + 3];
+    // Create picks for current season + futureSeasons (default 4 = 5 total seasons)
+    const seasonsToCreate: number[] = [];
+    for (let i = 0; i <= futureSeasons; i++) {
+      seasonsToCreate.push(season + i);
+    }
     const { data: existingPicks, error: checkError } = await supabase
       .from("draft_picks")
       .select("season")
+      .eq("save_game_id", saveGameId)
       .in("season", seasonsToCreate)
       .limit(1);
 
@@ -57,11 +69,19 @@ export async function POST(req: Request) {
     }
 
     // Get season standings (from team_season_stats or calculate from games)
-    const { data: seasonData } = await supabase
+    // Filter by save_game_id to ensure we're using the correct season
+    let seasonQuery = supabase
       .from("seasons")
       .select("id")
-      .eq("year", season)
-      .single();
+      .eq("year", season);
+    
+    if (saveGameId) {
+      seasonQuery = seasonQuery.eq("save_game_id", saveGameId);
+    } else {
+      seasonQuery = seasonQuery.is("save_game_id", null);
+    }
+    
+    const { data: seasonData } = await seasonQuery.single();
 
     let standings: TeamStanding[] = [];
 
@@ -93,12 +113,22 @@ export async function POST(req: Request) {
     }
 
     // If no standings, calculate from games
+    // Filter games by save_game_id through seasons table
     if (standings.length === 0) {
-      const { data: games } = await supabase
+      let gamesQuery = supabase
         .from("games")
         .select("home_team_id, away_team_id, home_score, away_score")
         .eq("season", season)
         .eq("played", true);
+      
+      // Filter by save_game_id if available (games table should have save_game_id)
+      if (saveGameId) {
+        gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+      } else {
+        gamesQuery = gamesQuery.is("save_game_id", null);
+      }
+      
+      const { data: games } = await gamesQuery;
 
       const teamStatsMap = new Map<string, TeamStanding>();
 
@@ -233,26 +263,44 @@ export async function POST(req: Request) {
       // So we'll use a default order (alphabetical by team name) or use current season's order
       let seasonDraftOrder = draftOrder;
 
-      // If it's a future season, use a placeholder order (alphabetical by team name)
+      // If it's a future season, use team strength projection
       if (targetSeason > season) {
-        const { data: allTeams } = await supabase
-          .from("teams")
-          .select("id, name")
-          .order("name", { ascending: true });
+        try {
+          const { projectDraftOrderAsStandings } = await import(
+            "@/lib/draft/team-strength-projector"
+          );
+          seasonDraftOrder = await projectDraftOrderAsStandings(
+            targetSeason,
+            saveGameId
+          );
+          console.log(
+            `[Initialize Draft Picks] Using team strength projection for season ${targetSeason}`
+          );
+        } catch (projectionError) {
+          console.error(
+            `[Initialize Draft Picks] Error projecting draft order for season ${targetSeason}:`,
+            projectionError
+          );
+          // Fallback to alphabetical if projection fails
+          const { data: allTeams } = await supabase
+            .from("teams")
+            .select("id, name")
+            .order("name", { ascending: true });
 
-        if (allTeams) {
-          seasonDraftOrder = allTeams.map((team) => ({
-            team_id: team.id,
-            wins: 0,
-            losses: 0,
-            ties: 0,
-            points_for: 0,
-            points_against: 0,
-            win_percentage: 0,
-            point_differential: 0,
-            is_playoff_team: false,
-            playoff_seed: null,
-          }));
+          if (allTeams) {
+            seasonDraftOrder = allTeams.map((team) => ({
+              team_id: team.id,
+              wins: 0,
+              losses: 0,
+              ties: 0,
+              points_for: 0,
+              points_against: 0,
+              win_percentage: 0,
+              point_differential: 0,
+              is_playoff_team: false,
+              playoff_seed: null,
+            }));
+          }
         }
       }
 
@@ -269,6 +317,7 @@ export async function POST(req: Request) {
           }
           picks.push({
             season: targetSeason,
+            save_game_id: saveGameId,
             round,
             pick_overall: overallPick,
             pick_in_round: i + 1,

@@ -43,21 +43,32 @@ export interface PlayoffGame {
  * - 4 division winners (seeds 1-4)
  * - 3 wild cards (seeds 5-7)
  */
-export async function calculatePlayoffSeeds(season: number): Promise<{
+export async function calculatePlayoffSeeds(
+  season: number,
+  saveGameId?: string | null
+): Promise<{
   afc: PlayoffTeam[];
   nfc: PlayoffTeam[];
 }> {
   // Get all teams with their standings
-  const { data: seasonData } = await supabase
+  let seasonQuery = supabase
     .from("seasons")
     .select("id")
-    .eq("year", season)
-    .single();
+    .eq("year", season);
+  
+  // Filter by save_game_id if provided
+  if (saveGameId) {
+    seasonQuery = seasonQuery.eq("save_game_id", saveGameId);
+  } else {
+    seasonQuery = seasonQuery.is("save_game_id", null);
+  }
+  
+  const { data: seasonData } = await seasonQuery.single();
 
   let standings: any[] = [];
 
   if (seasonData) {
-    const { data: statsData } = await supabase
+    let statsQuery = supabase
       .from("team_season_stats")
       .select(
         `
@@ -66,6 +77,15 @@ export async function calculatePlayoffSeeds(season: number): Promise<{
         `
       )
       .eq("season_id", seasonData.id);
+    
+    // Filter by save_game_id if provided
+    if (saveGameId) {
+      statsQuery = statsQuery.eq("save_game_id", saveGameId);
+    } else {
+      statsQuery = statsQuery.is("save_game_id", null);
+    }
+    
+    const { data: statsData } = await statsQuery;
 
     if (statsData && statsData.length > 0) {
       standings = statsData;
@@ -74,11 +94,20 @@ export async function calculatePlayoffSeeds(season: number): Promise<{
 
   // If no stats, calculate from games
   if (standings.length === 0) {
-    const { data: games } = await supabase
+    let gamesQuery = supabase
       .from("games")
       .select("home_team_id, away_team_id, home_score, away_score")
       .eq("season", season)
       .eq("played", true);
+    
+    // Filter by save_game_id if provided
+    if (saveGameId) {
+      gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+    } else {
+      gamesQuery = gamesQuery.is("save_game_id", null);
+    }
+    
+    const { data: games } = await gamesQuery;
 
     const { data: teams } = await supabase
       .from("teams")

@@ -74,19 +74,6 @@ export async function POST(req: Request) {
     const { data: urlData } = supabase.storage.from("draft-classes").getPublicUrl(fileName);
     const publicUrl = urlData.publicUrl;
 
-    const { error: insertError } = await supabase.from("draft_classes").insert({
-      season,
-      csv_url: publicUrl,
-    });
-
-    if (insertError) {
-      console.error(insertError);
-      return NextResponse.json(
-        { error: "Failed to save draft class record" },
-        { status: 500 }
-      );
-    }
-
     return NextResponse.json({
       success: true,
       message: "Draft class generated",

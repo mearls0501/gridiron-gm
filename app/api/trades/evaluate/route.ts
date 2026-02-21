@@ -4,7 +4,7 @@ import { getTeamContext, evaluateTrade, TradeItem } from "@/lib/trades/evaluator
 
 export async function POST(req: Request) {
   try {
-    const { teamId, itemsReceiving, itemsGiving, season } = await req.json();
+    const { teamId, itemsReceiving, itemsGiving, season, saveGameId } = await req.json();
 
     if (!teamId) {
       return NextResponse.json(
@@ -59,11 +59,18 @@ export async function POST(req: Request) {
           });
         }
       } else if (item.type === "draft_pick" && item.draftPickId) {
-        const { data: draftPick } = await supabase
+        let draftPickQuery = supabase
           .from("draft_picks")
           .select("*")
-          .eq("id", item.draftPickId)
-          .single();
+          .eq("id", item.draftPickId);
+        
+        if (saveGameId) {
+          draftPickQuery = draftPickQuery.eq("save_game_id", saveGameId);
+        } else {
+          draftPickQuery = draftPickQuery.is("save_game_id", null);
+        }
+        
+        const { data: draftPick } = await draftPickQuery.single();
 
         if (draftPick) {
           validatedReceiving.push({
@@ -108,11 +115,18 @@ export async function POST(req: Request) {
           });
         }
       } else if (item.type === "draft_pick" && item.draftPickId) {
-        const { data: draftPick } = await supabase
+        let draftPickQuery = supabase
           .from("draft_picks")
           .select("*")
-          .eq("id", item.draftPickId)
-          .single();
+          .eq("id", item.draftPickId);
+        
+        if (saveGameId) {
+          draftPickQuery = draftPickQuery.eq("save_game_id", saveGameId);
+        } else {
+          draftPickQuery = draftPickQuery.is("save_game_id", null);
+        }
+        
+        const { data: draftPick } = await draftPickQuery.single();
 
         if (draftPick) {
           validatedGiving.push({

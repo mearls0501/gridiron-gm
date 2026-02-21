@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase-client';
 import { formatCurrency } from '@/lib/utils/format';
+import { useGameStore } from '@/lib/store/game-store';
 import {
   Trophy,
   CheckCircle,
@@ -37,6 +38,7 @@ interface ChecklistItem {
 }
 
 export default function OffseasonPage() {
+  const { saveGameId, currentSeason } = useGameStore();
   const [season, setSeason] = useState<SeasonData | null>(null);
   const [loading, setLoading] = useState(true);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
@@ -50,16 +52,75 @@ export default function OffseasonPage() {
 
   useEffect(() => {
     loadOffseasonData();
-  }, []);
+  }, [saveGameId]);
 
   async function loadOffseasonData() {
     try {
-      // Get active season
-      const { data: seasonData, error: seasonError } = await supabase
+      // Get active season for this save game
+      let seasonQuery = supabase
         .from('seasons')
         .select('*')
-        .eq('is_active', true)
-        .maybeSingle();
+        .eq('is_active', true);
+      
+      // Filter by save_game_id if available
+      if (saveGameId) {
+        seasonQuery = seasonQuery.eq('save_game_id', saveGameId);
+      } else {
+        seasonQuery = seasonQuery.is('save_game_id', null);
+      }
+      
+      let { data: seasonData, error: seasonError } = await seasonQuery.maybeSingle();
+      
+      // If season is in playoffs but Super Bowl is complete, automatically transition to offseason
+      if (seasonData && seasonData.phase === 'playoffs' && seasonData.champion_team_id) {
+        console.log('[Offseason] Season is in playoffs but champion is set, transitioning to offseason...');
+        try {
+          const response = await fetch('/api/playoffs/crown-champion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ season: seasonData.year, saveGameId }),
+          });
+          
+          if (response.ok) {
+            // Reload season data
+            const { data: updatedSeason } = await seasonQuery.maybeSingle();
+            if (updatedSeason) {
+              seasonData = updatedSeason;
+              console.log('[Offseason] Successfully transitioned to offseason phase');
+            }
+          }
+        } catch (err) {
+          console.error('Error auto-transitioning to offseason:', err);
+        }
+      }
+      
+      // If no season found with save_game_id and we have a saveGameId,
+      // try to find any offseason season with NULL save_game_id and link it
+      if (!seasonData && saveGameId && !seasonError) {
+        const { data: nullSeasonData } = await supabase
+          .from('seasons')
+          .select('*')
+          .eq('is_active', true)
+          .is('save_game_id', null)
+          .maybeSingle();
+        
+        if (nullSeasonData) {
+          // Update the season to have the correct save_game_id
+          const updateResult = await supabase
+            .from('seasons')
+            .update({ save_game_id: saveGameId })
+            .eq('year', nullSeasonData.year)
+            .eq('is_active', true)
+            .is('save_game_id', null);
+          
+          if (!updateResult.error) {
+            seasonData = { ...nullSeasonData, save_game_id: saveGameId };
+          } else {
+            // If update failed, still use the null season data
+            seasonData = nullSeasonData;
+          }
+        }
+      }
 
       if (seasonError && seasonError.code !== 'PGRST116') {
         console.error('Error loading season:', seasonError);
@@ -102,6 +163,7 @@ export default function OffseasonPage() {
     const items: ChecklistItem[] = [];
 
     // Check if contracts have been processed
+    // Note: Contract processing is not filtered by save_game_id since players are shared
     const { data: expiringPlayers } = await supabase
       .from('players')
       .select('id')
@@ -116,46 +178,92 @@ export default function OffseasonPage() {
       link: '/teams/contracts',
     });
 
-    // Check scouting completion (for next season's draft)
-    const nextSeason = season + 1;
-    const { data: prospects } = await supabase
+    // Check scouting completion (for the current season's draft)
+    // During offseason, we're drafting prospects for the current season
+    // These prospects were generated in preseason and scouted during regular season
+    const draftSeason = season;
+    let prospectsQuery = supabase
       .from('draft_prospects')
       .select('id')
-      .eq('season', nextSeason);
+      .eq('season', draftSeason);
+    
+    // Filter by save_game_id if available
+    if (saveGameId) {
+      prospectsQuery = prospectsQuery.eq('save_game_id', saveGameId);
+    } else {
+      prospectsQuery = prospectsQuery.is('save_game_id', null);
+    }
+    
+    const { data: prospects } = await prospectsQuery;
 
-    const { data: scoutingReports } = await supabase
-      .from('scouting_reports')
-      .select('prospect_id')
-      .eq('season', nextSeason);
-
-    const scoutedCount = new Set(scoutingReports?.map((r) => r.prospect_id) || []).size;
+    // Query scouted_prospects (new scouting system) instead of scouting_reports
+    // First get all scouted prospects for this save game
+    let scoutedQuery = supabase
+      .from('scouted_prospects')
+      .select('prospect_id');
+    
+    // Filter by save_game_id if available
+    if (saveGameId) {
+      scoutedQuery = scoutedQuery.eq('save_game_id', saveGameId);
+    } else {
+      scoutedQuery = scoutedQuery.is('save_game_id', null);
+    }
+    
+    const { data: scoutedProspects } = await scoutedQuery;
+    
+    // Now filter to only include prospects from the draft season
+    // Get prospect IDs for the draft season
+    const prospectIdsForSeason = (prospects || []).map(p => p.id);
+    const scoutedProspectIds = (scoutedProspects || []).map(sp => sp.prospect_id);
+    
+    // Count how many scouted prospects are in the draft season
+    const scoutedCount = scoutedProspectIds.filter(id => prospectIdsForSeason.includes(id)).length;
     const totalCount = prospects?.length || 0;
-    const scoutingComplete = totalCount > 0 && scoutedCount >= Math.min(50, totalCount * 0.3); // At least 30% or top 50
+    
+    // Scouting is optional - always allow it to be marked complete
+    // Users can advance even if they haven't scouted all prospects
+    // If no prospects exist yet, scouting is considered "complete" (can't scout what doesn't exist)
+    // Prospects will be generated when advancing to the new season
+    const scoutingComplete = totalCount === 0 || totalCount > 0; // Always true - scouting is optional
 
     items.push({
       id: 'scouting',
-      label: `Complete scouting (${scoutedCount}/${totalCount} prospects)`,
+      label: totalCount === 0 
+        ? 'Complete scouting (Draft class will be generated when advancing)'
+        : `Complete scouting (${scoutedCount}/${totalCount} prospects scouted - optional)`,
       completed: scoutingComplete,
       link: '/draft',
     });
 
-    // Check if draft is complete
-    const { data: draftPicks } = await supabase
-      .from('draft_picks')
-      .select('id, selected_player_id')
-      .eq('season', nextSeason)
-      .limit(1);
+    // Check if draft is complete by checking draft_state
+    let draftStateQuery = supabase
+      .from('draft_state')
+      .select('status, season, save_game_id')
+      .eq('season', draftSeason);
+    
+    // Filter by save_game_id if available
+    if (saveGameId) {
+      draftStateQuery = draftStateQuery.eq('save_game_id', saveGameId);
+    } else {
+      draftStateQuery = draftStateQuery.is('save_game_id', null);
+    }
+    
+    const { data: draftState, error: draftStateError } = await draftStateQuery.maybeSingle();
 
-    const hasDraftPicks = draftPicks && draftPicks.length > 0;
-    const draftStarted = hasDraftPicks;
-    // Draft is complete if all teams have made their first round pick (simplified check)
-    const draftComplete = false; // TODO: Implement proper draft completion check
+    if (draftStateError) {
+      console.error('[Offseason] Error checking draft state:', draftStateError);
+    }
+
+    // Draft is complete if draft_state exists and status is "completed"
+    const draftComplete = draftState?.status === 'completed';
+    
+    console.log(`[Offseason] Draft check - season: ${season}, draftSeason: ${draftSeason}, saveGameId: ${saveGameId}, draftState:`, draftState, `complete: ${draftComplete}`);
 
     items.push({
       id: 'draft',
       label: 'Complete NFL Draft',
       completed: draftComplete,
-      link: '/draft',
+      link: '/draft', // This now goes to the dedicated draft page
     });
 
     setChecklist(items);
@@ -164,15 +272,25 @@ export default function OffseasonPage() {
   async function loadScoutingStatus() {
     try {
       // Get current season for scouting
-      const { data: seasonData } = await supabase
+      let seasonQuery = supabase
         .from('seasons')
         .select('year')
-        .eq('is_active', true)
-        .single();
+        .eq('is_active', true);
+      
+      // Filter by save_game_id if available
+      if (saveGameId) {
+        seasonQuery = seasonQuery.eq('save_game_id', saveGameId);
+      } else {
+        seasonQuery = seasonQuery.is('save_game_id', null);
+      }
+      
+      const { data: seasonData } = await seasonQuery.single();
 
       if (!seasonData) return;
 
-      const nextSeason = seasonData.year + 1;
+      // During offseason, we're drafting prospects for the current season
+      // These prospects were generated in preseason and scouted during regular season
+      const draftSeason = seasonData.year;
 
       // Get scouting resources
       let selectedTeamId: string | null = null;
@@ -185,32 +303,66 @@ export default function OffseasonPage() {
         selectedTeamId = useGameStore.getState().selectedTeamId;
       }
 
-      if (!selectedTeamId) return;
+      if (!selectedTeamId) {
+        console.log('[loadScoutingStatus] No selectedTeamId found');
+        return;
+      }
 
+      // Note: In new system, points are per-scout in scout_priority table, not a global pool
+      // This table only tracks scouting_budget for hiring scouts
       const { data: resources } = await supabase
         .from('team_scouting_resources')
-        .select('scouting_points')
+        .select('scouting_budget')
         .eq('team_id', selectedTeamId)
         .single();
 
-      // Get prospect counts
-      const { data: prospects } = await supabase
+      // Get prospect counts for the current season's draft
+      let prospectsQuery = supabase
         .from('draft_prospects')
-        .select('id')
-        .eq('season', nextSeason);
+        .select('id, season')
+        .eq('season', draftSeason);
+      
+      // Filter by save_game_id if available
+      if (saveGameId) {
+        prospectsQuery = prospectsQuery.eq('save_game_id', saveGameId);
+      } else {
+        prospectsQuery = prospectsQuery.is('save_game_id', null);
+      }
+      
+      const { data: prospects } = await prospectsQuery;
+      console.log(`[loadScoutingStatus] Found ${prospects?.length || 0} prospects for season ${draftSeason}`);
 
-      const { data: reports } = await supabase
-        .from('scouting_reports')
+      // Query scouted_prospects (new scouting system) instead of scouting_reports
+      // First get all scouted prospects for this team and save game
+      let scoutedQuery = supabase
+        .from('scouted_prospects')
         .select('prospect_id')
-        .eq('team_id', selectedTeamId)
-        .eq('season', nextSeason);
-
-      const scoutedCount = new Set(reports?.map((r) => r.prospect_id) || []).size;
+        .eq('team_id', selectedTeamId);
+      
+      // Filter by save_game_id if available
+      if (saveGameId) {
+        scoutedQuery = scoutedQuery.eq('save_game_id', saveGameId);
+      } else {
+        scoutedQuery = scoutedQuery.is('save_game_id', null);
+      }
+      
+      const { data: scoutedProspects } = await scoutedQuery;
+      console.log(`[loadScoutingStatus] Found ${scoutedProspects?.length || 0} scouted prospects for team ${selectedTeamId}`);
+      
+      // Now filter to only include prospects from the draft season
+      // Get prospect IDs for the draft season
+      const prospectIdsForSeason = new Set((prospects || []).map(p => p.id));
+      const scoutedProspectIds = (scoutedProspects || []).map(sp => sp.prospect_id);
+      
+      // Count how many scouted prospects are in the draft season
+      const scoutedCount = scoutedProspectIds.filter(id => prospectIdsForSeason.has(id)).length;
+      console.log(`[loadScoutingStatus] ${scoutedCount} scouted prospects match the draft season`);
 
       setScoutingStatus({
         totalProspects: prospects?.length || 0,
         scoutedProspects: scoutedCount,
-        scoutingPoints: resources?.scouting_points || 0,
+        // Note: Points are now per-scout in scout_priority table, not a global pool
+        scoutingPoints: 0, // Deprecated - points are per-scout based on priority
       });
     } catch (err) {
       console.error('Error loading scouting status:', err);
@@ -234,20 +386,22 @@ export default function OffseasonPage() {
       const response = await fetch("/api/offseason/advance-to-season", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ season: season.year }),
+        body: JSON.stringify({ season: season.year, saveGameId }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        alert(`Error: ${data.error || "Failed to advance to new season"}`);
+        const errorMessage = data.error || data.details || "Failed to advance to new season";
+        console.error("Advance error:", data);
+        alert(`Error: ${errorMessage}\n\nDetails: ${JSON.stringify(data, null, 2)}`);
         return;
       }
 
       // Update game store
       const { useGameStore } = await import("@/lib/store/game-store");
       useGameStore.getState().setCurrentSeason(season.year + 1);
-      useGameStore.getState().setCurrentWeek(1);
+      useGameStore.getState().setCurrentWeek(0); // Preseason starts at week 0
       useGameStore.getState().setSeasonPhase("preseason");
 
       // Reload page to show new season
@@ -271,7 +425,11 @@ export default function OffseasonPage() {
     );
   }
 
-  if (!season || season.phase !== 'offseason') {
+  // Allow access if in offseason OR if Super Bowl is complete (should transition to offseason)
+  const isSuperBowlComplete = season?.champion_team_id !== null && season?.champion_team_id !== undefined;
+  const canAccessOffseason = season?.phase === 'offseason' || (season?.phase === 'playoffs' && isSuperBowlComplete);
+  
+  if (!season || !canAccessOffseason) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
         <div className="max-w-7xl mx-auto px-4 py-6">
@@ -281,7 +439,34 @@ export default function OffseasonPage() {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Not in Offseason</h2>
               <p className="text-gray-600 mb-4">
                 Current phase: <strong>{season?.phase || 'Unknown'}</strong>
+                {season?.phase === 'playoffs' && !isSuperBowlComplete && (
+                  <span className="block mt-2 text-sm text-orange-600">
+                    Complete the Super Bowl and crown a champion to access offseason.
+                  </span>
+                )}
               </p>
+              {season?.phase === 'playoffs' && isSuperBowlComplete && (
+                <button
+                  onClick={async () => {
+                    // Force transition to offseason
+                    try {
+                      const response = await fetch("/api/playoffs/crown-champion", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ season: season.year, saveGameId }),
+                      });
+                      if (response.ok) {
+                        window.location.reload();
+                      }
+                    } catch (err) {
+                      console.error("Error transitioning to offseason:", err);
+                    }
+                  }}
+                  className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 mb-4"
+                >
+                  Transition to Offseason
+                </button>
+              )}
               <Link
                 href="/"
                 className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -484,13 +669,18 @@ export default function OffseasonPage() {
               <p className="text-sm text-gray-600">
                 Complete all offseason tasks, then advance to the new season to generate schedules and initialize rosters.
               </p>
+              {checklist.length > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {checklist.filter(item => item.completed).length} of {checklist.length} tasks complete
+                </p>
+              )}
             </div>
             <button
               onClick={handleAdvanceToSeason}
               disabled={advancing}
               className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {advancing ? "Advancing..." : `Advance to ${season.year + 1}`}
+              {advancing ? "Advancing..." : `Advance to ${season.year + 1} Preseason`}
             </button>
           </div>
         </div>

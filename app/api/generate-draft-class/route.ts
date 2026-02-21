@@ -4,10 +4,16 @@ import { generatePlayer, resetNameGenerator } from "@/lib/player-generator";
 
 export async function POST(req: Request) {
   try {
-    const { season } = await req.json();
+    const { season, saveGameId } = await req.json();
     if (!season) {
       return NextResponse.json(
         { error: "Season is required" },
+        { status: 400 }
+      );
+    }
+    if (!saveGameId) {
+      return NextResponse.json(
+        { error: "saveGameId is required" },
         { status: 400 }
       );
     }
@@ -103,6 +109,7 @@ export async function POST(req: Request) {
       // Save prospects to database
       const prospectsToInsert = prospects.map((p) => ({
         season,
+        save_game_id: saveGameId,
         full_name: p.full_name,
         position: p.position,
         age: p.age,
@@ -119,8 +126,12 @@ export async function POST(req: Request) {
         signing_bonus: p.signing_bonus || null,
       }));
 
-      // Delete existing prospects for this season first
-      await supabase.from("draft_prospects").delete().eq("season", season);
+      // Delete existing prospects for this season and save_game_id
+      await supabase
+        .from("draft_prospects")
+        .delete()
+        .eq("season", season)
+        .eq("save_game_id", saveGameId);
 
       // Insert new prospects (in batches to avoid payload size limits)
       const batchSize = 100;
@@ -177,7 +188,8 @@ export async function POST(req: Request) {
       const { count: dbCount, error: countError } = await supabase
         .from("draft_prospects")
         .select("*", { count: "exact", head: true })
-        .eq("season", season);
+        .eq("season", season)
+        .eq("save_game_id", saveGameId);
 
       if (!countError && dbCount !== null) {
         console.log(
@@ -186,42 +198,6 @@ export async function POST(req: Request) {
         if (dbCount < prospectsToInsert.length) {
           console.warn(
             `Warning: Expected ${prospectsToInsert.length} prospects, but database has ${dbCount}`
-          );
-        }
-      }
-
-      // Upsert draft class record
-      // First check if table exists
-      const { error: tableCheckError } = await supabase
-        .from("draft_classes")
-        .select("id")
-        .limit(1);
-
-      if (tableCheckError && tableCheckError.code === "PGRST116") {
-        // Table doesn't exist - this is okay, prospects are still saved
-        console.warn(
-          "draft_classes table doesn't exist. Run the migration: supabase/migrations/create_draft_prospects_table.sql"
-        );
-      } else {
-        // Table exists, try to upsert
-        const { error: insertError } = await supabase
-          .from("draft_classes")
-          .upsert(
-            {
-              season,
-              csv_url: publicUrl,
-              prospect_count: prospects.length,
-              updated_at: new Date().toISOString(),
-            },
-            {
-              onConflict: "season",
-            }
-          );
-
-        if (insertError) {
-          console.error("Draft class insert error:", insertError);
-          console.warn(
-            "Draft class metadata not saved, but prospects and CSV are available"
           );
         }
       }
@@ -254,7 +230,19 @@ export async function POST(req: Request) {
       });
     }
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("Error generating draft class:", error);
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : typeof error === "object" && error !== null && "message" in error
+        ? String(error.message)
+        : "Failed to generate draft class";
+    
+    return NextResponse.json(
+      { 
+        error: errorMessage,
+        details: error instanceof Error ? error.stack : undefined
+      },
+      { status: 500 }
+    );
   }
 }

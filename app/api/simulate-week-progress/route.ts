@@ -7,9 +7,10 @@ import { PlayerGameStat } from "@/lib/simulation/types";
  * Stream simulation progress using Server-Sent Events
  */
 export async function POST(req: Request) {
-  const { season, week } = await req.json();
+  const { season, week, saveGameId } = await req.json();
 
-  if (!season || !week) {
+  // Validate required fields - note: week can be 0 (preseason), so check for null/undefined explicitly
+  if (!season || week === null || week === undefined) {
     return NextResponse.json(
       { error: "Season and week are required" },
       { status: 400 }
@@ -23,12 +24,21 @@ export async function POST(req: Request) {
 
       try {
         // Get all unplayed games for this week
-        const { data: games, error: gamesError } = await supabase
+        let gamesQuery = supabase
           .from("games")
           .select("*")
           .eq("season", season)
           .eq("week", week)
           .eq("played", false);
+        
+        // Filter by save_game_id if provided
+        if (saveGameId) {
+          gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+        } else {
+          gamesQuery = gamesQuery.is("save_game_id", null);
+        }
+        
+        const { data: games, error: gamesError } = await gamesQuery;
 
         if (gamesError) {
           controller.enqueue(
@@ -208,9 +218,13 @@ export async function POST(req: Request) {
                     );
                   }
 
-                  // Add player stats to collection
+                  // Add player stats to collection with save_game_id
                   if (result.playerStats && result.playerStats.length > 0) {
-                    allPlayerStats.push(...result.playerStats);
+                    const statsWithSaveGameId = result.playerStats.map(stat => ({
+                      ...stat,
+                      save_game_id: saveGameId || game.save_game_id || null,
+                    }));
+                    allPlayerStats.push(...statsWithSaveGameId);
                   }
 
                   return { gameId, success: true };
@@ -259,14 +273,23 @@ export async function POST(req: Request) {
           for (let i = 0; i < allPlayerStats.length; i += chunkSize) {
             const chunk = allPlayerStats.slice(i, i + chunkSize);
             try {
-              const { error: statsError } = await supabase
+              const { error: statsError, data: insertedStats } = await supabase
                 .from("player_game_stats")
-                .insert(chunk);
+                .insert(chunk)
+                .select();
               if (statsError) {
                 console.error(
                   `Error saving stats chunk ${i}-${i + chunk.length}:`,
                   statsError
                 );
+                console.error("Error details:", {
+                  message: statsError.message,
+                  code: statsError.code,
+                  details: statsError.details,
+                  hint: statsError.hint,
+                });
+              } else {
+                console.log(`Successfully saved ${insertedStats?.length || 0} stats in chunk ${i}-${i + chunk.length}`);
               }
             } catch (statsErr) {
               console.error(`Error saving stats chunk:`, statsErr);
@@ -307,7 +330,7 @@ export async function POST(req: Request) {
               const { aggregateSeasonStats } = await import(
                 "@/lib/simulation/player-development"
               );
-              await aggregateSeasonStats(season);
+              await aggregateSeasonStats(season, saveGameId);
             } catch (err) {
               console.error("Error aggregating season stats:", err);
             }

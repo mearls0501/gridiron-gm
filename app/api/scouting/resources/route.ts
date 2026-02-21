@@ -7,10 +7,15 @@ export async function GET(req: Request) {
     const teamId = searchParams.get("teamId");
     const season = searchParams.get("season");
     const currentWeek = searchParams.get("currentWeek");
+    const saveGameId = searchParams.get("saveGameId");
 
     if (!teamId) {
       return NextResponse.json(
-        { error: "teamId is required" },
+        { 
+          success: false,
+          error: "teamId is required",
+          message: "No team selected. Please select a team first."
+        },
         { status: 400 }
       );
     }
@@ -19,6 +24,13 @@ export async function GET(req: Request) {
       .from("team_scouting_resources")
       .select("*")
       .eq("team_id", teamId);
+
+    // Filter by save_game_id if provided
+    if (saveGameId) {
+      query = query.eq("save_game_id", saveGameId);
+    } else {
+      query = query.is("save_game_id", null);
+    }
 
     let seasonValue: number | null = null;
     if (season) {
@@ -29,7 +41,7 @@ export async function GET(req: Request) {
       query = query.order("season", { ascending: false }).limit(1);
     }
 
-    const { data: resources, error } = await query.single();
+    let { data: resources, error } = await query.single();
 
     if (error) {
       if (error.code === "PGRST116") {
@@ -57,35 +69,9 @@ export async function GET(req: Request) {
       }
     }
 
-    // If we have a current week and it's different from last_week, reset points
-    if (week && (resources.last_week === null || week > resources.last_week)) {
-      // Reset scouting points to 15 for the new week
-      const { data: updatedResources, error: updateError } = await supabase
-        .from("team_scouting_resources")
-        .update({
-          scouting_points: 15,
-          last_week: week,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("team_id", teamId)
-        .eq("season", resources.season)
-        .select()
-        .single();
-
-      if (updateError) {
-        console.error("Error resetting scouting points:", updateError);
-        // Return original resources if update fails
-        return NextResponse.json({
-          success: true,
-          resources: resources,
-        });
-      }
-
-      return NextResponse.json({
-        success: true,
-        resources: updatedResources,
-      });
-    }
+    // Note: In the new scouting system, points are tracked per-scout in scout_priority table
+    // This table (team_scouting_resources) only tracks the scouting_budget for hiring scouts
+    // Weekly points are allocated per-scout based on their priority (25/15/10/5)
 
     return NextResponse.json({
       success: true,

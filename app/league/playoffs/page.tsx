@@ -32,7 +32,7 @@ interface PlayoffSeed {
 }
 
 export default function PlayoffsPage() {
-  const { currentSeason } = useGameStore();
+  const { currentSeason, saveGameId } = useGameStore();
   const [season, setSeason] = useState<number>(currentSeason);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,13 +52,16 @@ export default function PlayoffsPage() {
 
   useEffect(() => {
     loadPlayoffs();
-  }, [season]);
+  }, [season, saveGameId]);
 
   async function loadPlayoffs() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/playoffs/status?season=${season}`);
+      const url = saveGameId 
+        ? `/api/playoffs/status?season=${season}&saveGameId=${saveGameId}`
+        : `/api/playoffs/status?season=${season}`;
+      const response = await fetch(url);
       const data = await response.json();
 
       if (!response.ok) {
@@ -104,7 +107,7 @@ export default function PlayoffsPage() {
       const response = await fetch("/api/playoffs/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gameId, season }),
+        body: JSON.stringify({ gameId, season, saveGameId }),
       });
 
       const data = await response.json();
@@ -126,7 +129,7 @@ export default function PlayoffsPage() {
       const response = await fetch("/api/playoffs/simulate-round", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ season, round }),
+        body: JSON.stringify({ season, round, saveGameId }),
       });
 
       const data = await response.json();
@@ -148,7 +151,7 @@ export default function PlayoffsPage() {
       const response = await fetch("/api/playoffs/advance-round", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ season, currentRound }),
+        body: JSON.stringify({ season, currentRound, saveGameId }),
       });
 
       const data = await response.json();
@@ -170,7 +173,7 @@ export default function PlayoffsPage() {
       const response = await fetch("/api/playoffs/crown-champion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ season }),
+        body: JSON.stringify({ season, saveGameId }),
       });
 
       const data = await response.json();
@@ -234,7 +237,7 @@ export default function PlayoffsPage() {
                   const response = await fetch("/api/playoffs/initialize", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ season }),
+                    body: JSON.stringify({ season, saveGameId }),
                   });
                   const data = await response.json();
                   if (response.ok) {

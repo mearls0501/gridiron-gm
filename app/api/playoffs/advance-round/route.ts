@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-client";
-import { calculatePlayoffSeeds } from "@/lib/playoffs/calculator";
 
 /**
  * Advance to the next playoff round
@@ -8,7 +7,7 @@ import { calculatePlayoffSeeds } from "@/lib/playoffs/calculator";
  */
 export async function POST(req: Request) {
   try {
-    const { season, currentRound } = await req.json();
+    const { season, currentRound, saveGameId } = await req.json();
 
     if (!season || !currentRound) {
       return NextResponse.json(
@@ -36,11 +35,19 @@ export async function POST(req: Request) {
     }
 
     // Check if current round is complete
-    const { data: currentRoundGames, error: gamesError } = await supabase
+    let currentRoundQuery = supabase
       .from("playoff_games")
       .select("*")
       .eq("season", season)
       .eq("round", currentRound);
+    
+    if (saveGameId) {
+      currentRoundQuery = currentRoundQuery.eq("save_game_id", saveGameId);
+    } else {
+      currentRoundQuery = currentRoundQuery.is("save_game_id", null);
+    }
+    
+    const { data: currentRoundGames, error: gamesError } = await currentRoundQuery;
 
     if (gamesError) {
       return NextResponse.json(
@@ -63,13 +70,20 @@ export async function POST(req: Request) {
     const nextRound = roundOrder[currentIndex + 1];
     const nextWeek = 19 + currentIndex + 1; // Week 19 = Wild Card, 20 = Divisional, 21 = Conference, 22 = Super Bowl
 
-    // Check if next round already exists
-    const { data: existingNextRound } = await supabase
+    // Check if next round already exists - filter by save_game_id
+    let existingNextRoundQuery = supabase
       .from("playoff_games")
       .select("id")
       .eq("season", season)
-      .eq("round", nextRound)
-      .limit(1);
+      .eq("round", nextRound);
+    
+    if (saveGameId) {
+      existingNextRoundQuery = existingNextRoundQuery.eq("save_game_id", saveGameId);
+    } else {
+      existingNextRoundQuery = existingNextRoundQuery.is("save_game_id", null);
+    }
+    
+    const { data: existingNextRound } = await existingNextRoundQuery.limit(1);
 
     if (existingNextRound && existingNextRound.length > 0) {
       return NextResponse.json(
@@ -109,11 +123,20 @@ export async function POST(req: Request) {
       const nfcWinners = winners.filter(w => w.conference === "NFC").sort((a, b) => a.winnerSeed! - b.winnerSeed!);
 
       // Get #1 seeds (they get a bye in wild card)
-      const { data: seeds } = await supabase
+      let seedsQuery = supabase
         .from("playoff_seeds")
         .select("team_id, seed, conference")
         .eq("season", season)
         .eq("seed", 1);
+      
+      // Filter by save_game_id if provided
+      if (saveGameId) {
+        seedsQuery = seedsQuery.eq("save_game_id", saveGameId);
+      } else {
+        seedsQuery = seedsQuery.is("save_game_id", null);
+      }
+      
+      const { data: seeds } = await seedsQuery;
 
       const afc1Seed = seeds?.find(s => s.conference === "AFC");
       const nfc1Seed = seeds?.find(s => s.conference === "NFC");
@@ -135,6 +158,7 @@ export async function POST(req: Request) {
           away_score: null,
           played: false,
           winner_id: null,
+          save_game_id: saveGameId || null,
         });
 
         // Other two winners play each other
@@ -156,6 +180,7 @@ export async function POST(req: Request) {
             away_score: null,
             played: false,
             winner_id: null,
+            save_game_id: saveGameId || null,
           });
         }
       }
@@ -176,6 +201,7 @@ export async function POST(req: Request) {
           away_score: null,
           played: false,
           winner_id: null,
+          save_game_id: saveGameId || null,
         });
 
         if (nfcWinners.length >= 2) {
@@ -195,6 +221,7 @@ export async function POST(req: Request) {
             away_score: null,
             played: false,
             winner_id: null,
+            save_game_id: saveGameId || null,
           });
         }
       }
@@ -218,6 +245,7 @@ export async function POST(req: Request) {
           away_score: null,
           played: false,
           winner_id: null,
+          save_game_id: saveGameId || null,
         });
       }
 
@@ -236,6 +264,7 @@ export async function POST(req: Request) {
           away_score: null,
           played: false,
           winner_id: null,
+          save_game_id: saveGameId || null,
         });
       }
     } else if (nextRound === "super_bowl") {
@@ -259,6 +288,7 @@ export async function POST(req: Request) {
           away_score: null,
           played: false,
           winner_id: null,
+          save_game_id: saveGameId || null,
         });
       }
     }

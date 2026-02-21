@@ -8,9 +8,10 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const season = parseInt(searchParams.get("season") || "2025");
+    const saveGameId = searchParams.get("saveGameId");
 
-    // Get all playoff games
-    const { data: games, error: gamesError } = await supabase
+    // Build query for playoff games
+    let gamesQuery = supabase
       .from("playoff_games")
       .select(`
         *,
@@ -18,7 +19,17 @@ export async function GET(req: Request) {
         away_team:teams!playoff_games_away_team_id_fkey(id, name, abbreviation),
         winner:teams!playoff_games_winner_id_fkey(id, name, abbreviation)
       `)
-      .eq("season", season)
+      .eq("season", season);
+    
+    // Filter by save_game_id if provided
+    if (saveGameId) {
+      gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+    } else {
+      // If no save_game_id, only get games with NULL save_game_id (legacy data)
+      gamesQuery = gamesQuery.is("save_game_id", null);
+    }
+    
+    const { data: games, error: gamesError } = await gamesQuery
       .order("week", { ascending: true })
       .order("round", { ascending: true });
 
@@ -53,13 +64,23 @@ export async function GET(req: Request) {
     }
 
     // Get playoff seeds
-    const { data: seeds, error: seedsError } = await supabase
+    let seedsQuery = supabase
       .from("playoff_seeds")
       .select(`
         *,
         team:teams!playoff_seeds_team_id_fkey(id, name, abbreviation)
       `)
-      .eq("season", season)
+      .eq("season", season);
+    
+    // Filter by save_game_id if provided
+    if (saveGameId) {
+      seedsQuery = seedsQuery.eq("save_game_id", saveGameId);
+    } else {
+      // If no save_game_id, only get seeds with NULL save_game_id (legacy data)
+      seedsQuery = seedsQuery.is("save_game_id", null);
+    }
+    
+    const { data: seeds, error: seedsError } = await seedsQuery
       .order("conference")
       .order("seed");
 
@@ -76,12 +97,21 @@ export async function GET(req: Request) {
     };
 
     // Check season status
-    const { data: seasonData } = await supabase
+    let seasonQuery = supabase
       .from("seasons")
       .select("phase, champion_team_id, current_week")
       .eq("year", season)
-      .eq("is_active", true)
-      .single();
+      .eq("is_active", true);
+    
+    // Filter by save_game_id if provided
+    if (saveGameId) {
+      seasonQuery = seasonQuery.eq("save_game_id", saveGameId);
+    } else {
+      // If no save_game_id, only get seasons with NULL save_game_id (legacy data)
+      seasonQuery = seasonQuery.is("save_game_id", null);
+    }
+    
+    const { data: seasonData } = await seasonQuery.single();
 
     return NextResponse.json({
       season,

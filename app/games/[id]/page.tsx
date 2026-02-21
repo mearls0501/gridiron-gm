@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from "@/lib/supabase-client";
+import { useGameStore } from "@/lib/store/game-store";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
@@ -49,6 +50,7 @@ export default function GameBoxScorePage({
 }: {
   params: Promise<{ id: string }> | { id: string };
 }) {
+  const { saveGameId } = useGameStore();
   const [game, setGame] = useState<any>(null);
   const [homeTeam, setHomeTeam] = useState<any>(null);
   const [awayTeam, setAwayTeam] = useState<any>(null);
@@ -60,19 +62,26 @@ export default function GameBoxScorePage({
   useEffect(() => {
     setMounted(true);
     loadGameData();
-  }, []);
+  }, [saveGameId]);
 
   async function loadGameData() {
     try {
       const resolvedParams = await Promise.resolve(params);
       const gameId = resolvedParams.id;
 
-      // Load game
-      const { data: gameData, error: gameError } = await supabase
+      // Load game - filter by save_game_id to prevent cross-game data
+      let gameQuery = supabase
         .from("games")
         .select("*")
-        .eq("id", gameId)
-        .single();
+        .eq("id", gameId);
+      
+      if (saveGameId) {
+        gameQuery = gameQuery.eq("save_game_id", saveGameId);
+      } else {
+        gameQuery = gameQuery.is("save_game_id", null);
+      }
+      
+      const { data: gameData, error: gameError } = await gameQuery.single();
 
       if (gameError || !gameData) {
         setLoading(false);
@@ -97,9 +106,9 @@ export default function GameBoxScorePage({
       setHomeTeam(homeTeamData);
       setAwayTeam(awayTeamData);
 
-      // Load player stats for this game
+      // Load player stats for this game - filter by save_game_id
       let playerStats: any[] = [];
-      const { data: statsWithJoin, error: joinError } = await supabase
+      let statsQuery = supabase
         .from("player_game_stats")
         .select(
           `
@@ -108,15 +117,31 @@ export default function GameBoxScorePage({
         `
         )
         .eq("game_id", gameId);
+      
+      if (saveGameId) {
+        statsQuery = statsQuery.eq("save_game_id", saveGameId);
+      } else {
+        statsQuery = statsQuery.is("save_game_id", null);
+      }
+      
+      const { data: statsWithJoin, error: joinError } = await statsQuery;
 
       if (!joinError && statsWithJoin) {
         playerStats = statsWithJoin;
       } else {
         // Fallback: load stats and players separately
-        const { data: statsData } = await supabase
+        let fallbackQuery = supabase
           .from("player_game_stats")
           .select("*")
           .eq("game_id", gameId);
+        
+        if (saveGameId) {
+          fallbackQuery = fallbackQuery.eq("save_game_id", saveGameId);
+        } else {
+          fallbackQuery = fallbackQuery.is("save_game_id", null);
+        }
+        
+        const { data: statsData } = await fallbackQuery;
 
         if (statsData) {
           const playerIds = [

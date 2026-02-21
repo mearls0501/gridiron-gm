@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useGameStore } from '@/lib/store/game-store';
 
 export default function GenerateSchedulePage() {
+  const { saveGameId } = useGameStore();
   const [season, setSeason] = useState('2025');
   const [loading, setLoading] = useState(false);
   interface ScheduleResult {
@@ -24,7 +26,10 @@ export default function GenerateSchedulePage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ season: parseInt(season) }),
+        body: JSON.stringify({ 
+          season: parseInt(season),
+          saveGameId: saveGameId || null,
+        }),
       });
 
       const data = await response.json();

@@ -1,49 +1,53 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-client";
 import {
-  calculateScoutingAccuracy,
-  generateScoutingReport,
-  selectBestScout,
-  getScoutingCost,
-  getProspectRegion,
-  calculateScoutingProgress,
-  ScoutingMethod,
+  performInitialScouting,
+  performGameTapeReview,
+  performCombine,
+  performInterview,
+  performMedical,
+  mergeScoutingResults,
+  ProspectTrueData,
 } from "@/lib/scouting/engine";
+import { ScoutingActionType } from "@/lib/scouting/types";
+import { getAvailablePoints, spendScoutPoints } from "@/lib/scouting/weekly-points";
+import { getTeamPriorities } from "@/lib/scouting/priorities";
+import { getTeamScouts } from "@/lib/scouting/hiring";
+
+const ACTION_COSTS: Record<ScoutingActionType, number> = {
+  initial: 1,
+  game_tape: 3,
+  combine: 5,
+  interview: 3,
+  medical: 4,
+};
 
 export async function POST(req: Request) {
   try {
-    const { teamId, prospectId, method } = await req.json();
+    const { teamId, prospectId, actionType, scoutId, saveGameId, season, week } = await req.json();
 
-    if (!teamId || !prospectId || !method) {
+    if (!teamId || !prospectId || !actionType || !saveGameId) {
       return NextResponse.json(
-        { error: "teamId, prospectId, and method are required" },
+        { error: "teamId, prospectId, actionType, and saveGameId are required" },
         { status: 400 }
       );
     }
 
-    // Validate method
-    const validMethods: ScoutingMethod[] = [
-      "initial",
-      "tape",
-      "combine",
-      "pro_day",
-      "workout",
-      "medical",
-      "character", // Keep for backward compatibility
-      "team_interview", // New name
-    ];
-    if (!validMethods.includes(method)) {
+    // Validate action type
+    const validActions: ScoutingActionType[] = ["initial", "game_tape", "combine", "interview", "medical"];
+    if (!validActions.includes(actionType)) {
       return NextResponse.json(
-        { error: "Invalid scouting method" },
+        { error: "Invalid action type" },
         { status: 400 }
       );
     }
 
-    // Get prospect true data
+    // Get prospect with true attributes
     const { data: prospect, error: prospectError } = await supabase
       .from("draft_prospects")
       .select("*")
       .eq("id", prospectId)
+      .eq("save_game_id", saveGameId)
       .single();
 
     if (prospectError || !prospect) {
@@ -53,320 +57,253 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get team scouting resources
-    const { data: resources, error: resourcesError } = await supabase
-      .from("team_scouting_resources")
-      .select("*")
-      .eq("team_id", teamId)
-      .single();
-
-    if (resourcesError || !resources) {
+    // Get team's scouts
+    const teamScouts = await getTeamScouts(teamId, saveGameId);
+    if (teamScouts.length === 0) {
       return NextResponse.json(
-        { error: "Scouting resources not found. Initialize scouting first." },
-        { status: 404 }
+        { error: "No scouts hired. Hire scouts in preseason first." },
+        { status: 400 }
       );
     }
 
-    // Check if team has enough scouting points
-    const cost = getScoutingCost(method);
-    if (resources.scouting_points < cost) {
+    // Select scout (use provided scoutId or select best one)
+    let selectedScout = teamScouts.find((s) => s.id === scoutId);
+    if (!selectedScout) {
+      // Select best scout for this action type
+      selectedScout = selectBestScoutForAction(teamScouts, actionType);
+    }
+
+    if (!selectedScout) {
+      return NextResponse.json(
+        { error: "No suitable scout found" },
+        { status: 400 }
+      );
+    }
+
+    // Get scout's priority
+    const currentSeason = season !== undefined && season !== null ? season : prospect.season;
+    const currentWeek = week !== undefined && week !== null ? week : 0; // Default to 0 (preseason) not 1
+    const priorities = await getTeamPriorities(teamId, saveGameId, currentSeason);
+    const scoutPriority = priorities.find((p) => p.scout_id === selectedScout.id);
+
+    if (!scoutPriority) {
+      return NextResponse.json(
+        { error: "Scout priority not assigned. Assign priorities in preseason first." },
+        { status: 400 }
+      );
+    }
+
+    // Check if scout has enough points
+    const cost = ACTION_COSTS[actionType];
+    const availablePoints = await getAvailablePoints(
+      teamId,
+      selectedScout.id,
+      saveGameId,
+      currentSeason,
+      currentWeek
+    );
+
+    if (availablePoints < cost) {
       return NextResponse.json(
         {
-          error: `Not enough scouting points. Need ${cost}, have ${resources.scouting_points}`,
+          error: `Not enough points. Need ${cost}, have ${availablePoints}. Points regenerate weekly.`,
         },
         { status: 400 }
       );
     }
 
-    // Get scouting staff
-    const { data: staff, error: staffError } = await supabase
-      .from("scouting_staff")
-      .select("*")
-      .eq("team_id", teamId);
-
-    if (staffError || !staff || staff.length === 0) {
-      return NextResponse.json(
-        { error: "No scouting staff found. Initialize scouting first." },
-        { status: 404 }
-      );
-    }
-
-    // Select best scout for this prospect
-    const prospectRegion = getProspectRegion(prospect.college);
-    const bestScout = selectBestScout(staff, prospect.position, prospectRegion);
-
-    if (!bestScout) {
-      return NextResponse.json(
-        { error: "Could not select scout" },
-        { status: 500 }
-      );
-    }
-
-    // Calculate accuracy
-    const accuracy = calculateScoutingAccuracy(
-      bestScout,
-      method,
-      prospect.position,
-      prospectRegion,
-      0 // time decay - could be calculated based on when prospect was generated
-    );
-
-    // Get true prospect data (from traits JSONB)
-    const trueTraits =
-      typeof prospect.traits === "string"
-        ? JSON.parse(prospect.traits)
-        : prospect.traits || {};
-
-    const trueData = {
-      true_overall: prospect.overall,
-      true_potential: prospect.potential,
-      true_traits: trueTraits,
-      character: {
-        work_ethic: "good", // Could be stored in prospect data
-        leadership: "average",
-        coachability: "good",
-      },
-      injury_history: [], // Could be stored in prospect data
-      scheme_fit: "balanced",
+    // Build prospect true data
+    const trueData: ProspectTrueData = {
+      true_overall: prospect.true_overall || prospect.overall,
+      true_potential: prospect.true_potential || prospect.potential,
+      true_speed: prospect.true_speed,
+      true_acceleration: prospect.true_acceleration,
+      true_agility: prospect.true_agility,
+      true_strength: prospect.true_strength,
+      true_awareness: prospect.true_awareness,
+      true_instincts: prospect.true_instincts,
+      true_technique: prospect.true_technique,
+      true_burst: prospect.true_burst,
+      true_mental_iq: prospect.true_mental_iq,
+      true_competitiveness: prospect.true_competitiveness,
+      true_coachability: prospect.true_coachability,
+      true_leadership: prospect.true_leadership,
+      true_durability: prospect.true_durability,
+      true_bust_risk: prospect.true_bust_risk as "low" | "medium" | "high" | undefined,
+      true_scheme_fit: prospect.true_scheme_fit,
+      true_playstyle: prospect.true_playstyle,
+      position: prospect.position,
     };
 
-    // Get existing aggregated report (one per team/prospect)
-    const { data: existingReport, error: existingReportError } = await supabase
-      .from("scouting_reports")
+    // Perform scouting action
+    let scoutingResult;
+    switch (actionType) {
+      case "initial":
+        scoutingResult = performInitialScouting(selectedScout, trueData, scoutPriority.priority as 1 | 2 | 3 | 4);
+        break;
+      case "game_tape":
+        scoutingResult = performGameTapeReview(selectedScout, trueData, scoutPriority.priority as 1 | 2 | 3 | 4);
+        break;
+      case "combine":
+        scoutingResult = performCombine(selectedScout, trueData, scoutPriority.priority as 1 | 2 | 3 | 4);
+        break;
+      case "interview":
+        scoutingResult = performInterview(selectedScout, trueData, scoutPriority.priority as 1 | 2 | 3 | 4);
+        break;
+      case "medical":
+        scoutingResult = performMedical(selectedScout, trueData, scoutPriority.priority as 1 | 2 | 3 | 4);
+        break;
+      default:
+        return NextResponse.json(
+          { error: "Invalid action type" },
+          { status: 400 }
+        );
+    }
+
+    // Get existing scouted prospect data
+    const { data: existingScouted } = await supabase
+      .from("scouted_prospects")
       .select("*")
       .eq("team_id", teamId)
       .eq("prospect_id", prospectId)
-      .maybeSingle();
+      .eq("save_game_id", saveGameId)
+      .single();
 
-    // If error is not "not found", it's a real error
-    if (existingReportError && existingReportError.code !== "PGRST116") {
-      console.error("Error fetching existing report:", existingReportError);
-      return NextResponse.json(
-        { error: `Database error: ${existingReportError.message}` },
-        { status: 500 }
-      );
-    }
+    // Merge results
+    const mergedData = mergeScoutingResults(
+      existingScouted || {},
+      scoutingResult
+    );
 
-    // Calculate total points invested (existing + new)
-    const existingPoints = existingReport?.total_points_invested || 0;
-    const totalPointsInvested = existingPoints + cost;
-
-    // Generate scouting report with progressive revelation
-    // Map team_interview to character for engine compatibility
-    const engineMethod = method === "team_interview" ? "character" : method;
-    let report;
-    try {
-      report = generateScoutingReport(
-        trueData,
-        accuracy,
-        engineMethod,
-        bestScout,
-        totalPointsInvested,
-        existingReport || undefined
-      );
-    } catch (reportError) {
-      console.error("Error generating scouting report:", reportError);
-      return NextResponse.json(
-        {
-          error: `Failed to generate report: ${reportError instanceof Error ? reportError.message : "Unknown error"}`,
-        },
-        { status: 500 }
-      );
-    }
-
-    const scoutingProgress = calculateScoutingProgress(totalPointsInvested);
-
-    // Update methods_used array
-    // Handle both array and null/undefined cases
-    let methodsUsed: string[] = [];
-    if (existingReport?.methods_used) {
-      if (Array.isArray(existingReport.methods_used)) {
-        methodsUsed = [...existingReport.methods_used];
-      } else {
-        methodsUsed = [];
-      }
-    }
-    if (!methodsUsed.includes(method)) {
-      methodsUsed.push(method);
-    }
-
-    // Save or update aggregated report
-    const reportData: Record<string, unknown> = {
+    // Update or create scouted_prospects
+    const scoutedData = {
       team_id: teamId,
       prospect_id: prospectId,
-      scouted_by: bestScout.id,
-      total_points_invested: totalPointsInvested,
-      scouting_progress: scoutingProgress,
-      overall_min: report.overall_min,
-      overall_max: report.overall_max,
-      overall_estimate: report.overall_estimate,
-      potential_min: report.potential_min,
-      potential_max: report.potential_max,
-      potential_estimate: report.potential_estimate,
-      accuracy_percentage: report.accuracy_percentage,
-      confidence_level: report.confidence_level,
-      traits_scouted: report.traits_scouted,
-      character_assessment: report.character_assessment,
-      injury_risk: report.injury_risk,
-      scheme_fit: report.scheme_fit,
-      scout_notes: report.scout_notes,
-      methods_used: methodsUsed,
+      save_game_id: saveGameId,
+      est_overall_low: mergedData.est_overall_low,
+      est_overall_high: mergedData.est_overall_high,
+      est_potential_low: mergedData.est_potential_low,
+      est_potential_high: mergedData.est_potential_high,
+      trait_reveals: mergedData.trait_reveals || {},
+      athletic_bands: mergedData.athletic_bands || {},
+      psych_reveals: mergedData.psych_reveals || {},
+      scheme_fit: mergedData.scheme_fit,
+      confidence: mergedData.confidence,
       updated_at: new Date().toISOString(),
     };
 
-    // Try to include season if prospect has it (column might not exist if migration hasn't run)
-    const reportDataWithSeason = { ...reportData };
-    if (prospect.season !== undefined && prospect.season !== null) {
-      reportDataWithSeason.season = prospect.season;
-    }
+    if (existingScouted) {
+      const { error: updateError } = await supabase
+        .from("scouted_prospects")
+        .update(scoutedData)
+        .eq("id", existingScouted.id);
 
-    let savedReport;
-    if (existingReport) {
-      // Update existing aggregated report
-      // Try with season first, fallback to without season if column doesn't exist
-      let data, error;
-      ({ data, error } = await supabase
-        .from("scouting_reports")
-        .update(reportDataWithSeason)
-        .eq("id", existingReport.id)
-        .select()
-        .single());
-
-      // If error is about season column, try without it
-      if (
-        error &&
-        (error.message?.includes("season") ||
-          error.code === "42703" ||
-          (error.message?.includes("column") &&
-            error.message?.includes("season")))
-      ) {
-        console.warn("Season column not found, updating without season field");
-        ({ data, error } = await supabase
-          .from("scouting_reports")
-          .update(reportData)
-          .eq("id", existingReport.id)
-          .select()
-          .single());
+      if (updateError) {
+        throw updateError;
       }
-
-      if (error) {
-        console.error("Error updating scouting report:", error);
-        return NextResponse.json(
-          { error: `Failed to update report: ${error.message}` },
-          { status: 500 }
-        );
-      }
-      savedReport = data;
     } else {
-      // Create new aggregated report
-      // Try with season first, fallback to without season if column doesn't exist
-      let data, error;
-      ({ data, error } = await supabase
-        .from("scouting_reports")
-        .insert(reportDataWithSeason)
-        .select()
-        .single());
+      const { error: insertError } = await supabase
+        .from("scouted_prospects")
+        .insert({
+          ...scoutedData,
+          created_at: new Date().toISOString(),
+        });
 
-      // If error is about season column, try without it
-      if (
-        error &&
-        (error.message?.includes("season") ||
-          error.code === "42703" ||
-          (error.message?.includes("column") &&
-            error.message?.includes("season")))
-      ) {
-        console.warn("Season column not found, inserting without season field");
-        ({ data, error } = await supabase
-          .from("scouting_reports")
-          .insert(reportData)
-          .select()
-          .single());
+      if (insertError) {
+        throw insertError;
       }
-
-      if (error) {
-        console.error("Error creating scouting report:", error);
-        // Check if it's a table doesn't exist error
-        if (
-          error.code === "PGRST116" ||
-          error.message.includes("does not exist")
-        ) {
-          return NextResponse.json(
-            {
-              error:
-                "Scouting reports table does not exist. Please run the migration.",
-              instructions: [
-                "1. Go to Supabase Dashboard → SQL Editor",
-                "2. Run: supabase/migrations/create_scouting_system.sql",
-              ],
-            },
-            { status: 500 }
-          );
-        }
-        return NextResponse.json(
-          { error: `Failed to create report: ${error.message}` },
-          { status: 500 }
-        );
-      }
-      savedReport = data;
     }
 
-    // Save scouting history entry
-    const { error: historyError } = await supabase
-      .from("scouting_history")
+    // Log scouting action
+    const { error: actionError } = await supabase
+      .from("scouting_actions")
       .insert({
         team_id: teamId,
         prospect_id: prospectId,
-        scouted_by: bestScout.id,
-        scouting_method: method,
-        points_spent: cost,
+        scout_id: selectedScout.id,
+        save_game_id: saveGameId,
+        action_type: actionType,
+        points_used: cost,
+        revealed: scoutingResult,
+        created_at: new Date().toISOString(),
       });
 
-    if (historyError) {
-      console.error("Error saving scouting history:", historyError);
-      // Don't fail the request, but log the error
+    if (actionError) {
+      console.error("Error logging scouting action:", actionError);
+      // Don't fail the request if logging fails
     }
 
-    // Deduct scouting points
-    const { error: updateError } = await supabase
-      .from("team_scouting_resources")
-      .update({
-        scouting_points: resources.scouting_points - cost,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("team_id", teamId);
+    // Spend points - this now tracks spent points in the database
+    const spendResult = await spendScoutPoints(
+      teamId,
+      selectedScout.id,
+      cost,
+      saveGameId,
+      currentSeason,
+      currentWeek
+    );
 
-    if (updateError) {
-      console.error("Error updating scouting points:", updateError);
-      // Don't fail the request, but log the error
+    if (!spendResult.success) {
+      return NextResponse.json(
+        {
+          error: spendResult.error || "Failed to spend scouting points",
+          remaining: spendResult.remaining,
+        },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      report: savedReport,
-      points_remaining: resources.scouting_points - cost,
+      result: scoutingResult,
+      merged: mergedData,
+      scout: {
+        id: selectedScout.id,
+        name: selectedScout.name,
+        archetype: selectedScout.archetype,
+        priority: scoutPriority.priority,
+      },
+      pointsUsed: cost,
     });
   } catch (error) {
     console.error("Error scouting prospect:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Failed to scout prospect";
-
-    // Provide more helpful error messages
-    if (
-      errorMessage.includes("does not exist") ||
-      errorMessage.includes("Could not find the table")
-    ) {
-      return NextResponse.json(
-        {
-          error: "Scouting tables do not exist. Please run the migration.",
-          instructions: [
-            "1. Go to Supabase Dashboard → SQL Editor",
-            "2. Run: supabase/migrations/create_scouting_system.sql",
-          ],
-        },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to scout prospect" },
+      { status: 500 }
+    );
   }
+}
+
+/**
+ * Select best scout for a given action type
+ */
+function selectBestScoutForAction(
+  scouts: Array<{ id: string; archetype: string; [key: string]: any }>,
+  actionType: ScoutingActionType
+): { id: string; archetype: string; [key: string]: any } | null {
+  if (scouts.length === 0) {
+    return null;
+  }
+
+  // Archetype preferences for each action
+  const archetypePreferences: Record<ScoutingActionType, string[]> = {
+    initial: ["evaluator", "tape_grinder", "athletic_analyst", "character_coach"],
+    game_tape: ["tape_grinder", "evaluator", "athletic_analyst", "character_coach"],
+    combine: ["athletic_analyst", "evaluator", "tape_grinder", "character_coach"],
+    interview: ["character_coach", "evaluator", "tape_grinder", "athletic_analyst"],
+    medical: ["character_coach", "evaluator", "tape_grinder", "athletic_analyst"],
+  };
+
+  const preferred = archetypePreferences[actionType] || [];
+  
+  // Find scout with matching archetype
+  for (const archetype of preferred) {
+    const scout = scouts.find((s) => s.archetype === archetype);
+    if (scout) {
+      return scout;
+    }
+  }
+
+  // Fallback to first scout
+  return scouts[0];
 }

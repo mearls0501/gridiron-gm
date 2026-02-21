@@ -2,14 +2,23 @@ import { supabase } from "@/lib/supabase-client";
 import { generateSchedule } from "@/lib/schedule-generator";
 
 /**
- * Check if a schedule exists for a given season
+ * Check if a schedule exists for a given season and save_game_id
  */
-export async function scheduleExists(season: number): Promise<boolean> {
+export async function scheduleExists(season: number, saveGameId?: string | null): Promise<boolean> {
   try {
-    const { count, error } = await supabase
+    let query = supabase
       .from("games")
       .select("id", { count: "exact", head: true })
       .eq("season", season);
+
+    // Filter by save_game_id if provided
+    if (saveGameId) {
+      query = query.eq("save_game_id", saveGameId);
+    } else {
+      query = query.is("save_game_id", null);
+    }
+
+    const { count, error } = await query;
 
     if (error) {
       // If table doesn't exist, return false
@@ -32,20 +41,22 @@ export async function scheduleExists(season: number): Promise<boolean> {
 
 /**
  * Auto-generate schedule for a season if it doesn't exist
+ * @param season - The season year
+ * @param saveGameId - Optional save game ID to isolate schedules per save game
  */
-export async function ensureScheduleExists(season: number): Promise<{
+export async function ensureScheduleExists(season: number, saveGameId?: string | null): Promise<{
   success: boolean;
   created: boolean;
   message: string;
 }> {
   try {
-    // Check if schedule already exists
-    const exists = await scheduleExists(season);
+    // Check if schedule already exists for this save game
+    const exists = await scheduleExists(season, saveGameId);
     if (exists) {
       return {
         success: true,
         created: false,
-        message: `Schedule for season ${season} already exists`,
+        message: `Schedule for season ${season} already exists${saveGameId ? ` for save game ${saveGameId}` : ''}`,
       };
     }
 
@@ -97,13 +108,14 @@ export async function ensureScheduleExists(season: number): Promise<{
       console.warn(`Generated ${games.length} games instead of expected 272`);
     }
 
-    // Prepare games with season data
+    // Prepare games with season data and save_game_id
     const gamesWithSeason = games.map((game) => ({
       ...game,
       season,
       home_score: null,
       away_score: null,
       played: false,
+      save_game_id: saveGameId || null,
     }));
 
     // Insert games (don't delete first - we already checked it doesn't exist)

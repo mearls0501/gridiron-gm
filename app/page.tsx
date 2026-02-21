@@ -1,52 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase-client';
-import { Play, FolderOpen, Plus, Loader2 } from 'lucide-react';
+import { Play, FolderOpen, Plus } from 'lucide-react';
+import { useGameStore } from '@/lib/store/game-store';
 import GameSetupWizard from './components/GameSetupWizard';
 import SaveGameManager from './components/SaveGameManager';
 
 export default function Home() {
-  const [hasExistingGame, setHasExistingGame] = useState<boolean | null>(null);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const { saveGameId, selectedTeamId } = useGameStore();
   const [showWizard, setShowWizard] = useState(false);
   const [showSaveManager, setShowSaveManager] = useState(false);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    checkGameState();
-  }, []);
-
-  async function checkGameState() {
-    try {
-      // Check if teams exist (indicates a game has been set up)
-      const { count: teamCount } = await supabase
-        .from('teams')
-        .select('*', { count: 'exact', head: true });
-
-      // Check for stored selected team (only in browser)
-      let storedTeamId: string | null = null;
-      if (typeof window !== 'undefined') {
-        storedTeamId = localStorage.getItem('selectedTeamId');
-      }
-      
-      setHasExistingGame((teamCount || 0) > 0);
-      setSelectedTeamId(storedTeamId);
-    } catch (error) {
-      console.error('Error checking game state:', error);
-      setHasExistingGame(false);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   function handleContinueGame() {
-    if (selectedTeamId) {
+    // Check if we have a save game loaded
+    if (saveGameId) {
+      // Load the game and navigate to my team
       router.push('/teams/my-team');
     } else {
-      router.push('/teams');
+      // No game loaded, show save manager to load one
+      setShowSaveManager(true);
     }
   }
 
@@ -68,24 +42,12 @@ export default function Home() {
   }
 
   function handleWizardComplete(teamId: string) {
-    setSelectedTeamId(teamId);
     setShowWizard(false);
     router.push('/teams/my-team');
   }
 
   function handleWizardCancel() {
     setShowWizard(false);
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
   }
 
   if (showWizard) {
@@ -97,73 +59,68 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-      <div className="max-w-4xl w-full">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <div className="max-w-5xl w-full">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">Gridiron GM</h1>
-          <p className="text-xl text-gray-600">Build your franchise. Lead your team to victory.</p>
+        <div className="text-center mb-16">
+          <h1 className="text-7xl font-black text-white mb-6 tracking-tight">
+            GRIDIRON GM
+          </h1>
+          <p className="text-2xl text-slate-300 font-light">
+            Build your franchise. Lead your team to victory.
+          </p>
         </div>
 
         {/* Game Options */}
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-3 gap-8">
           {/* Continue Game */}
-          {hasExistingGame && (
-            <button
-              onClick={handleContinueGame}
-              className="group relative bg-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-blue-500"
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-500 transition-colors">
-                  <Play className="w-8 h-8 text-blue-600 group-hover:text-white transition-colors" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">Continue Game</h2>
-                <p className="text-gray-600 text-sm">
-                  {selectedTeamId ? 'Resume your current game' : 'Continue your saved game'}
-                </p>
+          <button
+            onClick={handleContinueGame}
+            className="group relative bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl shadow-2xl hover:shadow-blue-500/50 transition-all duration-300 p-10 border-2 border-blue-500/30 hover:border-blue-400 hover:scale-105 transform"
+          >
+            <div className="flex flex-col items-center text-center">
+              <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mb-6 group-hover:bg-white/30 transition-colors backdrop-blur-sm">
+                <Play className="w-10 h-10 text-white" fill="white" />
               </div>
-            </button>
-          )}
+              <h2 className="text-2xl font-bold text-white mb-3">Continue Game</h2>
+              <p className="text-blue-100 text-sm leading-relaxed">
+                Resume your current game or load a saved game
+              </p>
+            </div>
+          </button>
 
           {/* Load Game */}
-          {hasExistingGame && (
-            <button
-              onClick={handleLoadGame}
-              className="group relative bg-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-green-500"
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-green-500 transition-colors">
-                  <FolderOpen className="w-8 h-8 text-green-600 group-hover:text-white transition-colors" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">Load Game</h2>
-                <p className="text-gray-600 text-sm">Browse and select a saved game</p>
+          <button
+            onClick={handleLoadGame}
+            className="group relative bg-gradient-to-br from-green-600 to-green-700 rounded-2xl shadow-2xl hover:shadow-green-500/50 transition-all duration-300 p-10 border-2 border-green-500/30 hover:border-green-400 hover:scale-105 transform"
+          >
+            <div className="flex flex-col items-center text-center">
+              <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mb-6 group-hover:bg-white/30 transition-colors backdrop-blur-sm">
+                <FolderOpen className="w-10 h-10 text-white" fill="white" />
               </div>
-            </button>
-          )}
+              <h2 className="text-2xl font-bold text-white mb-3">Load Game</h2>
+              <p className="text-green-100 text-sm leading-relaxed">
+                Browse and select a saved game
+              </p>
+            </div>
+          </button>
 
           {/* Start New Game */}
           <button
             onClick={handleStartNewGame}
-            className="group relative bg-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-purple-500"
+            className="group relative bg-gradient-to-br from-purple-600 to-purple-700 rounded-2xl shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 p-10 border-2 border-purple-500/30 hover:border-purple-400 hover:scale-105 transform"
           >
             <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-purple-500 transition-colors">
-                <Plus className="w-8 h-8 text-purple-600 group-hover:text-white transition-colors" />
+              <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mb-6 group-hover:bg-white/30 transition-colors backdrop-blur-sm">
+                <Plus className="w-10 h-10 text-white" strokeWidth={3} />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Start New Game</h2>
-              <p className="text-gray-600 text-sm">Create a new league and pick your team</p>
+              <h2 className="text-2xl font-bold text-white mb-3">Start New Game</h2>
+              <p className="text-purple-100 text-sm leading-relaxed">
+                Create a new league and pick your team
+              </p>
             </div>
           </button>
         </div>
-
-        {/* Info Section */}
-        {!hasExistingGame && (
-          <div className="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
-            <p className="text-gray-700">
-              <strong>Welcome!</strong> Start by creating a new game to set up your league.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

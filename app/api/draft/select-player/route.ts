@@ -8,7 +8,7 @@ import { generateContract } from "@/lib/contract-generator";
  */
 export async function POST(req: Request) {
   try {
-    const { teamId, prospectId, pickId, season } = await req.json();
+    const { teamId, prospectId, pickId, season, saveGameId } = await req.json();
 
     if (!teamId || !prospectId || !pickId) {
       return NextResponse.json(
@@ -17,18 +17,44 @@ export async function POST(req: Request) {
       );
     }
 
-    // Validate scouting is complete
-    const { validateScoutingComplete } = await import("@/lib/scouting/validator");
-    const scoutingValidation = await validateScoutingComplete(teamId, season);
-
-    if (!scoutingValidation.isValid) {
+    if (!saveGameId) {
       return NextResponse.json(
-        {
-          error: "Scouting requirements not met. Please complete scouting before drafting.",
-          scoutingValidation: scoutingValidation,
-        },
+        { error: "saveGameId is required" },
         { status: 400 }
       );
+    }
+
+    // Validate scouting is complete (only for teams that have scouted prospects)
+    // CPU teams may not have scouted prospects, so we check first
+    let scoutedProspectsQuery = supabase
+      .from("scouted_prospects")
+      .select("id")
+      .eq("team_id", teamId)
+      .limit(1);
+    
+    if (saveGameId) {
+      scoutedProspectsQuery = scoutedProspectsQuery.eq("save_game_id", saveGameId);
+    } else {
+      scoutedProspectsQuery = scoutedProspectsQuery.is("save_game_id", null);
+    }
+    
+    const { data: scoutedProspects } = await scoutedProspectsQuery;
+    
+    // Only validate scouting if the team has scouted prospects (user teams)
+    // CPU teams with no scouted prospects can draft without validation
+    if (scoutedProspects && scoutedProspects.length > 0) {
+      const { validateScoutingComplete } = await import("@/lib/scouting/validator");
+      const scoutingValidation = await validateScoutingComplete(teamId, season, saveGameId);
+
+      if (!scoutingValidation.isValid) {
+        return NextResponse.json(
+          {
+            error: "Scouting requirements not met. Please complete scouting before drafting.",
+            scoutingValidation: scoutingValidation,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Get draft pick
@@ -37,6 +63,7 @@ export async function POST(req: Request) {
       .select("*")
       .eq("id", pickId)
       .eq("owning_team_id", teamId)
+      .eq("save_game_id", saveGameId)
       .single();
 
     if (pickError || !draftPick) {
@@ -74,6 +101,7 @@ export async function POST(req: Request) {
       .select("id")
       .eq("selected_player_id", prospectId)
       .eq("season", draftPick.season)
+      .eq("save_game_id", saveGameId)
       .maybeSingle();
 
     if (alreadyDrafted) {
@@ -84,16 +112,29 @@ export async function POST(req: Request) {
     }
 
     // Get scouting report if available (for more accurate ratings)
-    const { data: scoutingReport } = await supabase
-      .from("scouting_reports")
-      .select("overall_estimate, potential_estimate")
+    // Use new scouted_prospects table instead of old scouting_reports
+    let scoutedQuery = supabase
+      .from("scouted_prospects")
+      .select("est_overall_low, est_overall_high, est_potential_low, est_potential_high")
       .eq("team_id", teamId)
-      .eq("prospect_id", prospectId)
-      .single();
+      .eq("prospect_id", prospectId);
+    
+    if (saveGameId) {
+      scoutedQuery = scoutedQuery.eq("save_game_id", saveGameId);
+    } else {
+      scoutedQuery = scoutedQuery.is("save_game_id", null);
+    }
+    
+    const { data: scoutingReport } = await scoutedQuery.single();
 
     // Use scouted ratings if available, otherwise use prospect's base ratings
-    const overall = scoutingReport?.overall_estimate || prospect.overall;
-    const potential = scoutingReport?.potential_estimate || prospect.potential;
+    // Calculate average of low/high estimates if available
+    const overall = scoutingReport?.est_overall_low && scoutingReport?.est_overall_high
+      ? Math.round((scoutingReport.est_overall_low + scoutingReport.est_overall_high) / 2)
+      : prospect.overall;
+    const potential = scoutingReport?.est_potential_low && scoutingReport?.est_potential_high
+      ? Math.round((scoutingReport.est_potential_low + scoutingReport.est_potential_high) / 2)
+      : prospect.potential;
 
     // Generate rookie contract based on draft position
     // Higher picks get better contracts
@@ -177,6 +218,62 @@ export async function POST(req: Request) {
     if (transactionError) {
       console.error("Error logging transaction:", transactionError);
       // Don't fail the request if transaction logging fails
+    }
+
+    // Create draft_results entry
+    const { error: draftResultError } = await supabase
+      .from("draft_results")
+      .upsert({
+        draft_pick_id: pickId,
+        prospect_id: prospectId,
+        player_id: prospectId, // Same ID since we use prospect ID for player
+        team_id: teamId,
+        season: draftPick.season,
+        signed_at: new Date().toISOString(),
+        save_game_id: saveGameId,
+      }, {
+        onConflict: "draft_pick_id",
+      });
+
+    if (draftResultError) {
+      console.error("Error creating draft result:", draftResultError);
+      // Don't fail the request if draft result logging fails
+    }
+
+    // Update draft state to advance to next pick
+    const { data: nextPick } = await supabase
+      .from("draft_picks")
+      .select("round, pick_overall")
+      .eq("season", draftPick.season)
+      .eq("save_game_id", saveGameId)
+      .gt("pick_overall", draftPick.pick_overall)
+      .is("selected_player_id", null)
+      .order("pick_overall", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (nextPick) {
+      // Update draft state with next pick
+      await supabase
+        .from("draft_state")
+        .update({
+          current_round: nextPick.round,
+          current_pick_overall: nextPick.pick_overall,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("save_game_id", saveGameId)
+        .eq("season", draftPick.season);
+    } else {
+      // No more picks, mark draft as completed
+      await supabase
+        .from("draft_state")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("save_game_id", saveGameId)
+        .eq("season", draftPick.season);
     }
 
     return NextResponse.json({

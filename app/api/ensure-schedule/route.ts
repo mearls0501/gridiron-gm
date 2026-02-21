@@ -3,8 +3,8 @@ import { ensureScheduleExists } from "@/lib/utils/schedule";
 
 export async function POST(req: Request) {
   try {
-    const { season } = await req.json();
-    
+    const { season, saveGameId } = await req.json();
+
     if (!season) {
       return NextResponse.json(
         { error: "Season is required" },
@@ -12,13 +12,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await ensureScheduleExists(season);
+    const result = await ensureScheduleExists(season, saveGameId);
 
     if (!result.success) {
-      return NextResponse.json(
-        { error: result.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: result.message }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -29,7 +26,12 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Error ensuring schedule:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to ensure schedule exists" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to ensure schedule exists",
+      },
       { status: 500 }
     );
   }

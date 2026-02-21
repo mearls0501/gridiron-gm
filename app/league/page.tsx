@@ -59,7 +59,7 @@ interface LeagueLeader {
 }
 
 export default function LeaguePage() {
-  const { currentSeason, currentWeek } = useGameStore();
+  const { currentSeason, currentWeek, saveGameId } = useGameStore();
   const [standings, setStandings] = useState<TeamStanding[]>([]);
   const [recentGames, setRecentGames] = useState<Game[]>([]);
   const [upcomingGames, setUpcomingGames] = useState<Game[]>([]);
@@ -75,7 +75,7 @@ export default function LeaguePage() {
     if (mounted) {
       loadLeagueData();
     }
-  }, [mounted, currentSeason, currentWeek]);
+  }, [mounted, currentSeason, currentWeek, saveGameId]);
 
   async function loadLeagueData() {
     setLoading(true);
@@ -96,11 +96,20 @@ export default function LeaguePage() {
   async function loadStandings() {
     try {
       // Calculate standings from games
-      const { data: games } = await supabase
+      let gamesQuery = supabase
         .from("games")
         .select("home_team_id, away_team_id, home_score, away_score")
         .eq("season", currentSeason)
         .eq("played", true);
+      
+      // Filter by save_game_id if available
+      if (saveGameId) {
+        gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+      } else {
+        gamesQuery = gamesQuery.is("save_game_id", null);
+      }
+      
+      const { data: games } = await gamesQuery;
 
       const { data: teams } = await supabase
         .from("teams")
@@ -175,7 +184,7 @@ export default function LeaguePage() {
 
   async function loadRecentGames() {
     try {
-      const { data: games } = await supabase
+      let gamesQuery = supabase
         .from("games")
         .select(
           `
@@ -189,6 +198,15 @@ export default function LeaguePage() {
         .order("week", { ascending: false })
         .order("id", { ascending: false })
         .limit(10);
+      
+      // Filter by save_game_id if available
+      if (saveGameId) {
+        gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+      } else {
+        gamesQuery = gamesQuery.is("save_game_id", null);
+      }
+      
+      const { data: games } = await gamesQuery;
 
       if (games) {
         setRecentGames(
@@ -206,7 +224,7 @@ export default function LeaguePage() {
 
   async function loadUpcomingGames() {
     try {
-      const { data: games } = await supabase
+      let gamesQuery = supabase
         .from("games")
         .select(
           `
@@ -220,6 +238,15 @@ export default function LeaguePage() {
         .eq("played", false)
         .order("id", { ascending: true })
         .limit(8);
+      
+      // Filter by save_game_id if available
+      if (saveGameId) {
+        gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+      } else {
+        gamesQuery = gamesQuery.is("save_game_id", null);
+      }
+      
+      const { data: games } = await gamesQuery;
 
       if (games) {
         setUpcomingGames(
@@ -237,7 +264,7 @@ export default function LeaguePage() {
 
   async function loadLeaders() {
     try {
-      const { data: stats } = await supabase
+      let statsQuery = supabase
         .from("player_season_stats")
         .select(
           `
@@ -256,6 +283,15 @@ export default function LeaguePage() {
         `
         )
         .eq("season", currentSeason);
+      
+      // Filter by save_game_id if available
+      if (saveGameId) {
+        statsQuery = statsQuery.eq("save_game_id", saveGameId);
+      } else {
+        statsQuery = statsQuery.is("save_game_id", null);
+      }
+      
+      const { data: stats } = await statsQuery;
 
       if (!stats || stats.length === 0) return;
 

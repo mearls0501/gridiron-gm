@@ -6,7 +6,7 @@ import { validateScoutingComplete } from "@/lib/scouting/validator";
  */
 export async function POST(req: Request) {
   try {
-    const { teamId, season } = await req.json();
+    const { teamId, season, saveGameId } = await req.json();
 
     if (!teamId) {
       return NextResponse.json(
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const validation = await validateScoutingComplete(teamId, season);
+    const validation = await validateScoutingComplete(teamId, season, saveGameId);
 
     return NextResponse.json({
       success: true,

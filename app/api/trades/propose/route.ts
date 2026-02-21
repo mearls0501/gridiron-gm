@@ -11,6 +11,7 @@ export async function POST(req: Request) {
       itemsToTeam,
       season,
       week,
+      saveGameId,
     } = await req.json();
 
     if (!fromTeamId || !toTeamId) {
@@ -78,11 +79,18 @@ export async function POST(req: Request) {
           },
         });
       } else if (item.type === "draft_pick" && item.draftPickId) {
-        const { data: draftPick } = await supabase
+        let draftPickQuery = supabase
           .from("draft_picks")
           .select("*")
-          .eq("id", item.draftPickId)
-          .single();
+          .eq("id", item.draftPickId);
+        
+        if (saveGameId) {
+          draftPickQuery = draftPickQuery.eq("save_game_id", saveGameId);
+        } else {
+          draftPickQuery = draftPickQuery.is("save_game_id", null);
+        }
+        
+        const { data: draftPick } = await draftPickQuery.single();
 
         if (!draftPick) {
           return NextResponse.json(
@@ -151,11 +159,18 @@ export async function POST(req: Request) {
           },
         });
       } else if (item.type === "draft_pick" && item.draftPickId) {
-        const { data: draftPick } = await supabase
+        let draftPickQuery = supabase
           .from("draft_picks")
           .select("*")
-          .eq("id", item.draftPickId)
-          .single();
+          .eq("id", item.draftPickId);
+        
+        if (saveGameId) {
+          draftPickQuery = draftPickQuery.eq("save_game_id", saveGameId);
+        } else {
+          draftPickQuery = draftPickQuery.is("save_game_id", null);
+        }
+        
+        const { data: draftPick } = await draftPickQuery.single();
 
         if (!draftPick) {
           return NextResponse.json(
@@ -220,7 +235,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create trade record
+    // Create trade record with save_game_id
     const { data: trade, error: tradeError } = await supabase
       .from("trades")
       .insert({
@@ -231,6 +246,7 @@ export async function POST(req: Request) {
         week: week,
         from_team_evaluation: fromTeamEvaluation,
         to_team_evaluation: toTeamEvaluation,
+        save_game_id: saveGameId || null,
       })
       .select()
       .single();

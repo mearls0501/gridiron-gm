@@ -15,9 +15,17 @@ interface MenuItem {
 export default function Navigation() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [showSaveManager, setShowSaveManager] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const { seasonPhase } = useGameStore();
-  const isOffseason = seasonPhase === "offseason";
+  
+  // Only check phase after component mounts to avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isOffseason = mounted && seasonPhase === "offseason";
+  const isPreseason = mounted && seasonPhase === "preseason";
 
   const menuItems: MenuItem[] = [
     {
@@ -32,6 +40,14 @@ export default function Navigation() {
           },
         ]
       : []),
+    ...(isPreseason
+      ? [
+          {
+            label: "Preseason",
+            href: "/preseason",
+          },
+        ]
+      : []),
     {
       label: "League",
       submenu: [
@@ -42,6 +58,7 @@ export default function Navigation() {
         { label: "Playoffs", href: "/league/playoffs" },
         { label: "Leaders", href: "/league/leaders" },
         { label: "Transactions", href: "/league/transactions" },
+        { label: "All Scouts", href: "/scouts" },
       ],
     },
     {
@@ -62,7 +79,7 @@ export default function Navigation() {
         { label: "All Players", href: "/players" },
         { label: "Search Players", href: "/players/search" },
         { label: "Free Agents", href: "/free-agents" },
-        { label: "Draft Prospects", href: "/draft" },
+        { label: "Scouting", href: "/scouting" },
         { label: "Top Prospects", href: "/players/prospects" },
       ],
     },
@@ -72,8 +89,6 @@ export default function Navigation() {
         { label: "Draft Home", href: "/draft" },
         { label: "Draft Picks", href: "/draft/picks" },
         { label: "Draft Board", href: "/draft/board" },
-        { label: "Generate Draft Class", href: "/draft/generate" },
-        { label: "Scouting Reports", href: "/draft/scouting" },
         { label: "Draft History", href: "/draft/history" },
       ],
     },
@@ -349,6 +364,42 @@ export default function Navigation() {
             >
               View Draft Class
             </Link>
+            {isOffseason && (
+              <>
+                <span style={{ color: "#6b7280" }}>|</span>
+                <Link
+                  href="/offseason"
+                  className="transition-colors"
+                  style={{ color: "#e5e7eb" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "var(--nav-accent)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "#e5e7eb";
+                  }}
+                >
+                  Offseason
+                </Link>
+              </>
+            )}
+            {isPreseason && (
+              <>
+                <span style={{ color: "#6b7280" }}>|</span>
+                <Link
+                  href="/preseason"
+                  className="transition-colors"
+                  style={{ color: "#e5e7eb" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "var(--nav-accent)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "#e5e7eb";
+                  }}
+                >
+                  Preseason
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -486,19 +537,38 @@ function SeasonWeekSelector() {
         >
           <span style={{ color: "#9ca3af" }}>Week:</span>
           <span className="font-semibold" style={{ color: "white" }}>
-            {currentWeek}
+            {currentWeek === 0 ? "Preseason" : currentWeek === 23 ? "Offseason" : currentWeek}
           </span>
           <span style={{ color: "#9ca3af" }}>▼</span>
         </button>
         {showWeekDropdown && (
           <div
-            className="absolute right-0 mt-1 z-50 rounded shadow-lg max-h-64 overflow-y-auto"
+            className="absolute right-0 mt-1 z-50 rounded shadow-lg max-h-96 overflow-y-auto"
             style={{
               background: "var(--nav-bg-secondary)",
               border: "1px solid #1a202c",
-              minWidth: "100px",
+              minWidth: "180px",
             }}
           >
+            {/* Preseason */}
+            <div className="px-3 py-2 text-xs uppercase tracking-wide" style={{ color: "#9ca3af", background: "rgba(0,0,0,0.2)" }}>
+              Preseason
+            </div>
+            <button
+              onClick={() => {
+                setCurrentWeek(0);
+                setShowWeekDropdown(false);
+              }}
+              className="w-full text-left px-4 py-2 hover:bg-gray-700"
+              style={{ color: "white" }}
+            >
+              Preseason (Week 0)
+            </button>
+            
+            {/* Regular Season */}
+            <div className="px-3 py-2 text-xs uppercase tracking-wide mt-2" style={{ color: "#9ca3af", background: "rgba(0,0,0,0.2)" }}>
+              Regular Season
+            </div>
             {Array.from({ length: 18 }, (_, i) => i + 1).map((week) => (
               <button
                 key={week}
@@ -512,6 +582,42 @@ function SeasonWeekSelector() {
                 Week {week}
               </button>
             ))}
+            
+            {/* Playoffs */}
+            <div className="px-3 py-2 text-xs uppercase tracking-wide mt-2" style={{ color: "#9ca3af", background: "rgba(0,0,0,0.2)" }}>
+              Playoffs
+            </div>
+            {[19, 20, 21, 22].map((week) => {
+              const round = week === 19 ? "Wild Card" : week === 20 ? "Divisional" : week === 21 ? "Conference" : "Super Bowl";
+              return (
+                <button
+                  key={week}
+                  onClick={() => {
+                    setCurrentWeek(week);
+                    setShowWeekDropdown(false);
+                  }}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-700"
+                  style={{ color: "white" }}
+                >
+                  Week {week} ({round})
+                </button>
+              );
+            })}
+            
+            {/* Offseason */}
+            <div className="px-3 py-2 text-xs uppercase tracking-wide mt-2" style={{ color: "#9ca3af", background: "rgba(0,0,0,0.2)" }}>
+              Offseason
+            </div>
+            <button
+              onClick={() => {
+                setCurrentWeek(23);
+                setShowWeekDropdown(false);
+              }}
+              className="w-full text-left px-4 py-2 hover:bg-gray-700"
+              style={{ color: "white" }}
+            >
+              Offseason (Week 23)
+            </button>
           </div>
         )}
       </div>

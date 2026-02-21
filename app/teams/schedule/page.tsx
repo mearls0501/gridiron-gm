@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase-client";
 import { generateSchedule } from "@/lib/schedule-generator";
+import { useGameStore } from "@/lib/store/game-store";
 import { Calendar, Home, Plane, Trophy } from "lucide-react";
 import Link from "next/link";
 
@@ -34,6 +35,7 @@ interface GameWithTeams extends Game {
 }
 
 export default function TeamSchedulePage() {
+  const { saveGameId } = useGameStore();
   const [team, setTeam] = useState<Team | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [myTeamGames, setMyTeamGames] = useState<GameWithTeams[]>([]);
@@ -45,10 +47,6 @@ export default function TeamSchedulePage() {
   useEffect(() => {
     loadTeamAndSchedule();
   }, []);
-
-  useEffect(() => {
-    filterGamesByWeek();
-  }, [selectedWeek, myTeamGames]);
 
   async function loadTeamAndSchedule() {
     try {
@@ -109,12 +107,21 @@ export default function TeamSchedulePage() {
       setLoadingGames(true);
       try {
         // Load games from database where this team is involved
-        const { data: games, error } = await supabase
+        let gamesQuery = supabase
           .from("games")
           .select("*")
           .eq("season", season)
           .or(`home_team_id.eq.${team.id},away_team_id.eq.${team.id}`)
           .order("week", { ascending: true });
+        
+        // Filter by save_game_id if available
+        if (saveGameId) {
+          gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+        } else {
+          gamesQuery = gamesQuery.is("save_game_id", null);
+        }
+        
+        const { data: games, error } = await gamesQuery;
 
         if (error) {
           console.error("Error loading games:", error);
@@ -122,7 +129,7 @@ export default function TeamSchedulePage() {
           return;
         }
 
-        // Enrich with team data
+        // Enrich with team data and deduplicate
         const enrichedGames = (games || [])
           .map((game) => {
             const homeTeam = teams.find((t) => t.id === game.home_team_id);
@@ -150,7 +157,29 @@ export default function TeamSchedulePage() {
           })
           .filter((game) => game !== null) as GameWithTeams[];
 
-        setDbGames(enrichedGames);
+        // Deduplicate games by week + teams combination (this is what makes a game unique)
+        // Use a consistent key format: always use the smaller team ID first to handle home/away duplicates
+        const seenGames = new Set<string>();
+        let duplicateCount = 0;
+        const deduplicatedGames = enrichedGames.filter((game) => {
+          // Create a consistent key regardless of home/away order
+          const team1 = game.home_team_id < game.away_team_id ? game.home_team_id : game.away_team_id;
+          const team2 = game.home_team_id < game.away_team_id ? game.away_team_id : game.home_team_id;
+          const key = `week:${game.week}:${team1}:${team2}`;
+          if (seenGames.has(key)) {
+            duplicateCount++;
+            console.warn(`Duplicate game detected and removed: Week ${game.week}, ${game.home_team_id} vs ${game.away_team_id} (ID: ${game.id})`);
+            return false;
+          }
+          seenGames.add(key);
+          return true;
+        });
+
+        if (duplicateCount > 0) {
+          console.log(`Removed ${duplicateCount} duplicate game(s). Original: ${enrichedGames.length}, Deduplicated: ${deduplicatedGames.length}`);
+        }
+
+        setDbGames(deduplicatedGames);
       } catch (err) {
         console.error("Error loading games:", err);
       } finally {
@@ -161,7 +190,7 @@ export default function TeamSchedulePage() {
     if (team && teams.length > 0) {
       loadGamesFromDatabase();
     }
-  }, [team, teams, season]);
+  }, [team, teams, season, saveGameId]);
 
   // Use database games if available, otherwise fallback to generated
   const teamGames = useMemo(() => {
@@ -231,18 +260,19 @@ export default function TeamSchedulePage() {
     }
   }, [team, teams, season, dbGames]);
 
-  useEffect(() => {
-    setMyTeamGames(teamGames);
-  }, [teamGames]);
-
-  function filterGamesByWeek() {
+  // Filter games by selected week
+  const filteredTeamGames = useMemo(() => {
     if (selectedWeek === "all") {
-      setMyTeamGames(teamGames);
+      return teamGames;
     } else {
       const weekNum = parseInt(selectedWeek, 10);
-      setMyTeamGames(teamGames.filter((game) => game.week === weekNum));
+      return teamGames.filter((game) => game.week === weekNum);
     }
-  }
+  }, [teamGames, selectedWeek]);
+
+  useEffect(() => {
+    setMyTeamGames(filteredTeamGames);
+  }, [filteredTeamGames]);
 
   // Calculate stats
   const totalGames = teamGames.length;
@@ -413,7 +443,7 @@ export default function TeamSchedulePage() {
                 <div className="ootp-panel-body">
                   {weekGames.map((game, index) => (
                     <div
-                      key={`${game.week}-${index}`}
+                      key={game.id || `${game.week}-${game.home_team_id}-${game.away_team_id}-${index}`}
                       className={`p-4 rounded-lg border-2 ${
                         game.isHome
                           ? "bg-blue-50 border-blue-200"

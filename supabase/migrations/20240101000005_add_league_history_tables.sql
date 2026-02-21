@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS public.seasons (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   year INTEGER NOT NULL UNIQUE,
   phase TEXT NOT NULL DEFAULT 'preseason',
-  current_week INTEGER NOT NULL DEFAULT 1 CHECK (current_week >= 1 AND current_week <= 21),
+  current_week INTEGER NOT NULL DEFAULT 0 CHECK (current_week >= 0 AND current_week <= 23),
   is_active BOOLEAN NOT NULL DEFAULT true,
   champion_team_id UUID REFERENCES public.teams(id) ON DELETE SET NULL,
   started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

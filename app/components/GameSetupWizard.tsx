@@ -104,18 +104,63 @@ export default function GameSetupWizard({
         await createFreeAgents();
       }
 
-      // Step 4: Generate and save schedule to database (REQUIRED for simulation)
+      // Step 4: Create a save game FIRST (needed for schedule isolation)
+      setProgress("Creating save game...");
+      let currentSaveGameId: string | null = null;
+      // Generate unique save name with timestamp to prevent reusing existing saves
+      const uniqueSaveName = `New Game - ${new Date().toISOString()}`;
+      const saveGameResponse = await fetch("/api/save-game", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          saveName: uniqueSaveName,
+          description: "Newly created league",
+          currentSeason: 2025,
+          currentWeek: 0, // Preseason starts at week 0
+          selectedTeamId: selectedTeamId,
+          gameState: {
+            timestamp: new Date().toISOString(),
+            initialized: false, // Will be set to true after schedule is created
+          },
+        }),
+      });
+
+      if (saveGameResponse.ok) {
+        const saveGameData = await saveGameResponse.json();
+        if (saveGameData.success && saveGameData.saveGame?.id) {
+          currentSaveGameId = saveGameData.saveGame.id;
+          // Store all game state immediately to prevent reading old localStorage values
+          const { useGameStore } = await import("@/lib/store/game-store");
+          const gameStore = useGameStore.getState();
+          gameStore.setSaveGameId(currentSaveGameId);
+          gameStore.setCurrentWeek(0); // Preseason starts at week 0
+          gameStore.setCurrentSeason(2025);
+          gameStore.setSeasonPhase("preseason");
+        }
+      } else {
+        // If save games table doesn't exist, that's okay - we'll continue without it
+        const saveGameError = await saveGameResponse.json();
+        console.warn("Could not create save game:", saveGameError.error || "Unknown error");
+      }
+
+      // Step 5: Generate and save schedule to database (REQUIRED for simulation)
       setProgress("Generating schedule...");
       const scheduleResponse = await fetch("/api/generate-schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ season: 2025 }),
+        body: JSON.stringify({ 
+          season: 2025,
+          saveGameId: currentSaveGameId, // Pass save_game_id to schedule generation
+        }),
       });
 
       if (!scheduleResponse.ok) {
         const scheduleError = await scheduleResponse.json();
+        const errorMessage = scheduleError.error || "Unknown error";
+        const errorDetails = scheduleError.details ? `\n\nDetails: ${scheduleError.details}` : "";
+        const errorHint = scheduleError.hint ? `\n\nHint: ${scheduleError.hint}` : "";
         throw new Error(
-          `Failed to generate schedule: ${scheduleError.error || "Unknown error"}`
+          `Failed to generate schedule: ${errorMessage}${errorDetails}${errorHint}`
         );
       }
 
@@ -128,15 +173,74 @@ export default function GameSetupWizard({
 
       setProgress("Schedule generated successfully!");
 
-      // Step 5: Store selected team
+      // Step 6: Initialize draft picks for current season + 4 future seasons (5 total)
+      if (currentSaveGameId) {
+        setProgress("Initializing draft picks...");
+        try {
+          const draftPicksResponse = await fetch("/api/initialize-draft-picks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              season: 2025,
+              saveGameId: currentSaveGameId,
+              futureSeasons: 4, // Creates picks for 2025-2029
+            }),
+          });
+
+          if (draftPicksResponse.ok) {
+            const draftPicksData = await draftPicksResponse.json();
+            console.log(
+              `[Game Setup] Draft picks initialized: ${draftPicksData.picksCreated} picks created`
+            );
+          } else {
+            // Don't fail league creation if draft picks fail - can be done manually
+            const draftPicksError = await draftPicksResponse.json();
+            console.warn(
+              "Could not initialize draft picks:",
+              draftPicksError.error || "Unknown error"
+            );
+          }
+        } catch (draftPicksErr) {
+          // Don't fail league creation if draft picks fail
+          console.warn("Error initializing draft picks:", draftPicksErr);
+        }
+      }
+
+      // Step 7: Update save game to mark as initialized (if it was created)
+      if (currentSaveGameId) {
+        await fetch("/api/save-game", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            saveName: `New Game - ${new Date().toLocaleDateString()}`,
+            description: "Newly created league",
+            currentSeason: 2025,
+            currentWeek: 0, // Preseason starts at week 0
+            selectedTeamId: selectedTeamId,
+            gameState: {
+              timestamp: new Date().toISOString(),
+              initialized: true,
+            },
+          }),
+        });
+      }
+
+      // Step 7: Store selected team
       setProgress("Saving your team selection...");
       if (typeof window !== "undefined") {
         localStorage.setItem("selectedTeamId", selectedTeamId);
       }
 
-      // Update game store
+      // Update game store - reset to week 1, season 2025
       const { useGameStore } = await import("@/lib/store/game-store");
-      useGameStore.getState().setSelectedTeam(selectedTeamId);
+      const gameStore = useGameStore.getState();
+      gameStore.setSelectedTeam(selectedTeamId);
+      gameStore.setCurrentWeek(0); // Preseason starts at week 0
+      gameStore.setCurrentSeason(2025);
+      gameStore.setSeasonPhase("preseason");
+      if (currentSaveGameId) {
+        gameStore.setSaveGameId(currentSaveGameId);
+      }
 
       setProgress("League created successfully!");
       setTimeout(() => {

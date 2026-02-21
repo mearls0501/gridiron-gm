@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-client";
 import { aggregateSeasonStats } from "@/lib/simulation/player-development";
+import { getOrCreateSeason, updateSeasonPhase } from "@/lib/seasons/season-manager";
 
 /**
  * Advance to offseason and store historical season data
@@ -8,7 +9,7 @@ import { aggregateSeasonStats } from "@/lib/simulation/player-development";
  */
 export async function POST(req: Request) {
   try {
-    const { season } = await req.json();
+    const { season, saveGameId } = await req.json();
 
     if (!season) {
       return NextResponse.json(
@@ -17,92 +18,75 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check if season exists and is active, create if it doesn't exist
-    let { data: seasonData, error: seasonError } = await supabase
-      .from("seasons")
-      .select("*")
-      .eq("year", season)
-      .eq("is_active", true)
-      .maybeSingle();
+    // Check if Super Bowl is complete to determine phase and champion
+    let superBowlQuery = supabase
+      .from("playoff_games")
+      .select("winner_id, played")
+      .eq("season", season)
+      .eq("round", "super_bowl");
+    
+    if (saveGameId) {
+      superBowlQuery = superBowlQuery.eq("save_game_id", saveGameId);
+    } else {
+      superBowlQuery = superBowlQuery.is("save_game_id", null);
+    }
+    
+    const { data: superBowl } = await superBowlQuery.maybeSingle();
 
-    if (seasonError && seasonError.code !== "PGRST116") {
-      console.error("Error fetching season:", seasonError);
+    // Get or create season using season manager
+    const seasonResult = await getOrCreateSeason(
+      season,
+      saveGameId || null,
+      {
+        phase: superBowl?.played && superBowl?.winner_id ? "playoffs" : "regular_season",
+        currentWeek: superBowl?.played && superBowl?.winner_id ? 22 : 18,
+        isActive: true,
+        championTeamId: superBowl?.winner_id || null,
+      }
+    );
+
+    if (seasonResult.error || !seasonResult.season) {
+      console.error("Error getting/creating season:", seasonResult.error);
       return NextResponse.json(
-        { error: "Failed to fetch season data" },
+        { error: seasonResult.error || "Failed to get or create season record" },
         { status: 500 }
       );
     }
 
-    // If season doesn't exist, create it
-    if (!seasonData) {
-      console.log(`[Offseason] Season ${season} not found, creating it...`);
-      
-      // Check if Super Bowl is complete to determine phase
-      const { data: superBowl } = await supabase
-        .from("playoff_games")
-        .select("winner_id, played")
-        .eq("season", season)
-        .eq("round", "super_bowl")
-        .maybeSingle();
+    let seasonData = seasonResult.season;
 
-      const { data: newSeason, error: createError } = await supabase
-        .from("seasons")
-        .insert({
-          year: season,
-          phase: superBowl?.played && superBowl?.winner_id ? "playoffs" : "regular_season",
-          current_week: superBowl?.played && superBowl?.winner_id ? 22 : 18, // Week 22 for playoffs (Super Bowl), 18 for end of regular season
-          is_active: true,
-          champion_team_id: superBowl?.winner_id || null,
-        })
-        .select()
-        .single();
-
-      if (createError || !newSeason) {
-        console.error("Error creating season:", createError);
+    // Verify Super Bowl is complete and champion is set
+    if (!seasonData.champion_team_id) {
+      if (!superBowl || !superBowl.played || !superBowl.winner_id) {
         return NextResponse.json(
-          { error: "Failed to create season record" },
-          { status: 500 }
+          { error: "Super Bowl must be completed and champion crowned before advancing to offseason" },
+          { status: 400 }
         );
       }
 
-      seasonData = newSeason;
-    }
-
-      // Verify Super Bowl is complete and champion is set
-      if (!seasonData.champion_team_id) {
-        const { data: superBowl, error: sbError } = await supabase
-          .from("playoff_games")
-          .select("*")
-          .eq("season", season)
-          .eq("round", "super_bowl")
-          .maybeSingle();
-
-        if (sbError && sbError.code !== "PGRST116") {
-          console.error("Error checking Super Bowl:", sbError);
+      // If champion not set in season but Super Bowl is complete, set it now
+      if (superBowl.winner_id) {
+        let updateChampQuery = supabase
+          .from("seasons")
+          .update({ champion_team_id: superBowl.winner_id })
+          .eq("year", season)
+          .eq("is_active", true);
+        
+        if (saveGameId) {
+          updateChampQuery = updateChampQuery.eq("save_game_id", saveGameId);
+        } else {
+          updateChampQuery = updateChampQuery.is("save_game_id", null);
         }
+        
+        const { error: updateChampError } = await updateChampQuery;
 
-        if (!superBowl || !superBowl.played || !superBowl.winner_id) {
-          return NextResponse.json(
-            { error: "Super Bowl must be completed and champion crowned before advancing to offseason" },
-            { status: 400 }
-          );
-        }
-
-        // If champion not set in season but Super Bowl is complete, set it now
-        if (superBowl.winner_id) {
-          const { error: updateChampError } = await supabase
-            .from("seasons")
-            .update({ champion_team_id: superBowl.winner_id })
-            .eq("year", season)
-            .eq("is_active", true);
-
-          if (updateChampError) {
-            console.error("Error setting champion:", updateChampError);
-          } else {
-            seasonData.champion_team_id = superBowl.winner_id;
-          }
+        if (updateChampError) {
+          console.error("Error setting champion:", updateChampError);
+        } else {
+          seasonData.champion_team_id = superBowl.winner_id;
         }
       }
+    }
 
     // Step 1: Finalize all season statistics
     console.log(`[Offseason] Aggregating final season stats for ${season}...`);
@@ -177,12 +161,19 @@ export async function POST(req: Request) {
           const winPercentage = games > 0 ? (stats.wins + stats.ties * 0.5) / games : 0;
 
           // Get playoff seed if applicable
-          const { data: playoffSeed } = await supabase
+          let playoffSeedQuery = supabase
             .from("playoff_seeds")
             .select("seed")
             .eq("season", season)
-            .eq("team_id", teamId)
-            .maybeSingle();
+            .eq("team_id", teamId);
+          
+          if (saveGameId) {
+            playoffSeedQuery = playoffSeedQuery.eq("save_game_id", saveGameId);
+          } else {
+            playoffSeedQuery = playoffSeedQuery.is("save_game_id", null);
+          }
+          
+          const { data: playoffSeed } = await playoffSeedQuery.maybeSingle();
 
           const { error } = await supabase
             .from("team_season_stats")
@@ -211,13 +202,21 @@ export async function POST(req: Request) {
 
     // Step 3: Store playoff results in historical format
     console.log(`[Offseason] Storing playoff results for ${season}...`);
-    const { data: playoffGames } = await supabase
+    let playoffGamesQuery = supabase
       .from("playoff_games")
       .select("*")
       .eq("season", season)
       .eq("played", true)
       .order("week", { ascending: true })
       .order("round", { ascending: true });
+    
+    if (saveGameId) {
+      playoffGamesQuery = playoffGamesQuery.eq("save_game_id", saveGameId);
+    } else {
+      playoffGamesQuery = playoffGamesQuery.is("save_game_id", null);
+    }
+    
+    const { data: playoffGames } = await playoffGamesQuery;
 
     // Step 3.5: Process expiring contracts and move players to free agency
     console.log(`[Offseason] Processing expiring contracts for ${season}...`);
@@ -236,26 +235,32 @@ export async function POST(req: Request) {
       // Continue even if contract processing fails
     }
 
-    // Step 4: Update season to offseason phase
+    // Step 4: Update season to offseason phase using season manager
     console.log(`[Offseason] Transitioning season ${season} to offseason...`);
-    const { error: updateError } = await supabase
-      .from("seasons")
-      .update({
-        phase: "offseason",
-        current_week: 23,
-        ended_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("year", season)
-      .eq("is_active", true);
-
-    if (updateError) {
-      console.error("Error updating season to offseason:", updateError);
+    const phaseUpdateResult = await updateSeasonPhase(season, saveGameId || null, "offseason", 23);
+    
+    if (!phaseUpdateResult.success) {
+      console.error("Error updating season to offseason:", phaseUpdateResult.error);
       return NextResponse.json(
-        { error: "Failed to update season to offseason" },
+        { error: phaseUpdateResult.error || "Failed to update season to offseason" },
         { status: 500 }
       );
     }
+    
+    // Also update ended_at timestamp
+    let updateEndedQuery = supabase
+      .from("seasons")
+      .update({ ended_at: new Date().toISOString() })
+      .eq("year", season)
+      .eq("is_active", true);
+    
+    if (saveGameId) {
+      updateEndedQuery = updateEndedQuery.eq("save_game_id", saveGameId);
+    } else {
+      updateEndedQuery = updateEndedQuery.is("save_game_id", null);
+    }
+    
+    await updateEndedQuery; // Don't fail if this update fails
 
     // Step 5: Get champion info
     const { data: championTeam } = await supabase

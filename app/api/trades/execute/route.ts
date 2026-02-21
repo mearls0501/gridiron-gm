@@ -83,11 +83,18 @@ export async function POST(req: Request) {
           .single();
         if (player) validatedItemsFrom.push({ type: "player", player });
       } else if (item.item_type === "draft_pick" && item.draft_pick_id) {
-        const { data: draftPick } = await supabase
+        let draftPickQuery = supabase
           .from("draft_picks")
           .select("*")
-          .eq("id", item.draft_pick_id)
-          .single();
+          .eq("id", item.draft_pick_id);
+        
+        if (trade.save_game_id) {
+          draftPickQuery = draftPickQuery.eq("save_game_id", trade.save_game_id);
+        } else {
+          draftPickQuery = draftPickQuery.is("save_game_id", null);
+        }
+        
+        const { data: draftPick } = await draftPickQuery.single();
         if (draftPick) validatedItemsFrom.push({ type: "draft_pick", draftPick });
       }
     }
@@ -101,11 +108,18 @@ export async function POST(req: Request) {
           .single();
         if (player) validatedItemsTo.push({ type: "player", player });
       } else if (item.item_type === "draft_pick" && item.draft_pick_id) {
-        const { data: draftPick } = await supabase
+        let draftPickQuery = supabase
           .from("draft_picks")
           .select("*")
-          .eq("id", item.draft_pick_id)
-          .single();
+          .eq("id", item.draft_pick_id);
+        
+        if (trade.save_game_id) {
+          draftPickQuery = draftPickQuery.eq("save_game_id", trade.save_game_id);
+        } else {
+          draftPickQuery = draftPickQuery.is("save_game_id", null);
+        }
+        
+        const { data: draftPick } = await draftPickQuery.single();
         if (draftPick) validatedItemsTo.push({ type: "draft_pick", draftPick });
       }
     }
@@ -163,13 +177,21 @@ export async function POST(req: Request) {
           );
         }
       } else if (item.item_type === "draft_pick" && item.draft_pick_id) {
-        const { error: updateError } = await supabase
+        let updateQuery = supabase
           .from("draft_picks")
           .update({
             owning_team_id: item.to_team_id,
             updated_at: new Date().toISOString(),
           })
           .eq("id", item.draft_pick_id);
+        
+        if (trade.save_game_id) {
+          updateQuery = updateQuery.eq("save_game_id", trade.save_game_id);
+        } else {
+          updateQuery = updateQuery.is("save_game_id", null);
+        }
+        
+        const { error: updateError } = await updateQuery;
 
         if (updateError) {
           return NextResponse.json(
@@ -179,13 +201,20 @@ export async function POST(req: Request) {
         }
 
         // Log draft pick trade
-        await supabase.from("draft_pick_trades").insert({
+        const draftPickTradeData: Record<string, unknown> = {
           draft_pick_id: item.draft_pick_id,
           from_team_id: item.from_team_id,
           to_team_id: item.to_team_id,
           season: trade.season,
           week: trade.week,
-        });
+        };
+        
+        // Include save_game_id if available (column might not exist if migration hasn't run)
+        if (trade.save_game_id) {
+          draftPickTradeData.save_game_id = trade.save_game_id;
+        }
+        
+        await supabase.from("draft_pick_trades").insert(draftPickTradeData);
       }
     }
 

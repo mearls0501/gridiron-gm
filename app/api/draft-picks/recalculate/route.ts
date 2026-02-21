@@ -7,11 +7,18 @@ import { supabase } from "@/lib/supabase-client";
  */
 export async function POST(req: Request) {
   try {
-    const { season } = await req.json();
+    const { season, saveGameId } = await req.json();
 
     if (!season) {
       return NextResponse.json(
         { error: "Season is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!saveGameId) {
+      return NextResponse.json(
+        { error: "saveGameId is required" },
         { status: 400 }
       );
     }
@@ -32,11 +39,20 @@ export async function POST(req: Request) {
     }
 
     // Calculate current standings from games
-    const { data: games, error: gamesError } = await supabase
+    // Filter by save_game_id
+    let gamesQuery = supabase
       .from("games")
       .select("home_team_id, away_team_id, home_score, away_score")
       .eq("season", season)
       .eq("played", true);
+
+    if (saveGameId) {
+      gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+    } else {
+      gamesQuery = gamesQuery.is("save_game_id", null);
+    }
+
+    const { data: games, error: gamesError } = await gamesQuery;
 
     if (gamesError) {
       return NextResponse.json(
@@ -100,22 +116,34 @@ export async function POST(req: Request) {
 
     teamStatsMap.forEach((stat) => {
       const games = stat.wins + stat.losses + stat.ties;
-      stat.win_percentage = games > 0 ? (stat.wins + stat.ties * 0.5) / games : 0;
+      stat.win_percentage =
+        games > 0 ? (stat.wins + stat.ties * 0.5) / games : 0;
       stat.point_differential = stat.points_for - stat.points_against;
     });
 
     const standings = Array.from(teamStatsMap.values());
 
     // Check if playoffs exist to determine playoff teams
-    const { data: playoffSeeds } = await supabase
+    // Filter by save_game_id
+    let playoffSeedsQuery = supabase
       .from("playoff_seeds")
       .select("team_id, seed")
       .eq("season", season);
 
-    const playoffTeamIds = new Set(playoffSeeds?.map(p => p.team_id) || []);
-    const playoffSeedMap = new Map(playoffSeeds?.map(p => [p.team_id, p.seed]) || []);
+    if (saveGameId) {
+      playoffSeedsQuery = playoffSeedsQuery.eq("save_game_id", saveGameId);
+    } else {
+      playoffSeedsQuery = playoffSeedsQuery.is("save_game_id", null);
+    }
 
-    standings.forEach(stat => {
+    const { data: playoffSeeds } = await playoffSeedsQuery;
+
+    const playoffTeamIds = new Set(playoffSeeds?.map((p) => p.team_id) || []);
+    const playoffSeedMap = new Map(
+      playoffSeeds?.map((p) => [p.team_id, p.seed]) || []
+    );
+
+    standings.forEach((stat) => {
       stat.is_playoff_team = playoffTeamIds.has(stat.team_id);
       stat.playoff_seed = playoffSeedMap.get(stat.team_id) || null;
     });
@@ -131,18 +159,18 @@ export async function POST(req: Request) {
       if (Math.abs(wpDiff) > 0.0001) {
         return wpDiff > 0 ? 1 : -1;
       }
-      
+
       // Secondary: Point differential (worse = earlier pick)
       const diffDiff = a.point_differential - b.point_differential;
       if (Math.abs(diffDiff) > 0.0001) {
         return diffDiff > 0 ? 1 : -1;
       }
-      
+
       // Tertiary: Points scored (fewer = earlier pick)
       if (a.points_for !== b.points_for) {
         return a.points_for - b.points_for;
       }
-      
+
       // Final: Random (coin flip)
       return Math.random() < 0.5 ? -1 : 1;
     });
@@ -157,11 +185,12 @@ export async function POST(req: Request) {
     // Combine: non-playoff teams get picks 1-N, playoff teams get picks N+1-32
     const draftOrder = [...nonPlayoffTeams, ...playoffTeams];
 
-    // Delete existing picks for this season
+    // Delete existing picks for this season and save game
     const { error: deleteError } = await supabase
       .from("draft_picks")
       .delete()
-      .eq("season", season);
+      .eq("season", season)
+      .eq("save_game_id", saveGameId);
 
     if (deleteError) {
       console.error("Error deleting existing picks:", deleteError);
@@ -179,6 +208,7 @@ export async function POST(req: Request) {
         }
         picks.push({
           season,
+          save_game_id: saveGameId,
           round,
           pick_overall: overallPick,
           pick_in_round: i + 1,
@@ -212,7 +242,7 @@ export async function POST(req: Request) {
 
     // Return diagnostic info
     const top5Worst = nonPlayoffTeams.slice(0, 5).map((t, idx) => {
-      const team = teams.find(team => team.id === t.team_id);
+      const team = teams.find((team) => team.id === t.team_id);
       return {
         rank: idx + 1,
         team: team?.name || "Unknown",
@@ -241,4 +271,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

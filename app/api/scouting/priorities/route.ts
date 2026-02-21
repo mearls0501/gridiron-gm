@@ -20,13 +20,55 @@ export async function POST(req: Request) {
       );
     }
 
+    // Get prospect to retrieve save_game_id
+    const { data: prospect } = await supabase
+      .from("draft_prospects")
+      .select("save_game_id")
+      .eq("id", prospectId)
+      .single();
+
     // Check if priority already exists
-    const { data: existing } = await supabase
+    let existingQuery = supabase
       .from("scouting_priorities")
       .select("*")
       .eq("team_id", teamId)
-      .eq("prospect_id", prospectId)
-      .single();
+      .eq("prospect_id", prospectId);
+    
+    // Filter by save_game_id if available (column might not exist if migration hasn't run)
+    // We'll try the filter, but if it fails, we'll catch the error and retry without it
+    let existing;
+    try {
+      if (prospect?.save_game_id) {
+        existingQuery = existingQuery.eq("save_game_id", prospect.save_game_id);
+      } else {
+        existingQuery = existingQuery.is("save_game_id", null);
+      }
+      
+      const { data, error } = await existingQuery.single();
+      if (error && (error.message?.includes("save_game_id") || error.code === "42703")) {
+        // Column doesn't exist, retry without save_game_id filter
+        existingQuery = supabase
+          .from("scouting_priorities")
+          .select("*")
+          .eq("team_id", teamId)
+          .eq("prospect_id", prospectId);
+        const { data: retryData } = await existingQuery.single();
+        existing = retryData;
+      } else if (error) {
+        throw error;
+      } else {
+        existing = data;
+      }
+    } catch (err) {
+      // If query fails, try without save_game_id filter
+      const { data: retryData } = await supabase
+        .from("scouting_priorities")
+        .select("*")
+        .eq("team_id", teamId)
+        .eq("prospect_id", prospectId)
+        .single();
+      existing = retryData;
+    }
 
     if (existing) {
       // Update existing priority
@@ -44,13 +86,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, priority: data });
     } else {
       // Create new priority
+      const priorityData: Record<string, unknown> = {
+        team_id: teamId,
+        prospect_id: prospectId,
+        priority_level: priorityLevel,
+      };
+      
+      // Include save_game_id if prospect has it (column might not exist if migration hasn't run)
+      if (prospect?.save_game_id !== undefined && prospect?.save_game_id !== null) {
+        priorityData.save_game_id = prospect.save_game_id;
+      }
+      
       const { data, error } = await supabase
         .from("scouting_priorities")
-        .insert({
-          team_id: teamId,
-          prospect_id: prospectId,
-          priority_level: priorityLevel,
-        })
+        .insert(priorityData)
         .select()
         .single();
 
@@ -79,6 +128,9 @@ export async function GET(req: Request) {
       );
     }
 
+    const { searchParams } = new URL(req.url);
+    const saveGameId = searchParams.get("saveGameId");
+    
     let query = supabase
       .from("scouting_priorities")
       .select(`
@@ -86,9 +138,23 @@ export async function GET(req: Request) {
         prospect:draft_prospects(*)
       `)
       .eq("team_id", teamId);
+    
+    // Filter by save_game_id if provided
+    if (saveGameId) {
+      query = query.eq("save_game_id", saveGameId);
+    } else {
+      query = query.is("save_game_id", null);
+    }
+    
+    // Also filter draft_prospects by save_game_id in nested query
+    if (saveGameId) {
+      query = query.eq("prospect.save_game_id", saveGameId);
+    } else {
+      query = query.is("prospect.save_game_id", null);
+    }
 
     if (season) {
-      query = query.eq("prospect.season", season);
+      query = query.eq("prospect.season", parseInt(season, 10));
     }
 
     const { data: priorities, error } = await query.order("priority_level", {

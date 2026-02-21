@@ -7,7 +7,7 @@ import { simulateGame } from "@/lib/simulation/engine";
  */
 export async function POST(req: Request) {
   try {
-    const { gameId, season, week } = await req.json();
+    const { gameId, season, week, saveGameId } = await req.json();
 
     if (!gameId) {
       return NextResponse.json(
@@ -16,12 +16,19 @@ export async function POST(req: Request) {
       );
     }
 
-    // Load playoff game
-    const { data: game, error: gameError } = await supabase
+    // Load playoff game - filter by save_game_id to prevent cross-game data
+    let gameQuery = supabase
       .from("playoff_games")
       .select("*")
-      .eq("id", gameId)
-      .single();
+      .eq("id", gameId);
+    
+    if (saveGameId) {
+      gameQuery = gameQuery.eq("save_game_id", saveGameId);
+    } else {
+      gameQuery = gameQuery.is("save_game_id", null);
+    }
+    
+    const { data: game, error: gameError } = await gameQuery.single();
 
     if (gameError || !game) {
       return NextResponse.json(
@@ -87,15 +94,32 @@ export async function POST(req: Request) {
       );
     }
 
-    // Save player stats
+    // Save player stats with save_game_id
     if (result.playerStats && result.playerStats.length > 0) {
-      const { error: statsError } = await supabase
+      // Use saveGameId from request, fall back to game's save_game_id
+      const effectiveSaveGameId = saveGameId || game.save_game_id || null;
+      
+      const statsWithSaveGameId = result.playerStats.map((stat) => ({
+        ...stat,
+        save_game_id: effectiveSaveGameId,
+      }));
+
+      const { error: statsError, data: insertedStats } = await supabase
         .from("player_game_stats")
-        .insert(result.playerStats);
+        .insert(statsWithSaveGameId)
+        .select();
 
       if (statsError) {
         console.error("Error saving player stats:", statsError);
+        console.error("Stats error details:", {
+          message: statsError.message,
+          code: statsError.code,
+          details: statsError.details,
+          hint: statsError.hint,
+        });
         // Don't fail the request if stats fail
+      } else {
+        console.log(`Successfully saved ${insertedStats?.length || 0} player game stats for playoff game`);
       }
     }
 

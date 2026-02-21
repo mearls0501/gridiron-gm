@@ -19,7 +19,7 @@ interface Game {
 }
 
 export default function SimulateGamesPage() {
-  const { currentWeek, currentSeason, setCurrentWeek, setCurrentSeason } =
+  const { currentWeek, currentSeason, setCurrentWeek, setCurrentSeason, saveGameId } =
     useGameStore();
   const [mounted, setMounted] = useState(false);
   const [season, setSeason] = useState<number>(2025);
@@ -51,7 +51,7 @@ export default function SimulateGamesPage() {
     message: string;
   } | null>(null);
   const [simulationType, setSimulationType] = useState<
-    "week" | "next_week" | "playoffs" | "offseason"
+    "week" | "next_week" | "regular_season" | "playoffs" | "offseason" | "preseason"
   >("week");
   const [teams, setTeams] = useState<
     Record<string, { name: string; abbreviation?: string }>
@@ -80,16 +80,61 @@ export default function SimulateGamesPage() {
       fetchGames();
       checkSeasonStatus();
     }
-  }, [season, week, mounted]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [season, week, mounted, saveGameId]);
+
+  // Auto-generate schedule if needed (separate effect to avoid blocking)
+  useEffect(() => {
+    if (mounted && saveGameId && games.length === 0 && week >= 0 && week <= 18 && !loading) {
+      const autoGenerateSchedule = async () => {
+        try {
+          console.log(`[Admin Sim] Auto-generating schedule for season ${season}...`);
+          const { ensureScheduleExists } = await import("@/lib/utils/schedule");
+          const scheduleResult = await ensureScheduleExists(season, saveGameId);
+          if (scheduleResult.success) {
+            if (scheduleResult.created) {
+              console.log(`[Admin Sim] Successfully auto-generated schedule for season ${season}`);
+            } else {
+              console.log(`[Admin Sim] Schedule already exists for season ${season}`);
+            }
+            // Refresh games after schedule is generated
+            await fetchGames();
+          } else {
+            console.error(`[Admin Sim] Failed to auto-generate schedule: ${scheduleResult.message}`);
+            setError(`Failed to auto-generate schedule: ${scheduleResult.message}`);
+          }
+        } catch (scheduleErr) {
+          console.error(`[Admin Sim] Error auto-generating schedule:`, scheduleErr);
+          setError(`Error auto-generating schedule: ${scheduleErr instanceof Error ? scheduleErr.message : "Unknown error"}`);
+        }
+      };
+      
+      // Small delay to avoid race conditions
+      const timeoutId = setTimeout(() => {
+        autoGenerateSchedule();
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, saveGameId, season, week, games.length, loading]);
 
   async function checkSeasonStatus() {
     try {
-      const { data: seasonData, error } = await supabase
+      // Filter by save_game_id to prevent cross-game data bleeding
+      let seasonQuery = supabase
         .from("seasons")
-        .select("phase, champion_team_id")
+        .select("phase, champion_team_id, current_week")
         .eq("year", season)
-        .eq("is_active", true)
-        .maybeSingle();
+        .eq("is_active", true);
+      
+      if (saveGameId) {
+        seasonQuery = seasonQuery.eq("save_game_id", saveGameId);
+      } else {
+        seasonQuery = seasonQuery.is("save_game_id", null);
+      }
+      
+      const { data: seasonData, error } = await seasonQuery.maybeSingle();
 
       // If no season record exists or error (but not a "not found" error), check playoff games
       if (error && error.code !== "PGRST116") {
@@ -100,14 +145,26 @@ export default function SimulateGamesPage() {
       if (seasonData) {
         setSeasonPhase(seasonData.phase || "regular_season");
         setChampionCrowned(!!seasonData.champion_team_id);
+        // Update week if season data has current_week
+        if (seasonData.current_week !== undefined && seasonData.current_week !== null) {
+          setWeek(seasonData.current_week);
+          setCurrentWeek(seasonData.current_week);
+        }
       } else {
-        // If no season record exists, check playoff games for champion
-        const { data: superBowl, error: sbError } = await supabase
+        // If no season record exists, check playoff games for champion - filter by save_game_id
+        let superBowlQuery = supabase
           .from("playoff_games")
           .select("winner_id, played")
           .eq("season", season)
-          .eq("round", "super_bowl")
-          .maybeSingle();
+          .eq("round", "super_bowl");
+        
+        if (saveGameId) {
+          superBowlQuery = superBowlQuery.eq("save_game_id", saveGameId);
+        } else {
+          superBowlQuery = superBowlQuery.is("save_game_id", null);
+        }
+        
+        const { data: superBowl, error: sbError } = await superBowlQuery.maybeSingle();
 
         if (sbError && sbError.code !== "PGRST116") {
           console.error("Error checking Super Bowl:", sbError);
@@ -117,9 +174,50 @@ export default function SimulateGamesPage() {
           setChampionCrowned(true);
           setSeasonPhase("playoffs");
         } else {
-          // Default to regular season if nothing found
-          setSeasonPhase("regular_season");
-          setChampionCrowned(false);
+          // Season doesn't exist for this save game - create it based on the selected week
+          // Determine phase based on week
+          let phase: "preseason" | "regular_season" | "playoffs" | "offseason" = "preseason";
+          if (week === 0) {
+            phase = "preseason";
+          } else if (week >= 1 && week <= 18) {
+            phase = "regular_season";
+          } else if (week >= 19 && week <= 22) {
+            phase = "playoffs";
+          } else if (week === 23) {
+            phase = "offseason";
+          }
+          
+          // Try to create the season if saveGameId is available
+          if (saveGameId) {
+            try {
+              const { getOrCreateSeason } = await import("@/lib/seasons/season-manager");
+              const createResult = await getOrCreateSeason(season, saveGameId, {
+                phase,
+                currentWeek: week,
+                isActive: true,
+              });
+              
+              if (createResult.season) {
+                setSeasonPhase(createResult.season.phase || phase);
+                setChampionCrowned(!!createResult.season.champion_team_id);
+                console.log(`[Sim Page] Created season ${season} with phase ${phase}, week ${week}`);
+              } else {
+                console.warn(`[Sim Page] Failed to create season ${season}:`, createResult.error);
+                // Fall back to default
+                setSeasonPhase(phase);
+                setChampionCrowned(false);
+              }
+            } catch (createErr) {
+              console.error(`[Sim Page] Error creating season ${season}:`, createErr);
+              // Fall back to default
+              setSeasonPhase(phase);
+              setChampionCrowned(false);
+            }
+          } else {
+            // No saveGameId - default based on week
+            setSeasonPhase(phase);
+            setChampionCrowned(false);
+          }
         }
       }
     } catch (err) {
@@ -139,7 +237,7 @@ export default function SimulateGamesPage() {
       const response = await fetch("/api/offseason/advance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ season }),
+        body: JSON.stringify({ season, saveGameId }),
       });
 
       const data = await response.json();
@@ -169,6 +267,11 @@ export default function SimulateGamesPage() {
         // Silently handle errors from checkSeasonStatus after successful advance
         console.warn("Season status check after advance:", err);
       }
+
+      // Redirect to offseason page after a short delay to show success message
+      setTimeout(() => {
+        window.location.href = "/offseason";
+      }, 2000);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to advance to offseason"
@@ -200,15 +303,25 @@ export default function SimulateGamesPage() {
     }
   }
 
-  async function fetchGames() {
+  async function fetchGames(weekOverride?: number) {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const weekToFetch = weekOverride !== undefined ? weekOverride : week;
+      let gamesQuery = supabase
         .from("games")
         .select("*")
         .eq("season", season)
-        .eq("week", week)
+        .eq("week", weekToFetch)
         .order("home_team_id", { ascending: true });
+      
+      // Filter by save_game_id if available
+      if (saveGameId) {
+        gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+      } else {
+        gamesQuery = gamesQuery.is("save_game_id", null);
+      }
+      
+      const { data, error } = await gamesQuery;
 
       if (error) {
         // If table doesn't exist or no games, that's okay - we'll show a message
@@ -222,6 +335,7 @@ export default function SimulateGamesPage() {
         }
         throw error;
       }
+
 
       // Enrich with team names
       const enrichedGames = (data || []).map((game) => ({
@@ -251,7 +365,7 @@ export default function SimulateGamesPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ gameId }),
+        body: JSON.stringify({ gameId, saveGameId }),
       });
 
       const data = await response.json();
@@ -286,7 +400,7 @@ export default function SimulateGamesPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ season, week }),
+        body: JSON.stringify({ season, week, saveGameId }),
       });
 
       if (!response.ok) {
@@ -385,8 +499,9 @@ export default function SimulateGamesPage() {
   }
 
   async function simulateAdvance(
-    advanceType: "next_week" | "playoffs" | "offseason"
+    advanceType: "next_week" | "regular_season" | "playoffs" | "offseason" | "preseason"
   ) {
+    console.log('[simulateAdvance] Starting with advanceType:', advanceType, 'week:', week, 'season:', season, 'saveGameId:', saveGameId);
     setSimulating(true);
     setError(null);
     setResult(null);
@@ -395,9 +510,13 @@ export default function SimulateGamesPage() {
     const targetWeek =
       advanceType === "next_week"
         ? week + 1
-        : advanceType === "playoffs"
-          ? 19
-          : 23;
+        : advanceType === "regular_season"
+          ? 1
+          : advanceType === "playoffs"
+            ? 19
+            : advanceType === "offseason"
+              ? 23
+              : 0; // preseason
     const totalWeeks = Math.max(1, targetWeek - week);
 
     setProgress({
@@ -407,6 +526,13 @@ export default function SimulateGamesPage() {
     });
 
     try {
+      console.log('[simulateAdvance] Making API request to /api/simulate-advance with:', {
+        season,
+        currentWeek: week,
+        advanceType,
+        saveGameId,
+      });
+      
       const response = await fetch("/api/simulate-advance", {
         method: "POST",
         headers: {
@@ -416,35 +542,70 @@ export default function SimulateGamesPage() {
           season,
           currentWeek: week,
           advanceType,
+          saveGameId,
         }),
       });
 
+      console.log('[simulateAdvance] Response status:', response.status, 'ok:', response.ok);
+
       if (!response.ok) {
-        throw new Error("Failed to start simulation");
+        const errorText = await response.text();
+        console.error('[simulateAdvance] Response not OK:', errorText);
+        throw new Error(`Failed to start simulation: ${response.status} ${errorText}`);
       }
+      
+      console.log('[simulateAdvance] Response OK, getting reader...');
 
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
 
       if (!reader) {
+        console.error('[simulateAdvance] No response stream available');
         throw new Error("No response stream available");
       }
-
+      
+      console.log('[simulateAdvance] Got reader, starting to read stream...');
+      const decoder = new TextDecoder();
       let buffer = "";
+      let hasReceivedData = false;
+      let lastDataTime = Date.now();
+      const STALL_TIMEOUT = 120000; // 2 minutes without data = stalled
+      const heartbeatInterval = setInterval(() => {
+        const timeSinceLastData = Date.now() - lastDataTime;
+        if (timeSinceLastData > STALL_TIMEOUT && simulating) {
+          console.error('[simulateAdvance] Stream appears stalled - no data for', timeSinceLastData, 'ms');
+          setError(`Simulation appears to have stalled (no progress for ${Math.round(timeSinceLastData / 1000)}s). Please try again.`);
+          setProgress(null);
+          setSimulating(false);
+          reader.cancel();
+          clearInterval(heartbeatInterval);
+        }
+      }, 10000); // Check every 10 seconds
 
       while (true) {
-        const { done, value } = await reader.read();
+        try {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            console.log('[simulateAdvance] Stream done, hasReceivedData:', hasReceivedData);
+            clearInterval(heartbeatInterval);
+            if (!hasReceivedData) {
+              console.warn('[simulateAdvance] Stream closed without sending any data');
+            }
+            break;
+          }
+          
+          hasReceivedData = true;
+          lastDataTime = Date.now(); // Update last data time
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n\n");
+          buffer = lines.pop() || "";
 
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(line.slice(6));
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const jsonStr = line.slice(6);
+                console.log('[simulateAdvance] Received SSE data:', jsonStr.substring(0, 100));
+                const data = JSON.parse(jsonStr);
 
               if (data.type === "start") {
                 setProgress({
@@ -473,30 +634,91 @@ export default function SimulateGamesPage() {
                   message: data.message,
                 });
 
-                // Update week in store
-                if (data.finalWeek) {
+                // Update week, season, and phase in store FIRST before fetching games
+                let newWeek = data.finalWeek;
+                let newSeason = season;
+                
+                if (data.finalWeek !== undefined) {
                   setWeek(data.finalWeek);
                   setCurrentWeek(data.finalWeek);
+                  newWeek = data.finalWeek;
                 }
+                
+                // If advancing to preseason, update season
+                if (advanceType === "preseason" && (data.finalWeek === 0 || data.finalSeason)) {
+                  newSeason = data.finalSeason || season + 1;
+                  setSeason(newSeason);
+                  setCurrentSeason(newSeason);
+                  setSeasonPhase("preseason");
+                  const { useGameStore: gameStore } = await import("@/lib/store/game-store");
+                  gameStore.getState().setSeasonPhase("preseason");
+                } else if (advanceType === "regular_season") {
+                  setSeasonPhase("regular_season");
+                  const { useGameStore: gameStore } = await import("@/lib/store/game-store");
+                  gameStore.getState().setSeasonPhase("regular_season");
+                } else if (advanceType === "playoffs") {
+                  setSeasonPhase("playoffs");
+                  const { useGameStore: gameStore } = await import("@/lib/store/game-store");
+                  gameStore.getState().setSeasonPhase("playoffs");
+                } else if (advanceType === "offseason") {
+                  setSeasonPhase("offseason");
+                  const { useGameStore: gameStore } = await import("@/lib/store/game-store");
+                  gameStore.getState().setSeasonPhase("offseason");
+                }
+                
+                // Store the new week/season for use after state updates
+                window.__pendingWeek = newWeek;
+                window.__pendingSeason = newSeason;
               } else if (data.type === "error") {
                 setError(data.error || "Simulation error");
                 setProgress(null);
                 throw new Error(data.error || "Simulation error");
               } else if (data.type === "warning") {
                 // Log warnings but don't stop simulation
-                console.warn(data.message || "Simulation warning");
+                console.warn('[simulateAdvance] Warning:', data.message || "Simulation warning");
               }
-            } catch (parseError) {
-              console.error("Error parsing SSE data:", parseError);
+              } catch (parseError) {
+                console.error("[simulateAdvance] Error parsing SSE data:", parseError, "Line:", line);
+              }
             }
           }
+        } catch (readError) {
+          console.error("[simulateAdvance] Error reading from stream:", readError);
+          throw readError;
         }
       }
+      
+      console.log('[simulateAdvance] Finished reading stream');
 
       // Refresh games list - add a small delay to ensure database updates are committed
       await new Promise((resolve) => setTimeout(resolve, 500));
+      
+      // If we have a pending week update, use it for fetching games
+      const weekToFetch = (window as any).__pendingWeek !== undefined 
+        ? (window as any).__pendingWeek 
+        : week;
+      const seasonToFetch = (window as any).__pendingSeason !== undefined 
+        ? (window as any).__pendingSeason 
+        : season;
+      
+      // Temporarily update week/season to ensure fetchGames uses correct values
+      if (weekToFetch !== week) {
+        setWeek(weekToFetch);
+      }
+      if (seasonToFetch !== season) {
+        setSeason(seasonToFetch);
+      }
+      
+      // Wait a bit for state to update, then fetch games and check season status
+      await new Promise((resolve) => setTimeout(resolve, 200));
       await fetchGames();
+      await checkSeasonStatus();
+      
+      // Clean up pending values
+      delete (window as any).__pendingWeek;
+      delete (window as any).__pendingSeason;
     } catch (err) {
+      console.error('[simulateAdvance] Error in simulation:', err);
       setError(err instanceof Error ? err.message : "An error occurred");
       setProgress(null);
     } finally {
@@ -555,18 +777,18 @@ export default function SimulateGamesPage() {
                 htmlFor="week"
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
-                Week (1-18)
+                Week (0-23)
               </label>
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    if (week > 1) {
+                    if (week > 0) {
                       const newWeek = week - 1;
                       setWeek(newWeek);
                       setCurrentWeek(newWeek);
                     }
                   }}
-                  disabled={week <= 1}
+                  disabled={week <= 0}
                   className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
                   ← Prev
@@ -574,25 +796,27 @@ export default function SimulateGamesPage() {
                 <input
                   id="week"
                   type="number"
-                  min="1"
-                  max="18"
+                  min="0"
+                  max="23"
                   value={week}
                   onChange={(e) => {
-                    const newWeek = parseInt(e.target.value) || 1;
-                    setWeek(newWeek);
-                    setCurrentWeek(newWeek);
+                    const newWeek = parseInt(e.target.value);
+                    if (!isNaN(newWeek) && newWeek >= 0 && newWeek <= 23) {
+                      setWeek(newWeek);
+                      setCurrentWeek(newWeek);
+                    }
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <button
                   onClick={() => {
-                    if (week < 18) {
+                    if (week < 23) {
                       const newWeek = week + 1;
                       setWeek(newWeek);
                       setCurrentWeek(newWeek);
                     }
                   }}
-                  disabled={week >= 18}
+                  disabled={week >= 23}
                   className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
                   Next →
@@ -601,20 +825,83 @@ export default function SimulateGamesPage() {
             </div>
           </div>
 
-          {playedGames.length > 0 &&
+          {games.length > 0 &&
+            playedGames.length > 0 &&
             unplayedGames.length === 0 &&
-            week < 18 && (
+            week < 23 && (
               <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
                 <p className="text-gray-900 font-medium mb-2">
                   ✅ All games in Week {week} are complete!
                 </p>
+                <p className="text-sm text-gray-600 mb-3">
+                  Ready to advance to Week {week + 1}?
+                </p>
                 <button
-                  onClick={() => {
-                    const newWeek = week + 1;
-                    setWeek(newWeek);
-                    setCurrentWeek(newWeek);
+                  type="button"
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!simulating && week < 23) {
+                      const newWeek = week + 1;
+                      
+                      // Determine phase based on week
+                      let phase: "preseason" | "regular_season" | "playoffs" | "offseason" = "regular_season";
+                      if (newWeek === 0) {
+                        phase = "preseason";
+                      } else if (newWeek >= 19) {
+                        phase = "playoffs";
+                      } else if (newWeek >= 23) {
+                        phase = "offseason";
+                      } else {
+                        phase = "regular_season";
+                      }
+                      
+                      // Update season in database
+                      try {
+                        const { updateSeasonPhase } = await import("@/lib/seasons/season-manager");
+                        const result = await updateSeasonPhase(season, saveGameId || null, phase, newWeek);
+                        if (!result.success) {
+                          console.error("Error updating season:", result.error);
+                          setError(result.error || "Failed to advance week");
+                          return;
+                        }
+                      } catch (err) {
+                        console.error("Error updating season:", err);
+                        setError(err instanceof Error ? err.message : "Failed to advance week");
+                        return;
+                      }
+                      
+                      // Clear games and results first to prevent showing advance button prematurely
+                      setGames([]);
+                      setResult(null);
+                      
+                      // Update local state - React will batch these updates
+                      setWeek(newWeek);
+                      setCurrentWeek(newWeek);
+                      setSeasonPhase(phase);
+                      
+                      // Update game store
+                      const { useGameStore: gameStore } = await import("@/lib/store/game-store");
+                      gameStore.getState().setCurrentWeek(newWeek);
+                      gameStore.getState().setSeasonPhase(phase);
+                      
+                      // Wait a moment for React to process state updates
+                      await new Promise((resolve) => setTimeout(resolve, 100));
+                      
+                      // Explicitly fetch games for the new week (bypassing state to avoid stale closure)
+                      await fetchGames(newWeek);
+                      await checkSeasonStatus();
+                      
+                      // Force another refresh after useEffect has had time to run
+                      // This ensures we have the latest data even if useEffect didn't trigger properly
+                      setTimeout(async () => {
+                        await fetchGames(newWeek);
+                        await checkSeasonStatus();
+                      }, 400);
+                    }
                   }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                  disabled={simulating || week >= 23}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:text-gray-700 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                 >
                   Advance to Week {week + 1} →
                 </button>
@@ -635,7 +922,7 @@ export default function SimulateGamesPage() {
                     const response = await fetch("/api/playoffs/initialize", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ season }),
+                      body: JSON.stringify({ season, saveGameId }),
                     });
                     const data = await response.json();
                     if (!response.ok) {
@@ -679,8 +966,10 @@ export default function SimulateGamesPage() {
                     e.target.value as
                       | "week"
                       | "next_week"
+                      | "regular_season"
                       | "playoffs"
                       | "offseason"
+                      | "preseason"
                   )
                 }
                 disabled={simulating}
@@ -688,16 +977,24 @@ export default function SimulateGamesPage() {
               >
                 <option value="week">Current Week Only</option>
                 <option value="next_week">Simulate to Next Week</option>
+                <option value="regular_season">Simulate to Regular Season</option>
                 <option value="playoffs">Simulate to Playoffs</option>
                 <option value="offseason">Simulate to Offseason</option>
+                <option value="preseason">Simulate to Preseason</option>
               </select>
             </div>
 
             <button
-              onClick={() => {
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[Sim Button] Clicked, simulationType:', simulationType, 'simulating:', simulating);
                 if (simulationType === "week") {
+                  console.log('[Sim Button] Calling simulateWeek()');
                   simulateWeek();
                 } else {
+                  console.log('[Sim Button] Calling simulateAdvance() with type:', simulationType);
                   simulateAdvance(simulationType);
                 }
               }}
@@ -713,40 +1010,56 @@ export default function SimulateGamesPage() {
                   ? `Simulate All Games in Week ${week} (${unplayedGames.length} unplayed)`
                   : simulationType === "next_week"
                     ? `Simulate to Week ${week + 1}`
-                    : simulationType === "playoffs"
-                      ? "Simulate to Playoffs (Week 19)"
-                      : "Simulate to Offseason (Week 23)"}
+                    : simulationType === "regular_season"
+                      ? "Advance to Regular Season (Week 1)"
+                      : simulationType === "playoffs"
+                        ? "Simulate to Playoffs (Week 19)"
+                        : simulationType === "offseason"
+                          ? "Simulate to Offseason (Week 23)"
+                          : "Advance to Preseason (Next Season)"}
             </button>
           </div>
 
           {/* Progress Bar / Loading Indicator */}
           {(progress || simulating) && (
-            <div className="mb-4 bg-blue-50 border border-blue-200 rounded-md p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-900">
+            <div className="mb-4 bg-blue-50 border-2 border-blue-300 rounded-lg p-5 shadow-md">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-base font-semibold text-gray-900">
                   {progress?.message || "Simulating games..."}
                 </span>
-                {progress && (
-                  <span className="text-sm font-medium text-gray-900">
-                    {progress.current} / {progress.total}
+                {progress ? (
+                  <span className="text-base font-semibold text-blue-700">
+                    {Math.round((progress.current / progress.total) * 100)}% ({progress.current} / {progress.total})
+                  </span>
+                ) : (
+                  <span className="text-base font-semibold text-blue-700 animate-pulse">
+                    Processing...
                   </span>
                 )}
               </div>
-              <div className="w-full bg-blue-200 rounded-full h-2.5">
+              <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden shadow-inner">
                 {progress ? (
                   <div
-                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 h-4 rounded-full transition-all duration-500 ease-out flex items-center justify-end pr-2"
                     style={{
                       width: `${Math.min(100, (progress.current / progress.total) * 100)}%`,
                     }}
-                  />
+                  >
+                    {progress.current > 0 && (
+                      <span className="text-xs font-bold text-white">
+                        {Math.round((progress.current / progress.total) * 100)}%
+                      </span>
+                    )}
+                  </div>
                 ) : (
-                  <div
-                    className="bg-blue-600 h-2.5 rounded-full animate-pulse"
-                    style={{ width: "100%" }}
-                  />
+                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-4 rounded-full animate-pulse" style={{ width: "100%" }}></div>
                 )}
               </div>
+              {!progress && simulating && (
+                <p className="mt-2 text-sm text-gray-600 text-center">
+                  Please wait, simulation in progress...
+                </p>
+              )}
             </div>
           )}
 
@@ -894,96 +1207,41 @@ export default function SimulateGamesPage() {
               </div>
             )}
 
-            {games.length === 0 && !loading && (
+            {games.length === 0 && !loading && week >= 0 && week <= 18 && (
               <div className="bg-white rounded-lg shadow-md p-6 text-center">
-                {week >= 19 && week <= 22 ? (
-                  <>
-                    <p className="text-gray-900 mb-4 text-lg font-semibold">
-                      🏆 Playoff Week {week}
-                    </p>
-                    <p className="text-gray-700 text-sm mb-4">
-                      Regular season games are only played in weeks 1-18. Weeks
-                      19-22 are playoff weeks.
-                    </p>
-                    <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-left">
-                      <p className="text-gray-900 font-medium mb-2">
-                        View Playoffs
-                      </p>
-                      <p className="text-gray-700 text-sm mb-4">
-                        Navigate to the Playoffs page to view and simulate
-                        playoff games.
-                      </p>
-                      <Link
-                        href={`/league/playoffs?season=${season}`}
-                        className="inline-block bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
-                      >
-                        Go to Playoffs →
-                      </Link>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-gray-900 mb-4">
-                      No games found for this week.
-                    </p>
-                    <p className="text-sm text-gray-700 mb-4">
-                      Make sure you&apos;ve generated a schedule for season{" "}
-                      {season}
-                    </p>
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 text-left">
-                      <p className="text-gray-900 font-medium mb-2">
-                        ⚠️ Schedule Not in Database
-                      </p>
-                      <p className="text-gray-700 text-sm mb-3">
-                        The schedule page generates games on-demand (in memory)
-                        but doesn&apos;t save them to the database. To simulate
-                        games, you need to save the schedule to the database
-                        first.
-                      </p>
-                      <button
-                        onClick={async () => {
-                          setLoading(true);
-                          try {
-                            const response = await fetch(
-                              "/api/generate-schedule",
-                              {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ season }),
-                              }
-                            );
-                            const data = await response.json();
-                            if (response.ok) {
-                              setResult({
-                                success: true,
-                                message: data.message,
-                              });
-                              await fetchGames();
-                            } else {
-                              setError(
-                                data.error || "Failed to generate schedule"
-                              );
-                            }
-                          } catch (err) {
-                            setError(
-                              err instanceof Error
-                                ? err.message
-                                : "Failed to generate schedule"
-                            );
-                          } finally {
-                            setLoading(false);
-                          }
-                        }}
-                        disabled={loading}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:text-gray-700 disabled:cursor-not-allowed transition-colors text-sm"
-                      >
-                        {loading
-                          ? "Generating..."
-                          : `Generate & Save Schedule for ${season}`}
-                      </button>
-                    </div>
-                  </>
-                )}
+                <p className="text-gray-900 mb-4">
+                  No games found for Week {week} of Season {season}.
+                </p>
+                <p className="text-sm text-gray-700 mb-4">
+                  The schedule should have been auto-generated. If this persists, please refresh the page.
+                </p>
+              </div>
+            )}
+            
+            {games.length === 0 && !loading && week >= 19 && week <= 22 && (
+              <div className="bg-white rounded-lg shadow-md p-6 text-center">
+                <p className="text-gray-900 mb-4 text-lg font-semibold">
+                  🏆 Playoff Week {week}
+                </p>
+                <p className="text-gray-700 text-sm mb-4">
+                  Regular season games are only played in weeks 1-18. Weeks
+                  19-22 are playoff weeks.
+                </p>
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-left">
+                  <p className="text-gray-900 font-medium mb-2">
+                    View Playoffs
+                  </p>
+                  <p className="text-gray-700 text-sm mb-4">
+                    Navigate to the Playoffs page to view and simulate
+                    playoff games.
+                  </p>
+                  <Link
+                    href={`/league/playoffs?season=${season}`}
+                    className="inline-block bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    Go to Playoffs →
+                  </Link>
+                </div>
               </div>
             )}
           </>
