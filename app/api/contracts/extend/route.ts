@@ -1,22 +1,32 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-client";
+import {
+  getPlayerContract,
+  upsertPlayerContract,
+  calculateTeamCapHit,
+} from "@/lib/utils/player-contracts";
 
 /**
  * Extend a player's existing contract by adding years
  */
 export async function POST(req: Request) {
   try {
-    const { playerId, teamId, additionalYears, signingBonus } = await req.json();
+    const { playerId, teamId, additionalYears, signingBonus, saveGameId } =
+      await req.json();
 
-    if (!playerId || !teamId) {
+    if (!playerId || !teamId || !saveGameId) {
       return NextResponse.json(
-        { error: "Player ID and Team ID are required" },
+        { error: "Player ID, Team ID, and saveGameId are required" },
         { status: 400 }
       );
     }
 
     // Validate additional years
-    if (!additionalYears || !Array.isArray(additionalYears) || additionalYears.length === 0) {
+    if (
+      !additionalYears ||
+      !Array.isArray(additionalYears) ||
+      additionalYears.length === 0
+    ) {
       return NextResponse.json(
         { error: "Additional contract years array is required" },
         { status: 400 }
@@ -31,14 +41,19 @@ export async function POST(req: Request) {
       .single();
 
     if (playerError || !player) {
-      return NextResponse.json(
-        { error: "Player not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Player not found" }, { status: 404 });
     }
 
-    // Verify player is on the correct team
-    if (player.team_id !== teamId) {
+    // Verify player is on the correct team (check player_team_assignments)
+    const { data: assignment } = await supabase
+      .from("player_team_assignments")
+      .select("team_id")
+      .eq("player_id", playerId)
+      .eq("save_game_id", saveGameId)
+      .eq("team_id", teamId)
+      .maybeSingle();
+
+    if (!assignment) {
       return NextResponse.json(
         { error: "Player is not on this team" },
         { status: 400 }
@@ -53,31 +68,11 @@ export async function POST(req: Request) {
       .single();
 
     if (teamError || !team) {
-      return NextResponse.json(
-        { error: "Team not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
     // Calculate current team salary cap usage
-    const { data: currentPlayers, error: playersError } = await supabase
-      .from("players")
-      .select("contract_year_1")
-      .eq("team_id", teamId);
-
-    if (playersError) {
-      console.error("Error fetching team players:", playersError);
-      return NextResponse.json(
-        { error: "Failed to check team salary cap" },
-        { status: 500 }
-      );
-    }
-
-    const totalCapHit = (currentPlayers || []).reduce(
-      (sum, p) => sum + (p.contract_year_1 || 0),
-      0
-    );
-
+    const totalCapHit = await calculateTeamCapHit(teamId, saveGameId);
     const SALARY_CAP = team.salary_cap_total ?? 255000000;
     const additionalYear1 = additionalYears[0] || 0;
     const remainingCap = SALARY_CAP - totalCapHit;
@@ -95,13 +90,22 @@ export async function POST(req: Request) {
       );
     }
 
+    // Get current contract
+    const currentContract = await getPlayerContract(playerId, saveGameId);
+    if (!currentContract) {
+      return NextResponse.json(
+        { error: "Player contract not found" },
+        { status: 404 }
+      );
+    }
+
     // Extend contract by appending additional years
     // Find the first zero/null year and fill it with extension years
     const currentYears = [
-      player.contract_year_1 || 0,
-      player.contract_year_2 || 0,
-      player.contract_year_3 || 0,
-      player.contract_year_4 || 0,
+      currentContract.contract_year_1 || 0,
+      currentContract.contract_year_2 || 0,
+      currentContract.contract_year_3 || 0,
+      currentContract.contract_year_4 || 0,
     ];
 
     // Find first zero year
@@ -112,29 +116,30 @@ export async function POST(req: Request) {
 
     // Fill in extension years
     const extendedYears = [...currentYears];
-    for (let i = 0; i < additionalYears.length && (firstZeroIndex + i) < 4; i++) {
+    for (let i = 0; i < additionalYears.length && firstZeroIndex + i < 4; i++) {
       extendedYears[firstZeroIndex + i] = additionalYears[i] || 0;
     }
 
-    // Update player contract
-    const contractUpdate = {
-      contract_year_1: extendedYears[0] || 0,
-      contract_year_2: extendedYears[1] || 0,
-      contract_year_3: extendedYears[2] || 0,
-      contract_year_4: extendedYears[3] || 0,
-      signing_bonus: (player.signing_bonus || 0) + (signingBonus || 0),
+    // Update contract in player_contracts_per_save_game
+    // Use NULL for years with no contract (0 or undefined), not 0
+    // NULL = no contract for that year, any number = contract exists
+    const contractResult = await upsertPlayerContract(playerId, saveGameId, {
+      team_id: teamId,
+      contract_year_1: extendedYears[0] || 0, // Year 1 must have a value
+      contract_year_2:
+        extendedYears[1] && extendedYears[1] > 0 ? extendedYears[1] : undefined, // undefined if no contract
+      contract_year_3:
+        extendedYears[2] && extendedYears[2] > 0 ? extendedYears[2] : undefined, // undefined if no contract
+      contract_year_4:
+        extendedYears[3] && extendedYears[3] > 0 ? extendedYears[3] : undefined, // undefined if no contract
+      signing_bonus: (currentContract.signing_bonus || 0) + (signingBonus || 0),
       contract_expires_season: null, // Reset expiration
-    };
+    });
 
-    const { error: updateError } = await supabase
-      .from("players")
-      .update(contractUpdate)
-      .eq("id", playerId);
-
-    if (updateError) {
-      console.error("Error extending player contract:", updateError);
+    if (!contractResult.success) {
+      console.error("Error extending player contract:", contractResult.error);
       return NextResponse.json(
-        { error: `Failed to extend contract: ${updateError.message}` },
+        { error: `Failed to extend contract: ${contractResult.error}` },
         { status: 500 }
       );
     }
@@ -178,7 +183,8 @@ export async function POST(req: Request) {
         contract_year_2: extendedYears[1] || 0,
         contract_year_3: extendedYears[2] || 0,
         contract_year_4: extendedYears[3] || 0,
-        signing_bonus: contractUpdate.signing_bonus,
+        signing_bonus:
+          (currentContract.signing_bonus || 0) + (signingBonus || 0),
       },
     });
   } catch (error) {
@@ -189,4 +195,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

@@ -1,23 +1,22 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase-client';
-import { formatCurrency } from '@/lib/utils/format';
-import { useGameStore } from '@/lib/store/game-store';
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase-client";
+import { useGameStore } from "@/lib/store/game-store";
+import { StageProgress } from "@/lib/progression/types";
 import {
   Trophy,
   CheckCircle,
-  XCircle,
-  Clock,
-  Users,
-  FileText,
-  Target,
-  ArrowRight,
   AlertCircle,
+  ArrowRight,
+  Loader2,
+  Calendar,
+  Users,
   DollarSign,
-} from 'lucide-react';
-import Link from 'next/link';
+  FileText,
+  RefreshCw,
+} from "lucide-react";
+import Link from "next/link";
 
 interface SeasonData {
   year: number;
@@ -30,110 +29,56 @@ interface SeasonData {
   };
 }
 
-interface ChecklistItem {
-  id: string;
-  label: string;
-  completed: boolean;
-  link?: string;
-}
-
 export default function OffseasonPage() {
-  const { saveGameId, currentSeason } = useGameStore();
+  const {
+    saveGameId,
+    currentSeason,
+    currentWeek,
+    selectedTeamId,
+    settings,
+    setCurrentWeek,
+    setCurrentSeason,
+    setSeasonPhase,
+  } = useGameStore();
+
   const [season, setSeason] = useState<SeasonData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
-  const [scoutingStatus, setScoutingStatus] = useState<{
-    totalProspects: number;
-    scoutedProspects: number;
-    scoutingPoints: number;
-  } | null>(null);
+  const [progress, setProgress] = useState<StageProgress | null>(null);
   const [advancing, setAdvancing] = useState(false);
-  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    loadOffseasonData();
-  }, [saveGameId]);
+    setMounted(true);
+  }, []);
 
-  async function loadOffseasonData() {
+  const loadOffseasonData = useCallback(async () => {
+    if (!saveGameId) return;
+
     try {
-      // Get active season for this save game
+      setLoading(true);
+
+      // Get active season
       let seasonQuery = supabase
-        .from('seasons')
-        .select('*')
-        .eq('is_active', true);
-      
-      // Filter by save_game_id if available
+        .from("seasons")
+        .select("*")
+        .eq("is_active", true);
+
       if (saveGameId) {
-        seasonQuery = seasonQuery.eq('save_game_id', saveGameId);
+        seasonQuery = seasonQuery.eq("save_game_id", saveGameId);
       } else {
-        seasonQuery = seasonQuery.is('save_game_id', null);
-      }
-      
-      let { data: seasonData, error: seasonError } = await seasonQuery.maybeSingle();
-      
-      // If season is in playoffs but Super Bowl is complete, automatically transition to offseason
-      if (seasonData && seasonData.phase === 'playoffs' && seasonData.champion_team_id) {
-        console.log('[Offseason] Season is in playoffs but champion is set, transitioning to offseason...');
-        try {
-          const response = await fetch('/api/playoffs/crown-champion', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ season: seasonData.year, saveGameId }),
-          });
-          
-          if (response.ok) {
-            // Reload season data
-            const { data: updatedSeason } = await seasonQuery.maybeSingle();
-            if (updatedSeason) {
-              seasonData = updatedSeason;
-              console.log('[Offseason] Successfully transitioned to offseason phase');
-            }
-          }
-        } catch (err) {
-          console.error('Error auto-transitioning to offseason:', err);
-        }
-      }
-      
-      // If no season found with save_game_id and we have a saveGameId,
-      // try to find any offseason season with NULL save_game_id and link it
-      if (!seasonData && saveGameId && !seasonError) {
-        const { data: nullSeasonData } = await supabase
-          .from('seasons')
-          .select('*')
-          .eq('is_active', true)
-          .is('save_game_id', null)
-          .maybeSingle();
-        
-        if (nullSeasonData) {
-          // Update the season to have the correct save_game_id
-          const updateResult = await supabase
-            .from('seasons')
-            .update({ save_game_id: saveGameId })
-            .eq('year', nullSeasonData.year)
-            .eq('is_active', true)
-            .is('save_game_id', null);
-          
-          if (!updateResult.error) {
-            seasonData = { ...nullSeasonData, save_game_id: saveGameId };
-          } else {
-            // If update failed, still use the null season data
-            seasonData = nullSeasonData;
-          }
-        }
+        seasonQuery = seasonQuery.is("save_game_id", null);
       }
 
-      if (seasonError && seasonError.code !== 'PGRST116') {
-        console.error('Error loading season:', seasonError);
-      }
+      const { data: seasonData } = await seasonQuery.maybeSingle();
 
       if (seasonData) {
-        // Get champion info if exists
+        // Check for champion
         let champion = null;
         if (seasonData.champion_team_id) {
           const { data: champData } = await supabase
-            .from('teams')
-            .select('name, abbreviation')
-            .eq('id', seasonData.champion_team_id)
+            .from("teams")
+            .select("name, abbreviation")
+            .eq("id", seasonData.champion_team_id)
             .single();
           champion = champData;
         }
@@ -146,541 +91,482 @@ export default function OffseasonPage() {
           champion: champion || undefined,
         });
 
-        // Build checklist
-        await buildChecklist(seasonData.year, seasonData.phase === 'offseason');
-      }
+        // Update game store
+        setSeasonPhase(seasonData.phase);
+        setCurrentWeek(seasonData.current_week);
+        setCurrentSeason(seasonData.year);
 
-      // Load scouting status
-      await loadScoutingStatus();
+        // Get progress for current week
+        if (selectedTeamId) {
+          try {
+            const response = await fetch("/api/progression/status", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                teamId: selectedTeamId,
+                saveGameId,
+                season: seasonData.year,
+                week: seasonData.current_week,
+                phase: "offseason",
+                settings,
+              }),
+            });
+
+            const data = await response.json();
+            if (data.progress) {
+              setProgress(data.progress);
+            } else {
+              // Default progress if none returned
+              setProgress({
+                stage: "offseason",
+                week: seasonData.current_week,
+                completionPercentage: 100,
+                items: [],
+                canAdvance: true,
+              });
+            }
+          } catch (err) {
+            console.error("Error loading progress:", err);
+            setProgress({
+              stage: "offseason",
+              week: seasonData.current_week,
+              completionPercentage: 100,
+              items: [],
+              canAdvance: true,
+            });
+          }
+        } else {
+          setProgress({
+            stage: "offseason",
+            week: seasonData.current_week,
+            completionPercentage: 100,
+            items: [],
+            canAdvance: true,
+          });
+        }
+      }
     } catch (err) {
-      console.error('Error loading offseason data:', err);
+      console.error("Error loading offseason data:", err);
     } finally {
       setLoading(false);
     }
-  }
+  }, [
+    saveGameId,
+    selectedTeamId,
+    settings,
+    setSeasonPhase,
+    setCurrentWeek,
+    setCurrentSeason,
+  ]);
 
-  async function buildChecklist(season: number, isOffseason: boolean) {
-    const items: ChecklistItem[] = [];
-
-    // Check if contracts have been processed
-    // Note: Contract processing is not filtered by save_game_id since players are shared
-    const { data: expiringPlayers } = await supabase
-      .from('players')
-      .select('id')
-      .or('contract_year_1.is.null,contract_year_1.eq.0')
-      .not('team_id', 'is', null)
-      .limit(1);
-
-    items.push({
-      id: 'contracts',
-      label: 'Process expiring contracts',
-      completed: !expiringPlayers || expiringPlayers.length === 0,
-      link: '/teams/contracts',
-    });
-
-    // Check scouting completion (for the current season's draft)
-    // During offseason, we're drafting prospects for the current season
-    // These prospects were generated in preseason and scouted during regular season
-    const draftSeason = season;
-    let prospectsQuery = supabase
-      .from('draft_prospects')
-      .select('id')
-      .eq('season', draftSeason);
-    
-    // Filter by save_game_id if available
-    if (saveGameId) {
-      prospectsQuery = prospectsQuery.eq('save_game_id', saveGameId);
-    } else {
-      prospectsQuery = prospectsQuery.is('save_game_id', null);
+  useEffect(() => {
+    if (mounted) {
+      loadOffseasonData();
     }
-    
-    const { data: prospects } = await prospectsQuery;
+  }, [mounted, loadOffseasonData]);
 
-    // Query scouted_prospects (new scouting system) instead of scouting_reports
-    // First get all scouted prospects for this save game
-    let scoutedQuery = supabase
-      .from('scouted_prospects')
-      .select('prospect_id');
-    
-    // Filter by save_game_id if available
-    if (saveGameId) {
-      scoutedQuery = scoutedQuery.eq('save_game_id', saveGameId);
-    } else {
-      scoutedQuery = scoutedQuery.is('save_game_id', null);
+  // Refresh when page becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadOffseasonData();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [loadOffseasonData]);
+
+  // Refresh when week changes in store
+  useEffect(() => {
+    if (mounted && currentWeek) {
+      loadOffseasonData();
     }
-    
-    const { data: scoutedProspects } = await scoutedQuery;
-    
-    // Now filter to only include prospects from the draft season
-    // Get prospect IDs for the draft season
-    const prospectIdsForSeason = (prospects || []).map(p => p.id);
-    const scoutedProspectIds = (scoutedProspects || []).map(sp => sp.prospect_id);
-    
-    // Count how many scouted prospects are in the draft season
-    const scoutedCount = scoutedProspectIds.filter(id => prospectIdsForSeason.includes(id)).length;
-    const totalCount = prospects?.length || 0;
-    
-    // Scouting is optional - always allow it to be marked complete
-    // Users can advance even if they haven't scouted all prospects
-    // If no prospects exist yet, scouting is considered "complete" (can't scout what doesn't exist)
-    // Prospects will be generated when advancing to the new season
-    const scoutingComplete = totalCount === 0 || totalCount > 0; // Always true - scouting is optional
+  }, [saveGameId, currentWeek, mounted]);
 
-    items.push({
-      id: 'scouting',
-      label: totalCount === 0 
-        ? 'Complete scouting (Draft class will be generated when advancing)'
-        : `Complete scouting (${scoutedCount}/${totalCount} prospects scouted - optional)`,
-      completed: scoutingComplete,
-      link: '/draft',
-    });
-
-    // Check if draft is complete by checking draft_state
-    let draftStateQuery = supabase
-      .from('draft_state')
-      .select('status, season, save_game_id')
-      .eq('season', draftSeason);
-    
-    // Filter by save_game_id if available
-    if (saveGameId) {
-      draftStateQuery = draftStateQuery.eq('save_game_id', saveGameId);
-    } else {
-      draftStateQuery = draftStateQuery.is('save_game_id', null);
-    }
-    
-    const { data: draftState, error: draftStateError } = await draftStateQuery.maybeSingle();
-
-    if (draftStateError) {
-      console.error('[Offseason] Error checking draft state:', draftStateError);
+  const handleAdvance = async () => {
+    if (!saveGameId || !season) {
+      alert("Missing save game or season data");
+      return;
     }
 
-    // Draft is complete if draft_state exists and status is "completed"
-    const draftComplete = draftState?.status === 'completed';
-    
-    console.log(`[Offseason] Draft check - season: ${season}, draftSeason: ${draftSeason}, saveGameId: ${saveGameId}, draftState:`, draftState, `complete: ${draftComplete}`);
-
-    items.push({
-      id: 'draft',
-      label: 'Complete NFL Draft',
-      completed: draftComplete,
-      link: '/draft', // This now goes to the dedicated draft page
-    });
-
-    setChecklist(items);
-  }
-
-  async function loadScoutingStatus() {
-    try {
-      // Get current season for scouting
-      let seasonQuery = supabase
-        .from('seasons')
-        .select('year')
-        .eq('is_active', true);
-      
-      // Filter by save_game_id if available
-      if (saveGameId) {
-        seasonQuery = seasonQuery.eq('save_game_id', saveGameId);
-      } else {
-        seasonQuery = seasonQuery.is('save_game_id', null);
-      }
-      
-      const { data: seasonData } = await seasonQuery.single();
-
-      if (!seasonData) return;
-
-      // During offseason, we're drafting prospects for the current season
-      // These prospects were generated in preseason and scouted during regular season
-      const draftSeason = seasonData.year;
-
-      // Get scouting resources
-      let selectedTeamId: string | null = null;
-      if (typeof window !== 'undefined') {
-        selectedTeamId = localStorage.getItem('selectedTeamId');
-      }
-
-      if (!selectedTeamId) {
-        const { useGameStore } = await import('@/lib/store/game-store');
-        selectedTeamId = useGameStore.getState().selectedTeamId;
-      }
-
-      if (!selectedTeamId) {
-        console.log('[loadScoutingStatus] No selectedTeamId found');
-        return;
-      }
-
-      // Note: In new system, points are per-scout in scout_priority table, not a global pool
-      // This table only tracks scouting_budget for hiring scouts
-      const { data: resources } = await supabase
-        .from('team_scouting_resources')
-        .select('scouting_budget')
-        .eq('team_id', selectedTeamId)
-        .single();
-
-      // Get prospect counts for the current season's draft
-      let prospectsQuery = supabase
-        .from('draft_prospects')
-        .select('id, season')
-        .eq('season', draftSeason);
-      
-      // Filter by save_game_id if available
-      if (saveGameId) {
-        prospectsQuery = prospectsQuery.eq('save_game_id', saveGameId);
-      } else {
-        prospectsQuery = prospectsQuery.is('save_game_id', null);
-      }
-      
-      const { data: prospects } = await prospectsQuery;
-      console.log(`[loadScoutingStatus] Found ${prospects?.length || 0} prospects for season ${draftSeason}`);
-
-      // Query scouted_prospects (new scouting system) instead of scouting_reports
-      // First get all scouted prospects for this team and save game
-      let scoutedQuery = supabase
-        .from('scouted_prospects')
-        .select('prospect_id')
-        .eq('team_id', selectedTeamId);
-      
-      // Filter by save_game_id if available
-      if (saveGameId) {
-        scoutedQuery = scoutedQuery.eq('save_game_id', saveGameId);
-      } else {
-        scoutedQuery = scoutedQuery.is('save_game_id', null);
-      }
-      
-      const { data: scoutedProspects } = await scoutedQuery;
-      console.log(`[loadScoutingStatus] Found ${scoutedProspects?.length || 0} scouted prospects for team ${selectedTeamId}`);
-      
-      // Now filter to only include prospects from the draft season
-      // Get prospect IDs for the draft season
-      const prospectIdsForSeason = new Set((prospects || []).map(p => p.id));
-      const scoutedProspectIds = (scoutedProspects || []).map(sp => sp.prospect_id);
-      
-      // Count how many scouted prospects are in the draft season
-      const scoutedCount = scoutedProspectIds.filter(id => prospectIdsForSeason.has(id)).length;
-      console.log(`[loadScoutingStatus] ${scoutedCount} scouted prospects match the draft season`);
-
-      setScoutingStatus({
-        totalProspects: prospects?.length || 0,
-        scoutedProspects: scoutedCount,
-        // Note: Points are now per-scout in scout_priority table, not a global pool
-        scoutingPoints: 0, // Deprecated - points are per-scout based on priority
-      });
-    } catch (err) {
-      console.error('Error loading scouting status:', err);
-    }
-  }
-
-  async function handleAdvanceToSeason() {
-    if (!season) return;
-
-    if (
-      !confirm(
-        `Are you sure you want to advance to the ${season.year + 1} season? This will:\n- Create a new season\n- Generate the schedule\n- Initialize rosters\n- Set up the next draft class`
-      )
-    ) {
+    if (progress?.blockingReason) {
+      alert(`Cannot advance: ${progress.blockingReason}`);
       return;
     }
 
     setAdvancing(true);
-
     try {
-      const response = await fetch("/api/offseason/advance-to-season", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ season: season.year, saveGameId }),
+      const isFinalWeek = season.current_week >= 25;
+      const advanceType = isFinalWeek ? "preseason" : "next_week";
+
+      console.log("Advancing:", {
+        season: season.year,
+        currentWeek: season.current_week,
+        advanceType,
+        saveGameId,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errorMessage = data.error || data.details || "Failed to advance to new season";
-        console.error("Advance error:", data);
-        alert(`Error: ${errorMessage}\n\nDetails: ${JSON.stringify(data, null, 2)}`);
-        return;
+      if (isFinalWeek) {
+        if (
+          !confirm(
+            `Are you sure you want to start the ${season.year + 1} season? This cannot be undone.`
+          )
+        ) {
+          setAdvancing(false);
+          return;
+        }
       }
 
-      // Update game store
-      const { useGameStore } = await import("@/lib/store/game-store");
-      useGameStore.getState().setCurrentSeason(season.year + 1);
-      useGameStore.getState().setCurrentWeek(0); // Preseason starts at week 0
-      useGameStore.getState().setSeasonPhase("preseason");
+      const response = await fetch("/api/simulate-advance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          season: season.year,
+          currentWeek: season.current_week,
+          advanceType,
+          saveGameId,
+        }),
+      });
 
-      // Reload page to show new season
-      window.location.href = "/";
-    } catch (err) {
-      alert(`Error: ${err instanceof Error ? err.message : "Failed to advance to new season"}`);
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      // Handle stream
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      const decoder = new TextDecoder();
+      let done = false;
+      let hasCompleted = false;
+      let buffer = "";
+
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        done = streamDone;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split("\n\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (data.type === "error") {
+                  throw new Error(data.error || "Unknown error");
+                }
+
+                if (data.type === "complete") {
+                  hasCompleted = true;
+                  if (isFinalWeek) {
+                    setCurrentWeek(0);
+                    setCurrentSeason(season.year + 1);
+                    setSeasonPhase("preseason");
+                    window.location.href = "/preseason";
+                  } else {
+                    setCurrentWeek(data.finalWeek || season.current_week + 1);
+                    window.location.reload();
+                  }
+                  return;
+                }
+              } catch (parseError) {
+                console.error("Error parsing stream data:", parseError);
+              }
+            }
+          }
+        }
+      }
+
+      if (!hasCompleted) {
+        console.warn("Stream ended without completion, reloading anyway");
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error("Error advancing:", error);
+      alert(
+        `Failed to advance: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       setAdvancing(false);
     }
-  }
+  };
+
+  const getWeekTitle = (week: number): string => {
+    switch (week) {
+      case 23:
+        return "Resign Phase";
+      case 24:
+        return "Free Agency";
+      case 25:
+        return "NFL Draft";
+      default:
+        return "Offseason";
+    }
+  };
+
+  const getWeekDescription = (week: number): string => {
+    switch (week) {
+      case 23:
+        return "Review expiring contracts and resign key players before they hit the open market.";
+      case 24:
+        return "Compete with CPU teams in a 4-stage bidding process to sign the best free agents.";
+      case 25:
+        return "Select the next generation of stars in the NFL Draft.";
+      default:
+        return "Prepare for the upcoming season.";
+    }
+  };
+
+  const getWeekIcon = (week: number) => {
+    switch (week) {
+      case 23:
+        return <DollarSign className="w-6 h-6" />;
+      case 24:
+        return <Users className="w-6 h-6" />;
+      case 25:
+        return <FileText className="w-6 h-6" />;
+      default:
+        return <Calendar className="w-6 h-6" />;
+    }
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <p className="text-gray-600">Loading offseason...</p>
-          </div>
-        </div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
   }
 
-  // Allow access if in offseason OR if Super Bowl is complete (should transition to offseason)
-  const isSuperBowlComplete = season?.champion_team_id !== null && season?.champion_team_id !== undefined;
-  const canAccessOffseason = season?.phase === 'offseason' || (season?.phase === 'playoffs' && isSuperBowlComplete);
-  
-  if (!season || !canAccessOffseason) {
+  if (!season) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <div className="text-center">
-              <AlertCircle className="w-16 h-16 text-orange-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Not in Offseason</h2>
-              <p className="text-gray-600 mb-4">
-                Current phase: <strong>{season?.phase || 'Unknown'}</strong>
-                {season?.phase === 'playoffs' && !isSuperBowlComplete && (
-                  <span className="block mt-2 text-sm text-orange-600">
-                    Complete the Super Bowl and crown a champion to access offseason.
-                  </span>
-                )}
-              </p>
-              {season?.phase === 'playoffs' && isSuperBowlComplete && (
-                <button
-                  onClick={async () => {
-                    // Force transition to offseason
-                    try {
-                      const response = await fetch("/api/playoffs/crown-champion", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ season: season.year, saveGameId }),
-                      });
-                      if (response.ok) {
-                        window.location.reload();
-                      }
-                    } catch (err) {
-                      console.error("Error transitioning to offseason:", err);
-                    }
-                  }}
-                  className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 mb-4"
-                >
-                  Transition to Offseason
-                </button>
-              )}
-              <Link
-                href="/"
-                className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Go to Home
-              </Link>
-            </div>
-          </div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            No Active Season
+          </h2>
+          <p className="text-gray-600">
+            No active season found. Please start a new season.
+          </p>
         </div>
       </div>
     );
   }
 
-  const scoutingPercentage =
-    scoutingStatus && scoutingStatus.totalProspects > 0
-      ? Math.round((scoutingStatus.scoutedProspects / scoutingStatus.totalProspects) * 100)
-      : 0;
+  // Ensure we're in offseason weeks
+  if (season.current_week < 23 || season.current_week > 25) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            Not in Offseason
+          </h2>
+          <p className="text-gray-600">
+            Current week is {season.current_week}. Offseason is weeks 23-25.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
+    <div className="min-h-screen bg-slate-50 pb-20">
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-lg border border-slate-200 mb-6 overflow-hidden">
-          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-8 py-6">
+        {/* Champion Header */}
+        {season.champion && (
+          <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-yellow-100 p-2 rounded-full">
+                <Trophy className="w-6 h-6 text-yellow-600" />
+              </div>
+              <div>
+                <p className="text-sm text-yellow-800 font-medium uppercase tracking-wider">
+                  Super Bowl Champion
+                </p>
+                <h3 className="text-xl font-black text-gray-900">
+                  {season.champion.name}
+                </h3>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-3xl font-bold text-yellow-600/20">
+                {season.year}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Main Header */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-8 py-8">
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-black text-white tracking-tight mb-2">
-                  {season.year} Offseason
+              <div className="flex-1">
+                <div className="flex items-center gap-2 text-blue-300 mb-1 font-medium">
+                  <Calendar className="w-4 h-4" />
+                  <span>Week {season.current_week} of 25</span>
+                </div>
+                <h1 className="text-4xl font-black text-white tracking-tight mb-2">
+                  {getWeekTitle(season.current_week)}
                 </h1>
-                <p className="text-slate-300">Week {season.current_week} - Prepare for {season.year + 1}</p>
+                <p className="text-slate-300 text-lg max-w-2xl">
+                  {getWeekDescription(season.current_week)}
+                </p>
               </div>
-              {season.champion && (
-                <div className="text-right">
-                  <div className="flex items-center gap-2 text-yellow-400 mb-1">
-                    <Trophy className="w-6 h-6" />
-                    <span className="text-sm font-semibold">Champion</span>
-                  </div>
-                  <p className="text-white font-bold text-lg">{season.champion.name}</p>
-                  <p className="text-slate-300 text-sm">{season.champion.abbreviation}</p>
-                </div>
-              )}
+              <div className="hidden lg:flex items-center gap-2">
+                {[23, 24, 25].map((w) => (
+                  <div
+                    key={w}
+                    className={`w-3 h-3 rounded-full transition-all ${
+                      season.current_week === w
+                        ? "bg-blue-500 ring-4 ring-blue-500/30"
+                        : season.current_week > w
+                          ? "bg-blue-500/50"
+                          : "bg-slate-700"
+                    }`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Quick Links */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Link
-            href="/teams/contracts"
-            className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow border border-gray-200"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <FileText className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-900">Contracts</h3>
-                <p className="text-sm text-gray-600">Manage expiring contracts</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href="/free-agents"
-            className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow border border-gray-200"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <Users className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-900">Free Agency</h3>
-                <p className="text-sm text-gray-600">Sign available players</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href="/draft"
-            className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow border border-gray-200"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Target className="w-6 h-6 text-purple-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-900">Draft</h3>
-                <p className="text-sm text-gray-600">Scout & draft prospects</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href="/teams/staff"
-            className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow border border-gray-200"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Users className="w-6 h-6 text-orange-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-900">Coaching Staff</h3>
-                <p className="text-sm text-gray-600">Manage coaches</p>
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Checklist */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-              Offseason Checklist
-            </h2>
-            <div className="space-y-3">
-              {checklist.map((item) => (
-                <div
-                  key={item.id}
-                  className={`flex items-center justify-between p-3 rounded-lg border ${
-                    item.completed
-                      ? 'bg-green-50 border-green-200'
-                      : 'bg-gray-50 border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    {item.completed ? (
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-gray-400" />
-                    )}
-                    <span
-                      className={item.completed ? 'text-gray-700 line-through' : 'text-gray-900 font-medium'}
-                    >
-                      {item.label}
-                    </span>
-                  </div>
-                  {item.link && !item.completed && (
-                    <Link
-                      href={item.link}
-                      className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
-                    >
-                      Go <ArrowRight className="w-4 h-4" />
-                    </Link>
-                  )}
-                </div>
-              ))}
-            </div>
+        {/* Checklist */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <h2 className="font-bold text-gray-900">Tasks for this Week</h2>
+            <button
+              onClick={() => loadOffseasonData()}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+              title="Refresh data"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Refresh
+            </button>
           </div>
 
-          {/* Scouting Status */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Target className="w-6 h-6 text-purple-600" />
-              Scouting Status
-            </h2>
-            {scoutingStatus ? (
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">Progress</span>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {scoutingStatus.scoutedProspects} / {scoutingStatus.totalProspects}
-                    </span>
+          <div className="p-6">
+            {progress && progress.items.length > 0 ? (
+              <div className="space-y-3">
+                {progress.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`flex items-start gap-4 p-4 rounded-lg border ${
+                      item.status === "completed"
+                        ? "bg-green-50 border-green-200"
+                        : item.isBlocking
+                          ? "bg-red-50 border-red-200"
+                          : "bg-slate-50 border-slate-200"
+                    }`}
+                  >
+                    <div className="flex-shrink-0 mt-0.5">
+                      {item.status === "completed" ? (
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      ) : item.isBlocking ? (
+                        <AlertCircle className="w-5 h-5 text-red-600" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full border-2 border-slate-300" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-4">
+                        <h3 className="font-semibold text-gray-900">
+                          {item.label}
+                        </h3>
+                        {item.isRequired && (
+                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
+                            Required
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {item.description}
+                      </p>
+                      {item.actionUrl && (
+                        <Link
+                          href={item.actionUrl}
+                          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium mt-2"
+                        >
+                          {item.actionLabel || "View"}
+                          <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      )}
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3">
-                    <div
-                      className="bg-purple-600 h-3 rounded-full transition-all"
-                      style={{ width: `${scoutingPercentage}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">{scoutingPercentage}% complete</p>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm text-gray-600">Scouting Points</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {scoutingStatus.scoutingPoints}
-                  </span>
-                </div>
-                <Link
-                  href="/draft"
-                  className="block w-full text-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                >
-                  Go to Scouting Dashboard
-                </Link>
+                ))}
               </div>
             ) : (
-              <p className="text-gray-600">No scouting data available</p>
+              <div className="text-center py-8 text-gray-500">
+                <p>No tasks for this week.</p>
+              </div>
+            )}
+
+            {/* Progress Bar */}
+            {progress && (
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    Progress
+                  </span>
+                  <span className="text-sm font-bold text-gray-900">
+                    {progress.completionPercentage}%
+                  </span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${progress.completionPercentage}%` }}
+                  />
+                </div>
+              </div>
             )}
           </div>
-        </div>
 
-        {/* Advance to New Season Button */}
-        <div className="mt-6 bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
-                Ready for {season.year + 1} Season?
-              </h2>
-              <p className="text-sm text-gray-600">
-                Complete all offseason tasks, then advance to the new season to generate schedules and initialize rosters.
-              </p>
-              {checklist.length > 0 && (
-                <p className="text-xs text-gray-500 mt-1">
-                  {checklist.filter(item => item.completed).length} of {checklist.length} tasks complete
-                </p>
-              )}
-            </div>
+          {/* Advance Button */}
+          <div className="p-4 bg-slate-50 border-t border-slate-100">
+            {progress && !progress.canAdvance && progress.blockingReason && (
+              <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                {progress.blockingReason}
+              </div>
+            )}
             <button
-              onClick={handleAdvanceToSeason}
-              disabled={advancing}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              onClick={handleAdvance}
+              disabled={
+                advancing ||
+                (progress !== null &&
+                  progress !== undefined &&
+                  !progress.canAdvance)
+              }
+              className={`w-full py-3 px-4 rounded-lg font-bold text-white flex items-center justify-center gap-2 transition-all ${
+                progress === null ||
+                progress === undefined ||
+                progress.canAdvance
+                  ? "bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg"
+                  : "bg-slate-300 cursor-not-allowed text-slate-500"
+              }`}
             >
-              {advancing ? "Advancing..." : `Advance to ${season.year + 1} Preseason`}
+              {advancing ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  {season.current_week >= 25
+                    ? "Start New Season"
+                    : "Advance Week"}
+                  <ArrowRight className="w-5 h-5" />
+                </>
+              )}
             </button>
           </div>
         </div>

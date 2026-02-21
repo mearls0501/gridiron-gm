@@ -6,7 +6,7 @@ import {
 
 export async function POST(req: Request) {
   try {
-    const { season } = await req.json();
+    const { season, saveGameId } = await req.json();
 
     if (!season) {
       return NextResponse.json(
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     }
 
     // First, aggregate season stats
-    const aggregationResult = await aggregateSeasonStats(season);
+    const aggregationResult = await aggregateSeasonStats(season, saveGameId);
 
     // Then, update player ratings based on performance
     const ratingResult = await updatePlayerRatingsForSeason(season);

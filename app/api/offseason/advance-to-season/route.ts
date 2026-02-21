@@ -3,11 +3,15 @@ import { supabase } from "@/lib/supabase-client";
 import { ensureScheduleExists } from "@/lib/utils/schedule";
 import { getOrCreateSeason, deactivateSeason, updateSeasonPhase } from "@/lib/seasons/season-manager";
 
+// Increase timeout for roster replenishment which can be slow
+export const maxDuration = 60; // 60 seconds
+
 /**
  * Advance from offseason to new season
  * Creates new season, generates schedule, initializes rosters, etc.
  */
 export async function POST(req: Request) {
+  const startTime = Date.now();
   try {
     const { season, saveGameId } = await req.json();
 
@@ -27,7 +31,7 @@ export async function POST(req: Request) {
 
     const newSeason = season + 1;
 
-    console.log(`[Advance to Season] Advancing from ${season} to ${newSeason}...`);
+    console.log(`[Advance to Season] ⏱️ Starting advancement from ${season} to ${newSeason}...`);
 
     // Step 1: Validate offseason completion
     // Check if draft is complete (simplified - check if at least some picks have been made)
@@ -123,8 +127,13 @@ export async function POST(req: Request) {
     console.log(`[Advance to Season] ${newSeasonResult.created ? 'Created' : 'Retrieved'} new season ${newSeason}`);
 
     // Step 5: Generate new season schedule
-    console.log(`[Advance to Season] Generating schedule for ${newSeason}...`);
+    // CRITICAL: Schedule must be generated AFTER season record is created
+    // This ensures schedule can link to season_id UUID
+    const scheduleStart = Date.now();
+    console.log(`[Advance to Season] ⏱️ Generating schedule for ${newSeason}...`);
     const scheduleResult = await ensureScheduleExists(newSeason, saveGameId);
+    console.log(`[Advance to Season] ⏱️ Schedule generation took ${Date.now() - scheduleStart}ms`);
+    
     if (!scheduleResult.success) {
       console.error("Error generating schedule:", scheduleResult.message);
       return NextResponse.json(
@@ -138,11 +147,79 @@ export async function POST(req: Request) {
       console.log(`[Advance to Season] Successfully generated schedule for ${newSeason}`);
     }
 
-    // Step 6: Initialize rosters
+    // Validation: Verify schedule is linked to season_id
+    const { data: scheduleRecord, error: scheduleCheckError } = await supabase
+      .from("schedules")
+      .select("id, season_id, total_games")
+      .eq("save_game_id", saveGameId)
+      .eq("season", newSeason)
+      .single();
+
+    if (scheduleCheckError && scheduleCheckError.code !== "PGRST116") {
+      console.warn(`[Advance to Season] Could not verify schedule record: ${scheduleCheckError.message}`);
+    } else if (scheduleRecord) {
+      if (scheduleRecord.season_id !== newSeasonRecord.id) {
+        console.warn(`[Advance to Season] Schedule season_id (${scheduleRecord.season_id}) does not match season record id (${newSeasonRecord.id})`);
+        // Try to fix it
+        await supabase
+          .from("schedules")
+          .update({ season_id: newSeasonRecord.id })
+          .eq("id", scheduleRecord.id);
+        console.log(`[Advance to Season] Updated schedule season_id to match season record`);
+      } else {
+        console.log(`[Advance to Season] Verified schedule is linked to season_id: ${newSeasonRecord.id}`);
+      }
+    }
+
+    // Validation: Verify games have season_id populated
+    const { count: gamesWithSeasonId, error: gamesCheckError } = await supabase
+      .from("games")
+      .select("*", { count: "exact", head: true })
+      .eq("save_game_id", saveGameId)
+      .eq("season", newSeason)
+      .eq("season_id", newSeasonRecord.id);
+
+    if (gamesCheckError && gamesCheckError.code !== "PGRST116") {
+      console.warn(`[Advance to Season] Could not verify games season_id: ${gamesCheckError.message}`);
+    } else {
+      console.log(`[Advance to Season] Verified ${gamesWithSeasonId || 0} games are linked to season_id: ${newSeasonRecord.id}`);
+    }
+
+    // Step 6: Initialize rosters and replenish to 53 players
     // All signed players (with team_id) remain on rosters
     // Draft picks are already on rosters (created during draft selection)
     // Free agents who were signed are already on rosters
-    console.log(`[Advance to Season] Rosters initialized (players with team_id remain on teams)`);
+    const rosterStart = Date.now();
+    console.log(`[Advance to Season] ⏱️ Checking and replenishing rosters...`);
+    
+    // Auto-replenish all rosters to 53 players
+    try {
+      const { replenishAllRosters } = await import("@/lib/utils/roster-replenisher");
+      const replenishResult = await replenishAllRosters(
+        saveGameId,
+        newSeason,
+        0 // Preseason week 0
+      );
+      
+      console.log(`[Advance to Season] ⏱️ Roster replenishment took ${Date.now() - rosterStart}ms`);
+      
+      if (replenishResult.success) {
+        console.log(
+          `[Advance to Season] ✓ Replenished ${replenishResult.playersAdded} players across ${replenishResult.teamsProcessed} teams`
+        );
+      } else {
+        console.warn(
+          `[Advance to Season] ⚠️ Roster replenishment completed with ${replenishResult.errors.length} errors:`,
+          replenishResult.errors
+        );
+      }
+    } catch (replenishError) {
+      console.error(
+        `[Advance to Season] ❌ Error during roster replenishment:`,
+        replenishError
+      );
+      // Don't fail the entire advance - rosters might still be functional
+    }
 
     // Step 7: Ensure draft picks exist for future seasons (maintain 5 seasons ahead)
     // Check what draft picks we have and ensure we have picks for newSeason + 1 through newSeason + 5
@@ -241,8 +318,10 @@ export async function POST(req: Request) {
       console.error("Error checking draft class:", draftClassError);
     }
 
+    let draftClassGenerated = !!existingDraftClass && existingDraftClass.length > 0;
     if (!existingDraftClass || existingDraftClass.length === 0) {
-      console.log(`[Advance to Season] Generating draft class for ${draftSeason} (preseason)...`);
+      const draftStart = Date.now();
+      console.log(`[Advance to Season] ⏱️ Generating draft class for ${draftSeason} (preseason)...`);
       try {
         // Import and call the generate-draft-class logic directly
         const { generatePlayer, resetNameGenerator } = await import('@/lib/player-generator');
@@ -255,6 +334,8 @@ export async function POST(req: Request) {
         const midCount = 123;
         const lateCount = 133;
         const bustCount = 52;
+        
+        console.log(`[Advance to Season] ⏱️ Generating ${eliteCount + midCount + lateCount + bustCount} prospects...`);
         
         for (let i = 0; i < eliteCount; i++) {
           prospects.push(generatePlayer({ isProspect: true, talentTier: "elite" }));
@@ -269,6 +350,8 @@ export async function POST(req: Request) {
           prospects.push(generatePlayer({ isProspect: true, talentTier: "bust" }));
         }
         
+        console.log(`[Advance to Season] ⏱️ Prospect generation took ${Date.now() - draftStart}ms`);
+        
         // Shuffle prospects
         for (let i = prospects.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -276,24 +359,18 @@ export async function POST(req: Request) {
         }
         
         // Save prospects to database
-        const prospectsToInsert = prospects.map((p) => ({
-          season: draftSeason,
-          save_game_id: saveGameId,
-          full_name: p.full_name,
-          position: p.position,
-          age: p.age,
-          college: p.college || null,
-          archetype: p.archetype || null,
-          overall: p.overall,
-          potential: p.potential,
-          traits: typeof p.traits === "string" ? JSON.parse(p.traits) : p.traits,
-          is_free_agent: p.is_free_agent || false,
-          contract_year_1: p.contract_year_1 || null,
-          contract_year_2: p.contract_year_2 || null,
-          contract_year_3: p.contract_year_3 || null,
-          contract_year_4: p.contract_year_4 || null,
-          signing_bonus: p.signing_bonus || null,
-        }));
+        // Note: Contracts are NOT stored in draft_prospects - they are created in player_contracts_per_save_game when drafted
+        const prospectsToInsert = prospects.map((p) => {
+          const { contract_year_1, contract_year_2, contract_year_3, contract_year_4, signing_bonus, ...prospectData } = p;
+          return {
+            ...prospectData,
+            season: draftSeason,
+            save_game_id: saveGameId,
+          };
+        });
+        
+        console.log(`[Advance to Season] ⏱️ Deleting old prospects and inserting new ones...`);
+        const insertStart = Date.now();
         
         // Delete existing prospects for this season and save_game_id
         await supabase
@@ -302,25 +379,57 @@ export async function POST(req: Request) {
           .eq("season", draftSeason)
           .eq("save_game_id", saveGameId);
         
-        // Insert in batches
-        const batchSize = 100;
+        // Insert in batches of 50 (smaller batches for large records with 71 attributes)
+        const batchSize = 50;
+        const totalBatches = Math.ceil(prospectsToInsert.length / batchSize);
         let insertedCount = 0;
+        let errorCount = 0;
+        
         for (let i = 0; i < prospectsToInsert.length; i += batchSize) {
           const batch = prospectsToInsert.slice(i, i + batchSize);
+          const batchNum = Math.floor(i / batchSize) + 1;
+          
           const { error: batchError } = await supabase
             .from("draft_prospects")
             .insert(batch);
           
           if (batchError) {
-            console.error(`[Advance to Season] Error inserting batch:`, batchError);
+            errorCount++;
+            console.error(`[Advance to Season] ❌ Error inserting batch ${batchNum}/${totalBatches}:`, {
+              message: batchError.message,
+              code: batchError.code,
+              details: batchError.details,
+              hint: batchError.hint,
+            });
+            
+            // If error is about missing columns, provide helpful message
+            if (batchError.message?.includes('column') || batchError.code === '42703') {
+              console.error(`[Advance to Season] 🚨 MIGRATION NOT APPLIED! You need to run the migration: supabase/migrations/add_detailed_attributes_to_draft_prospects.sql`);
+              console.error(`[Advance to Season] 🚨 See APPLY-MIGRATION.md for instructions`);
+              break; // Stop trying to insert if migration isn't applied
+            }
           } else {
             insertedCount += batch.length;
+            if (batchNum % 2 === 0 || batchNum === totalBatches) {
+              console.log(`[Advance to Season] ⏱️ Inserted batch ${batchNum}/${totalBatches} (${insertedCount} total)`);
+            }
           }
         }
         
-        console.log(`[Advance to Season] Successfully generated ${insertedCount} draft prospects for ${draftSeason}`);
+        console.log(`[Advance to Season] ⏱️ Draft prospect insertion took ${Date.now() - insertStart}ms`);
+        console.log(`[Advance to Season] ⏱️ Total draft class generation took ${Date.now() - draftStart}ms`);
+        
+        if (errorCount > 0) {
+          console.warn(`[Advance to Season] ⚠️ Generated draft class with ${errorCount} batch errors. ${insertedCount} out of ${prospectsToInsert.length} prospects inserted.`);
+          if (insertedCount === 0) {
+            console.error(`[Advance to Season] 🚨 NO PROSPECTS INSERTED! Check that migration has been applied: supabase/migrations/add_detailed_attributes_to_draft_prospects.sql`);
+          }
+        } else {
+          console.log(`[Advance to Season] ✓ Successfully generated ${insertedCount} draft prospects for ${draftSeason}`);
+        }
+        draftClassGenerated = insertedCount > 0;
       } catch (err) {
-        console.error(`[Advance to Season] Error generating draft class:`, err);
+        console.error(`[Advance to Season] ❌ Error generating draft class:`, err);
         // Continue anyway - user can generate manually
       }
     } else {
@@ -376,6 +485,9 @@ export async function POST(req: Request) {
       }
     }
 
+    const totalTime = Date.now() - startTime;
+    console.log(`[Advance to Season] ⏱️ ✅ COMPLETED in ${totalTime}ms (${(totalTime / 1000).toFixed(1)}s)`);
+    
     return NextResponse.json({
       success: true,
       message: `Successfully advanced to season ${newSeason}`,
@@ -387,15 +499,19 @@ export async function POST(req: Request) {
       summary: {
         scheduleGenerated: scheduleResult.success,
         draftPicksInitialized: draftPicksInitialized,
-        draftClassGenerated: !!existingDraftClass && existingDraftClass.length > 0,
+        draftClassGenerated,
+      },
+      timing: {
+        totalMs: totalTime,
+        totalSeconds: (totalTime / 1000).toFixed(1),
       },
     });
   } catch (error) {
-    console.error("Error advancing to new season:", error);
+    const totalTime = Date.now() - startTime;
+    console.error(`[Advance to Season] ❌ FAILED after ${totalTime}ms (${(totalTime / 1000).toFixed(1)}s):`, error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }
 }
-
