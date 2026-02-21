@@ -90,6 +90,13 @@ export default function DraftPage() {
   const [selecting, setSelecting] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [simulationProgress, setSimulationProgress] = useState<{
+    current: number;
+    total: number;
+    round: number | null;
+    pickOverall: number | null;
+    message: string;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [positionFilter, setPositionFilter] = useState<string>("all");
   const [showScoutedOnly, setShowScoutedOnly] = useState(false);
@@ -105,20 +112,6 @@ export default function DraftPage() {
     const draftSeason = currentSeason;
     setSeason(draftSeason);
   }, [currentSeason, seasonPhase]);
-
-  const loadDraftState = useCallback(async () => {
-    if (!saveGameId || !season) return;
-
-    try {
-      const response = await fetch(
-        `/api/draft/state?season=${season}&saveGameId=${saveGameId}`
-      );
-      const data = await response.json();
-      setDraftState(data);
-    } catch (err) {
-      console.error("Error loading draft state:", err);
-    }
-  }, [season, saveGameId]);
 
   const loadDraftData = useCallback(async () => {
     if (!saveGameId) return;
@@ -441,6 +434,7 @@ export default function DraftPage() {
 
     setSimulating(true);
     setError(null);
+    setSimulationProgress(null);
 
     try {
       console.log(`[Draft Page] Starting simulation: ${type}`);
@@ -455,28 +449,86 @@ export default function DraftPage() {
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        console.error(`[Draft Page] Simulation failed:`, data);
-        throw new Error(data.error || "Failed to simulate draft");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to simulate draft");
       }
 
-      console.log(`[Draft Page] Simulation complete:`, data);
-      console.log(
-        `[Draft Page] Picks made: ${data.picksMade}, Draft state:`,
-        data.draftState
-      );
+      if (!response.body) {
+        throw new Error("No response body");
+      }
 
-      // Force reload of both draft state and draft data
-      await Promise.all([loadDraftState(), loadDraftData()]);
+      // Handle SSE stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
 
-      console.log(`[Draft Page] Data reloaded after simulation`);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.type === "start") {
+                setSimulationProgress({
+                  current: data.current || 0,
+                  total: data.total || 224,
+                  round: null,
+                  pickOverall: null,
+                  message: data.message || "Starting simulation...",
+                });
+              } else if (data.type === "progress") {
+                setSimulationProgress({
+                  current: data.current || 0,
+                  total: data.total || 224,
+                  round: data.round || null,
+                  pickOverall: data.pickOverall || null,
+                  message: data.message || `Pick ${data.current}/${data.total}`,
+                });
+              } else if (data.type === "complete") {
+                setSimulationProgress({
+                  current: data.total || 224,
+                  total: data.total || 224,
+                  round: null,
+                  pickOverall: null,
+                  message: data.message || "Simulation complete!",
+                });
+
+                // Update draft state from response
+                if (data.draftState) {
+                  setDraftState(data.draftState);
+                }
+
+                // Small delay to ensure database updates are committed
+                await new Promise((resolve) => setTimeout(resolve, 200));
+
+                // Reload draft data
+                await loadDraftData();
+                break;
+              } else if (data.type === "error") {
+                throw new Error(data.error || "Simulation error");
+              }
+            } catch (parseError) {
+              console.error("Error parsing SSE data:", parseError);
+            }
+          }
+        }
+      }
     } catch (err) {
       console.error("[Draft Page] Error simulating draft:", err);
       setError(err instanceof Error ? err.message : "Failed to simulate draft");
+      setSimulationProgress(null);
     } finally {
       setSimulating(false);
+      // Clear progress after a short delay
+      setTimeout(() => setSimulationProgress(null), 2000);
     }
   };
 
@@ -927,6 +979,54 @@ export default function DraftPage() {
                       <Zap className="w-5 h-5" />
                       {simulating ? "Simulating..." : "Simulate Full Draft"}
                     </button>
+
+                    {/* Progress Bar */}
+                    {simulationProgress && (
+                      <div className="mt-4 space-y-2">
+                        <div
+                          className="flex justify-between text-sm"
+                          style={{ color: "var(--futuristic-text-secondary)" }}
+                        >
+                          <span>{simulationProgress.message}</span>
+                          {simulationProgress.round &&
+                            simulationProgress.pickOverall && (
+                              <span>
+                                Round {simulationProgress.round}, Pick{" "}
+                                {simulationProgress.pickOverall}
+                              </span>
+                            )}
+                        </div>
+                        <div
+                          className="w-full bg-gray-800 rounded-full h-3 overflow-hidden"
+                          style={{
+                            border: "1px solid var(--futuristic-border)",
+                          }}
+                        >
+                          <div
+                            className="h-full transition-all duration-300 ease-out"
+                            style={{
+                              width: `${Math.min(100, (simulationProgress.current / simulationProgress.total) * 100)}%`,
+                              background:
+                                "linear-gradient(90deg, var(--futuristic-neon-purple), var(--futuristic-neon-cyan))",
+                              boxShadow: "0 0 10px rgba(168, 85, 247, 0.5)",
+                            }}
+                          />
+                        </div>
+                        <div
+                          className="text-xs text-center"
+                          style={{ color: "var(--futuristic-text-secondary)" }}
+                        >
+                          {simulationProgress.current} /{" "}
+                          {simulationProgress.total} picks (
+                          {Math.round(
+                            (simulationProgress.current /
+                              simulationProgress.total) *
+                              100
+                          )}
+                          %)
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

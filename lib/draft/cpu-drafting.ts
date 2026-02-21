@@ -9,24 +9,57 @@ interface Prospect {
   traits?: any;
 }
 
-interface TeamRoster {
-  position: string;
-  count: number;
-}
-
 /**
  * Analyze team needs based on roster composition
  */
-async function analyzeTeamNeeds(teamId: string, saveGameId: string): Promise<string[]> {
+async function analyzeTeamNeeds(
+  teamId: string,
+  saveGameId: string
+): Promise<string[]> {
   try {
-    // Get current roster
-    const { data: players } = await supabase
-      .from("players")
-      .select("position")
-      .eq("team_id", teamId);
+    // Get current roster using player_team_assignments for save game isolation
+    let players: Array<{ position: string }> = [];
+
+    if (saveGameId) {
+      // Use player_team_assignments to get roster for this save game
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from("player_team_assignments")
+        .select(
+          `
+          players:player_id (
+            position
+          )
+        `
+        )
+        .eq("team_id", teamId)
+        .eq("save_game_id", saveGameId);
+
+      if (!assignmentsError && assignments && assignments.length > 0) {
+        // Extract position from nested players object
+        players = assignments
+          .map((a: any) => a.players)
+          .filter(Boolean)
+          .map((p: any) => ({ position: p.position }));
+      }
+    }
+
+    // Fallback to base players table if no assignments found
+    if (players.length === 0) {
+      const { data: basePlayers, error: baseError } = await supabase
+        .from("players")
+        .select("position")
+        .eq("team_id", teamId);
+
+      if (!baseError && basePlayers) {
+        players = basePlayers;
+      }
+    }
 
     if (!players || players.length === 0) {
       // No players, need everything
+      console.log(
+        `[analyzeTeamNeeds] Team ${teamId} has no players, returning all positions as needs`
+      );
       return ["QB", "RB", "WR", "TE", "OL", "DL", "LB", "DB", "K", "P"];
     }
 
@@ -59,6 +92,17 @@ async function analyzeTeamNeeds(teamId: string, saveGameId: string): Promise<str
       }
     }
 
+    // Log team needs for debugging
+    if (needs.length > 0) {
+      console.log(
+        `[analyzeTeamNeeds] Team ${teamId} needs: ${needs.join(", ")}`
+      );
+    } else {
+      console.log(
+        `[analyzeTeamNeeds] Team ${teamId} has no specific needs, will use best available`
+      );
+    }
+
     // If no specific needs, return empty array (will use best available)
     return needs;
   } catch (error) {
@@ -76,6 +120,9 @@ export async function selectCPUProspect(
   saveGameId: string
 ): Promise<Prospect | null> {
   if (availableProspects.length === 0) {
+    console.log(
+      `[selectCPUProspect] No available prospects for team ${teamId}`
+    );
     return null;
   }
 
@@ -86,9 +133,18 @@ export async function selectCPUProspect(
   let candidates = availableProspects;
   if (needs.length > 0) {
     // Prioritize prospects that fill needs
-    const needProspects = availableProspects.filter((p) => needs.includes(p.position));
+    const needProspects = availableProspects.filter((p) =>
+      needs.includes(p.position)
+    );
     if (needProspects.length > 0) {
+      console.log(
+        `[selectCPUProspect] Team ${teamId} filtering ${needProspects.length} prospects that match needs from ${availableProspects.length} total`
+      );
       candidates = needProspects;
+    } else {
+      console.log(
+        `[selectCPUProspect] Team ${teamId} has needs but no prospects match, using best available`
+      );
     }
   }
 
@@ -106,27 +162,45 @@ export async function selectCPUProspect(
     return a.full_name.localeCompare(b.full_name);
   });
 
-  return candidates[0] || null;
+  const selected = candidates[0] || null;
+  if (selected) {
+    console.log(
+      `[selectCPUProspect] Team ${teamId} selected ${selected.full_name} (${selected.position}, OVR: ${selected.overall}, POT: ${selected.potential})`
+    );
+  } else {
+    console.warn(
+      `[selectCPUProspect] Team ${teamId} could not select a prospect from ${availableProspects.length} available`
+    );
+  }
+
+  return selected;
 }
 
 /**
  * Get the next available pick for a team
+ * currentPickOverall represents the NEXT pick to be made (not the last made pick)
+ * So we query for picks >= currentPickOverall to include the current pick
  */
 export async function getNextPick(
   season: number,
   saveGameId: string,
   currentPickOverall: number
-): Promise<{ pickId: string; teamId: string; pickOverall: number; round: number } | null> {
+): Promise<{
+  pickId: string;
+  teamId: string;
+  pickOverall: number;
+  round: number;
+} | null> {
   const { data: nextPick } = await supabase
     .from("draft_picks")
     .select("id, owning_team_id, pick_overall, round")
     .eq("season", season)
     .eq("save_game_id", saveGameId)
-    .gt("pick_overall", currentPickOverall)
+    .gte("pick_overall", currentPickOverall) // Use >= to include current pick
     .is("selected_player_id", null)
     .order("pick_overall", { ascending: true })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (!nextPick) {
     return null;
@@ -148,4 +222,3 @@ export async function getNextPick(
 export function isCPUTeam(teamId: string, userTeamId: string | null): boolean {
   return userTeamId !== null && teamId !== userTeamId;
 }
-

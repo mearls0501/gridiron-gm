@@ -46,18 +46,19 @@ export async function POST(req: Request) {
     console.log(`[Draft Complete] Using season ${season} (requested: ${requestedSeason}, saveGameId: ${saveGameId})`);
 
     // Get all draft picks for this season and save game
-    draftPicksQuery = supabase
+    let draftPicksQueryForSeason = supabase
       .from("draft_picks")
-      .select("selected_player_id")
+      .select("season, selected_player_id")
       .eq("season", season)
-      .eq("save_game_id", saveGameId)
       .not("selected_player_id", "is", null);
     
     if (saveGameId) {
-      draftPicksQuery = draftPicksQuery.eq("save_game_id", saveGameId);
+      draftPicksQueryForSeason = draftPicksQueryForSeason.eq("save_game_id", saveGameId);
     } else {
-      draftPicksQuery = draftPicksQuery.is("save_game_id", null);
+      draftPicksQueryForSeason = draftPicksQueryForSeason.is("save_game_id", null);
     }
+    
+    draftPicksQuery = draftPicksQueryForSeason;
     
     const { data: draftPicks, error: picksError } = await draftPicksQuery;
 
@@ -108,32 +109,50 @@ export async function POST(req: Request) {
       });
     }
 
-    // Move undrafted prospects to free agency
-    const freeAgentsToInsert = undraftedProspects.map((prospect) => ({
-      id: prospect.id,
-      full_name: prospect.full_name,
-      position: prospect.position,
-      age: prospect.age,
-      college: prospect.college || null,
-      archetype: prospect.archetype || null,
-      overall: prospect.overall,
-      potential: prospect.potential,
-      traits: prospect.traits || {},
+    // Track undrafted prospects in undrafted_prospects table
+    const undraftedRecords = undraftedProspects.map((prospect) => ({
+      prospect_id: prospect.id,
+      save_game_id: saveGameId,
+      season: season,
       entered_free_agency_season: season,
       archived: false,
     }));
 
-    const { error: insertFAError } = await supabase
-      .from("free_agents")
-      .upsert(freeAgentsToInsert, {
-        onConflict: "id",
-        ignoreDuplicates: false,
+    const { error: undraftedError } = await supabase
+      .from("undrafted_prospects")
+      .upsert(undraftedRecords, {
+        onConflict: "prospect_id,save_game_id",
       });
 
-    if (insertFAError) {
-      console.error("Error moving prospects to free agency:", insertFAError);
+    if (undraftedError) {
+      console.error("Error tracking undrafted prospects:", undraftedError);
       return NextResponse.json(
-        { error: `Failed to move undrafted prospects to free agency: ${insertFAError.message}` },
+        { error: `Failed to track undrafted prospects: ${undraftedError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Create free_agent_availability records with prospect_id (not player_id)
+    // This makes them available as free agents for this save game
+    const availabilityRecords = undraftedProspects.map((prospect) => ({
+      prospect_id: prospect.id,
+      save_game_id: saveGameId,
+      entered_free_agency_season: season,
+      reason: "draft_undrafted",
+      archived: false,
+    }));
+
+    // Insert availability records
+    const { error: availabilityError } = await supabase
+      .from("free_agent_availability")
+      .upsert(availabilityRecords, {
+        onConflict: "save_game_id,prospect_id",
+      });
+
+    if (availabilityError) {
+      console.error("Error creating free agent availability:", availabilityError);
+      return NextResponse.json(
+        { error: `Failed to create free agent availability: ${availabilityError.message}` },
         { status: 500 }
       );
     }

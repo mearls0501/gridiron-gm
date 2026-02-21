@@ -107,24 +107,15 @@ export async function POST(req: Request) {
       const publicUrl = urlData.publicUrl;
 
       // Save prospects to database
-      const prospectsToInsert = prospects.map((p) => ({
-        season,
-        save_game_id: saveGameId,
-        full_name: p.full_name,
-        position: p.position,
-        age: p.age,
-        college: p.college || null,
-        archetype: p.archetype || null,
-        overall: p.overall,
-        potential: p.potential,
-        traits: typeof p.traits === "string" ? JSON.parse(p.traits) : p.traits,
-        is_free_agent: p.is_free_agent || false,
-        contract_year_1: p.contract_year_1 || null,
-        contract_year_2: p.contract_year_2 || null,
-        contract_year_3: p.contract_year_3 || null,
-        contract_year_4: p.contract_year_4 || null,
-        signing_bonus: p.signing_bonus || null,
-      }));
+      // Destructure to remove contract fields, keep all attribute fields
+      const prospectsToInsert = prospects.map((p) => {
+        const { contract_year_1, contract_year_2, contract_year_3, contract_year_4, signing_bonus, ...prospectData } = p;
+        return {
+          ...prospectData,
+          season,
+          save_game_id: saveGameId,
+        };
+      });
 
       // Delete existing prospects for this season and save_game_id
       await supabase

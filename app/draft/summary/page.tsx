@@ -141,8 +141,8 @@ export default function DraftSummaryPage() {
             player = playerData;
           }
 
-          // Get team from the pick
-          const team = pick.teams;
+          // Get team from the pick (handle array or single object)
+          const team = Array.isArray(pick.teams) ? pick.teams[0] : pick.teams;
 
           // Try to get draft_result if it exists
           const { data: draftResult } = await supabase
@@ -165,11 +165,11 @@ export default function DraftSummaryPage() {
               pick_overall: pick.pick_overall,
               pick_in_round: pick.pick_in_round,
               owning_team_id: pick.owning_team_id,
-              teams: team,
+              teams: team || { id: "", name: "", abbreviation: "" },
             },
             draft_prospects: prospect,
             players: player,
-            teams: team,
+            teams: team || { id: "", name: "", abbreviation: "" },
           } as DraftResult;
         })
       );
@@ -402,7 +402,7 @@ export default function DraftSummaryPage() {
                             {player?.full_name}
                           </h3>
                           <p className="text-sm mb-2" style={{ color: 'var(--futuristic-text-secondary)' }}>
-                            {player?.position} • {player?.college || "N/A"}
+                            {player?.position} • {("college" in (player || {})) ? (player as any).college || "N/A" : "N/A"}
                           </p>
                           <div className="flex gap-4 text-sm">
                             <div>

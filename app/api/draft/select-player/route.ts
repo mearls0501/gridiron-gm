@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-client";
 import { generateContract } from "@/lib/contract-generator";
+import { upsertProspectContract } from "@/lib/utils/player-contracts";
 
 /**
  * Select a player in the draft
@@ -31,25 +32,35 @@ export async function POST(req: Request) {
       .select("id")
       .eq("team_id", teamId)
       .limit(1);
-    
+
     if (saveGameId) {
-      scoutedProspectsQuery = scoutedProspectsQuery.eq("save_game_id", saveGameId);
+      scoutedProspectsQuery = scoutedProspectsQuery.eq(
+        "save_game_id",
+        saveGameId
+      );
     } else {
       scoutedProspectsQuery = scoutedProspectsQuery.is("save_game_id", null);
     }
-    
+
     const { data: scoutedProspects } = await scoutedProspectsQuery;
-    
+
     // Only validate scouting if the team has scouted prospects (user teams)
     // CPU teams with no scouted prospects can draft without validation
     if (scoutedProspects && scoutedProspects.length > 0) {
-      const { validateScoutingComplete } = await import("@/lib/scouting/validator");
-      const scoutingValidation = await validateScoutingComplete(teamId, season, saveGameId);
+      const { validateScoutingComplete } = await import(
+        "@/lib/scouting/validator"
+      );
+      const scoutingValidation = await validateScoutingComplete(
+        teamId,
+        season,
+        saveGameId
+      );
 
       if (!scoutingValidation.isValid) {
         return NextResponse.json(
           {
-            error: "Scouting requirements not met. Please complete scouting before drafting.",
+            error:
+              "Scouting requirements not met. Please complete scouting before drafting.",
             scoutingValidation: scoutingValidation,
           },
           { status: 400 }
@@ -96,7 +107,7 @@ export async function POST(req: Request) {
     }
 
     // Check if prospect is already drafted
-    const { data: alreadyDrafted, error: draftedError } = await supabase
+    const { data: alreadyDrafted } = await supabase
       .from("draft_picks")
       .select("id")
       .eq("selected_player_id", prospectId)
@@ -115,63 +126,127 @@ export async function POST(req: Request) {
     // Use new scouted_prospects table instead of old scouting_reports
     let scoutedQuery = supabase
       .from("scouted_prospects")
-      .select("est_overall_low, est_overall_high, est_potential_low, est_potential_high")
+      .select(
+        "est_overall_low, est_overall_high, est_potential_low, est_potential_high"
+      )
       .eq("team_id", teamId)
       .eq("prospect_id", prospectId);
-    
+
     if (saveGameId) {
       scoutedQuery = scoutedQuery.eq("save_game_id", saveGameId);
     } else {
       scoutedQuery = scoutedQuery.is("save_game_id", null);
     }
-    
+
     const { data: scoutingReport } = await scoutedQuery.single();
 
     // Use scouted ratings if available, otherwise use prospect's base ratings
     // Calculate average of low/high estimates if available
-    const overall = scoutingReport?.est_overall_low && scoutingReport?.est_overall_high
-      ? Math.round((scoutingReport.est_overall_low + scoutingReport.est_overall_high) / 2)
-      : prospect.overall;
-    const potential = scoutingReport?.est_potential_low && scoutingReport?.est_potential_high
-      ? Math.round((scoutingReport.est_potential_low + scoutingReport.est_potential_high) / 2)
-      : prospect.potential;
+    const overall =
+      scoutingReport?.est_overall_low && scoutingReport?.est_overall_high
+        ? Math.round(
+            (scoutingReport.est_overall_low + scoutingReport.est_overall_high) /
+              2
+          )
+        : prospect.overall;
+    const potential =
+      scoutingReport?.est_potential_low && scoutingReport?.est_potential_high
+        ? Math.round(
+            (scoutingReport.est_potential_low +
+              scoutingReport.est_potential_high) /
+              2
+          )
+        : prospect.potential;
 
     // Generate rookie contract based on draft position
     // Higher picks get better contracts
+    // Rookie contracts only have year 1 - years 2-4 are NULL (no contract yet)
     const draftPosition = draftPick.pick_overall;
     const contractMultiplier = Math.max(0.5, 1 - (draftPosition - 1) / 256); // Scale from 1.0 (pick 1) to ~0.5 (pick 256)
     const adjustedOverall = 60 + (overall - 60) * contractMultiplier; // Adjust overall for contract calculation
     const contract = generateContract(prospect.position, adjustedOverall);
 
-    // Create player record from prospect
-    const playerData = {
-      id: prospect.id,
-      full_name: prospect.full_name,
-      position: prospect.position,
-      age: prospect.age,
-      college: prospect.college || null,
-      archetype: prospect.archetype || null,
-      overall: overall,
-      potential: potential,
-      traits: prospect.traits || {},
-      team_id: teamId,
-      contract_year_1: contract.contract_year_1,
-      contract_year_2: contract.contract_year_2,
-      contract_year_3: contract.contract_year_3,
-      contract_year_4: contract.contract_year_4,
-      signing_bonus: contract.signing_bonus,
-    };
+    // Draft prospects stay in draft_prospects table - do NOT insert into players table
+    // Create contract in player_contracts_per_save_game using prospect_id
+    // Rookie contracts: only year 1 has a value, years 2-4 are NULL (no contract yet)
+    const contractResult = await upsertProspectContract(
+      prospectId,
+      saveGameId,
+      {
+        team_id: teamId,
+        contract_year_1: contract.contract_year_1, // Year 1 salary
+        contract_year_2: undefined, // undefined - no contract for year 2 yet (rookie contract)
+        contract_year_3: undefined, // undefined - no contract for year 3 yet (rookie contract)
+        contract_year_4: undefined, // undefined - no contract for year 4 yet (rookie contract)
+        signing_bonus: contract.signing_bonus,
+      }
+    );
 
-    // Insert player (use upsert in case player already exists)
-    const { error: playerError } = await supabase
-      .from("players")
-      .upsert(playerData, { onConflict: "id" });
-
-    if (playerError) {
-      console.error("Error creating player:", playerError);
+    if (!contractResult.success) {
+      console.error("Error creating contract:", contractResult.error);
       return NextResponse.json(
-        { error: `Failed to create player: ${playerError.message}` },
+        { error: `Failed to create contract: ${contractResult.error}` },
         { status: 500 }
+      );
+    }
+
+    // Create/update player_team_assignments for this save game using prospect_id
+    // Draft prospects are tracked via prospect_id, not player_id
+    if (saveGameId) {
+      // Check if assignment already exists
+      const { data: existing } = await supabase
+        .from("player_team_assignments")
+        .select("id")
+        .eq("prospect_id", prospectId)
+        .eq("save_game_id", saveGameId)
+        .maybeSingle();
+
+      const assignmentData = {
+        prospect_id: prospectId, // Use prospect_id, not player_id
+        player_id: null, // NULL for drafted prospects
+        team_id: teamId,
+        save_game_id: saveGameId,
+        assigned_reason: "draft",
+        season: draftPick.season,
+        week: 0, // Draft happens in offseason
+      };
+
+      let assignmentError;
+      if (existing) {
+        const { error } = await supabase
+          .from("player_team_assignments")
+          .update(assignmentData)
+          .eq("id", existing.id);
+        assignmentError = error;
+      } else {
+        const { error } = await supabase
+          .from("player_team_assignments")
+          .insert(assignmentData);
+        assignmentError = error;
+      }
+
+      // If table doesn't exist, that's a critical error - assignments are required
+      if (
+        assignmentError &&
+        !assignmentError.message?.includes("does not exist") &&
+        assignmentError.code !== "42P01"
+      ) {
+        console.error(
+          "Failed to create player assignment:",
+          assignmentError.message
+        );
+        return NextResponse.json(
+          {
+            error: `Failed to assign drafted player to team: ${assignmentError.message}`,
+          },
+          { status: 500 }
+        );
+      }
+    } else {
+      // If no saveGameId, we can't properly track the assignment
+      // This should not happen in normal operation
+      console.warn(
+        "Draft selection made without saveGameId - player assignment may not be tracked correctly"
       );
     }
 
@@ -190,14 +265,8 @@ export async function POST(req: Request) {
       // Player is already created, so continue
     }
 
-    // Log transaction
-    const { data: activeSeason } = await supabase
-      .from("seasons")
-      .select("year")
-      .eq("is_active", true)
-      .single();
-
-    const currentSeason = activeSeason?.year || 2025;
+    // Log transaction using the draft pick season for save-game consistency
+    const currentSeason = draftPick.season || season || 2025;
 
     const { error: transactionError } = await supabase
       .from("transactions")
@@ -223,17 +292,20 @@ export async function POST(req: Request) {
     // Create draft_results entry
     const { error: draftResultError } = await supabase
       .from("draft_results")
-      .upsert({
-        draft_pick_id: pickId,
-        prospect_id: prospectId,
-        player_id: prospectId, // Same ID since we use prospect ID for player
-        team_id: teamId,
-        season: draftPick.season,
-        signed_at: new Date().toISOString(),
-        save_game_id: saveGameId,
-      }, {
-        onConflict: "draft_pick_id",
-      });
+      .upsert(
+        {
+          draft_pick_id: pickId,
+          prospect_id: prospectId,
+          player_id: prospectId, // Same ID since we use prospect ID for player
+          team_id: teamId,
+          season: draftPick.season,
+          signed_at: new Date().toISOString(),
+          save_game_id: saveGameId,
+        },
+        {
+          onConflict: "draft_pick_id",
+        }
+      );
 
     if (draftResultError) {
       console.error("Error creating draft result:", draftResultError);
@@ -301,4 +373,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

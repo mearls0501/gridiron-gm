@@ -47,14 +47,19 @@ export async function POST(req: Request) {
 
     if (checkError) {
       // If table doesn't exist, that's okay - we'll create the picks
-      if (!checkError.message.includes("does not exist") && !checkError.message.includes("relation")) {
+      if (
+        !checkError.message.includes("does not exist") &&
+        !checkError.message.includes("relation")
+      ) {
         throw checkError;
       }
     }
 
     if (existingPicks && existingPicks.length > 0) {
       return NextResponse.json(
-        { error: `Draft picks already exist for one or more seasons: ${seasonsToCreate.join(", ")}` },
+        {
+          error: `Draft picks already exist for one or more seasons: ${seasonsToCreate.join(", ")}`,
+        },
         { status: 400 }
       );
     }
@@ -70,17 +75,14 @@ export async function POST(req: Request) {
 
     // Get season standings (from team_season_stats or calculate from games)
     // Filter by save_game_id to ensure we're using the correct season
-    let seasonQuery = supabase
-      .from("seasons")
-      .select("id")
-      .eq("year", season);
-    
+    let seasonQuery = supabase.from("seasons").select("id").eq("year", season);
+
     if (saveGameId) {
       seasonQuery = seasonQuery.eq("save_game_id", saveGameId);
     } else {
       seasonQuery = seasonQuery.is("save_game_id", null);
     }
-    
+
     const { data: seasonData } = await seasonQuery.single();
 
     let standings: TeamStanding[] = [];
@@ -89,13 +91,16 @@ export async function POST(req: Request) {
       // Try to get from team_season_stats
       const { data: statsData } = await supabase
         .from("team_season_stats")
-        .select("team_id, wins, losses, ties, points_for, points_against, playoff_seed")
+        .select(
+          "team_id, wins, losses, ties, points_for, points_against, playoff_seed"
+        )
         .eq("season_id", seasonData.id);
 
       if (statsData && statsData.length > 0) {
         standings = statsData.map((stat) => {
           const games = stat.wins + stat.losses + stat.ties;
-          const winPercentage = games > 0 ? (stat.wins + stat.ties * 0.5) / games : 0;
+          const winPercentage =
+            games > 0 ? (stat.wins + stat.ties * 0.5) / games : 0;
           return {
             team_id: stat.team_id,
             wins: stat.wins,
@@ -104,8 +109,10 @@ export async function POST(req: Request) {
             points_for: stat.points_for || 0,
             points_against: stat.points_against || 0,
             win_percentage: winPercentage,
-            point_differential: (stat.points_for || 0) - (stat.points_against || 0),
-            is_playoff_team: stat.playoff_seed !== null && stat.playoff_seed !== undefined,
+            point_differential:
+              (stat.points_for || 0) - (stat.points_against || 0),
+            is_playoff_team:
+              stat.playoff_seed !== null && stat.playoff_seed !== undefined,
             playoff_seed: stat.playoff_seed,
           };
         });
@@ -120,14 +127,14 @@ export async function POST(req: Request) {
         .select("home_team_id, away_team_id, home_score, away_score")
         .eq("season", season)
         .eq("played", true);
-      
+
       // Filter by save_game_id if available (games table should have save_game_id)
       if (saveGameId) {
         gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
       } else {
         gamesQuery = gamesQuery.is("save_game_id", null);
       }
-      
+
       const { data: games } = await gamesQuery;
 
       const teamStatsMap = new Map<string, TeamStanding>();
@@ -179,7 +186,8 @@ export async function POST(req: Request) {
         // 3-13-0 means 3 wins, 13 losses, 0 ties = 3 / 16 = 0.1875
         // So 3-12-2 is actually BETTER (higher win %) than 3-13-0
         // For draft order, we want WORSE teams first, so lower win % = earlier pick
-        stat.win_percentage = games > 0 ? (stat.wins + stat.ties * 0.5) / games : 0;
+        stat.win_percentage =
+          games > 0 ? (stat.wins + stat.ties * 0.5) / games : 0;
         stat.point_differential = stat.points_for - stat.points_against;
       });
 
@@ -225,19 +233,19 @@ export async function POST(req: Request) {
       if (Math.abs(wpDiff) > 0.0001) {
         return wpDiff > 0 ? 1 : -1;
       }
-      
+
       // Secondary: Point differential (worse = earlier pick)
       // Negative differential is worse
       const diffDiff = a.point_differential - b.point_differential;
       if (Math.abs(diffDiff) > 0.0001) {
         return diffDiff > 0 ? 1 : -1; // Worse differential (more negative) = earlier pick
       }
-      
+
       // Tertiary: Points scored (fewer = earlier pick)
       if (a.points_for !== b.points_for) {
         return a.points_for - b.points_for;
       }
-      
+
       // Final: Random (coin flip)
       return Math.random() < 0.5 ? -1 : 1;
     });
@@ -253,6 +261,28 @@ export async function POST(req: Request) {
 
     // Combine: non-playoff teams get picks 1-20 (or however many), playoff teams get picks 21-32
     const draftOrder = [...nonPlayoffTeams, ...playoffTeams];
+
+    // Validate that we have exactly 32 teams
+    if (draftOrder.length !== 32) {
+      console.error(
+        `[Initialize Draft Picks] Invalid team count: ${draftOrder.length} teams (expected 32)`
+      );
+      return NextResponse.json(
+        {
+          error: `Invalid team count: ${draftOrder.length} teams found, expected exactly 32 teams`,
+          details: {
+            nonPlayoffTeams: nonPlayoffTeams.length,
+            playoffTeams: playoffTeams.length,
+            totalTeams: draftOrder.length,
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    console.log(
+      `[Initialize Draft Picks] Draft order validated: ${draftOrder.length} teams`
+    );
 
     // Generate draft picks for current season + 3 future seasons
     const allPicks = [];
@@ -304,6 +334,19 @@ export async function POST(req: Request) {
         }
       }
 
+      // Validate season draft order has exactly 32 teams
+      if (seasonDraftOrder.length !== 32) {
+        console.error(
+          `[Initialize Draft Picks] Invalid team count for season ${targetSeason}: ${seasonDraftOrder.length} teams (expected 32)`
+        );
+        return NextResponse.json(
+          {
+            error: `Invalid team count for season ${targetSeason}: ${seasonDraftOrder.length} teams found, expected exactly 32 teams`,
+          },
+          { status: 400 }
+        );
+      }
+
       // Generate draft picks: 7 rounds × 32 teams = 224 picks per season
       const picks = [];
       let overallPick = 1;
@@ -312,7 +355,9 @@ export async function POST(req: Request) {
         for (let i = 0; i < seasonDraftOrder.length; i++) {
           const team = seasonDraftOrder[i];
           if (!team || !team.team_id) {
-            console.warn(`Skipping invalid team in draft order for season ${targetSeason}`);
+            console.warn(
+              `Skipping invalid team in draft order for season ${targetSeason}, round ${round}, position ${i + 1}`
+            );
             continue;
           }
           picks.push({
@@ -329,6 +374,24 @@ export async function POST(req: Request) {
         }
       }
 
+      // Validate that exactly 224 picks were created (7 rounds × 32 teams)
+      const expectedPicks = 7 * 32; // 224 picks
+      if (picks.length !== expectedPicks) {
+        console.error(
+          `[Initialize Draft Picks] Invalid pick count for season ${targetSeason}: ${picks.length} picks created (expected ${expectedPicks})`
+        );
+        return NextResponse.json(
+          {
+            error: `Invalid pick count for season ${targetSeason}: ${picks.length} picks created, expected exactly ${expectedPicks} picks (7 rounds × 32 teams)`,
+          },
+          { status: 400 }
+        );
+      }
+
+      console.log(
+        `[Initialize Draft Picks] Season ${targetSeason}: Created ${picks.length} picks (${picks.length / 32} rounds × 32 teams)`
+      );
+
       allPicks.push(...picks);
       results.push({
         season: targetSeason,
@@ -338,7 +401,9 @@ export async function POST(req: Request) {
 
     // Validate we have picks to insert
     if (allPicks.length === 0) {
-      throw new Error("No draft picks generated. Check that teams exist and draft order is valid.");
+      throw new Error(
+        "No draft picks generated. Check that teams exist and draft order is valid."
+      );
     }
 
     // Insert all picks in batches (Supabase has a limit on batch size)
@@ -354,7 +419,10 @@ export async function POST(req: Request) {
         .select();
 
       if (insertError) {
-        console.error(`Error inserting batch ${i / batchSize + 1}:`, insertError);
+        console.error(
+          `Error inserting batch ${i / batchSize + 1}:`,
+          insertError
+        );
         insertErrors.push(`Batch ${i / batchSize + 1}: ${insertError.message}`);
         // Continue with next batch instead of throwing immediately
         continue;
@@ -364,11 +432,15 @@ export async function POST(req: Request) {
     }
 
     if (insertErrors.length > 0) {
-      throw new Error(`Failed to insert some batches: ${insertErrors.join("; ")}`);
+      throw new Error(
+        `Failed to insert some batches: ${insertErrors.join("; ")}`
+      );
     }
 
     if (totalInserted === 0) {
-      throw new Error("No picks were inserted. Check database connection and table existence.");
+      throw new Error(
+        "No picks were inserted. Check database connection and table existence."
+      );
     }
 
     return NextResponse.json({
@@ -379,13 +451,22 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("Error initializing draft picks:", error);
-    const errorMessage = error instanceof Error ? error.message : "Failed to initialize draft picks";
-    
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Failed to initialize draft picks";
+
     // Provide more helpful error messages
-    if (errorMessage.includes("does not exist") || errorMessage.includes("Could not find the table") || (errorMessage.includes("relation") && errorMessage.includes("does not exist"))) {
+    if (
+      errorMessage.includes("does not exist") ||
+      errorMessage.includes("Could not find the table") ||
+      (errorMessage.includes("relation") &&
+        errorMessage.includes("does not exist"))
+    ) {
       return NextResponse.json(
         {
-          error: "Draft picks table does not exist. Please run the migration first.",
+          error:
+            "Draft picks table does not exist. Please run the migration first.",
           instructions: [
             "1. Go to your Supabase dashboard",
             "2. Navigate to SQL Editor",
@@ -396,9 +477,9 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    
+
     return NextResponse.json(
-      { 
+      {
         error: errorMessage,
         details: error instanceof Error ? error.stack : undefined,
       },
@@ -406,4 +487,3 @@ export async function POST(req: Request) {
     );
   }
 }
-
