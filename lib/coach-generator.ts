@@ -58,7 +58,7 @@ function generateRating(role: string, baseRating: number): number {
   return Math.max(50, Math.min(100, rating)); // Clamp between 50 and 100
 }
 
-function generateSalary(role: string, rating: number): number {
+function generateSalary(role: string, rating: number): { year1: number; year2: number; year3: number; year4: number } {
   // Base salaries by role (in millions)
   const roleMultipliers: Record<string, number> = {
     head_coach: 8.0,

@@ -1,9 +1,14 @@
 import { TeamWithRoster, TeamStrength, Player } from './types';
+import { CoachingStaff, getSchemeFitModifier } from './coaching-influence';
 
 /**
  * Calculate team strength based on player ratings and depth
+ * Optionally applies coaching scheme fit modifier
  */
-export function calculateTeamStrength(team: TeamWithRoster): TeamStrength {
+export function calculateTeamStrength(
+  team: TeamWithRoster,
+  coaches?: CoachingStaff
+): TeamStrength {
   const players = team.players || [];
   
   // Get starters by position (best overall rating)
@@ -44,12 +49,21 @@ export function calculateTeamStrength(team: TeamWithRoster): TeamStrength {
   const specialTeamsRating = getAverageRating(['K', 'P']);
 
   // Calculate weighted overall ratings
-  const offense = (qbRating * 0.25) + (olineRating * 0.15) + (skillRating * 0.20) + (olineRating * 0.10);
-  const defense = (dlineRating * 0.20) + (lbRating * 0.15) + (secondaryRating * 0.15);
-  const specialTeams = specialTeamsRating;
+  let offense = (qbRating * 0.25) + (olineRating * 0.15) + (skillRating * 0.20) + (olineRating * 0.10);
+  let defense = (dlineRating * 0.20) + (lbRating * 0.15) + (secondaryRating * 0.15);
+  let specialTeams = specialTeamsRating;
 
   // Overall team strength
-  const overall = (offense * 0.50) + (defense * 0.45) + (specialTeams * 0.05);
+  let overall = (offense * 0.50) + (defense * 0.45) + (specialTeams * 0.05);
+
+  // Apply head coach scheme fit modifier
+  if (coaches?.headCoach) {
+    const schemeMod = getSchemeFitModifier(coaches.headCoach);
+    overall *= schemeMod;
+    offense *= schemeMod;
+    defense *= schemeMod;
+    console.log(`[calculateTeamStrength] Applied scheme fit modifier: ${schemeMod.toFixed(3)}x`);
+  }
 
   return {
     overall,

@@ -7,6 +7,7 @@ import { checkRecordBreak, NFL_RECORDS } from './nfl-records';
  */
 export class PlayerStatsTracker {
   private stats: Map<string, PlayerGameStat> = new Map();
+  private playsRecorded = 0;
 
   constructor(
     private homeTeam: TeamWithRoster,
@@ -18,6 +19,8 @@ export class PlayerStatsTracker {
     // Initialize stats for all players
     this.initializePlayerStats(homeTeam);
     this.initializePlayerStats(awayTeam);
+    
+    console.log(`[StatsTracker] Initialized for game ${gameId}: ${homeTeam.players.length} home, ${awayTeam.players.length} away players`);
   }
 
   /**
@@ -72,6 +75,13 @@ export class PlayerStatsTracker {
     defense: TeamWithRoster,
     isHomeTeam: boolean
   ): void {
+    this.playsRecorded++;
+    
+    // DEBUG: Log first few plays to verify recording is working
+    if (this.playsRecorded <= 3) {
+      console.log(`[StatsTracker] Recording play #${this.playsRecorded}: ${play.playType}, yards: ${play.yards}`);
+    }
+    
     // Get key players
     const qb = getBestPlayerAtPosition(offense, 'QB');
     const rb = getBestPlayerAtPosition(offense, 'RB');
@@ -358,7 +368,8 @@ export class PlayerStatsTracker {
    * Get stats for players who actually played (snaps > 0 OR have any stats > 0)
    */
   getActivePlayerStats(): PlayerGameStat[] {
-    return this.getAllStats().filter(stats => {
+    const allStats = this.getAllStats();
+    const filtered = allStats.filter(stats => {
       const hasSnaps = (stats.snaps_played || 0) > 0;
       // Also include players with any stats, even if snaps are 0 (defensive players might not have snaps tracked)
       const hasStats = 
@@ -372,6 +383,14 @@ export class PlayerStatsTracker {
         (stats.punts || 0) > 0;
       return hasSnaps || hasStats;
     });
+    
+    // DEBUG: Log if filtering is removing too many players
+    if (filtered.length < 10 && allStats.length > 50) {
+      console.warn(`[StatsTracker] WARNING: Filtered ${allStats.length} players down to ${filtered.length} with stats!`);
+      console.warn('[StatsTracker] Sample filtered out player:', allStats.find(s => !filtered.includes(s)));
+    }
+    
+    return filtered;
   }
 
   /**

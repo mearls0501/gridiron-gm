@@ -1,5 +1,12 @@
 import { TeamStrength, Play } from "./types";
 import { NFL_RECORDS } from "./nfl-records";
+import {
+  CoachingStaff,
+  applyCoachingModifiers,
+  calculateCoachingBonus,
+  shouldGoForItOnFourth,
+} from "./coaching-influence";
+import { createSituationalContext } from "./attribute-engine";
 
 // NFL statistical averages (used as baselines)
 const NFL_AVERAGES = {
@@ -20,6 +27,11 @@ interface PlayConfig {
   offenseStrength: TeamStrength;
   defenseStrength: TeamStrength;
   isHomeTeam: boolean;
+  offenseCoaches?: CoachingStaff;
+  defenseCoaches?: CoachingStaff;
+  quarter?: number;
+  timeRemaining?: number;
+  scoreDifferential?: number;
 }
 
 /**
@@ -230,17 +242,45 @@ export function simulatePlay(config: PlayConfig, playNumber: number): Play {
     offenseStrength,
     defenseStrength,
     isHomeTeam,
+    offenseCoaches,
+    quarter,
+    timeRemaining,
+    scoreDifferential,
   } = config;
 
-  // Determine play type
-  const playType = determinePlayType(down, distance);
+  // Create situational context for coaching decisions
+  const situational = offenseCoaches
+    ? createSituationalContext(
+        down,
+        distance,
+        yardLine,
+        quarter || 2,
+        timeRemaining || 900,
+        scoreDifferential || 0
+      )
+    : null;
+
+  // Determine play type (with coaching influence if available)
+  let playType = determinePlayType(down, distance);
+  
+  if (offenseCoaches && situational) {
+    const modifiers = applyCoachingModifiers(playType, situational, offenseCoaches);
+    playType = modifiers.playType;
+  }
 
   // Calculate success probability
-  const successProb = calculateSuccessProbability(
+  let successProb = calculateSuccessProbability(
     playType,
     offenseStrength,
     defenseStrength
   );
+  
+  // Apply coaching bonuses to success rate
+  if (offenseCoaches && situational) {
+    const modifiers = applyCoachingModifiers(playType, situational, offenseCoaches);
+    successProb = calculateCoachingBonus(successProb, situational, offenseCoaches, modifiers);
+  }
+  
   const success = Math.random() < successProb;
 
   // Generate yards

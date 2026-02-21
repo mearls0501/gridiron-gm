@@ -144,8 +144,13 @@ export async function calculatePositionalNeeds(teamId: string): Promise<Record<s
 
 /**
  * Get team context for trade evaluation
+ * CRITICAL: saveGameId is required - contracts are no longer in players table
  */
-export async function getTeamContext(teamId: string, season: number): Promise<TeamContext | null> {
+export async function getTeamContext(
+  teamId: string,
+  season: number,
+  saveGameId?: string | null
+): Promise<TeamContext | null> {
   try {
     // Get team info
     const { data: team } = await supabase
@@ -156,14 +161,21 @@ export async function getTeamContext(teamId: string, season: number): Promise<Te
 
     if (!team) return null;
 
-    // Get current players for cap calculation
-    const { data: players } = await supabase
-      .from("players")
-      .select("contract_year_1")
-      .eq("team_id", teamId);
+    // Get current cap hit from player_contracts_per_save_game
+    // CRITICAL: saveGameId is required - contracts are no longer in players table
+    if (!saveGameId) {
+      throw new Error("saveGameId is required. Cannot load team context without save game.");
+    }
 
-    const currentCapHit = (players || []).reduce(
-      (sum, p) => sum + (p.contract_year_1 || 0),
+    // Load contracts from per-save-game table
+    const { data: contracts } = await supabase
+      .from("player_contracts_per_save_game")
+      .select("contract_year_1")
+      .eq("team_id", teamId)
+      .eq("save_game_id", saveGameId);
+
+    const currentCapHit = (contracts || []).reduce(
+      (sum, c) => sum + (c.contract_year_1 || 0),
       0
     );
 

@@ -1,16 +1,33 @@
 import { create } from "zustand";
 
+export interface GameSettings {
+  autoScouting: boolean;
+  autoDepthChart: boolean;
+  autoRosterMoves: boolean; // covers injuries, cuts, signings
+  autoTraining: boolean;
+}
+
+export const DEFAULT_SETTINGS: GameSettings = {
+  autoScouting: false,
+  autoDepthChart: false,
+  autoRosterMoves: false,
+  autoTraining: false,
+};
+
 interface GameState {
   currentWeek: number;
   currentSeason: number;
   seasonPhase: string | null;
   selectedTeamId: string | null;
   saveGameId: string | null;
+  settings: GameSettings;
+  
   setCurrentWeek: (week: number) => void;
   setCurrentSeason: (season: number) => void;
   setSeasonPhase: (phase: string | null) => void;
   setSelectedTeam: (teamId: string | null) => void;
   setSaveGameId: (saveGameId: string | null) => void;
+  updateSettings: (settings: Partial<GameSettings>) => void;
   initializeFromStorage: () => void;
 }
 
@@ -24,6 +41,7 @@ function getInitialState() {
       seasonPhase: null,
       selectedTeamId: null,
       saveGameId: null,
+      settings: DEFAULT_SETTINGS,
     };
   }
 
@@ -32,6 +50,7 @@ function getInitialState() {
   const storedSeason = localStorage.getItem("currentSeason");
   const storedPhase = localStorage.getItem("seasonPhase");
   const storedSaveGameId = localStorage.getItem("saveGameId");
+  const storedSettings = localStorage.getItem("gameSettings");
 
   return {
     currentWeek: storedWeek ? parseInt(storedWeek, 10) : 1,
@@ -39,6 +58,7 @@ function getInitialState() {
     seasonPhase: storedPhase,
     selectedTeamId: storedTeamId,
     saveGameId: storedSaveGameId,
+    settings: storedSettings ? { ...DEFAULT_SETTINGS, ...JSON.parse(storedSettings) } : DEFAULT_SETTINGS,
   };
 }
 
@@ -85,6 +105,15 @@ export const useGameStore = create<GameState>((set) => ({
         localStorage.removeItem("saveGameId");
       }
     }
+  },
+  updateSettings: (newSettings) => {
+    set((state) => {
+      const updated = { ...state.settings, ...newSettings };
+      if (typeof window !== "undefined") {
+        localStorage.setItem("gameSettings", JSON.stringify(updated));
+      }
+      return { settings: updated };
+    });
   },
   initializeFromStorage: () => {
     const initialState = getInitialState();

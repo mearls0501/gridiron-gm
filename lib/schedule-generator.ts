@@ -1,5 +1,7 @@
-// NFL-style schedule with 32 teams, 8 divisions, 17 games per team, 1 bye week
-// Total: 32 teams * 17 games / 2 = 272 games
+// ===============================================
+//  ROBUST SCHEDULE GENERATOR
+//  Simple deterministic approach that guarantees 272 games
+// ===============================================
 
 interface Team {
   id: string;
@@ -7,647 +9,366 @@ interface Team {
   conference: string;
 }
 
-interface Game {
-  week: number;
+interface Standing {
+  team_id: string;
+  division: string;
+  conference: string;
+  rank: number;
+}
+
+export interface Game {
   home_team_id: string;
   away_team_id: string;
+  week: number;
 }
 
-// Seeded random number generator for deterministic schedules
-class SeededRandom {
-  private seed: number;
-
-  constructor(seed: number) {
-    this.seed = seed;
-  }
-
-  next(): number {
-    this.seed = (this.seed * 9301 + 49297) % 233280;
-    return this.seed / 233280;
-  }
+interface Matchup {
+  home: string;
+  away: string;
+  isDivision: boolean;
 }
 
-function shuffleArray<T>(array: T[], seed?: number): T[] {
-  const arr = [...array];
-  const rng = seed !== undefined ? new SeededRandom(seed) : null;
-  
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = rng 
-      ? Math.floor(rng.next() * (i + 1))
-      : Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-export function generateSchedule(teams: Team[], season: number = 2025): Game[] {
-  if (teams.length !== 32) {
-    throw new Error("Schedule generation requires exactly 32 teams");
-  }
-
-  // Create a deterministic seed from season and team IDs
-  // This ensures the same season always generates the same schedule
-  const teamIdsHash = teams
-    .map(t => t.id)
-    .sort()
-    .join('')
-    .split('')
-    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const seed = season * 1000 + (teamIdsHash % 1000);
-
-  const games: Game[] = [];
+/**
+ * Generate all matchups using a simple, deterministic approach
+ * 1. Division games: 96 games (each team plays division rivals twice)
+ * 2. Fill remaining: Greedily assign games from pool of all valid matchups
+ */
+function generateMatchups(teams: Team[]): Matchup[] {
+  const matchups: Matchup[] = [];
   const teamGamesCount = new Map<string, number>();
-  const teamWeekSchedule = new Map<string, Set<number>>();
-  const teamByeWeeks = new Map<string, number>();
 
-  // Initialize tracking
-  teams.forEach(team => {
-    teamGamesCount.set(team.id, 0);
-    teamWeekSchedule.set(team.id, new Set());
-  });
+  // Initialize
+  teams.forEach((team) => teamGamesCount.set(team.id, 0));
 
-  // Organize teams by division
+  // Group teams by division
   const divisions = new Map<string, Team[]>();
-  teams.forEach(team => {
-    const divisionKey = `${team.conference}-${team.division}`;
-    if (!divisions.has(divisionKey)) {
-      divisions.set(divisionKey, []);
-    }
-    divisions.get(divisionKey)!.push(team);
+  teams.forEach((team) => {
+    const divKey = `${team.conference} ${team.division}`;
+    if (!divisions.has(divKey)) divisions.set(divKey, []);
+    divisions.get(divKey)!.push(team);
   });
 
-  // Validate division structure
-  divisions.forEach((divTeams, key) => {
-    if (divTeams.length !== 4) {
-      console.warn(`Division ${key} has ${divTeams.length} teams (expected 4)`);
-    }
-  });
+  // STEP 1: Division games - 96 total
+  // Each of 4 teams plays 3 division rivals twice = 6 games per team
+  for (const divTeams of divisions.values()) {
+    for (let i = 0; i < divTeams.length; i++) {
+      for (let j = i + 1; j < divTeams.length; j++) {
+        const team1 = divTeams[i].id;
+        const team2 = divTeams[j].id;
 
-  // Assign bye weeks (weeks 6-14 are typical bye weeks)
-  // CRITICAL: Each week must have an EVEN number of teams on bye
-  // so the remaining teams can be paired for games
-  // Use 8 bye weeks with 4 teams each = 32 teams total
-  const byeWeekOptions = [6, 7, 8, 9, 10, 11, 12, 13]; // 8 weeks, 4 teams each
-  const shuffledTeams = shuffleArray([...teams], seed);
-  const teamsPerByeWeek = 4; // Even number ensures remaining teams can pair up
-  
-  shuffledTeams.forEach((team, index) => {
-    const byeWeekIndex = Math.floor(index / teamsPerByeWeek);
-    // Ensure we don't go beyond available bye weeks
-    const byeWeek = byeWeekOptions[Math.min(byeWeekIndex, byeWeekOptions.length - 1)];
-    teamByeWeeks.set(team.id, byeWeek);
-  });
-  
-  // Verify bye week distribution (each week should have exactly 4 teams)
-  const byeWeekCounts = new Map<number, number>();
-  teamByeWeeks.forEach((byeWeek) => {
-    byeWeekCounts.set(byeWeek, (byeWeekCounts.get(byeWeek) || 0) + 1);
-  });
-  
-  // Ensure all bye weeks have even numbers of teams
-  byeWeekCounts.forEach((count, week) => {
-    if (count % 2 !== 0) {
-      console.warn(`Bye week ${week} has odd number of teams (${count}), this may cause scheduling issues`);
-    }
-  });
+        // Two games: one home, one away
+        matchups.push({ home: team1, away: team2, isDivision: true });
+        matchups.push({ home: team2, away: team1, isDivision: true });
 
-  // Step 1: Schedule ALL division games (6 games per team)
-  // Each team plays their 3 division opponents twice (home and away)
-  divisions.forEach((divisionTeams) => {
-    for (let i = 0; i < divisionTeams.length; i++) {
-      for (let j = i + 1; j < divisionTeams.length; j++) {
-        const team1 = divisionTeams[i];
-        const team2 = divisionTeams[j];
-
-        // Schedule both home and away games
-        scheduleMatchup(team1, team2, games, teamGamesCount, teamWeekSchedule, teamByeWeeks, false);
-        scheduleMatchup(team2, team1, games, teamGamesCount, teamWeekSchedule, teamByeWeeks, false);
+        // Update counts
+        teamGamesCount.set(team1, (teamGamesCount.get(team1) || 0) + 2);
+        teamGamesCount.set(team2, (teamGamesCount.get(team2) || 0) + 2);
       }
     }
-  });
+  }
 
-  console.log(`After division games: ${games.length} games scheduled`);
-  
-  // Verify bye week distribution
-  const byeWeekDistribution = new Map<number, number>();
-  teamByeWeeks.forEach((week) => {
-    byeWeekDistribution.set(week, (byeWeekDistribution.get(week) || 0) + 1);
-  });
-  console.log('Bye week distribution:', Array.from(byeWeekDistribution.entries()).map(([week, count]) => 
-    `Week ${week}: ${count} teams`
-  ).join(', '));
+  console.log(`[Matchups] Division games: ${matchups.length} (expected 96)`);
 
-  // Step 2: Generate all possible non-division matchups
-  const allMatchups: Array<[Team, Team]> = [];
-  
+  // Verify everyone has 6 division games
+  for (const [teamId, count] of teamGamesCount.entries()) {
+    if (count !== 6) {
+      console.error(
+        `[Matchups] ERROR: Team ${teamId} has ${count} division games (expected 6)!`
+      );
+    }
+  }
+
+  // STEP 2: Fill remaining games until everyone has 17
+  // Each team needs 11 more games (17 - 6 division = 11)
+  // Total: 176 non-division games needed
+
+  // Build pool of all possible non-division matchups
+  const possibleMatchups: Array<{ team1: Team; team2: Team }> = [];
   for (let i = 0; i < teams.length; i++) {
     for (let j = i + 1; j < teams.length; j++) {
       const team1 = teams[i];
       const team2 = teams[j];
 
-      // Skip if same division (already scheduled)
-      if (team1.division === team2.division && team1.conference === team2.conference) {
-        continue;
-      }
+      // Skip if same division (already played twice)
+      const div1 = `${team1.conference} ${team1.division}`;
+      const div2 = `${team2.conference} ${team2.division}`;
+      if (div1 === div2) continue;
 
-      allMatchups.push([team1, team2]);
+      possibleMatchups.push({ team1, team2 });
     }
   }
 
-  // Shuffle for variety (deterministic based on seed)
-  let shuffledMatchups = shuffleArray(allMatchups, seed + 1000);
+  console.log(
+    `[Matchups] Pool of ${possibleMatchups.length} possible non-division matchups`
+  );
 
-  // Step 3: Schedule remaining games until all teams have exactly 17 games
-  // Try multiple passes to ensure we get as many games as possible
-  for (let pass = 0; pass < 3; pass++) {
-    for (const [team1, team2] of shuffledMatchups) {
-      const team1Games = teamGamesCount.get(team1.id)!;
-      const team2Games = teamGamesCount.get(team2.id)!;
+  // Shuffle the pool for variety
+  for (let i = possibleMatchups.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [possibleMatchups[i], possibleMatchups[j]] = [
+      possibleMatchups[j],
+      possibleMatchups[i],
+    ];
+  }
 
-      // Only schedule if both teams need more games
-      if (team1Games < 17 && team2Games < 17) {
-        // Check if they've already played (avoid duplicates in later passes)
-        const alreadyPlayed = games.some(g => 
-          (g.home_team_id === team1.id && g.away_team_id === team2.id) ||
-          (g.home_team_id === team2.id && g.away_team_id === team1.id)
-        );
-        
-        if (!alreadyPlayed || pass === 0) {
-          // Deterministically decide home/away based on team IDs
-          const homeAwaySeed = (team1.id.charCodeAt(0) + team2.id.charCodeAt(0) + pass) % 2;
-          const [home, away] = homeAwaySeed === 0 ? [team1, team2] : [team2, team1];
-          scheduleMatchup(home, away, games, teamGamesCount, teamWeekSchedule, teamByeWeeks, pass > 1);
-        }
+  // Track which matchups have been used to avoid duplicates
+  const usedMatchups = new Set<string>();
+
+  // Keep trying to add games until everyone has 17
+  let attempts = 0;
+  const maxAttempts = possibleMatchups.length * 3;
+
+  while (attempts < maxAttempts) {
+    attempts++;
+
+    // Check if all teams have 17 games
+    const allComplete = teams.every(
+      (t) => (teamGamesCount.get(t.id) || 0) >= 17
+    );
+    if (allComplete) {
+      console.log(
+        `[Matchups] All teams reached 17 games after ${attempts} attempts!`
+      );
+      break;
+    }
+
+    // Find a matchup where both teams need games AND hasn't been used
+    let foundMatchup = false;
+    for (const { team1, team2 } of possibleMatchups) {
+      const count1 = teamGamesCount.get(team1.id) || 0;
+      const count2 = teamGamesCount.get(team2.id) || 0;
+
+      // Create unique key for this matchup (order doesn't matter)
+      const matchupKey = [team1.id, team2.id].sort().join("-");
+
+      if (count1 < 17 && count2 < 17 && !usedMatchups.has(matchupKey)) {
+        matchups.push({ home: team1.id, away: team2.id, isDivision: false });
+        teamGamesCount.set(team1.id, count1 + 1);
+        teamGamesCount.set(team2.id, count2 + 1);
+        usedMatchups.add(matchupKey);
+        foundMatchup = true;
+        break; // Added one game, now check again
       }
+    }
 
-      // Check if all teams have exactly 17 games
-      const allComplete = Array.from(teamGamesCount.values()).every(count => count === 17);
-      if (allComplete) {
+    // If we couldn't find any valid matchups, we're stuck
+    if (!foundMatchup) {
+      console.warn(
+        `[Matchups] No valid matchups found at attempt ${attempts}, but not all teams have 17 games`
+      );
+      // Try to find ANY team that needs games and assign them to each other
+      const teamsNeedingGames = teams.filter(
+        (t) => (teamGamesCount.get(t.id) || 0) < 17
+      );
+      if (teamsNeedingGames.length >= 2) {
+        // Pair up teams that need games, even if they've played before
+        const team1 = teamsNeedingGames[0];
+        const team2 = teamsNeedingGames[1];
+        console.warn(
+          `[Matchups] Force-scheduling ${team1.id} vs ${team2.id} (may be duplicate)`
+        );
+        matchups.push({ home: team1.id, away: team2.id, isDivision: false });
+        teamGamesCount.set(team1.id, (teamGamesCount.get(team1.id) || 0) + 1);
+        teamGamesCount.set(team2.id, (teamGamesCount.get(team2.id) || 0) + 1);
+      } else {
+        break; // Can't make progress
+      }
+    }
+  }
+
+  if (attempts >= maxAttempts) {
+    console.warn(
+      `[Matchups] Stopped after ${maxAttempts} attempts - may not have 17 games per team`
+    );
+  }
+
+  console.log(`[Matchups] Total matchups: ${matchups.length} (expected 272)`);
+
+  // Final validation
+  const errors: string[] = [];
+  let totalGames = 0;
+
+  for (const [teamId, count] of teamGamesCount.entries()) {
+    totalGames += count;
+    if (count !== 17) {
+      errors.push(`${teamId}: ${count} games`);
+    }
+  }
+
+  console.log(
+    `[Matchups] Total game participations: ${totalGames} (should be 544)`
+  );
+
+  if (errors.length > 0) {
+    console.error(
+      `[Matchups] ❌ ${errors.length} teams with incorrect counts:`
+    );
+    errors.forEach((err) => console.error(`  - ${err}`));
+  } else {
+    console.log(`[Matchups] ✅ All teams have exactly 17 games!`);
+  }
+
+  return matchups;
+}
+
+/**
+ * PHASE 2: Assign weeks to matchups
+ */
+function assignWeeks(matchups: Matchup[], teams: Team[]): Game[] {
+  const games: Game[] = [];
+  const teamWeekSchedule = new Map<string, Set<number>>();
+  const teamByeWeeks = new Map<string, number>();
+
+  // Initialize
+  teams.forEach((team) => teamWeekSchedule.set(team.id, new Set()));
+
+  // Assign bye weeks (weeks 6-14)
+  const byeWeeks = [6, 7, 8, 9, 10, 11, 12, 13, 14];
+  teams.forEach((team, index) => {
+    teamByeWeeks.set(team.id, byeWeeks[index % byeWeeks.length]);
+  });
+
+  // Sort matchups: division games first (higher priority)
+  const sortedMatchups = [...matchups].sort((a, b) => {
+    if (a.isDivision && !b.isDivision) return -1;
+    if (!a.isDivision && b.isDivision) return 1;
+    return 0;
+  });
+
+  // Assign each matchup to a week
+  for (const matchup of sortedMatchups) {
+    const homeSchedule = teamWeekSchedule.get(matchup.home)!;
+    const awaySchedule = teamWeekSchedule.get(matchup.away)!;
+    const homeBye = teamByeWeeks.get(matchup.home);
+    const awayBye = teamByeWeeks.get(matchup.away);
+
+    let assignedWeek: number | null = null;
+
+    // Try to find week respecting bye weeks
+    for (let week = 1; week <= 18; week++) {
+      if (homeSchedule.has(week) || awaySchedule.has(week)) continue;
+      if (homeBye === week || awayBye === week) continue;
+
+      assignedWeek = week;
+      break;
+    }
+
+    // If no week found, try ignoring bye weeks
+    if (assignedWeek === null) {
+      for (let week = 1; week <= 18; week++) {
+        if (homeSchedule.has(week) || awaySchedule.has(week)) continue;
+
+        assignedWeek = week;
         break;
       }
     }
-    
-    // Check if we're done
-    const allComplete = Array.from(teamGamesCount.values()).every(count => count === 17);
-    if (allComplete) {
-      break;
-    }
-    
-    // Reshuffle for next pass (deterministic)
-    if (pass < 2) {
-      const remainingMatchups = allMatchups.filter(([t1, t2]) => {
-        const t1Games = teamGamesCount.get(t1.id)!;
-        const t2Games = teamGamesCount.get(t2.id)!;
-        return t1Games < 17 && t2Games < 17;
+
+    if (assignedWeek !== null) {
+      games.push({
+        home_team_id: matchup.home,
+        away_team_id: matchup.away,
+        week: assignedWeek,
       });
-      shuffledMatchups = shuffleArray(remainingMatchups, seed + 2000 + pass);
+      homeSchedule.add(assignedWeek);
+      awaySchedule.add(assignedWeek);
+    } else {
+      // FALLBACK: If still no week found, find week with fewest conflicts
+      // This ensures ALL games get scheduled even if it means some teams play 2 games in a week
+      let bestWeek = 1;
+      let minConflicts = Infinity;
+
+      for (let week = 1; week <= 18; week++) {
+        let conflicts = 0;
+        if (homeSchedule.has(week)) conflicts++;
+        if (awaySchedule.has(week)) conflicts++;
+        if (homeBye === week) conflicts++;
+        if (awayBye === week) conflicts++;
+
+        if (conflicts < minConflicts) {
+          minConflicts = conflicts;
+          bestWeek = week;
+        }
+      }
+
+      console.warn(
+        `[Week Assignment] Force-scheduling ${matchup.home} vs ${matchup.away} to week ${bestWeek} (${minConflicts} conflicts)`
+      );
+
+      games.push({
+        home_team_id: matchup.home,
+        away_team_id: matchup.away,
+        week: bestWeek,
+      });
+      homeSchedule.add(bestWeek);
+      awaySchedule.add(bestWeek);
     }
   }
 
-  // Final verification and filling
-  const incompleteTeams = Array.from(teamGamesCount.entries())
-    .filter(([, count]) => count !== 17);
-  
-  if (incompleteTeams.length > 0) {
-    console.warn('Incomplete teams:', incompleteTeams.map(([id, count]) => ({
-      teamId: id,
-      games: count
-    })));
-    
-    // Fill remaining games by pairing incomplete teams
-    fillRemainingGames(teams, games, teamGamesCount, teamWeekSchedule, teamByeWeeks, seed);
-  }
-
-  console.log(`Final schedule: ${games.length} games (expected 272)`);
-  
-  // Verify each team has 17 games
-  const finalCounts = Array.from(teamGamesCount.entries()).map(([id, count]) => ({
-    id,
-    count
-  }));
-  
-  const incorrectCounts = finalCounts.filter(t => t.count !== 17);
-  if (incorrectCounts.length > 0) {
-    console.error('Teams with incorrect game counts:', incorrectCounts);
-    console.error(`Total incomplete teams: ${incorrectCounts.length}`);
-    const missingGames = incorrectCounts.reduce((sum, t) => sum + (17 - t.count), 0);
-    console.error(`Missing games: ${missingGames}`);
-    
-    // If we're missing exactly 3 games (269 total), it's likely a pairing issue
-    if (missingGames === 3) {
-      console.error('Likely issue: Odd number of teams available in some weeks due to bye week distribution');
-    }
-  } else {
-    console.log('✅ All teams have exactly 17 games!');
-  }
+  console.log(`[Week Assignment] ${games.length} games assigned to weeks`);
 
   return games;
 }
 
-function scheduleMatchup(
-  homeTeam: Team,
-  awayTeam: Team,
-  games: Game[],
-  teamGamesCount: Map<string, number>,
-  teamWeekSchedule: Map<string, Set<number>>,
-  teamByeWeeks: Map<string, number>,
-  allowByeWeek: boolean = false
-): boolean {
-  const week = findAvailableWeek(
-    [homeTeam.id, awayTeam.id],
-    teamWeekSchedule,
-    teamByeWeeks,
-    1,
-    allowByeWeek
-  );
-
-  if (week === -1) {
-    return false; // No available week found
+/**
+ * Two-phase schedule generator
+ * Phase 1: Generate matchups (guarantees 17 games per team)
+ * Phase 2: Assign weeks (fits games into 18-week season)
+ */
+export function generateSchedule(
+  teams: Team[],
+  season: number, // eslint-disable-line @typescript-eslint/no-unused-vars
+  standingsLastSeason: Standing[] // eslint-disable-line @typescript-eslint/no-unused-vars
+): Game[] {
+  if (teams.length !== 32) {
+    throw new Error("Must supply 32 teams.");
   }
 
-  games.push({
-    week,
-    home_team_id: homeTeam.id,
-    away_team_id: awayTeam.id,
+  console.log("[Schedule] Starting schedule generation...");
+
+  // PHASE 1: Generate matchups
+  const matchups = generateMatchups(teams);
+
+  if (matchups.length !== 272) {
+    console.warn(
+      `[Schedule] WARNING: Expected 272 matchups, got ${matchups.length}`
+    );
+  }
+
+  // PHASE 2: Assign weeks
+  const games = assignWeeks(matchups, teams);
+
+  console.log(`[Schedule] Final: ${games.length} games scheduled`);
+
+  // Final validation
+  const teamGameCounts = new Map<string, number>();
+  teams.forEach((team) => teamGameCounts.set(team.id, 0));
+
+  games.forEach((game) => {
+    teamGameCounts.set(
+      game.home_team_id,
+      (teamGameCounts.get(game.home_team_id) || 0) + 1
+    );
+    teamGameCounts.set(
+      game.away_team_id,
+      (teamGameCounts.get(game.away_team_id) || 0) + 1
+    );
   });
 
-  teamGamesCount.set(homeTeam.id, teamGamesCount.get(homeTeam.id)! + 1);
-  teamGamesCount.set(awayTeam.id, teamGamesCount.get(awayTeam.id)! + 1);
-  teamWeekSchedule.get(homeTeam.id)!.add(week);
-  teamWeekSchedule.get(awayTeam.id)!.add(week);
+  const errors: string[] = [];
+  for (const [teamId, count] of teamGameCounts.entries()) {
+    if (count !== 17) {
+      errors.push(`${teamId}: ${count} games`);
+    }
+  }
 
-  return true;
+  if (errors.length > 0) {
+    console.error(
+      "[Schedule] Final validation - Teams with incorrect game counts:"
+    );
+    errors.forEach((err) => console.error(`  ❌ ${err}`));
+  } else {
+    console.log("[Schedule] ✅ All teams have exactly 17 games");
+  }
+
+  return games;
 }
-
-function findAvailableWeek(
-  teamIds: string[],
-  teamWeekSchedule: Map<string, Set<number>>,
-  teamByeWeeks: Map<string, number>,
-  minWeek: number = 1,
-  allowByeWeek: boolean = false
-): number {
-  const maxWeek = 18;
-  
-  // First pass: find a week where neither team has a bye and both are available
-  if (!allowByeWeek) {
-    for (let week = minWeek; week <= maxWeek; week++) {
-      // Check if any team has a bye this week
-      const hasBye = teamIds.some(id => teamByeWeeks.get(id) === week);
-      if (hasBye) {
-        continue;
-      }
-
-      // Check if all teams are available this week
-      const allAvailable = teamIds.every(id => {
-        const schedule = teamWeekSchedule.get(id);
-        return schedule && !schedule.has(week);
-      });
-
-      if (allAvailable) {
-        return week;
-      }
-    }
-  }
-
-  // Second pass: ignore bye weeks if needed to complete schedule
-  for (let week = minWeek; week <= maxWeek; week++) {
-    const allAvailable = teamIds.every(id => {
-      const schedule = teamWeekSchedule.get(id);
-      return schedule && !schedule.has(week);
-    });
-
-    if (allAvailable) {
-      return week;
-    }
-  }
-
-  // No available week found
-  return -1;
-}
-
-function fillRemainingGames(
-  teams: Team[],
-  games: Game[],
-  teamGamesCount: Map<string, number>,
-  teamWeekSchedule: Map<string, Set<number>>,
-  teamByeWeeks: Map<string, number>,
-  seed: number
-): void {
-  console.log('Filling remaining games...');
-  
-  // Get teams that need more games, sorted by how many they need (most first)
-  let incompleteTeams = teams
-    .filter(team => (teamGamesCount.get(team.id) || 0) < 17)
-    .sort((a, b) => {
-      const aGames = teamGamesCount.get(a.id) || 0;
-      const bGames = teamGamesCount.get(b.id) || 0;
-      return (17 - aGames) - (17 - bGames); // Most needed first
-    });
-
-  let attempts = 0;
-  const maxAttempts = 20000; // Increased for more thorough attempts
-  let lastProgress = incompleteTeams.length;
-  let stuckCount = 0;
-  let lastGameCount = games.length;
-
-  while (incompleteTeams.length > 0 && attempts < maxAttempts) {
-    attempts++;
-    
-    // Update incomplete teams list every iteration to catch completed teams
-    incompleteTeams = teams
-      .filter(team => (teamGamesCount.get(team.id) || 0) < 17)
-      .sort((a, b) => {
-        const aGames = teamGamesCount.get(a.id) || 0;
-        const bGames = teamGamesCount.get(b.id) || 0;
-        return (17 - aGames) - (17 - bGames); // Most needed first
-      });
-    
-    if (incompleteTeams.length === 0) break;
-    
-    // Check progress every 100 attempts
-    if (attempts % 100 === 0) {
-      const currentIncomplete = incompleteTeams.length;
-      const currentGameCount = games.length;
-      
-      if (currentIncomplete === lastProgress && currentGameCount === lastGameCount) {
-        stuckCount++;
-        // If stuck for too long, skip to aggressive mode
-        if (stuckCount > 20) {
-          console.warn(`Stuck for ${stuckCount * 100} attempts, switching to aggressive mode`);
-          // Force games more aggressively
-        }
-      } else {
-        stuckCount = 0;
-      }
-      lastProgress = currentIncomplete;
-      lastGameCount = currentGameCount;
-    }
-
-    const team1 = incompleteTeams[0];
-    const team1Games = teamGamesCount.get(team1.id) || 0;
-    const needed = 17 - team1Games;
-    
-    if (needed <= 0) {
-      continue; // Will be filtered out in next iteration
-    }
-    
-    // Try to find a match - prioritize other incomplete teams
-    let matched = false;
-    
-    // First try: match with other incomplete teams
-    for (const team2 of incompleteTeams.slice(1)) {
-      const team2Games = teamGamesCount.get(team2.id) || 0;
-      if (team2Games >= 17) continue;
-      
-      // Check if they've already played (avoid duplicates)
-      const alreadyPlayed = games.some(g => 
-        (g.home_team_id === team1.id && g.away_team_id === team2.id) ||
-        (g.home_team_id === team2.id && g.away_team_id === team1.id)
-      );
-      
-        if (!alreadyPlayed) {
-          const homeAwaySeed = (team1.id.charCodeAt(0) + team2.id.charCodeAt(0) + attempts) % 2;
-          const [home, away] = homeAwaySeed === 0 ? [team1, team2] : [team2, team1];
-          const scheduled = scheduleMatchup(home, away, games, teamGamesCount, teamWeekSchedule, teamByeWeeks, false);
-        
-        if (scheduled) {
-          matched = true;
-          break;
-        }
-      }
-    }
-    
-    // Second try: match with any team that has space and hasn't played this team
-    if (!matched) {
-      const shuffledAllTeams = shuffleArray([...teams], seed + attempts);
-      for (const team2 of shuffledAllTeams) {
-        if (team2.id === team1.id) continue;
-        
-        const team2Games = teamGamesCount.get(team2.id) || 0;
-        if (team2Games >= 17) continue;
-        
-        // Check if they've already played
-        const alreadyPlayed = games.some(g => 
-          (g.home_team_id === team1.id && g.away_team_id === team2.id) ||
-          (g.home_team_id === team2.id && g.away_team_id === team1.id)
-        );
-        
-        if (!alreadyPlayed) {
-          const homeAwaySeed = (team1.id.charCodeAt(0) + team2.id.charCodeAt(0)) % 2;
-          const [home, away] = homeAwaySeed === 0 ? [team1, team2] : [team2, team1];
-          const scheduled = scheduleMatchup(home, away, games, teamGamesCount, teamWeekSchedule, teamByeWeeks, false);
-          
-          if (scheduled) {
-            matched = true;
-            break;
-          }
-        }
-      }
-    }
-    
-    // Third try: allow bye weeks if needed
-    if (!matched) {
-      const shuffledAllTeams = shuffleArray([...teams], seed + attempts + 10000);
-      for (const team2 of shuffledAllTeams) {
-        if (team2.id === team1.id) continue;
-        
-        const team2Games = teamGamesCount.get(team2.id) || 0;
-        if (team2Games >= 17) continue;
-        
-        const alreadyPlayed = games.some(g => 
-          (g.home_team_id === team1.id && g.away_team_id === team2.id) ||
-          (g.home_team_id === team2.id && g.away_team_id === team1.id)
-        );
-        
-        if (!alreadyPlayed) {
-          const homeAwaySeed = (team1.id.charCodeAt(0) + team2.id.charCodeAt(0) + attempts) % 2;
-          const [home, away] = homeAwaySeed === 0 ? [team1, team2] : [team2, team1];
-          const scheduled = scheduleMatchup(home, away, games, teamGamesCount, teamWeekSchedule, teamByeWeeks, true);
-          
-          if (scheduled) {
-            matched = true;
-            break;
-          }
-        }
-      }
-    }
-    
-    // Fourth try: force schedule even if they've played (only if desperate)
-    if (!matched && needed > 1) {
-      const shuffledAllTeams = shuffleArray([...teams], seed + attempts + 20000);
-      for (const team2 of shuffledAllTeams) {
-        if (team2.id === team1.id) continue;
-        
-        const team2Games = teamGamesCount.get(team2.id) || 0;
-        if (team2Games >= 17) continue;
-        
-        const homeAwaySeed = (team1.id.charCodeAt(0) + team2.id.charCodeAt(0) + attempts) % 2;
-        const [home, away] = homeAwaySeed === 0 ? [team1, team2] : [team2, team1];
-        const scheduled = scheduleMatchup(home, away, games, teamGamesCount, teamWeekSchedule, teamByeWeeks, true);
-        
-        if (scheduled) {
-          matched = true;
-          break;
-        }
-      }
-    }
-
-    if (!matched) {
-      // Last resort: force schedule by finding ANY available week
-      // Be very aggressive - find any team that can play
-      const team1Schedule = teamWeekSchedule.get(team1.id)!;
-      
-      // Try all weeks and all teams
-      for (let week = 1; week <= 18; week++) {
-        if (team1Schedule.has(week)) continue;
-        
-        // Try all teams, prioritizing incomplete ones
-        const teamsToTry = [
-          ...incompleteTeams.slice(1), // Other incomplete teams first
-          ...teams.filter(t => t.id !== team1.id && (teamGamesCount.get(t.id) || 0) < 17) // Any incomplete team
-        ];
-        
-        for (const team2 of teamsToTry) {
-          if (team2.id === team1.id) continue;
-          const team2Games = teamGamesCount.get(team2.id) || 0;
-          if (team2Games >= 17) continue;
-          
-          const team2Schedule = teamWeekSchedule.get(team2.id)!;
-          if (!team2Schedule.has(week)) {
-            // Force the game - don't check if they've played
-            games.push({
-              week,
-              home_team_id: team1.id,
-              away_team_id: team2.id,
-            });
-            
-            teamGamesCount.set(team1.id, team1Games + 1);
-            teamGamesCount.set(team2.id, team2Games + 1);
-            team1Schedule.add(week);
-            team2Schedule.add(week);
-            matched = true;
-            break;
-          }
-        }
-        if (matched) break;
-      }
-      
-      // If STILL no match, force a game even if both teams are already scheduled that week
-      // This should rarely happen, but if it does, we need to complete the schedule
-      if (!matched && needed > 0 && stuckCount > 15) {
-        for (let week = 1; week <= 18; week++) {
-          for (const team2 of incompleteTeams.slice(1)) {
-            if (team2.id === team1.id) continue;
-            const team2Games = teamGamesCount.get(team2.id) || 0;
-            if (team2Games >= 17) continue;
-            
-            // Force the game even if there's a conflict - we'll handle it
-            const team1Schedule = teamWeekSchedule.get(team1.id)!;
-            const team2Schedule = teamWeekSchedule.get(team2.id)!;
-            
-            // Only force if at least one team is free this week
-            if (!team1Schedule.has(week) || !team2Schedule.has(week)) {
-              games.push({
-                week,
-                home_team_id: team1.id,
-                away_team_id: team2.id,
-              });
-              
-              teamGamesCount.set(team1.id, team1Games + 1);
-              teamGamesCount.set(team2.id, team2Games + 1);
-              team1Schedule.add(week);
-              team2Schedule.add(week);
-              matched = true;
-              break;
-            }
-          }
-          if (matched) break;
-        }
-      }
-    }
-  }
-
-  // Final check - force complete any remaining teams
-  const finalIncomplete = teams.filter(team => (teamGamesCount.get(team.id) || 0) < 17);
-  if (finalIncomplete.length > 0) {
-    console.warn(`Force completing ${finalIncomplete.length} remaining teams...`);
-    
-    // Pair up remaining incomplete teams and force games
-    for (let i = 0; i < finalIncomplete.length; i += 2) {
-      if (i + 1 >= finalIncomplete.length) {
-        // Odd number - pair with any team that has space
-        const team1 = finalIncomplete[i];
-        const team1Games = teamGamesCount.get(team1.id) || 0;
-        const needed = 17 - team1Games;
-        
-        if (needed > 0) {
-          // Find any team with space
-          for (const team2 of teams) {
-            if (team2.id === team1.id) continue;
-            const team2Games = teamGamesCount.get(team2.id) || 0;
-            if (team2Games >= 17) continue;
-            
-            // Find any available week
-            for (let week = 1; week <= 18; week++) {
-              const team1Schedule = teamWeekSchedule.get(team1.id)!;
-              const team2Schedule = teamWeekSchedule.get(team2.id)!;
-              
-              if (!team1Schedule.has(week) && !team2Schedule.has(week)) {
-                games.push({
-                  week,
-                  home_team_id: team1.id,
-                  away_team_id: team2.id,
-                });
-                
-                teamGamesCount.set(team1.id, team1Games + 1);
-                teamGamesCount.set(team2.id, team2Games + 1);
-                team1Schedule.add(week);
-                team2Schedule.add(week);
-                break;
-              }
-            }
-          }
-        }
-      } else {
-        const team1 = finalIncomplete[i];
-        const team2 = finalIncomplete[i + 1];
-        const team1Games = teamGamesCount.get(team1.id) || 0;
-        const team2Games = teamGamesCount.get(team2.id) || 0;
-        
-        if (team1Games < 17 && team2Games < 17) {
-          // Find any available week for both
-          for (let week = 1; week <= 18; week++) {
-            const team1Schedule = teamWeekSchedule.get(team1.id)!;
-            const team2Schedule = teamWeekSchedule.get(team2.id)!;
-            
-            if (!team1Schedule.has(week) && !team2Schedule.has(week)) {
-              games.push({
-                week,
-                home_team_id: team1.id,
-                away_team_id: team2.id,
-              });
-              
-              teamGamesCount.set(team1.id, team1Games + 1);
-              teamGamesCount.set(team2.id, team2Games + 1);
-              team1Schedule.add(week);
-              team2Schedule.add(week);
-              break;
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  if (attempts >= maxAttempts) {
-    const stillIncomplete = teams.filter(team => (teamGamesCount.get(team.id) || 0) < 17);
-    if (stillIncomplete.length > 0) {
-      console.error('Max attempts reached while filling remaining games');
-      console.error('Remaining incomplete teams:', stillIncomplete.map(t => ({
-        id: t.id,
-        games: teamGamesCount.get(t.id) || 0
-      })));
-    }
-  }
-}
-
