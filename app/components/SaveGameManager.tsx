@@ -25,8 +25,18 @@ export default function SaveGameManager({
   onClose: () => void;
   onLoad?: () => void;
 }) {
-  const { currentSeason, currentWeek, selectedTeamId, setCurrentSeason, setCurrentWeek, setSelectedTeam, setSaveGameId, initializeFromStorage } = useGameStore();
-  
+  const {
+    currentSeason,
+    currentWeek,
+    selectedTeamId,
+    saveGameId,
+    setCurrentSeason,
+    setCurrentWeek,
+    setSelectedTeam,
+    setSaveGameId,
+    initializeFromStorage,
+  } = useGameStore();
+
   // Ensure store is initialized on mount
   useEffect(() => {
     initializeFromStorage();
@@ -71,15 +81,37 @@ export default function SaveGameManager({
 
     // Ensure we have valid season and week values
     const seasonToSave = currentSeason || 2025;
-    const weekToSave = currentWeek !== undefined && currentWeek !== null ? currentWeek : 0;
+    const weekToSave =
+      currentWeek !== undefined && currentWeek !== null ? currentWeek : 0;
 
     if (!seasonToSave || weekToSave === undefined || weekToSave === null) {
-      alert(`Cannot save: Missing game state. Season: ${seasonToSave}, Week: ${weekToSave}`);
+      alert(
+        `Cannot save: Missing game state. Season: ${seasonToSave}, Week: ${weekToSave}`
+      );
       return;
+    }
+
+    // If we have an active saveGameId, check if the name is different
+    // This helps prevent accidentally updating a save with a different name
+    if (saveGameId && saveGames.length > 0) {
+      const currentSave = saveGames.find((sg) => sg.id === saveGameId);
+      if (currentSave && currentSave.save_name !== saveName.trim()) {
+        const confirmUpdate = confirm(
+          `You have an active save game "${currentSave.save_name}".\n\n` +
+          `Saving with name "${saveName.trim()}" will UPDATE your current save game (ID: ${saveGameId.substring(0, 8)}...).\n\n` +
+          `This will preserve all your current season data (games, stats, rosters).\n\n` +
+          `Do you want to continue?`
+        );
+        if (!confirmUpdate) {
+          return;
+        }
+      }
     }
 
     setSaving(true);
     try {
+      // CRITICAL: Always pass saveGameId if it exists to UPDATE the current save
+      // This prevents accidentally creating a new save and breaking the current season
       const res = await fetch("/api/save-game", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -89,6 +121,7 @@ export default function SaveGameManager({
           currentSeason: seasonToSave,
           currentWeek: weekToSave,
           selectedTeamId: selectedTeamId || null,
+          saveGameId: saveGameId || null, // Pass current saveGameId to update, not create new
           gameState: {
             // Can add more game state here if needed
             timestamp: new Date().toISOString(),
@@ -98,9 +131,16 @@ export default function SaveGameManager({
 
       const data = await res.json();
       if (data.success) {
-        // Update save_game_id in store after saving
+        // Only update saveGameId if we created a NEW save (not updating existing)
+        // If we updated an existing save, the ID should remain the same
         if (data.saveGame?.id) {
-          setSaveGameId(data.saveGame.id);
+          // Only update if we don't already have this saveGameId (new save was created)
+          if (!saveGameId || saveGameId !== data.saveGame.id) {
+            setSaveGameId(data.saveGame.id);
+            console.log(`[SaveGameManager] Switched to new save: ${data.saveGame.id}`);
+          } else {
+            console.log(`[SaveGameManager] Updated existing save: ${data.saveGame.id}`);
+          }
         }
         await loadSaveGames();
         setShowSaveForm(false);
@@ -142,17 +182,17 @@ export default function SaveGameManager({
         if (data.gameState.selectedTeamId) {
           setSelectedTeam(data.gameState.selectedTeamId);
         }
-        
+
         // Set save_game_id in store
         if (data.saveGameId) {
           setSaveGameId(data.saveGameId);
         }
-        
+
         // Call onLoad callback if provided
         if (onLoad) {
           onLoad();
         }
-        
+
         onClose();
         alert(`Game loaded: ${data.saveGame.save_name}`);
       } else {
@@ -165,7 +205,11 @@ export default function SaveGameManager({
   }
 
   async function deleteGame(saveId: string, saveName: string) {
-    if (!confirm(`Are you sure you want to delete "${saveName}"? This cannot be undone.`)) {
+    if (
+      !confirm(
+        `Are you sure you want to delete "${saveName}"? This cannot be undone.`
+      )
+    ) {
       return;
     }
 
@@ -189,14 +233,33 @@ export default function SaveGameManager({
     }
   }
 
+  // Debug: Log when component renders
+  useEffect(() => {
+    console.log("[SaveGameManager] Component mounted/rendered");
+  }, []);
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+      onClick={(e) => {
+        // Close when clicking the backdrop
+        if (e.target === e.currentTarget) {
+          console.log("[SaveGameManager] Backdrop clicked, closing");
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6 text-white flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold mb-1">Save Game Manager</h2>
-            <p className="text-blue-100 text-sm">Save and load your game progress</p>
+            <p className="text-blue-100 text-sm">
+              Save and load your game progress
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -210,18 +273,37 @@ export default function SaveGameManager({
           {/* Save Current Game */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-slate-900">Save Current Game</h3>
+              <h3 className="text-lg font-semibold text-slate-900">
+                Save Current Game
+              </h3>
               <button
-                onClick={() => setShowSaveForm(!showSaveForm)}
+                onClick={() => {
+                  // Pre-fill save name with current save's name if it exists
+                  if (saveGameId && saveGames.length > 0) {
+                    const currentSave = saveGames.find((sg) => sg.id === saveGameId);
+                    if (currentSave) {
+                      setSaveName(currentSave.save_name);
+                      setSaveDescription(currentSave.description || "");
+                    }
+                  }
+                  setShowSaveForm(!showSaveForm);
+                }}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                New Save
+                {saveGameId ? "Update Save" : "New Save"}
               </button>
             </div>
 
             {showSaveForm && (
               <div className="bg-slate-50 rounded-lg p-6 mb-4 border border-slate-200">
+                {saveGameId && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      <strong>Updating current save:</strong> This will update your active save game and preserve all your current season data (games, stats, rosters).
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -273,11 +355,21 @@ export default function SaveGameManager({
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="text-sm text-blue-800">
                 <p className="font-medium mb-1">Current Game State:</p>
-                <p>Season {currentSeason || 2025} • Week {currentWeek !== undefined && currentWeek !== null ? currentWeek : 0}</p>
-                {selectedTeamId && <p className="mt-1">Team Selected: {selectedTeamId}</p>}
-                {(!currentSeason || currentWeek === undefined || currentWeek === null) && (
+                <p>
+                  Season {currentSeason || 2025} • Week{" "}
+                  {currentWeek !== undefined && currentWeek !== null
+                    ? currentWeek
+                    : 0}
+                </p>
+                {selectedTeamId && (
+                  <p className="mt-1">Team Selected: {selectedTeamId}</p>
+                )}
+                {(!currentSeason ||
+                  currentWeek === undefined ||
+                  currentWeek === null) && (
                   <p className="mt-2 text-orange-700 font-medium">
-                    ⚠️ Warning: Some game state values are missing. Defaults will be used when saving.
+                    ⚠️ Warning: Some game state values are missing. Defaults
+                    will be used when saving.
                   </p>
                 )}
               </div>
@@ -286,7 +378,9 @@ export default function SaveGameManager({
 
           {/* Load Saved Games */}
           <div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Saved Games</h3>
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">
+              Saved Games
+            </h3>
             {loading ? (
               <div className="text-center py-8">
                 <p className="text-slate-500">Loading save games...</p>
@@ -294,7 +388,9 @@ export default function SaveGameManager({
             ) : saveGames.length === 0 ? (
               <div className="text-center py-8 bg-slate-50 rounded-lg border border-slate-200">
                 <p className="text-slate-500">No saved games found</p>
-                <p className="text-slate-400 text-sm mt-2">Create a save to get started</p>
+                <p className="text-slate-400 text-sm mt-2">
+                  Create a save to get started
+                </p>
                 <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-left">
                   <p className="text-sm font-medium text-yellow-800 mb-2">
                     ⚠️ Save games table may not exist
@@ -304,7 +400,12 @@ export default function SaveGameManager({
                   </p>
                   <ol className="text-xs text-yellow-700 list-decimal list-inside space-y-1">
                     <li>Go to Supabase Dashboard → SQL Editor</li>
-                    <li>Run: <code className="bg-yellow-100 px-1 rounded">supabase/migrations/create_save_games.sql</code></li>
+                    <li>
+                      Run:{" "}
+                      <code className="bg-yellow-100 px-1 rounded">
+                        supabase/migrations/create_save_games.sql
+                      </code>
+                    </li>
                   </ol>
                 </div>
               </div>
@@ -317,15 +418,23 @@ export default function SaveGameManager({
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h4 className="font-semibold text-slate-900 mb-1">{save.save_name}</h4>
+                        <h4 className="font-semibold text-slate-900 mb-1">
+                          {save.save_name}
+                        </h4>
                         {save.description && (
-                          <p className="text-sm text-slate-600 mb-2">{save.description}</p>
+                          <p className="text-sm text-slate-600 mb-2">
+                            {save.description}
+                          </p>
                         )}
                         <div className="flex items-center gap-4 text-xs text-slate-500">
-                          <span>Season {save.current_season} • Week {save.current_week}</span>
+                          <span>
+                            Season {save.current_season} • Week{" "}
+                            {save.current_week}
+                          </span>
                           <span>•</span>
                           <span>
-                            Last played: {new Date(save.last_played_at).toLocaleDateString()}
+                            Last played:{" "}
+                            {new Date(save.last_played_at).toLocaleDateString()}
                           </span>
                         </div>
                       </div>
@@ -360,4 +469,3 @@ export default function SaveGameManager({
     </div>
   );
 }
-

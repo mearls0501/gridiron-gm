@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useGameStore } from "@/lib/store/game-store";
 import SaveGameManager from "./SaveGameManager";
-import { Save, FolderOpen } from "lucide-react";
+import GameSettingsModal from "./GameSettingsModal";
+import { Save, FolderOpen, Settings } from "lucide-react";
 
 interface MenuItem {
   label: string;
@@ -15,14 +16,71 @@ interface MenuItem {
 export default function Navigation() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [showSaveManager, setShowSaveManager] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  const { seasonPhase } = useGameStore();
+  const { seasonPhase, saveGameId, currentSeason, currentWeek, setSeasonPhase, setCurrentSeason, setCurrentWeek } = useGameStore();
   
   // Only check phase after component mounts to avoid hydration mismatch
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Sync seasonPhase from database on mount and when saveGameId/currentSeason changes
+  useEffect(() => {
+    if (!mounted || !currentSeason) return;
+
+    async function syncSeasonPhase() {
+      try {
+        const { supabase } = await import("@/lib/supabase-client");
+        // Query for the active season WITHOUT filtering by year first
+        // This ensures we get the correct active season (e.g., 2026) even if local state is stale (2025)
+        let seasonQuery = supabase
+          .from("seasons")
+          .select("year, phase, current_week")
+          .eq("is_active", true)
+          .order("year", { ascending: false }); // Get most recent active season first
+        
+        if (saveGameId) {
+          seasonQuery = seasonQuery.eq("save_game_id", saveGameId);
+        } else {
+          seasonQuery = seasonQuery.is("save_game_id", null);
+        }
+        
+        const { data: seasonData } = await seasonQuery.maybeSingle();
+        
+        if (seasonData) {
+          // Sync season from database if different
+          if (seasonData.year !== undefined && seasonData.year !== currentSeason) {
+            console.log(`[Navigation] Syncing season from DB: ${currentSeason} -> ${seasonData.year}`);
+            setCurrentSeason(seasonData.year);
+          }
+          
+          // Sync week from database if different
+          if (seasonData.current_week !== undefined && seasonData.current_week !== null && seasonData.current_week !== currentWeek) {
+            console.log(`[Navigation] Syncing week from DB: ${currentWeek} -> ${seasonData.current_week}`);
+            setCurrentWeek(seasonData.current_week);
+          }
+          
+          // Sync phase from database if different
+          if (seasonData.phase && seasonData.phase !== seasonPhase) {
+            console.log(`[Navigation] Syncing phase from DB: ${seasonPhase} -> ${seasonData.phase}`);
+            setSeasonPhase(seasonData.phase);
+          }
+        } else if (!seasonPhase) {
+          // If no season record exists and store doesn't have a phase,
+          // default to preseason for new games (week 0)
+          if (currentWeek === 0) {
+            setSeasonPhase("preseason");
+          }
+        }
+      } catch (err) {
+        console.error("Error syncing season phase:", err);
+      }
+    }
+
+    syncSeasonPhase();
+  }, [mounted, saveGameId, currentSeason, setSeasonPhase]);
 
   const isOffseason = mounted && seasonPhase === "offseason";
   const isPreseason = mounted && seasonPhase === "preseason";
@@ -134,6 +192,9 @@ export default function Navigation() {
             window.location.reload();
           }}
         />
+      )}
+      {showSettings && (
+        <GameSettingsModal onClose={() => setShowSettings(false)} />
       )}
       <div
         className="w-full"
@@ -272,6 +333,24 @@ export default function Navigation() {
 
             {/* Right side info */}
             <div className="ml-auto flex items-center gap-4 px-4 text-sm">
+              <button
+                onClick={() => setShowSettings(true)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded transition-colors"
+                style={{
+                  background: "rgba(255, 255, 255, 0.1)",
+                  color: "white",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)";
+                }}
+                title="Game Settings"
+              >
+                <Settings className="w-4 h-4" />
+                <span className="hidden md:inline">Settings</span>
+              </button>
               <button
                 onClick={() => setShowSaveManager(true)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded transition-colors"

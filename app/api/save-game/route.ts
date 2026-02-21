@@ -10,6 +10,7 @@ export async function POST(req: Request) {
       currentWeek,
       selectedTeamId,
       gameState,
+      saveGameId, // CRITICAL: If provided, update this save instead of creating new one
     } = await req.json();
 
     // Validate required fields - note: currentWeek can be 0 (preseason), so check for null/undefined explicitly
@@ -49,19 +50,10 @@ export async function POST(req: Request) {
       throw tableCheckError;
     }
 
-    // Check if save name already exists
-    const { data: existing, error: existingError } = await supabase
-      .from("save_games")
-      .select("id")
-      .eq("save_name", saveName)
-      .single();
-
-    // If error is not "not found", it's a real error
-    if (existingError && existingError.code !== "PGRST116") {
-      throw existingError;
-    }
-
-    const saveData = {
+    const nowIso = new Date().toISOString();
+    const buildSaveData = (
+      existingMetadata?: Record<string, unknown> | null
+    ) => ({
       save_name: saveName,
       description: description || null,
       current_season: currentSeason,
@@ -69,36 +61,91 @@ export async function POST(req: Request) {
       selected_team_id: selectedTeamId || null,
       game_state: gameState || {},
       metadata: {
-        version: "1.0",
-        created_at: new Date().toISOString(),
-        last_played_at: new Date().toISOString(),
+        ...(existingMetadata || {}),
+        version:
+          typeof existingMetadata?.version === "string"
+            ? existingMetadata.version
+            : "1.0",
+        created_at:
+          typeof existingMetadata?.created_at === "string"
+            ? existingMetadata.created_at
+            : nowIso,
+        last_played_at: nowIso,
       },
-      updated_at: new Date().toISOString(),
-      last_played_at: new Date().toISOString(),
-    };
+      updated_at: nowIso,
+      last_played_at: nowIso,
+    });
 
     let savedGame;
-    if (existing) {
-      // Update existing save
+
+    // CRITICAL: If saveGameId is provided, UPDATE that save (don't create new one)
+    // This prevents accidentally creating a new save and breaking the current season
+    if (saveGameId) {
+      // Verify the save exists
+      const { data: existingSave, error: checkError } = await supabase
+        .from("save_games")
+        .select("id, save_name, metadata")
+        .eq("id", saveGameId)
+        .single();
+
+      if (checkError || !existingSave) {
+        return NextResponse.json(
+          {
+            error: `Save game with ID ${saveGameId} not found. Cannot update.`,
+            hint: "If you want to create a new save, don't provide saveGameId.",
+          },
+          { status: 400 }
+        );
+      }
+
+      // Update existing save (preserve ID, update name and other fields)
       const { data, error } = await supabase
         .from("save_games")
-        .update(saveData)
-        .eq("id", existing.id)
+        .update(buildSaveData(existingSave.metadata))
+        .eq("id", saveGameId)
         .select()
         .single();
 
       if (error) throw error;
       savedGame = data;
+      console.log(`[SaveGame] Updated existing save ${saveGameId} (name: ${saveName})`);
     } else {
-      // Create new save
-      const { data, error } = await supabase
+      // No saveGameId provided - check if save name already exists
+      const { data: existingByName, error: existingError } = await supabase
         .from("save_games")
-        .insert(saveData)
-        .select()
+        .select("id, metadata")
+        .eq("save_name", saveName)
         .single();
 
-      if (error) throw error;
-      savedGame = data;
+      // If error is not "not found", it's a real error
+      if (existingError && existingError.code !== "PGRST116") {
+        throw existingError;
+      }
+
+      if (existingByName) {
+        // Save name exists - update it
+        const { data, error } = await supabase
+          .from("save_games")
+          .update(buildSaveData(existingByName.metadata))
+          .eq("id", existingByName.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        savedGame = data;
+        console.log(`[SaveGame] Updated existing save by name ${saveName} (ID: ${existingByName.id})`);
+      } else {
+        // Create new save
+        const { data, error } = await supabase
+          .from("save_games")
+          .insert(buildSaveData())
+          .select()
+          .single();
+
+        if (error) throw error;
+        savedGame = data;
+        console.log(`[SaveGame] Created new save ${savedGame.id} (name: ${saveName})`);
+      }
     }
 
     return NextResponse.json({
@@ -227,4 +274,3 @@ export async function DELETE(req: Request) {
     );
   }
 }
-
