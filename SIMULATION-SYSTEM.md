@@ -45,6 +45,181 @@ The simulation system provides realistic NFL game simulation with:
    - Respects potential rating caps
    - Aggregates season statistics
 
+7. **Coaching Influence System** (`lib/simulation/coaching-influence.ts`)
+   - Applies coaching staff attributes to game simulation
+   - Modifies play calling, strategy decisions, and player performance
+   - Affects player development rates through talent_dev
+   - Provides scheme fit and leadership bonuses
+
+## Coaching System
+
+### Coaching Staff Structure
+
+Each team has three primary coaches that influence simulation:
+- **Head Coach (HC)** - Overall team performance, scheme fit, leadership
+- **Offensive Coordinator (OC)** - Play calling, tempo, offensive strategy
+- **Defensive Coordinator (DC)** - Coverage schemes, blitz rate, turnover creation
+
+### Coaching Attributes (0-100 Scale)
+
+#### Core Attributes (All Coaches)
+- **leadership**: Boosts performance in close games (+0-5%), affects player morale
+- **football_iq**: Reduces mental mistakes (+0-3% success rate)
+- **motivation**: Prevents letdowns vs weak opponents
+- **adaptability**: Second-half adjustments after halftime (+0-5%)
+- **aggressiveness**: 4th down decision-making (±30% go-for-it threshold)
+- **talent_dev**: Player development speed (0.75x to 1.25x progression)
+- **scheme_fit**: Team performance multiplier (±8.3% team strength)
+
+#### Offensive Coordinator Attributes
+- **run_bias / pass_bias**: Adjusts run/pass distribution (±15% from base)
+- **tempo**: Affects plays per game (0.85x to 1.15x play count)
+- **creativity**: Enables occasional trick plays (>80 creativity)
+- **red_zone_iq**: Red zone success bonus (+0-15%)
+
+#### Defensive Coordinator Attributes
+- **man_bias / zone_bias**: Determines coverage scheme selection
+- **blitz_rate**: Increases pressure chance (+0-15%)
+- **turnover_focus**: Boosts interception rate (+0-1.5%)
+- **bend_break**: Bend-but-don't-break philosophy (prevents TDs, allows yards)
+
+### How Coaching Affects Simulation
+
+#### 1. Play Calling
+```typescript
+// Offensive coordinator's run/pass bias modifies play selection
+// Example: OC with run_bias=90, pass_bias=30
+// Shifts play distribution toward running plays
+```
+
+#### 2. 4th Down Decisions
+```typescript
+// Aggressive HC (aggressiveness=100): Goes for it on 4th & 3 from own 40
+// Conservative HC (aggressiveness=0): Punts on 4th & 1 from opponent 45
+```
+
+#### 3. Tempo & Play Count
+```typescript
+// Low tempo OC (tempo=0): ~68 plays per game
+// High tempo OC (tempo=100): ~92 plays per game
+// Affects total possessions and scoring opportunities
+```
+
+#### 4. Coverage Schemes
+```typescript
+// DC with man_bias=80, zone_bias=20
+// Plays man coverage 80% of the time
+// Affects completion rates and yards allowed
+```
+
+#### 5. Blitz Pressure
+```typescript
+// High blitz rate (blitz_rate=80): 35% + 12% = 47% pressure rate
+// Low blitz rate (blitz_rate=20): 35% + 3% = 38% pressure rate
+```
+
+#### 6. Red Zone Efficiency
+```typescript
+// High red_zone_iq (85): +12.75% success rate inside 20
+// Average red_zone_iq (50): +7.5% success rate
+```
+
+#### 7. Player Development
+```typescript
+// High talent_dev HC (talent_dev=100): 1.25x progression speed
+// Low talent_dev HC (talent_dev=0): 0.75x progression speed
+// Affects rookie development and young player improvement
+```
+
+### Integration Points
+
+**Engine Loading** (`lib/simulation/engine.ts`):
+- `loadTeamCoachingStaff()`: Loads coaching staff from database
+- `loadTeamWithRoster()`: Optionally includes coaches with team data
+- `simulateGame()`: Applies tempo modifiers to play count
+
+**Attribute Engine** (`lib/simulation/attribute-engine.ts`):
+- `determinePlayType()`: Accepts coaching staff for play calling
+- `determineCoverageType()`: Uses DC's man/zone bias
+- `calculatePressureChance()`: Applies blitz rate bonus
+- `calculateInterceptionChance()`: Applies turnover focus bonus
+
+**Enhanced Outcome Generator** (`lib/simulation/enhanced-outcome-generator.ts`):
+- Passes coaching staff through to all attribute calculations
+- Applies coaching bonuses to success rates
+- Uses coaching modifiers for situational decisions
+
+**Team Strength** (`lib/simulation/team-strength.ts`):
+- Applies scheme fit modifier to overall team performance
+- Affects offensive, defensive, and overall ratings
+
+**Player Development** (`lib/simulation/player-development.ts`):
+- Applies talent_dev multiplier to rating progression
+- Loads head coach for each player's team
+- Affects long-term player growth
+
+### Database Schema (Coaching)
+
+**coaches** (seed table - immutable):
+- Base coaching pool with all attributes
+- Similar to players table structure
+- CSV import for initial seeding
+
+**coach_team_assignments**:
+- Tracks which coach is with which team per save game
+- Records hiring, firing, resignations
+- Save game isolated (coaches don't bleed between games)
+
+**coach_contracts**:
+- Tracks coaching contracts per save game
+- 4-year contracts with signing bonuses
+- Salary cap implications
+
+### Testing & Calibration
+
+**Admin Test Page** (`/admin/test-coaching`):
+- Compare simulation results with different coaching configurations
+- View play distribution, scoring averages, tempo impact
+- Run multiple simulations for statistical significance
+
+**Calibration Script** (`scripts/test-coaching-calibration.ts`):
+- Tests extreme values (0 vs 100) for each attribute
+- Validates variance is reasonable (±10-20%)
+- Ensures no single attribute is overpowered
+
+**API Endpoint** (`/api/admin/test-coaching-impact`):
+- POST endpoint for running coaching impact tests
+- Returns summary statistics and individual simulation results
+
+### Setup Instructions
+
+1. **Apply Migrations**:
+   ```sql
+   -- Run these in order:
+   supabase/migrations/drop_coaching_staff_table.sql
+   supabase/migrations/create_coaches_seed_table.sql
+   supabase/migrations/create_coach_team_assignments.sql
+   supabase/migrations/create_coach_contracts.sql
+   supabase/migrations/fix_coaches_role_constraint.sql
+   ```
+
+2. **Seed Coaching Data**:
+   - Import `sample_coaches_seed.csv` into coaches table
+   - Ensure each team has HC, OC, DC assigned
+   - Create coach_team_assignments records for active save game
+
+3. **Enable Coaching in Simulation**:
+   ```typescript
+   await simulateGame({
+     // ... other config
+     loadCoaches: true, // Enable coaching influence (default: true)
+   });
+   ```
+
+4. **Test Impact**:
+   - Visit `/admin/test-coaching` to run calibration tests
+   - Or run: `npx ts-node scripts/test-coaching-calibration.ts`
+
 ## Database Schema
 
 ### Tables

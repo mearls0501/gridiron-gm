@@ -1,0 +1,195 @@
+# Game Stats Not Saving - Diagnosis and Fix
+
+## Problem
+
+Game stats are not being saved for individual games. The root cause is that the `player_game_stats`, `player_season_stats`, and potentially `player_lifetime_stats` tables are missing the `save_game_id` column.
+
+## Root Cause
+
+The original migration file `create_player_stats_tables.sql` creates these tables WITHOUT the `save_game_id` column. While there is a later migration `add_save_game_isolation.sql` that adds this column, if that migration hasn't been run or failed, the column will be missing.
+
+When the simulation code tries to insert stats with `save_game_id`, the database rejects it because the column doesn't exist.
+
+## How to Diagnose
+
+1. Run the diagnostic endpoint:
+```bash
+curl http://localhost:3000/api/diagnose-stats-schema
+```
+
+2. Check the response. Look for:
+   - `has_save_game_id: false` in any of the tables
+   - Issues array with "missing save_game_id column"
+   - Empty `record_count` (indicating no stats are being saved)
+
+## Fix Steps
+
+### Option 1: Run the Fix Migration (Recommended)
+
+1. **Check your Supabase connection**
+   ```bash
+   # Make sure you're connected to the right project
+   supabase status
+   ```
+
+2. **Run the migration**
+   
+   **Using Supabase CLI:**
+   ```bash
+   cd /Users/mattearls/Documents/gridiron-gm
+   supabase db push --include-all
+   ```
+   
+   **Or manually in Supabase SQL Editor:**
+   - Open your Supabase project
+   - Go to SQL Editor
+   - Copy the contents of `supabase/migrations/fix_player_stats_save_game_id.sql`
+   - Paste and execute
+
+3. **Verify the fix**
+   ```bash
+   curl http://localhost:3000/api/diagnose-stats-schema
+   ```
+   
+   You should see:
+   - `has_save_game_id: true` for all three stats tables
+   - `status: "healthy"`
+   - No issues reported
+
+### Option 2: Manual SQL Fix
+
+If you prefer to run the SQL directly:
+
+```sql
+-- Add save_game_id to player_game_stats
+ALTER TABLE public.player_game_stats 
+ADD COLUMN IF NOT EXISTS save_game_id UUID REFERENCES public.save_games(id) ON DELETE CASCADE;
+
+-- Add save_game_id to player_season_stats
+ALTER TABLE public.player_season_stats 
+ADD COLUMN IF NOT EXISTS save_game_id UUID REFERENCES public.save_games(id) ON DELETE CASCADE;
+
+-- Add save_game_id to player_lifetime_stats (if table exists)
+ALTER TABLE public.player_lifetime_stats 
+ADD COLUMN IF NOT EXISTS save_game_id UUID REFERENCES public.save_games(id) ON DELETE CASCADE;
+
+-- Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_player_game_stats_save_game 
+ON public.player_game_stats(save_game_id, season, week);
+
+CREATE INDEX IF NOT EXISTS idx_player_season_stats_save_game 
+ON public.player_season_stats(save_game_id, season);
+
+CREATE INDEX IF NOT EXISTS idx_player_lifetime_stats_save_game 
+ON public.player_lifetime_stats(save_game_id);
+
+-- Update unique constraint for player_season_stats
+ALTER TABLE public.player_season_stats 
+DROP CONSTRAINT IF EXISTS player_season_stats_player_id_season_key;
+
+DROP INDEX IF EXISTS player_season_stats_unique;
+
+CREATE UNIQUE INDEX IF NOT EXISTS player_season_stats_unique 
+ON public.player_season_stats(
+  COALESCE(save_game_id, '00000000-0000-0000-0000-000000000000'::uuid),
+  player_id, 
+  season
+);
+```
+
+## After Fixing
+
+1. **Clear any corrupt data** (optional, if you have stats saved without save_game_id):
+```sql
+-- Delete game stats without save_game_id
+DELETE FROM player_game_stats WHERE save_game_id IS NULL;
+
+-- Delete season stats without save_game_id
+DELETE FROM player_season_stats WHERE save_game_id IS NULL;
+
+-- Delete lifetime stats without save_game_id
+DELETE FROM player_lifetime_stats WHERE save_game_id IS NULL;
+```
+
+2. **Simulate a test game**:
+   - Go to your app
+   - Navigate to a game
+   - Simulate it
+   - Check if stats appear in the game box score
+
+3. **Verify stats are saving**:
+```sql
+-- Check game stats count
+SELECT COUNT(*) FROM player_game_stats WHERE save_game_id IS NOT NULL;
+
+-- Check a sample
+SELECT * FROM player_game_stats ORDER BY created_at DESC LIMIT 5;
+```
+
+## Prevention
+
+This issue occurred because the migration order wasn't clear or some migrations weren't run. To prevent this:
+
+1. Always run ALL migrations in order using `supabase db push`
+2. Use the diagnostic endpoint `/api/diagnose-stats-schema` before and after major changes
+3. Keep track of which migrations have been applied
+
+## Technical Details
+
+### Where Stats Are Saved
+
+Stats are saved in multiple places in the codebase:
+
+1. **Individual Game Simulation** (`app/api/simulate-game/route.ts`)
+   - Lines 206-252: Saves `player_game_stats` with `save_game_id`
+
+2. **Week Simulation** (`app/api/simulate-week-progress/route.ts`)
+   - Lines 576-586: Adds `save_game_id` to stats before batch insert
+   - Lines 635-692: Batch inserts stats in chunks of 1000
+
+3. **Advance Simulation** (`app/api/simulate-advance/route.ts`)
+   - Lines 423-434: Collects stats with `save_game_id`
+   - Later batch inserts them
+
+### Stats Generation
+
+Stats are generated by `PlayerStatsTracker` in `lib/simulation/player-performance.ts`:
+
+- Initializes all players with 0 stats (lines 26-63)
+- Records plays and updates stats (lines 69-312)
+- Returns only active player stats (lines 360-375)
+
+The tracker DOES NOT add `save_game_id` - that's added by the API routes before insertion.
+
+### Why save_game_id is Critical
+
+The `save_game_id` column is essential for:
+
+1. **Data Isolation**: Multiple save games can coexist without interfering
+2. **Querying**: All stats queries filter by `save_game_id` to show only relevant data
+3. **Cleanup**: When a save game is deleted, all associated stats are cascaded and deleted
+
+Without `save_game_id`, stats either:
+- Fail to insert (if column is missing) ← **THIS IS YOUR ISSUE**
+- Insert with NULL `save_game_id` (if column exists but value is NULL)
+- Mix data across save games (data corruption)
+
+## Migration Files Reference
+
+1. `create_player_stats_tables.sql` - Creates stats tables (WITHOUT save_game_id)
+2. `add_save_game_isolation.sql` - Adds save_game_id to stats tables (lines 62-72)
+3. `fix_player_stats_save_game_id.sql` - **NEW** - Ensures save_game_id exists (failsafe)
+
+## Success Criteria
+
+After applying the fix, you should see:
+
+✅ `has_save_game_id: true` for all stats tables
+✅ Stats appearing in game box scores after simulation
+✅ Stats appearing in player profiles
+✅ Stats appearing in league stats page
+✅ No database insertion errors in console
+✅ `record_count > 0` in diagnostic report after simulating games
+
+
+
