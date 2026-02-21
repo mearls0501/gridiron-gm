@@ -7,19 +7,47 @@ import { formatCurrency } from '@/lib/utils/format';
 import { generateCoachingStaff } from '@/lib/coach-generator';
 import { Award, Users, TrendingUp, Target, AlertCircle, X, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { useGameStore } from '@/lib/store/game-store';
 
 interface StaffMember {
   id: string;
   team_id: string | null;
-  name: string;
+  full_name: string;
   role: string;
-  rating: number;
-  specialty: string | null;
-  experience: number;
-  contract_year_1: number;
-  contract_year_2: number;
-  contract_year_3: number;
-  contract_year_4: number;
+  archetype: string | null;
+  
+  // Core attributes
+  leadership: number;
+  football_iq: number;
+  motivation: number;
+  adaptability: number;
+  aggressiveness: number;
+  talent_dev: number;
+  scheme_fit: number;
+  
+  // Offensive
+  run_bias?: number;
+  pass_bias?: number;
+  tempo?: number;
+  creativity?: number;
+  red_zone_iq?: number;
+  
+  // Defensive
+  man_bias?: number;
+  zone_bias?: number;
+  blitz_rate?: number;
+  turnover_focus?: number;
+  bend_break?: number;
+  
+  // For compatibility with old displays
+  name?: string;
+  rating?: number;
+  experience?: number;
+  specialty?: string | null;
+  contract_year_1?: number;
+  contract_year_2?: number;
+  contract_year_3?: number;
+  contract_year_4?: number;
 }
 
 const roleLabels: Record<string, string> = {
@@ -38,6 +66,7 @@ const roleLabels: Record<string, string> = {
 };
 
 export default function StaffPage() {
+  const { selectedTeamId, saveGameId } = useGameStore();
   const [team, setTeam] = useState<any>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [availableCoaches, setAvailableCoaches] = useState<StaffMember[]>([]);
@@ -51,23 +80,21 @@ export default function StaffPage() {
   const router = useRouter();
 
   useEffect(() => {
-    loadTeamAndStaff();
-  }, []);
+    if (selectedTeamId && saveGameId) {
+      loadTeamAndStaff();
+    }
+  }, [selectedTeamId, saveGameId]);
 
   async function loadTeamAndStaff() {
     try {
-      let selectedTeamId: string | null = null;
-      if (typeof window !== 'undefined') {
-        selectedTeamId = localStorage.getItem('selectedTeamId');
-      }
-
-      if (!selectedTeamId) {
-        const { useGameStore } = await import('@/lib/store/game-store');
-        selectedTeamId = useGameStore.getState().selectedTeamId;
-      }
-
       if (!selectedTeamId) {
         router.push('/');
+        return;
+      }
+
+      if (!saveGameId) {
+        setError('No save game loaded');
+        setLoading(false);
         return;
       }
 
@@ -84,35 +111,119 @@ export default function StaffPage() {
 
       setTeam(teamData);
 
-      // Fetch coaching staff for this team
-      const { data: staffData, error: staffError } = await supabase
-        .from('coaching_staff')
-        .select('*')
+      // Fetch coaching staff for this team using NEW structure
+      // Query coach_team_assignments joined with coaches table
+      const { data: assignments, error: assignmentError } = await supabase
+        .from('coach_team_assignments')
+        .select(`
+          coach_id,
+          assigned_at,
+          coaches (*)
+        `)
         .eq('team_id', selectedTeamId)
-        .order('role', { ascending: true });
+        .eq('save_game_id', saveGameId);
 
-      if (staffError) {
-        console.error('Error loading staff:', staffError);
-        // If table doesn't exist or no staff, initialize
-        if (staffError.code === 'PGRST116' || (staffData || []).length === 0) {
-          await initializeStaff(selectedTeamId);
-          return;
-        }
+      // Only log real errors
+      if (assignmentError && (assignmentError.message || assignmentError.code)) {
+        console.error('Error loading staff:', assignmentError);
+      }
+
+      if (assignments && assignments.length > 0) {
+        // Extract coach IDs to fetch contracts
+        const coachIds = assignments.map((a: any) => a.coach_id).filter(Boolean);
+        
+        // Fetch contracts for these coaches
+        const { data: contracts } = await supabase
+          .from('coach_contracts')
+          .select('coach_id, contract_year_1, contract_year_2, contract_year_3, contract_year_4, contract_expires_season')
+          .eq('save_game_id', saveGameId)
+          .in('coach_id', coachIds);
+        
+        // Create a map of contracts by coach_id
+        const contractMap = new Map();
+        (contracts || []).forEach((c: any) => {
+          contractMap.set(c.coach_id, c);
+        });
+        
+        // Extract coach data from the join and transform to match interface
+        const coachesData = assignments
+          .map((a: any) => {
+            const coach = a.coaches;
+            if (!coach) return null;
+            
+            // Calculate overall rating from attributes
+            const avgRating = Math.round(
+              (coach.leadership + coach.football_iq + coach.motivation + 
+               coach.adaptability + coach.talent_dev) / 5
+            );
+            
+            // Get contract data
+            const contract = contractMap.get(coach.id) || {};
+            
+            return {
+              ...coach,
+              name: coach.full_name, // Add compatibility field
+              rating: avgRating, // Calculate from attributes
+              experience: 5, // Default - we don't have this field yet
+              specialty: coach.archetype, // Map archetype to specialty
+              contract_year_1: contract.contract_year_1 || 0,
+              contract_year_2: contract.contract_year_2 || 0,
+              contract_year_3: contract.contract_year_3 || 0,
+              contract_year_4: contract.contract_year_4 || 0,
+            };
+          })
+          .filter(Boolean);
+        setStaff(coachesData);
       } else {
-        setStaff(staffData || []);
+        console.log('No coaches assigned to this team in this save game');
+        setStaff([]);
       }
 
-      // Fetch available coaches (team_id is null)
-      const { data: availableData, error: availableError } = await supabase
-        .from('coaching_staff')
+      // Fetch available coaches (not assigned to any team in this save game)
+      // Get all assigned coach IDs for this save game
+      const { data: allAssignments } = await supabase
+        .from('coach_team_assignments')
+        .select('coach_id')
+        .eq('save_game_id', saveGameId);
+
+      const assignedCoachIds = new Set(
+        (allAssignments || []).map((a: any) => a.coach_id)
+      );
+
+      // Get all coaches from seed table
+      const { data: allCoaches, error: allCoachesError } = await supabase
+        .from('coaches')
         .select('*')
-        .is('team_id', null)
-        .order('rating', { ascending: false })
-        .limit(20);
+        .order('leadership', { ascending: false });
 
-      if (!availableError && availableData) {
-        setAvailableCoaches(availableData);
+      console.log('[Staff Page] Total coaches in seed table:', allCoaches?.length || 0);
+      console.log('[Staff Page] Assigned coaches in save game:', assignedCoachIds.size);
+
+      if (allCoachesError) {
+        console.error('[Staff Page] Error fetching all coaches:', allCoachesError);
       }
+
+      // Filter to only unassigned coaches and transform data
+      const available = (allCoaches || [])
+        .filter((c: any) => !assignedCoachIds.has(c.id))
+        .map((coach: any) => {
+          // Calculate overall rating from attributes
+          const avgRating = Math.round(
+            (coach.leadership + coach.football_iq + coach.motivation + 
+             coach.adaptability + coach.talent_dev) / 5
+          );
+          
+          return {
+            ...coach,
+            name: coach.full_name,
+            rating: avgRating,
+            experience: 5,
+            specialty: coach.archetype,
+          };
+        });
+
+      console.log('[Staff Page] Available (unassigned) coaches:', available.length);
+      setAvailableCoaches(available.slice(0, 20));
     } catch (err) {
       console.error('Error loading staff:', err);
     } finally {
@@ -121,26 +232,9 @@ export default function StaffPage() {
   }
 
   async function initializeStaff(teamId: string) {
-    try {
-      const newStaff = generateCoachingStaff(teamId);
-      const staffToInsert = newStaff.map((s) => ({
-        ...s,
-        team_id: teamId,
-      }));
-
-      const { error: insertError } = await supabase
-        .from('coaching_staff')
-        .insert(staffToInsert);
-
-      if (insertError) {
-        console.error('Error initializing staff:', insertError);
-      } else {
-        // Reload staff
-        await loadTeamAndStaff();
-      }
-    } catch (err) {
-      console.error('Error initializing staff:', err);
-    }
+    // This function is no longer needed - coaches should be initialized via /admin/fix-coaches
+    // or automatically when creating a new game via GameSetupWizard
+    console.log('Please use /admin/fix-coaches to initialize coaches for your save game');
   }
 
   // Group staff by role type
@@ -154,7 +248,9 @@ export default function StaffPage() {
 
   // Calculate staff stats
   const avgRating =
-    staff.length > 0 ? Math.round(staff.reduce((sum, s) => sum + s.rating, 0) / staff.length) : 0;
+    staff.length > 0 
+      ? Math.round(staff.reduce((sum, s) => sum + (s.rating || 0), 0) / staff.length) || 0
+      : 0;
   const totalStaffSalary = staff.reduce((sum, s) => sum + (s.contract_year_1 || 0), 0);
 
   function isExpiringContract(coach: StaffMember): boolean {
@@ -333,7 +429,7 @@ export default function StaffPage() {
           <div className="ootp-panel-body">
             <div className="text-3xl font-bold text-gray-900">
               {staff.length > 0
-                ? Math.round(staff.reduce((sum, s) => sum + s.experience, 0) / staff.length)
+                ? Math.round(staff.reduce((sum, s) => sum + (s.experience || 0), 0) / staff.length) || 0
                 : 0}
             </div>
             <div className="text-sm text-gray-600">Avg Years</div>

@@ -31,24 +31,149 @@ interface GameWithTeams extends Game {
 }
 
 export default function SchedulePage() {
-  const { currentSeason, saveGameId } = useGameStore();
+  const { currentSeason, saveGameId, setCurrentSeason } = useGameStore();
   const [teams, setTeams] = useState<Team[]>([]);
   const [games, setGames] = useState<GameWithTeams[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
-  const [season, setSeason] = useState<number>(currentSeason);
+  // Season should ONLY come from DB - no fallback defaults
+  const [season, setSeason] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [teamGameCounts, setTeamGameCounts] = useState<Record<string, number>>(
     {}
   );
   const [error, setError] = useState<string | null>(null);
   const [generatingSchedule, setGeneratingSchedule] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [seasonSynced, setSeasonSynced] = useState(false);
 
   useEffect(() => {
-    fetchTeams();
+    setMounted(true);
+    // DO NOT set season from store - it may be stale
+    // Season MUST come from DB only
+    initializeSeason();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Teams are loaded in the first useEffect, schedule is generated in useMemo
+  // Sync season from database when mounted and saveGameId changes
+  useEffect(() => {
+    if (mounted) {
+      checkSeasonStatus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, saveGameId]);
+
+  // Teams are loaded after season is synced
+  useEffect(() => {
+    if (seasonSynced) {
+      fetchTeams();
+    }
+  }, [seasonSynced]);
+
+  async function initializeSeason() {
+    // First sync season from database
+    // DO NOT set seasonSynced until DB sync completes
+    await checkSeasonStatus();
+    // seasonSynced is set inside checkSeasonStatus after DB sync completes
+  }
+
+  async function checkSeasonStatus() {
+    try {
+      // Query for the active season WITHOUT filtering by year first
+      // This ensures we get the correct active season (e.g., 2026) even if local state is stale (2025)
+      let seasonQuery = supabase
+        .from("seasons")
+        .select("year, phase, current_week")
+        .eq("is_active", true)
+        .order("year", { ascending: false }); // Get most recent active season first
+
+      if (saveGameId) {
+        seasonQuery = seasonQuery.eq("save_game_id", saveGameId);
+      } else {
+        seasonQuery = seasonQuery.is("save_game_id", null);
+      }
+
+      // Get the first (most recent) active season
+      const { data: seasonData, error } = await seasonQuery.maybeSingle();
+
+      if (error && error.code !== "PGRST116") {
+        console.error("Error checking season status:", error);
+        setError(`Failed to load season: ${error.message}`);
+        // Mark as synced even on error to allow UI to show error
+        setSeasonSynced(true);
+        return;
+      }
+
+      // If season record exists, sync season from database
+      if (seasonData && seasonData.year !== undefined) {
+        const dbSeason = seasonData.year;
+        console.log(
+          `[League Schedule] Syncing season from DB: ${season} -> ${dbSeason}`
+        );
+        // Overwrite BOTH local state and game store with DB season
+        setSeason(dbSeason);
+        setCurrentSeason(dbSeason);
+
+        // Check if schedule exists for this season (use the synced season)
+        // Do this AFTER setting the season so checkScheduleExists has the correct value
+        await checkScheduleExists(dbSeason);
+      } else {
+        // No season found in DB - this is an error state
+        console.error("[League Schedule] No active season found in database");
+        setError("No active season found in database");
+        // Still mark as synced to allow UI to show error
+        setSeasonSynced(true);
+        return;
+      }
+
+      // Mark as synced ONLY after DB season sync completes
+      setSeasonSynced(true);
+    } catch (err) {
+      console.error("Error checking season status:", err);
+      setError(
+        err instanceof Error
+          ? `Failed to check season: ${err.message}`
+          : "Failed to check season"
+      );
+      // Mark as synced even on error to allow UI to show error
+      setSeasonSynced(true);
+    }
+  }
+
+  async function checkScheduleExists(seasonToCheck: number) {
+    try {
+      // Check if a schedule record exists for this season
+      let scheduleQuery = supabase
+        .from("schedules")
+        .select("id, season, total_games, generated_at")
+        .eq("season", seasonToCheck);
+
+      if (saveGameId) {
+        scheduleQuery = scheduleQuery.eq("save_game_id", saveGameId);
+      } else {
+        scheduleQuery = scheduleQuery.is("save_game_id", null);
+      }
+
+      const { data: scheduleData, error } = await scheduleQuery.maybeSingle();
+
+      if (error && error.code !== "PGRST116") {
+        console.error("Error checking schedule:", error);
+        return;
+      }
+
+      if (!scheduleData) {
+        console.warn(
+          `[League Schedule] No schedule record found for season ${seasonToCheck}, saveGameId: ${saveGameId || "null"}. Games may still exist in database.`
+        );
+      } else {
+        console.log(
+          `[League Schedule] Schedule found: season ${scheduleData.season}, ${scheduleData.total_games} games, generated at ${scheduleData.generated_at}`
+        );
+      }
+    } catch (err) {
+      console.error("Error checking schedule existence:", err);
+    }
+  }
 
   async function fetchTeams() {
     try {
@@ -68,30 +193,41 @@ export default function SchedulePage() {
 
   // Load games from database
   const [dbGames, setDbGames] = useState<GameWithTeams[]>([]);
-  const [loadingGames, setLoadingGames] = useState(false);
 
-  useEffect(() => {
-    setSeason(currentSeason);
-  }, [currentSeason]);
-
+  // Load games from database
+  // CRITICAL: DO NOT load games until BOTH seasonSynced === true AND teams.length > 0 AND season !== null
   useEffect(() => {
     async function loadGamesFromDatabase() {
-      setLoadingGames(true);
+      // Protection guard: NEVER load games until season is synced from DB
+      if (!seasonSynced || teams.length === 0 || season === null) {
+        return;
+      }
+
+      // Protection guard: NEVER load games if season doesn't match DB season
+      if (season !== currentSeason) {
+        console.warn(
+          `[League Schedule] Season mismatch: local=${season}, DB=${currentSeason}. Waiting for sync...`
+        );
+        return;
+      }
+
+      setLoading(true);
       try {
+        // Use the final synced season value AFTER DB sync
         let gamesQuery = supabase
           .from("games")
           .select("*")
           .eq("season", season)
           .order("week", { ascending: true })
           .order("home_team_id", { ascending: true });
-        
+
         // Filter by save_game_id if available
         if (saveGameId) {
           gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
         } else {
           gamesQuery = gamesQuery.is("save_game_id", null);
         }
-        
+
         const { data: games, error } = await gamesQuery;
 
         if (error) {
@@ -99,6 +235,10 @@ export default function SchedulePage() {
           setDbGames([]);
           return;
         }
+
+        console.log(
+          `[League Schedule] Loaded ${games?.length || 0} games for season ${season}, saveGameId: ${saveGameId || "null"}`
+        );
 
         // Enrich with team data
         const enrichedGames: GameWithTeams[] = (games || [])
@@ -128,14 +268,80 @@ export default function SchedulePage() {
         console.error("Error loading games:", err);
         setDbGames([]);
       } finally {
-        setLoadingGames(false);
+        setLoading(false);
       }
     }
 
-    if (teams.length > 0) {
-      loadGamesFromDatabase();
+    loadGamesFromDatabase();
+  }, [teams, season, saveGameId, seasonSynced, currentSeason]);
+
+  // FORCE reload of games whenever the season changes
+  // This ensures Season 2 loads Season 2 games (and not stale Season 1 games)
+  useEffect(() => {
+    if (seasonSynced && teams.length > 0 && season !== null) {
+      // Trigger reload by calling loadGamesFromDatabase
+      // This effect runs whenever season, seasonSynced, or teams change
+      const loadGames = async () => {
+        setLoading(true);
+        try {
+          let gamesQuery = supabase
+            .from("games")
+            .select("*")
+            .eq("season", season)
+            .order("week", { ascending: true })
+            .order("home_team_id", { ascending: true });
+
+          if (saveGameId) {
+            gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
+          } else {
+            gamesQuery = gamesQuery.is("save_game_id", null);
+          }
+
+          const { data: games, error } = await gamesQuery;
+
+          if (error) {
+            console.error("Error reloading games:", error);
+            setDbGames([]);
+            return;
+          }
+
+          console.log(
+            `[League Schedule] Reloaded ${games?.length || 0} games for season ${season}`
+          );
+
+          const enrichedGames: GameWithTeams[] = (games || [])
+            .map((game) => {
+              const homeTeam = teams.find((t) => t.id === game.home_team_id);
+              const awayTeam = teams.find((t) => t.id === game.away_team_id);
+
+              if (!homeTeam || !awayTeam) return null;
+
+              return {
+                id: game.id,
+                week: game.week,
+                season: game.season,
+                home_team_id: game.home_team_id,
+                away_team_id: game.away_team_id,
+                home_score: game.home_score,
+                away_score: game.away_score,
+                played: game.played,
+                home_team: homeTeam,
+                away_team: awayTeam,
+              };
+            })
+            .filter((game): game is GameWithTeams => game !== null);
+
+          setDbGames(enrichedGames);
+        } catch (err) {
+          console.error("Error reloading games:", err);
+          setDbGames([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadGames();
     }
-  }, [teams, season, saveGameId]);
+  }, [season, seasonSynced, teams, saveGameId]);
 
   // ONLY use database games - no fallback generation
   // Schedule must be generated via /api/generate-schedule and stored in database
@@ -150,7 +356,7 @@ export default function SchedulePage() {
         // Only use database games - no generation
         if (gamesToDisplay.length === 0) {
           setError(
-            `No schedule found in database for season ${season}${saveGameId ? ` (save game: ${saveGameId.substring(0, 8)}...)` : ''}.`
+            `No schedule found in database for season ${season}${saveGameId ? ` (save game: ${saveGameId.substring(0, 8)}...)` : ""}.`
           );
           setGames([]);
           setTeamGameCounts({});
@@ -187,7 +393,7 @@ export default function SchedulePage() {
       // Teams are still loading
       setLoading(true);
     }
-  }, [gamesToDisplay, teams, season]);
+  }, [gamesToDisplay, teams, season, saveGameId]);
 
   // Filter games based on selected team and week
   const filteredGames = games.filter((game) => {
@@ -225,15 +431,34 @@ export default function SchedulePage() {
 
   // Generate schedule handler
   const handleGenerateSchedule = async () => {
+    // Protection guard: NEVER simulate/generate if season not synced
+    if (season === null || !seasonSynced) {
+      alert("Season not synced. Please wait for the page to finish loading.");
+      return;
+    }
+
+    // Protection guard: NEVER generate if season doesn't match DB season
+    if (season !== currentSeason) {
+      alert("Season not synced. Refresh the page first.");
+      return;
+    }
+
+    if (!saveGameId) {
+      setError(
+        "saveGameId is required. Please ensure you have a save game loaded."
+      );
+      setGeneratingSchedule(false);
+      return;
+    }
     setGeneratingSchedule(true);
     setError(null);
     try {
-      const response = await fetch('/api/generate-schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+      const response = await fetch("/api/generate-schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           season,
-          saveGameId: saveGameId || null,
+          saveGameId,
         }),
       });
 
@@ -242,10 +467,12 @@ export default function SchedulePage() {
         // Reload games after generation
         window.location.reload();
       } else {
-        setError(data.error || 'Failed to generate schedule');
+        setError(data.error || "Failed to generate schedule");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate schedule');
+      setError(
+        err instanceof Error ? err.message : "Failed to generate schedule"
+      );
     } finally {
       setGeneratingSchedule(false);
     }
@@ -266,7 +493,9 @@ export default function SchedulePage() {
             League Schedule
           </h1>
           <p className="text-gray-600">
-            View the complete schedule for the {season} season
+            {season !== null
+              ? `View the complete schedule for the ${season} season`
+              : "Loading season..."}
           </p>
         </div>
 
@@ -359,7 +588,9 @@ export default function SchedulePage() {
 
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-sm text-gray-600 mb-1">Season</div>
-            <div className="text-2xl font-bold text-gray-900">{season}</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {season ?? "Loading..."}
+            </div>
             <div className="text-xs text-gray-500 mt-1">18 weeks</div>
           </div>
         </div>
@@ -511,9 +742,17 @@ export default function SchedulePage() {
               <input
                 id="season-filter"
                 type="number"
-                value={season}
-                onChange={(e) => setSeason(parseInt(e.target.value) || 2025)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={season ?? ""}
+                onChange={(e) => {
+                  const newSeason = parseInt(e.target.value);
+                  if (!isNaN(newSeason) && newSeason > 0) {
+                    setSeason(newSeason);
+                    // Also update store to keep in sync
+                    setCurrentSeason(newSeason);
+                  }
+                }}
+                disabled={season === null}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -611,7 +850,7 @@ export default function SchedulePage() {
                     disabled={generatingSchedule}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:text-gray-700 disabled:cursor-not-allowed text-sm"
                   >
-                    {generatingSchedule ? 'Generating...' : 'Generate Schedule'}
+                    {generatingSchedule ? "Generating..." : "Generate Schedule"}
                   </button>
                   <button
                     onClick={() => {
@@ -639,47 +878,58 @@ export default function SchedulePage() {
           </div>
         )}
 
-        {/* Loading State */}
-        {loading && (
+        {/* Loading State - Gate UI until season is synced */}
+        {(loading || season === null || !seasonSynced) && (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <p className="mt-4 text-gray-600">Loading schedule...</p>
-          </div>
-        )}
-
-        {/* Schedule Display */}
-        {!loading && filteredGames.length === 0 && (
-          <div className="bg-white rounded-lg shadow p-12 text-center">
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
-              No games found
-            </h3>
-            <p className="mt-2 text-gray-500">
-              No games scheduled for the selected filters.
+            <p className="mt-4 text-gray-600">
+              {season === null
+                ? "Loading season from database..."
+                : !seasonSynced
+                  ? "Syncing season..."
+                  : "Loading schedule..."}
             </p>
-            <Link
-              href="/admin/generate-schedule"
-              className="mt-4 inline-block bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
-            >
-              Generate Schedule
-            </Link>
           </div>
         )}
 
-        {/* Games by Week */}
+        {/* Schedule Display - Only show when season is synced */}
         {!loading &&
+          season !== null &&
+          seasonSynced &&
+          filteredGames.length === 0 && (
+            <div className="bg-white rounded-lg shadow p-12 text-center">
+              <svg
+                className="mx-auto h-12 w-12 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              <h3 className="mt-4 text-lg font-medium text-gray-900">
+                No games found
+              </h3>
+              <p className="mt-2 text-gray-500">
+                No games scheduled for the selected filters.
+              </p>
+              <Link
+                href="/admin/generate-schedule"
+                className="mt-4 inline-block bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
+              >
+                Generate Schedule
+              </Link>
+            </div>
+          )}
+
+        {/* Games by Week - Only show when season is synced */}
+        {!loading &&
+          season !== null &&
+          seasonSynced &&
           weeks.map((week) => (
             <div key={week} className="bg-white rounded-lg shadow mb-6">
               <div className="bg-gray-50 border-b border-gray-200 px-6 py-3">

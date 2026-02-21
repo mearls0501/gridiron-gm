@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase-client";
-import { generateSchedule } from "@/lib/schedule-generator";
 import { useGameStore } from "@/lib/store/game-store";
 import { Calendar, Home, Plane, Trophy } from "lucide-react";
 import Link from "next/link";
@@ -192,73 +191,12 @@ export default function TeamSchedulePage() {
     }
   }, [team, teams, season, saveGameId]);
 
-  // Use database games if available, otherwise fallback to generated
+  // Use database games only - schedule must be generated via API and stored in database
   const teamGames = useMemo(() => {
-    if (dbGames.length > 0) {
-      return dbGames;
-    }
-
-    // Fallback to generated schedule if no DB games
-    if (!team || teams.length === 0 || teams.length !== 32) {
-      return [];
-    }
-
-    try {
-      const sortedTeams = [...teams].sort((a, b) => {
-        if (a.conference !== b.conference) {
-          return a.conference.localeCompare(b.conference);
-        }
-        if (a.division !== b.division) {
-          return a.division.localeCompare(b.division);
-        }
-        return a.id.localeCompare(b.id);
-      });
-
-      const teamData = sortedTeams.map((t) => ({
-        id: String(t.id),
-        division: t.division,
-        conference: t.conference,
-      }));
-
-      const games = generateSchedule(teamData, season);
-
-      const myGames = games
-        .filter(
-          (game) =>
-            game.home_team_id === team.id || game.away_team_id === team.id
-        )
-        .map((game) => {
-          const homeTeam = sortedTeams.find((t) => t.id === game.home_team_id);
-          const awayTeam = sortedTeams.find((t) => t.id === game.away_team_id);
-
-          if (!homeTeam || !awayTeam) {
-            return null;
-          }
-
-          const isHome = game.home_team_id === team.id;
-          const opponent = isHome ? awayTeam : homeTeam;
-
-          return {
-            week: game.week,
-            home_team_id: game.home_team_id,
-            away_team_id: game.away_team_id,
-            home_score: null,
-            away_score: null,
-            played: false,
-            home_team: homeTeam,
-            away_team: awayTeam,
-            isHome,
-            opponent,
-          };
-        })
-        .filter((game) => game !== null);
-
-      return (myGames as GameWithTeams[]).sort((a, b) => a.week - b.week);
-    } catch (error) {
-      console.error("Error generating schedule:", error);
-      return [];
-    }
-  }, [team, teams, season, dbGames]);
+    // Only use games from database - no client-side generation
+    // If schedule doesn't exist, it should be generated via /api/generate-schedule
+    return dbGames;
+  }, [dbGames]);
 
   // Filter games by selected week
   const filteredTeamGames = useMemo(() => {

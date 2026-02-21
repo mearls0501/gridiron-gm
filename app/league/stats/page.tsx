@@ -3,7 +3,8 @@
 import { supabase } from "@/lib/supabase-client";
 import { useGameStore } from "@/lib/store/game-store";
 import { useState, useEffect, useMemo } from "react";
-import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { ArrowUp, ArrowDown, ArrowUpDown, RefreshCw } from "lucide-react";
+import Link from "next/link";
 
 interface PlayerSeasonStat {
   player_id: string;
@@ -67,6 +68,50 @@ function LeagueStatsPageClient() {
     }
   }, [season, mounted, saveGameId]);
 
+  // Listen for stats refresh events (triggered from admin/sim after aggregation)
+  useEffect(() => {
+    if (!mounted) return;
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "stats-refresh" && e.newValue) {
+        console.log("[Stats] Received stats refresh event, reloading...");
+        loadStats();
+        // Clear the event
+        localStorage.removeItem("stats-refresh");
+      }
+    };
+
+    const handleCustomRefresh = () => {
+      console.log("[Stats] Received custom refresh event, reloading...");
+      loadStats();
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("stats-refreshed", handleCustomRefresh);
+
+    // Also check for refresh on focus (in case user switches tabs)
+    const handleFocus = () => {
+      const lastRefresh = localStorage.getItem("stats-last-refresh");
+      if (lastRefresh) {
+        const lastRefreshTime = parseInt(lastRefresh, 10);
+        const now = Date.now();
+        // If stats were refreshed in the last 5 seconds, reload
+        if (now - lastRefreshTime < 5000) {
+          console.log("[Stats] Detected recent stats refresh, reloading...");
+          loadStats();
+        }
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("stats-refreshed", handleCustomRefresh);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [mounted]);
+
   async function loadStats() {
     setLoading(true);
     try {
@@ -115,33 +160,27 @@ function LeagueStatsPageClient() {
         `[Stats] Loading stats for season ${season}, saveGameId: ${saveGameId || "null"}`
       );
 
-      let statsQuery = supabase
-        .from("player_season_stats")
-        .select(
-          `
-          *,
-          players!inner (id, full_name, position),
-          teams!inner (id, name, abbreviation)
-        `
-        )
-        .eq("season", season);
-
-      // Filter by save_game_id if available
-      // Note: NULL save_game_id is stored as sentinel UUID '00000000-0000-0000-0000-000000000000' in the database
-      const SENTINEL_UUID = "00000000-0000-0000-0000-000000000000";
-      if (saveGameId) {
-        statsQuery = statsQuery.eq("save_game_id", saveGameId);
-      } else {
-        // For legacy data, check for both NULL and sentinel UUID
-        statsQuery = statsQuery.or(
-          `save_game_id.is.null,save_game_id.eq.${SENTINEL_UUID}`
-        );
+      // CRITICAL: saveGameId is required - all stats should have save_game_id set
+      if (!saveGameId) {
+        console.error(`[Stats] saveGameId is required. Cannot load stats without save_game_id.`);
+        setStats([]);
+        setLoading(false);
+        return;
       }
 
-      const { data: statsData, error: statsError } = await statsQuery;
+      // Query stats with exact save_game_id match
+      // NOTE: Can't use JOIN anymore since we removed FK constraint
+      // Load stats, then enrich with player/prospect data separately
+      const statsQuery = supabase
+        .from("player_season_stats")
+        .select("*")
+        .eq("season", season)
+        .eq("save_game_id", saveGameId);
+
+      const { data: rawStatsData, error: statsError } = await statsQuery;
 
       console.log(
-        `[Stats] Initial query result: ${statsData?.length || 0} stats found, error:`,
+        `[Stats] Initial query result: ${rawStatsData?.length || 0} stats found, error:`,
         statsError?.message || "none"
       );
 
@@ -152,91 +191,279 @@ function LeagueStatsPageClient() {
         return;
       }
 
-      if (statsData && statsData.length > 0) {
-        seasonStats = statsData;
-      } else {
-        // Check if there are any game stats to aggregate first
-        let gameStatsQuery = supabase
-          .from("player_game_stats")
-          .select("id", { count: "exact", head: true })
-          .eq("season", season);
+      let statsData = rawStatsData;
 
-        if (saveGameId) {
-          gameStatsQuery = gameStatsQuery.eq("save_game_id", saveGameId);
-        } else {
-          gameStatsQuery = gameStatsQuery.is("save_game_id", null);
+      // Enrich stats with player and team data
+      if (statsData && statsData.length > 0) {
+        const playerIds = [...new Set(statsData.map(s => s.player_id))];
+        const teamIds = [...new Set(statsData.map(s => s.team_id))];
+
+        // Load teams
+        const { data: teams } = await supabase
+          .from("teams")
+          .select("id, name, abbreviation")
+          .in("id", teamIds);
+        const teamsMap = new Map(teams?.map(t => [t.id, t]) || []);
+
+        // Load players from both tables - batch to avoid "Bad Request" with too many IDs
+        const playersMap = new Map();
+        const BATCH_SIZE = 100; // Supabase has limits on .in() array size
+        
+        for (let i = 0; i < playerIds.length; i += BATCH_SIZE) {
+          const batch = playerIds.slice(i, i + BATCH_SIZE);
+          const { data: playersBatch } = await supabase
+            .from("players")
+            .select("id, full_name, position")
+            .in("id", batch);
+          
+          (playersBatch || []).forEach(p => playersMap.set(p.id, p));
+        }
+        
+        console.log(`[Stats] Loaded ${playersMap.size} players from players table out of ${playerIds.length} total IDs`);
+
+        const missingPlayerIds = playerIds.filter(id => !playersMap.has(id));
+        if (missingPlayerIds.length > 0) {
+          console.log(`[Stats] ${missingPlayerIds.length} player IDs not found in players table, checking prospects...`);
+          
+          // Batch prospects query too
+          for (let i = 0; i < missingPlayerIds.length; i += BATCH_SIZE) {
+            const batch = missingPlayerIds.slice(i, i + BATCH_SIZE);
+            const { data: prospectsBatch } = await supabase
+              .from("draft_prospects")
+              .select("id, full_name, position")
+              .in("id", batch);
+            
+            (prospectsBatch || []).forEach(p => playersMap.set(p.id, p));
+          }
+          
+          console.log(`[Stats] Found ${playersMap.size - (playerIds.length - missingPlayerIds.length)} prospects`);
+          
+          // Check if still missing
+          const stillMissing = missingPlayerIds.filter(id => !playersMap.has(id));
+          if (stillMissing.length > 0) {
+            console.warn(`[Stats] WARNING: ${stillMissing.length} player IDs not found in either table!`);
+            console.warn(`[Stats] Sample missing ID:`, stillMissing[0]);
+          }
         }
 
-        const { count: gameStatsCount, error: gameStatsCountError } =
-          await gameStatsQuery;
+        // Merge data
+        statsData = statsData.map(stat => ({
+          ...stat,
+          players: playersMap.get(stat.player_id) || { id: stat.player_id, full_name: "Unknown", position: "?" },
+          teams: teamsMap.get(stat.team_id) || { id: stat.team_id, name: "Unknown", abbreviation: "?" },
+        }));
 
+        console.log(`[Stats] Enriched ${statsData.length} stats with player and team data`);
+      }
+
+      // Check if there are any game stats to aggregate
+      // All game stats should have save_game_id set, so query with exact match
+      const gameStatsQuery = supabase
+        .from("player_game_stats")
+        .select("id, week", { count: "exact" })
+        .eq("season", season)
+        .eq("save_game_id", saveGameId);
+
+      const {
+        data: gameStatsSample,
+        count: gameStatsCount,
+        error: gameStatsCountError,
+      } = await gameStatsQuery.limit(100);
+
+      console.log(
+        `[Stats] Game stats check: ${gameStatsCount || 0} found, error:`,
+        gameStatsCountError?.message || "none"
+      );
+
+      // Also check if games exist for this season (to diagnose if games haven't been simulated)
+      if ((!gameStatsCount || gameStatsCount === 0) && saveGameId) {
+        const gamesCheckQuery = supabase
+          .from("games")
+          .select("id, week, played", { count: "exact" })
+          .eq("season", season)
+          .eq("save_game_id", saveGameId);
+        
+        const { count: gamesCount, data: gamesSample } = await gamesCheckQuery.limit(10);
+        const playedGamesCount = gamesSample?.filter(g => g.played).length || 0;
+        
         console.log(
-          `[Stats] Game stats check: ${gameStatsCount || 0} found, error:`,
-          gameStatsCountError?.message || "none"
+          `[Stats] Diagnostic: Season ${season} has ${gamesCount || 0} games, ${playedGamesCount} marked as played. ` +
+          `If games exist but no stats, stats may not have been saved during simulation.`
         );
+      }
 
-        // Only attempt aggregation if there are game stats to aggregate
-        if (gameStatsCount && gameStatsCount > 0) {
+      // Determine if we need to aggregate
+      let shouldAggregate = false;
+
+      if (gameStatsCount && gameStatsCount > 0) {
+        if (!statsData || statsData.length === 0) {
+          // No season stats exist, definitely need to aggregate
+          shouldAggregate = true;
           console.log(
-            `[Stats] Found ${gameStatsCount} game stats, attempting to aggregate...`
+            `[Stats] No season stats found but ${gameStatsCount} game stats exist, need to aggregate`
           );
-          try {
-            const { aggregateSeasonStats } = await import(
-              "@/lib/simulation/player-development"
-            );
-
-            // Add timeout to prevent hanging (reduced to 15 seconds)
-            const aggregationPromise = aggregateSeasonStats(season, saveGameId);
-            const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error("Aggregation timeout")), 15000)
-            );
-
-            await Promise.race([aggregationPromise, timeoutPromise]);
-
-            // Retry loading after aggregation
-            let retryQuery = supabase
-              .from("player_season_stats")
-              .select(
-                `
-              *,
-              players!inner (id, full_name, position),
-              teams!inner (id, name, abbreviation)
-            `
+        } else {
+          // Check if game stats have more recent weeks than season stats
+          // Get the max week from game stats
+          const maxGameWeek = gameStatsSample
+            ? Math.max(
+                ...(gameStatsSample
+                  .map((s) => s.week)
+                  .filter((w) => w != null) as number[])
               )
-              .eq("season", season);
+            : 0;
 
-            // Filter by save_game_id if available
-            // Note: NULL save_game_id is stored as sentinel UUID '00000000-0000-0000-0000-000000000000' in the database
-            const SENTINEL_UUID = "00000000-0000-0000-0000-000000000000";
-            if (saveGameId) {
-              retryQuery = retryQuery.eq("save_game_id", saveGameId);
-            } else {
-              // For legacy data, check for both NULL and sentinel UUID
-              retryQuery = retryQuery.or(
-                `save_game_id.is.null,save_game_id.eq.${SENTINEL_UUID}`
-              );
-            }
+          // Get the max week from season stats (check games_played as a proxy)
+          // Since we don't have week info in season stats, we'll check if any player's games_played
+          // is less than what we'd expect based on game stats
+          const maxSeasonGames = Math.max(
+            ...statsData.map((s) => s.games_played || 0)
+          );
 
-            const { data: retryData, error: retryError } = await retryQuery;
+          // Estimate expected games based on max week (assuming 1 game per week)
+          // If max week is 6, we'd expect at least 6 games for players who played all weeks
+          if (maxGameWeek > maxSeasonGames) {
+            shouldAggregate = true;
+            console.log(
+              `[Stats] Game stats have week ${maxGameWeek} but season stats show max ${maxSeasonGames} games, need to re-aggregate`
+            );
+          } else {
+            // Also check if there are significantly more game stats than what season stats suggest
+            // This catches cases where stats might be incomplete
+            const totalSeasonGames = statsData.reduce(
+              (sum, s) => sum + (s.games_played || 0),
+              0
+            );
+            const expectedTotalGames = gameStatsCount;
 
-            if (retryError) {
-              console.error(
-                "Error retrying stats after aggregation:",
-                retryError
-              );
-            }
-
-            if (retryData && retryData.length > 0) {
-              seasonStats = retryData;
-            } else {
+            // If game stats are 20% more than what season stats account for, re-aggregate
+            if (expectedTotalGames > totalSeasonGames * 1.2) {
+              shouldAggregate = true;
               console.log(
-                "Aggregation completed but no stats returned. This may be normal if no players have stats yet."
+                `[Stats] Found ${expectedTotalGames} game stats but season stats only account for ${totalSeasonGames} games, need to re-aggregate`
               );
             }
-          } catch (aggError) {
-            console.error("Error aggregating stats:", aggError);
-            // Continue with empty stats rather than hanging
           }
+        }
+      }
+
+      // Perform aggregation if needed
+      if (shouldAggregate) {
+        console.log(
+          `[Stats] Aggregating season stats for season ${season}, saveGameId: ${saveGameId || "null"}...`
+        );
+        try {
+          const { aggregateSeasonStats } = await import(
+            "@/lib/simulation/player-development"
+          );
+
+          // Increase timeout to 30 seconds for larger datasets
+          const aggregationPromise = aggregateSeasonStats(season, saveGameId);
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Aggregation timeout")), 30000)
+          );
+
+          await Promise.race([aggregationPromise, timeoutPromise]);
+
+          // Retry loading after aggregation
+          let retryQuery = supabase
+            .from("player_season_stats")
+            .select("*")
+            .eq("season", season);
+
+          // Filter by save_game_id if available
+          const SENTINEL_UUID = "00000000-0000-0000-0000-000000000000";
+          if (saveGameId) {
+            retryQuery = retryQuery.eq("save_game_id", saveGameId);
+          } else {
+            // For legacy data, check for both NULL and sentinel UUID
+            retryQuery = retryQuery.or(
+              `save_game_id.is.null,save_game_id.eq.${SENTINEL_UUID}`
+            );
+          }
+
+          const { data: rawRetryData, error: retryError } = await retryQuery;
+
+          if (retryError) {
+            console.error(
+              "Error retrying stats after aggregation:",
+              retryError
+            );
+          }
+
+          let retryData = rawRetryData;
+
+          // Enrich with player and team data
+          if (retryData && retryData.length > 0) {
+            const playerIds = [...new Set(retryData.map(s => s.player_id))];
+            const teamIds = [...new Set(retryData.map(s => s.team_id))];
+
+            // Load teams
+            const { data: teams } = await supabase
+              .from("teams")
+              .select("id, name, abbreviation")
+              .in("id", teamIds);
+            const teamsMap = new Map(teams?.map(t => [t.id, t]) || []);
+
+            // Load players from both tables - batch to avoid query limits
+            const playersMap = new Map();
+            const BATCH_SIZE = 100;
+            
+            for (let i = 0; i < playerIds.length; i += BATCH_SIZE) {
+              const batch = playerIds.slice(i, i + BATCH_SIZE);
+              const { data: playersBatch } = await supabase
+                .from("players")
+                .select("id, full_name, position")
+                .in("id", batch);
+              (playersBatch || []).forEach(p => playersMap.set(p.id, p));
+            }
+
+            const missingPlayerIds = playerIds.filter(id => !playersMap.has(id));
+            if (missingPlayerIds.length > 0) {
+              for (let i = 0; i < missingPlayerIds.length; i += BATCH_SIZE) {
+                const batch = missingPlayerIds.slice(i, i + BATCH_SIZE);
+                const { data: prospectsBatch } = await supabase
+                  .from("draft_prospects")
+                  .select("id, full_name, position")
+                  .in("id", batch);
+                (prospectsBatch || []).forEach(p => playersMap.set(p.id, p));
+              }
+            }
+
+            // Merge data
+            retryData = retryData.map(stat => ({
+              ...stat,
+              players: playersMap.get(stat.player_id) || { id: stat.player_id, full_name: "Unknown", position: "?" },
+              teams: teamsMap.get(stat.team_id) || { id: stat.team_id, name: "Unknown", abbreviation: "?" },
+            }));
+
+            seasonStats = retryData;
+            console.log(
+              `[Stats] Successfully loaded ${retryData.length} season stats after aggregation`
+            );
+          } else {
+            console.log(
+              "Aggregation completed but no stats returned. This may be normal if no players have stats yet."
+            );
+            // Fall back to original stats if available
+            if (statsData && statsData.length > 0) {
+              seasonStats = statsData;
+            }
+          }
+        } catch (aggError) {
+          console.error("Error aggregating stats:", aggError);
+          // Fall back to original stats if available
+          if (statsData && statsData.length > 0) {
+            seasonStats = statsData;
+          }
+        }
+      } else {
+        // Use existing stats
+        if (statsData && statsData.length > 0) {
+          seasonStats = statsData;
+          console.log(
+            `[Stats] Using existing season stats (${statsData.length} players), no aggregation needed`
+          );
         } else {
           console.log(
             "No game stats found for this save game, skipping aggregation"
@@ -375,7 +602,38 @@ function LeagueStatsPageClient() {
                   className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    console.log("[Stats] Manual refresh triggered");
+                    loadStats();
+                  }}
+                  disabled={loading}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-600 rounded-lg text-white font-semibold transition-colors flex items-center gap-2"
+                  title="Refresh statistics"
+                >
+                  <RefreshCw
+                    className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                  />
+                  Refresh
+                </button>
+              </div>
             </div>
+          </div>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="bg-white rounded-xl shadow-lg border border-slate-200 mb-6 overflow-hidden">
+          <div className="flex border-b border-slate-200">
+            <div className="flex-1 px-6 py-4 font-bold text-sm uppercase tracking-wider transition-colors bg-slate-900 text-white border-b-2 border-white text-center">
+              Full Stats
+            </div>
+            <Link
+              href="/league/leaders"
+              className="flex-1 px-6 py-4 font-bold text-sm uppercase tracking-wider transition-colors bg-slate-50 text-slate-600 hover:bg-slate-100 text-center"
+            >
+              Leaders
+            </Link>
           </div>
         </div>
 
@@ -601,6 +859,10 @@ function StatsTable({
           bValue =
             b.rushing_attempts > 0 ? b.rushing_yards / b.rushing_attempts : 0;
           break;
+        case "games_played":
+          aValue = a.games_played || 0;
+          bValue = b.games_played || 0;
+          break;
         case "receiving_yards":
           aValue = a.receiving_yards || 0;
           bValue = b.receiving_yards || 0;
@@ -686,6 +948,15 @@ function StatsTable({
                 Team
               </SortableHeaderLeft>
               <SortableHeader
+                field="games_played"
+                className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
+              >
+                GP
+              </SortableHeader>
+              <SortableHeader
                 field="completions"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
                 onSort={handleSort}
@@ -762,6 +1033,9 @@ function StatsTable({
                   <td className="py-3 px-4 text-slate-600">
                     {stat.team_abbreviation}
                   </td>
+                  <td className="text-right py-3 px-4 text-slate-600 tabular-nums">
+                    {stat.games_played || 0}
+                  </td>
                   <td className="text-right py-3 px-4 text-slate-900 font-medium tabular-nums">
                     {stat.completions}
                   </td>
@@ -816,6 +1090,15 @@ function StatsTable({
               >
                 Team
               </SortableHeaderLeft>
+              <SortableHeader
+                field="games_played"
+                className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
+              >
+                GP
+              </SortableHeader>
               <SortableHeader
                 field="rushing_attempts"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
@@ -875,6 +1158,9 @@ function StatsTable({
                     {stat.team_abbreviation}
                   </td>
                   <td className="text-right py-3 px-4 text-slate-600 tabular-nums">
+                    {stat.games_played || 0}
+                  </td>
+                  <td className="text-right py-3 px-4 text-slate-600 tabular-nums">
                     {stat.rushing_attempts}
                   </td>
                   <td className="text-right py-3 px-4 text-slate-900 font-medium tabular-nums">
@@ -922,6 +1208,15 @@ function StatsTable({
               >
                 Team
               </SortableHeaderLeft>
+              <SortableHeader
+                field="games_played"
+                className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
+              >
+                GP
+              </SortableHeader>
               <SortableHeader
                 field="receptions"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
@@ -981,6 +1276,9 @@ function StatsTable({
                     {stat.team_abbreviation}
                   </td>
                   <td className="text-right py-3 px-4 text-slate-600 tabular-nums">
+                    {stat.games_played || 0}
+                  </td>
+                  <td className="text-right py-3 px-4 text-slate-600 tabular-nums">
                     {stat.receptions}
                   </td>
                   <td className="text-right py-3 px-4 text-slate-900 font-medium tabular-nums">
@@ -1028,6 +1326,15 @@ function StatsTable({
               >
                 Team
               </SortableHeaderLeft>
+              <SortableHeader
+                field="games_played"
+                className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
+                onSort={handleSort}
+                sortField={sortField}
+                sortDirection={sortDirection}
+              >
+                GP
+              </SortableHeader>
               <SortableHeader
                 field="tackles"
                 className="text-right py-3 px-4 font-bold text-slate-700 text-xs uppercase tracking-wider"
@@ -1089,6 +1396,9 @@ function StatsTable({
                 </td>
                 <td className="py-3 px-4 text-slate-600">
                   {stat.team_abbreviation}
+                </td>
+                <td className="text-right py-3 px-4 text-slate-600 tabular-nums">
+                  {stat.games_played || 0}
                 </td>
                 <td className="text-right py-3 px-4 text-slate-900 font-medium tabular-nums">
                   {stat.tackles}

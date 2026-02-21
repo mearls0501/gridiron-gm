@@ -4,7 +4,27 @@ import { supabase } from "@/lib/supabase-client";
 import { useGameStore } from "@/lib/store/game-store";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+
+interface Team {
+  id: string;
+  name: string;
+  abbreviation?: string;
+  conference: string;
+  division: string;
+}
+
+interface Game {
+  id: string;
+  week: number;
+  season: number;
+  home_team_id: string;
+  away_team_id: string;
+  home_score: number | null;
+  away_score: number | null;
+  played: boolean;
+  save_game_id?: string | null;
+}
 
 interface PlayerGameStat {
   player_id: string;
@@ -51,36 +71,28 @@ export default function GameBoxScorePage({
   params: Promise<{ id: string }> | { id: string };
 }) {
   const { saveGameId } = useGameStore();
-  const [game, setGame] = useState<any>(null);
-  const [homeTeam, setHomeTeam] = useState<any>(null);
-  const [awayTeam, setAwayTeam] = useState<any>(null);
+  const [game, setGame] = useState<Game | null>(null);
+  const [homeTeam, setHomeTeam] = useState<Team | null>(null);
+  const [awayTeam, setAwayTeam] = useState<Team | null>(null);
   const [homePlayerStats, setHomePlayerStats] = useState<PlayerGameStat[]>([]);
   const [awayPlayerStats, setAwayPlayerStats] = useState<PlayerGameStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    loadGameData();
-  }, [saveGameId]);
-
-  async function loadGameData() {
+  const loadGameData = useCallback(async () => {
     try {
       const resolvedParams = await Promise.resolve(params);
       const gameId = resolvedParams.id;
 
       // Load game - filter by save_game_id to prevent cross-game data
-      let gameQuery = supabase
-        .from("games")
-        .select("*")
-        .eq("id", gameId);
-      
+      let gameQuery = supabase.from("games").select("*").eq("id", gameId);
+
       if (saveGameId) {
         gameQuery = gameQuery.eq("save_game_id", saveGameId);
       } else {
         gameQuery = gameQuery.is("save_game_id", null);
       }
-      
+
       const { data: gameData, error: gameError } = await gameQuery.single();
 
       if (gameError || !gameData) {
@@ -107,110 +119,146 @@ export default function GameBoxScorePage({
       setAwayTeam(awayTeamData);
 
       // Load player stats for this game - filter by save_game_id
-      let playerStats: any[] = [];
+      // NOTE: Can't use JOIN anymore since we removed FK constraint
+      interface PlayerStatWithJoin {
+        player_id: string;
+        team_id: string;
+        players?: {
+          id: string;
+          full_name: string;
+          position: string;
+        };
+        [key: string]: unknown;
+      }
+      let playerStats: PlayerStatWithJoin[] = [];
+      
       let statsQuery = supabase
         .from("player_game_stats")
-        .select(
-          `
-          *,
-          players!inner (id, full_name, position)
-        `
-        )
+        .select("*")
         .eq("game_id", gameId);
-      
+
       if (saveGameId) {
         statsQuery = statsQuery.eq("save_game_id", saveGameId);
       } else {
         statsQuery = statsQuery.is("save_game_id", null);
       }
-      
-      const { data: statsWithJoin, error: joinError } = await statsQuery;
 
-      if (!joinError && statsWithJoin) {
-        playerStats = statsWithJoin;
-      } else {
-        // Fallback: load stats and players separately
-        let fallbackQuery = supabase
-          .from("player_game_stats")
-          .select("*")
-          .eq("game_id", gameId);
-        
-        if (saveGameId) {
-          fallbackQuery = fallbackQuery.eq("save_game_id", saveGameId);
-        } else {
-          fallbackQuery = fallbackQuery.is("save_game_id", null);
+      const { data: statsData } = await statsQuery;
+
+      if (statsData) {
+        interface StatRow {
+          player_id: string;
+          [key: string]: unknown;
         }
+        interface PlayerRow {
+          id: string;
+          full_name: string;
+          position: string;
+        }
+        const playerIds = [
+          ...new Set(statsData.map((s: StatRow) => s.player_id)),
+        ];
         
-        const { data: statsData } = await fallbackQuery;
-
-        if (statsData) {
-          const playerIds = [
-            ...new Set(statsData.map((s: any) => s.player_id)),
-          ];
-          const { data: playersData } = await supabase
+        // Batch queries to avoid "Bad Request" with too many IDs
+        const playersMap = new Map();
+        const BATCH_SIZE = 100;
+        
+        // Try players table first
+        for (let i = 0; i < playerIds.length; i += BATCH_SIZE) {
+          const batch = playerIds.slice(i, i + BATCH_SIZE);
+          const { data: playersBatch } = await supabase
             .from("players")
             .select("id, full_name, position")
-            .in("id", playerIds);
-
-          const playersMap = new Map(
-            (playersData || []).map((p: any) => [p.id, p])
-          );
-
-          playerStats = statsData.map((stat: any) => ({
-            ...stat,
-            players: playersMap.get(stat.player_id) || {
-              id: stat.player_id,
-              full_name: "Unknown",
-              position: "?",
-            },
-          }));
+            .in("id", batch);
+          (playersBatch || []).forEach((p: PlayerRow) => playersMap.set(p.id, p));
         }
+        
+        // Get missing IDs from draft_prospects
+        const missingIds = playerIds.filter(id => !playersMap.has(id));
+        if (missingIds.length > 0) {
+          console.log(`[GameStats] ${missingIds.length} player IDs not in players table, checking prospects...`);
+          
+          for (let i = 0; i < missingIds.length; i += BATCH_SIZE) {
+            const batch = missingIds.slice(i, i + BATCH_SIZE);
+            const { data: prospectsBatch } = await supabase
+              .from("draft_prospects")
+              .select("id, full_name, position")
+              .in("id", batch);
+            (prospectsBatch || []).forEach((p: PlayerRow) => playersMap.set(p.id, p));
+          }
+          
+          console.log(`[GameStats] After checking prospects: ${playersMap.size} total players found`);
+          
+          const stillMissing = missingIds.filter(id => !playersMap.has(id));
+          if (stillMissing.length > 0) {
+            console.warn(`[GameStats] ${stillMissing.length} IDs not found in either table!`, stillMissing[0]);
+          }
+        }
+
+        playerStats = statsData.map((stat: StatRow) => ({
+          ...stat,
+          players: playersMap.get(stat.player_id) || {
+            id: stat.player_id,
+            full_name: "Unknown",
+            position: "?",
+          },
+        })) as PlayerStatWithJoin[];
       }
 
       // Group stats by team
       const homeStats = playerStats.filter(
-        (stat: any) => stat.team_id === gameData.home_team_id
+        (stat) => stat.team_id === gameData.home_team_id
       );
       const awayStats = playerStats.filter(
-        (stat: any) => stat.team_id === gameData.away_team_id
+        (stat) => stat.team_id === gameData.away_team_id
       );
 
       // Parse player data
-      const parsePlayerStat = (stat: any): PlayerGameStat => {
-        const player = stat.players || {};
+      const parsePlayerStat = (stat: PlayerStatWithJoin): PlayerGameStat => {
+        const player = stat.players;
+        const getNumber = (value: unknown): number => {
+          if (typeof value === "number") return value;
+          return 0;
+        };
+        const getOptionalNumber = (value: unknown): number | undefined => {
+          if (typeof value === "number") return value;
+          return undefined;
+        };
         return {
           player_id: stat.player_id,
-          full_name: player.full_name || "Unknown",
-          position: player.position || stat.position || "?",
+          full_name: player?.full_name || "Unknown",
+          position:
+            player?.position ||
+            (typeof stat.position === "string" ? stat.position : "?"),
           team_id: stat.team_id,
-          passing_yards: stat.passing_yards || 0,
-          passing_tds: stat.passing_tds || 0,
-          interceptions: stat.interceptions || 0,
-          completions: stat.completions || 0,
-          attempts: stat.attempts || 0,
-          rushing_yards: stat.rushing_yards || 0,
-          rushing_tds: stat.rushing_tds || 0,
-          rushing_attempts: stat.rushing_attempts || 0,
-          receiving_yards: stat.receiving_yards || 0,
-          receiving_tds: stat.receiving_tds || 0,
-          receptions: stat.receptions || 0,
-          targets: stat.targets || 0,
-          fumbles: stat.fumbles || 0,
-          tackles: stat.tackles || 0,
-          solo_tackles: stat.solo_tackles || 0,
-          sacks: stat.sacks || 0,
-          defensive_interceptions: stat.defensive_interceptions || 0,
-          forced_fumbles: stat.forced_fumbles || 0,
-          fumble_recoveries: stat.fumble_recoveries || 0,
-          passes_defended: stat.passes_defended || 0,
-          tfl: stat.tfl || 0,
-          field_goals_made: stat.field_goals_made || 0,
-          field_goals_attempted: stat.field_goals_attempted || 0,
-          extra_points_made: stat.extra_points_made || 0,
-          punts: stat.punts || 0,
-          punt_yards: stat.punt_yards || 0,
-          performance_rating: stat.performance_rating,
-          snaps_played: stat.snaps_played || 0,
+          passing_yards: getNumber(stat.passing_yards),
+          passing_tds: getNumber(stat.passing_tds),
+          interceptions: getNumber(stat.interceptions),
+          completions: getNumber(stat.completions),
+          attempts: getNumber(stat.attempts),
+          rushing_yards: getNumber(stat.rushing_yards),
+          rushing_tds: getNumber(stat.rushing_tds),
+          rushing_attempts: getNumber(stat.rushing_attempts),
+          receiving_yards: getNumber(stat.receiving_yards),
+          receiving_tds: getNumber(stat.receiving_tds),
+          receptions: getNumber(stat.receptions),
+          targets: getNumber(stat.targets),
+          fumbles: getNumber(stat.fumbles),
+          tackles: getNumber(stat.tackles),
+          solo_tackles: getNumber(stat.solo_tackles),
+          sacks: getNumber(stat.sacks),
+          defensive_interceptions: getNumber(stat.defensive_interceptions),
+          forced_fumbles: getNumber(stat.forced_fumbles),
+          fumble_recoveries: getNumber(stat.fumble_recoveries),
+          passes_defended: getNumber(stat.passes_defended),
+          tfl: getNumber(stat.tfl),
+          field_goals_made: getNumber(stat.field_goals_made),
+          field_goals_attempted: getNumber(stat.field_goals_attempted),
+          extra_points_made: getNumber(stat.extra_points_made),
+          punts: getNumber(stat.punts),
+          punt_yards: getNumber(stat.punt_yards),
+          performance_rating: getOptionalNumber(stat.performance_rating),
+          snaps_played: getNumber(stat.snaps_played),
         };
       };
 
@@ -221,7 +269,12 @@ export default function GameBoxScorePage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [params, saveGameId]);
+
+  useEffect(() => {
+    setMounted(true);
+    loadGameData();
+  }, [loadGameData]);
 
   if (!mounted || loading) {
     return (
@@ -346,8 +399,8 @@ function TeamFilterWrapper({
   homeTeam,
   awayTeam,
 }: {
-  homeTeam: any;
-  awayTeam: any;
+  homeTeam: Team | null;
+  awayTeam: Team | null;
 }) {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -403,7 +456,7 @@ function TeamFilterWrapper({
           </button>
           <button
             onClick={() => {
-              setSelectedTeam(awayTeam?.id);
+              setSelectedTeam(awayTeam?.id ?? null);
               setShowDropdown(false);
             }}
             className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm border-t border-slate-200"
@@ -412,7 +465,7 @@ function TeamFilterWrapper({
           </button>
           <button
             onClick={() => {
-              setSelectedTeam(homeTeam?.id);
+              setSelectedTeam(homeTeam?.id ?? null);
               setShowDropdown(false);
             }}
             className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm border-t border-slate-200"
@@ -433,8 +486,8 @@ function BoxScoreWithFilter({
   homeScore,
   awayScore,
 }: {
-  homeTeam: any;
-  awayTeam: any;
+  homeTeam: Team | null;
+  awayTeam: Team | null;
   homeStats: PlayerGameStat[];
   awayStats: PlayerGameStat[];
   homeScore: number | null;
@@ -477,12 +530,12 @@ function ESPNBoxScore({
   awayTeam,
   homeStats,
   awayStats,
-  homeScore,
-  awayScore,
+  homeScore: _homeScore,
+  awayScore: _awayScore,
   selectedTeam,
 }: {
-  homeTeam: any;
-  awayTeam: any;
+  homeTeam: Team | null;
+  awayTeam: Team | null;
   homeStats: PlayerGameStat[];
   awayStats: PlayerGameStat[];
   homeScore: number | null;
@@ -699,7 +752,10 @@ function ESPNBoxScore({
 
       {/* Defense */}
       {def.filter(
-        (d) => (d.tackles ?? 0) > 0 || (d.sacks ?? 0) > 0 || (d.defensive_interceptions ?? 0) > 0
+        (d) =>
+          (d.tackles ?? 0) > 0 ||
+          (d.sacks ?? 0) > 0 ||
+          (d.defensive_interceptions ?? 0) > 0
       ).length > 0 && (
         <div>
           <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-4 border-b-2 border-slate-200 pb-2">

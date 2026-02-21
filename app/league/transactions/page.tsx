@@ -18,6 +18,7 @@ interface Transaction {
   id: string;
   type: "trade" | "signing" | "release" | "draft_pick_trade";
   player_id?: string;
+  prospect_id?: string;
   player_name?: string;
   player_position?: string;
   from_team_id?: string;
@@ -73,6 +74,7 @@ export default function TransactionsPage() {
   async function loadTransactions() {
     setLoading(true);
     try {
+      console.log("[Transactions] Loading for season:", season, "saveGameId:", saveGameId);
       const allTransactions: Transaction[] = [];
 
       // 1. Load trades
@@ -97,6 +99,8 @@ export default function TransactionsPage() {
       const { data: trades, error: tradesError } = await tradesQuery
         .order("executed_at", { ascending: false })
         .order("proposed_at", { ascending: false });
+
+      console.log("[Transactions] Loaded trades:", trades?.length || 0, "error:", tradesError);
 
       if (!tradesError && trades) {
         for (const trade of trades) {
@@ -132,7 +136,7 @@ export default function TransactionsPage() {
               }
               return null;
             })
-            .filter(Boolean) as Transaction["trade_items"];
+            .filter(Boolean) as NonNullable<Transaction["trade_items"]>["from_team"];
 
           const itemsToTeam = (tradeItems || [])
             .filter((item) => item.from_team_id === trade.to_team_id)
@@ -153,7 +157,7 @@ export default function TransactionsPage() {
               }
               return null;
             })
-            .filter(Boolean) as Transaction["trade_items"];
+            .filter(Boolean) as NonNullable<Transaction["trade_items"]>["to_team"];
 
           allTransactions.push({
             id: trade.id,
@@ -183,6 +187,7 @@ export default function TransactionsPage() {
           `
           *,
           player:players (id, full_name, position),
+          prospect:draft_prospects (id, full_name, position),
           from_team:teams!transactions_from_team_id_fkey (id, name, abbreviation),
           to_team:teams!transactions_to_team_id_fkey (id, name, abbreviation)
         `
@@ -198,13 +203,15 @@ export default function TransactionsPage() {
       const { data: generalTransactions, error: transError } = await transactionsQuery
         .order("occurred_at", { ascending: false });
 
+      console.log("[Transactions] Loaded general transactions:", generalTransactions?.length || 0, "error:", transError);
+
       if (!transError && generalTransactions) {
         for (const trans of generalTransactions) {
           const transactionType = trans.transaction_type;
           
           // Map transaction types
           let type: Transaction["type"] = "signing";
-          if (transactionType === "release" || transactionType === "waived") {
+          if (transactionType === "release" || transactionType === "released" || transactionType === "waived") {
             type = "release";
           } else if (transactionType === "trade") {
             // Skip trades already loaded from trades table
@@ -213,12 +220,18 @@ export default function TransactionsPage() {
             type = "signing";
           }
 
+          // Get player name from either player or prospect
+          const playerData = trans.player || trans.prospect;
+          const playerName = playerData?.full_name;
+          const playerPosition = playerData?.position;
+
           allTransactions.push({
             id: trans.id,
             type,
             player_id: trans.player_id,
-            player_name: trans.player?.full_name,
-            player_position: trans.player?.position,
+            prospect_id: trans.prospect_id,
+            player_name: playerName,
+            player_position: playerPosition,
             from_team_id: trans.from_team_id || undefined,
             from_team_name: trans.from_team?.name,
             from_team_abbreviation: trans.from_team?.abbreviation,
@@ -240,6 +253,7 @@ export default function TransactionsPage() {
         return dateB - dateA;
       });
 
+      console.log("[Transactions] Total transactions loaded:", allTransactions.length);
       setTransactions(allTransactions);
     } catch (err) {
       console.error("Error loading transactions:", err);
@@ -589,11 +603,56 @@ function TransactionCard({ transaction }: { transaction: Transaction }) {
                 )}
               </div>
             </div>
-            {transaction.details && (
-              <div className="mt-3 text-sm text-slate-600 border-t border-slate-200 pt-3">
-                {transaction.details}
-              </div>
-            )}
+            {transaction.details && (() => {
+              try {
+                const detailsObj = JSON.parse(transaction.details);
+                return (
+                  <div className="mt-3 border-t border-slate-200 pt-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      {detailsObj.overall && (
+                        <div>
+                          <div className="text-xs text-slate-500">Overall</div>
+                          <div className="font-semibold text-slate-900">{detailsObj.overall}</div>
+                        </div>
+                      )}
+                      {detailsObj.salary_freed && (
+                        <div>
+                          <div className="text-xs text-slate-500">Cap Savings</div>
+                          <div className="font-semibold text-green-600">
+                            ${(detailsObj.salary_freed / 1000000).toFixed(1)}M
+                          </div>
+                        </div>
+                      )}
+                      {detailsObj.contract_value && (
+                        <div>
+                          <div className="text-xs text-slate-500">Contract Value</div>
+                          <div className="font-semibold text-slate-900">
+                            ${(detailsObj.contract_value / 1000000).toFixed(1)}M
+                          </div>
+                        </div>
+                      )}
+                      {detailsObj.reason && (
+                        <div className="col-span-2">
+                          <div className="text-xs text-slate-500">Reason</div>
+                          <div className="text-sm text-slate-700">
+                            {detailsObj.reason === "salary_cap_cut" 
+                              ? "Released for salary cap compliance" 
+                              : detailsObj.reason.replace(/_/g, " ")}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              } catch (e) {
+                // If details is not JSON, just display as text
+                return (
+                  <div className="mt-3 text-sm text-slate-600 border-t border-slate-200 pt-3">
+                    {transaction.details}
+                  </div>
+                );
+              }
+            })()}
           </div>
         </div>
       )}

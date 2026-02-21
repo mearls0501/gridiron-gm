@@ -1,40 +1,174 @@
+'use client';
+
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase-client";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils/format";
 import { DollarSign } from "lucide-react";
 import { SalaryCapChart } from "@/app/components/SalaryCapChart";
 import { CapBreakdown } from "@/app/components/CapBreakdown";
+import { useGameStore } from "@/lib/store/game-store";
 
-export default async function TeamRosterPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
-  // Handle both sync and async params (Next.js 15+ uses async params)
-  const resolvedParams = await Promise.resolve(params);
-  const teamId = resolvedParams.id;
+interface PlayerContract {
+  player_id: string | null;
+  prospect_id: string | null;
+  contract_year_1: number;
+  contract_year_2: number | null;
+  contract_year_3: number | null;
+  contract_year_4: number | null;
+  signing_bonus: number;
+}
 
-  // 1. Fetch team info - use the ID directly (could be UUID or numeric)
-  const { data: team, error: teamError } = await supabase
-    .from("teams")
-    .select("*")
-    .eq("id", teamId)
-    .single();
+export default function TeamRosterPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
+  const { saveGameId } = useGameStore();
+  const [team, setTeam] = useState<any>(null);
+  const [players, setPlayers] = useState<any[]>([]);
+  const [contracts, setContracts] = useState<Map<string, PlayerContract>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const [teamError, setTeamError] = useState<any>(null);
+  const [playersError, setPlayersError] = useState<any>(null);
+  const [teamId, setTeamId] = useState<string | null>(null);
 
-  // 2. Fetch players on this team
-  const { data: players, error: playersError } = await supabase
-    .from("players")
-    .select("*")
-    .eq("team_id", teamId)
-    .order("position", { ascending: true });
+  useEffect(() => {
+    async function loadData() {
+      // Handle both sync and async params (Next.js 15+ uses async params)
+      const resolvedParams = await Promise.resolve(params);
+      const id = resolvedParams.id;
+      setTeamId(id);
+
+      // 1. Fetch team info - use the ID directly (could be UUID or numeric)
+      const { data: teamData, error: teamErr } = await supabase
+        .from("teams")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (teamErr) {
+        setTeamError(teamErr);
+      } else {
+        setTeam(teamData);
+      }
+
+      // CRITICAL: saveGameId is required - no legacy support
+      if (!saveGameId) {
+        setPlayersError(new Error("saveGameId is required. Cannot load roster without save game context."));
+        setLoading(false);
+        return;
+      }
+
+      // 2. Fetch players using player_team_assignments for save game isolation
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from("player_team_assignments")
+        .select(`
+          player_id,
+          prospect_id,
+          team_id,
+          players (*),
+          draft_prospects (*)
+        `)
+        .eq("team_id", id)
+        .eq("save_game_id", saveGameId);
+
+      if (assignmentsError) {
+        setPlayersError(assignmentsError);
+        setLoading(false);
+        return;
+      }
+
+      if (!assignments || assignments.length === 0) {
+        setPlayers([]);
+        setContracts(new Map());
+        setLoading(false);
+        return;
+      }
+
+      // Map assignments to player/prospect data (without contracts)
+      const playersData = assignments.map((assignment: any) => {
+        // If it's a player (seed player), use players data
+        if (assignment.player_id && assignment.players) {
+          return {
+            ...assignment.players,
+            team_id: assignment.team_id,
+            is_prospect: false,
+          };
+        }
+        // If it's a prospect (drafted), use draft_prospects data
+        if (assignment.prospect_id && assignment.draft_prospects) {
+          return {
+            ...assignment.draft_prospects,
+            team_id: assignment.team_id,
+            is_prospect: true,
+            is_rookie: true,
+          };
+        }
+        return null;
+      }).filter(Boolean);
+
+      setPlayers(playersData);
+
+      // Load contracts separately from player_contracts_per_save_game
+      const playerIds = playersData
+        .map((p: any) => p.is_prospect ? null : p.id)
+        .filter(Boolean) as string[];
+      const prospectIds = playersData
+        .map((p: any) => p.is_prospect ? p.id : null)
+        .filter(Boolean) as string[];
+
+      const contractMap = new Map<string, PlayerContract>();
+
+      if (playerIds.length > 0) {
+        const { data: playerContracts } = await supabase
+          .from('player_contracts_per_save_game')
+          .select('*')
+          .in('player_id', playerIds)
+          .eq('save_game_id', saveGameId);
+
+        if (playerContracts) {
+          playerContracts.forEach((contract: any) => {
+            if (contract.player_id) {
+              contractMap.set(contract.player_id, contract);
+            }
+          });
+        }
+      }
+
+      if (prospectIds.length > 0) {
+        const { data: prospectContracts } = await supabase
+          .from('player_contracts_per_save_game')
+          .select('*')
+          .in('prospect_id', prospectIds)
+          .eq('save_game_id', saveGameId);
+
+        if (prospectContracts) {
+          prospectContracts.forEach((contract: any) => {
+            if (contract.prospect_id) {
+              contractMap.set(contract.prospect_id, contract);
+            }
+          });
+        }
+      }
+
+      setContracts(contractMap);
+
+      setLoading(false);
+    }
+
+    loadData();
+  }, [params, saveGameId]);
 
   // Salary Cap Calculations
   let totalCapHit = 0;
   const capByPosition: Record<string, number> = {};
 
   players?.forEach((p) => {
-    totalCapHit += p.contract_year_1 ?? 0;
+    const contract = contracts.get(p.id);
+    const capHit = contract?.contract_year_1 || 0;
+    totalCapHit += capHit;
 
     if (!capByPosition[p.position]) {
       capByPosition[p.position] = 0;
     }
-    capByPosition[p.position] += p.contract_year_1 ?? 0;
+    capByPosition[p.position] += capHit;
   });
 
   const SALARY_CAP = team?.salary_cap_total ?? 255000000;
@@ -50,6 +184,16 @@ export default async function TeamRosterPage({ params }: { params: Promise<{ id:
     value,
   }));
 
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-12 pb-20">
+        <div className="text-center py-12">
+          <p className="text-gray-600">Loading team roster...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (teamError) {
     console.error("Team fetch error:", teamError);
     return (
@@ -57,7 +201,7 @@ export default async function TeamRosterPage({ params }: { params: Promise<{ id:
         <div className="text-red-600">
           <h2 className="text-2xl font-bold mb-2">Team not found</h2>
           <p className="text-sm">Error: {teamError.message}</p>
-          <p className="text-sm mt-2">Team ID: {teamId}</p>
+          <p className="text-sm mt-2">Team ID: {teamId || "unknown"}</p>
         </div>
         <Link href="/teams" className="text-blue-600 underline mt-4 inline-block">
           ← Back to Teams
@@ -202,28 +346,35 @@ export default async function TeamRosterPage({ params }: { params: Promise<{ id:
               <div className="text-right ml-6">
                 <p className="text-xs text-gray-500 mb-1">Contract</p>
                 <div className="space-y-1 text-sm">
-                  <div className="flex justify-between gap-4">
-                    <span className="text-gray-600">Y1:</span>
-                    <span className="font-medium text-gray-900">${(p.contract_year_1 || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-gray-600">Y2:</span>
-                    <span className="font-medium text-gray-900">${(p.contract_year_2 || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-gray-600">Y3:</span>
-                    <span className="font-medium text-gray-900">${(p.contract_year_3 || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-gray-600">Y4:</span>
-                    <span className="font-medium text-gray-900">${(p.contract_year_4 || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="pt-1 mt-1 border-t border-gray-200">
-                    <div className="flex justify-between gap-4">
-                      <span className="text-gray-600">Bonus:</span>
-                      <span className="font-semibold text-blue-600">${(p.signing_bonus || 0).toLocaleString()}</span>
-                    </div>
-                  </div>
+                  {(() => {
+                    const contract = contracts.get(p.id);
+                    return (
+                      <>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-600">Y1:</span>
+                          <span className="font-medium text-gray-900">${(contract?.contract_year_1 || 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-600">Y2:</span>
+                          <span className="font-medium text-gray-900">${(contract?.contract_year_2 || 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-600">Y3:</span>
+                          <span className="font-medium text-gray-900">${(contract?.contract_year_3 || 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-600">Y4:</span>
+                          <span className="font-medium text-gray-900">${(contract?.contract_year_4 || 0).toLocaleString()}</span>
+                        </div>
+                        <div className="pt-1 mt-1 border-t border-gray-200">
+                          <div className="flex justify-between gap-4">
+                            <span className="text-gray-600">Bonus:</span>
+                            <span className="font-semibold text-blue-600">${(contract?.signing_bonus || 0).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

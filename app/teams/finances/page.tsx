@@ -8,21 +8,30 @@ import { DollarSign, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react'
 import Link from 'next/link';
 import { SalaryCapChart } from '@/app/components/SalaryCapChart';
 import { CapBreakdown } from '@/app/components/CapBreakdown';
+import { useGameStore } from '@/lib/store/game-store';
 
 interface Player {
   id: string;
   full_name: string;
   position: string;
+  is_prospect?: boolean;
+}
+
+interface PlayerContract {
+  player_id: string | null;
+  prospect_id: string | null;
   contract_year_1: number;
-  contract_year_2: number;
-  contract_year_3: number;
-  contract_year_4: number;
+  contract_year_2: number | null;
+  contract_year_3: number | null;
+  contract_year_4: number | null;
   signing_bonus: number;
 }
 
 export default function FinancesPage() {
+  const { saveGameId } = useGameStore();
   const [team, setTeam] = useState<any>(null);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [contracts, setContracts] = useState<Map<string, PlayerContract>>(new Map());
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -60,17 +69,101 @@ export default function FinancesPage() {
 
       setTeam(teamData);
 
-      const { data: playersData, error: playersError } = await supabase
-        .from('players')
-        .select('id, full_name, position, contract_year_1, contract_year_2, contract_year_3, contract_year_4, signing_bonus')
-        .eq('team_id', selectedTeamId)
-        .order('contract_year_1', { ascending: false });
-
-      if (playersError) {
-        console.error('Error loading players:', playersError);
-      } else {
-        setPlayers(playersData || []);
+      // CRITICAL: saveGameId is required - no legacy support
+      if (!saveGameId) {
+        setLoading(false);
+        return;
       }
+
+      // Load players from player_team_assignments
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('player_team_assignments')
+        .select(`
+          player_id,
+          prospect_id,
+          team_id,
+          players (*),
+          draft_prospects (*)
+        `)
+        .eq('team_id', selectedTeamId)
+        .eq('save_game_id', saveGameId);
+
+      if (assignmentsError) {
+        console.error('Error loading player assignments:', assignmentsError);
+        setLoading(false);
+        return;
+      }
+
+      if (!assignments || assignments.length === 0) {
+        setPlayers([]);
+        setContracts(new Map());
+        setLoading(false);
+        return;
+      }
+
+      // Map assignments to player/prospect data (without contracts)
+      const playersData = assignments.map((assignment: any) => {
+        if (assignment.player_id && assignment.players) {
+          return {
+            ...assignment.players,
+            is_prospect: false,
+          };
+        }
+        if (assignment.prospect_id && assignment.draft_prospects) {
+          return {
+            ...assignment.draft_prospects,
+            is_prospect: true,
+            is_rookie: true,
+          };
+        }
+        return null;
+      }).filter(Boolean);
+
+      setPlayers(playersData || []);
+
+      // Load contracts separately from player_contracts_per_save_game
+      const playerIds = playersData
+        .map((p: any) => p.is_prospect ? null : p.id)
+        .filter(Boolean) as string[];
+      const prospectIds = playersData
+        .map((p: any) => p.is_prospect ? p.id : null)
+        .filter(Boolean) as string[];
+
+      const contractMap = new Map<string, PlayerContract>();
+
+      if (playerIds.length > 0) {
+        const { data: playerContracts } = await supabase
+          .from('player_contracts_per_save_game')
+          .select('*')
+          .in('player_id', playerIds)
+          .eq('save_game_id', saveGameId);
+
+        if (playerContracts) {
+          playerContracts.forEach((contract: any) => {
+            if (contract.player_id) {
+              contractMap.set(contract.player_id, contract);
+            }
+          });
+        }
+      }
+
+      if (prospectIds.length > 0) {
+        const { data: prospectContracts } = await supabase
+          .from('player_contracts_per_save_game')
+          .select('*')
+          .in('prospect_id', prospectIds)
+          .eq('save_game_id', saveGameId);
+
+        if (prospectContracts) {
+          prospectContracts.forEach((contract: any) => {
+            if (contract.prospect_id) {
+              contractMap.set(contract.prospect_id, contract);
+            }
+          });
+        }
+      }
+
+      setContracts(contractMap);
     } catch (err) {
       console.error('Error loading finances:', err);
     } finally {
@@ -80,26 +173,48 @@ export default function FinancesPage() {
 
   // Calculate financial metrics
   const SALARY_CAP = team?.salary_cap_total ?? 255000000;
-  const currentYearCap = players.reduce((sum, p) => sum + (p.contract_year_1 || 0), 0);
-  const nextYearCap = players.reduce((sum, p) => sum + (p.contract_year_2 || 0), 0);
-  const year3Cap = players.reduce((sum, p) => sum + (p.contract_year_3 || 0), 0);
-  const year4Cap = players.reduce((sum, p) => sum + (p.contract_year_4 || 0), 0);
-  const totalSigningBonuses = players.reduce((sum, p) => sum + (p.signing_bonus || 0), 0);
+  const currentYearCap = players.reduce((sum, p) => {
+    const contract = contracts.get(p.id);
+    return sum + (contract?.contract_year_1 || 0);
+  }, 0);
+  const nextYearCap = players.reduce((sum, p) => {
+    const contract = contracts.get(p.id);
+    return sum + (contract?.contract_year_2 || 0);
+  }, 0);
+  const year3Cap = players.reduce((sum, p) => {
+    const contract = contracts.get(p.id);
+    return sum + (contract?.contract_year_3 || 0);
+  }, 0);
+  const year4Cap = players.reduce((sum, p) => {
+    const contract = contracts.get(p.id);
+    return sum + (contract?.contract_year_4 || 0);
+  }, 0);
+  const totalSigningBonuses = players.reduce((sum, p) => {
+    const contract = contracts.get(p.id);
+    return sum + (contract?.signing_bonus || 0);
+  }, 0);
   const remainingCap = SALARY_CAP - currentYearCap;
   const capPercentage = (currentYearCap / SALARY_CAP) * 100;
 
   // Top contracts
   const topContracts = [...players]
-    .sort((a, b) => (b.contract_year_1 || 0) - (a.contract_year_1 || 0))
+    .map((p) => ({
+      player: p,
+      contract: contracts.get(p.id),
+    }))
+    .filter((item) => item.contract)
+    .sort((a, b) => (b.contract?.contract_year_1 || 0) - (a.contract?.contract_year_1 || 0))
     .slice(0, 10);
 
   // Cap by position
   const capByPosition: Record<string, number> = {};
   players.forEach((p) => {
+    const contract = contracts.get(p.id);
+    const capHit = contract?.contract_year_1 || 0;
     if (!capByPosition[p.position]) {
       capByPosition[p.position] = 0;
     }
-    capByPosition[p.position] += p.contract_year_1 || 0;
+    capByPosition[p.position] += capHit;
   });
 
   const capBreakdownSorted = Object.entries(capByPosition).sort(
@@ -295,12 +410,12 @@ export default function FinancesPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {topContracts.map(player => {
-                  const totalValue = (player.contract_year_1 || 0) + 
-                                   (player.contract_year_2 || 0) + 
-                                   (player.contract_year_3 || 0) + 
-                                   (player.contract_year_4 || 0) + 
-                                   (player.signing_bonus || 0);
+                {topContracts.map(({ player, contract }) => {
+                  const totalValue = (contract?.contract_year_1 || 0) + 
+                                   (contract?.contract_year_2 || 0) + 
+                                   (contract?.contract_year_3 || 0) + 
+                                   (contract?.contract_year_4 || 0) + 
+                                   (contract?.signing_bonus || 0);
                   return (
                     <tr key={player.id} className="hover:bg-blue-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -312,11 +427,11 @@ export default function FinancesPage() {
                         </Link>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{player.position}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(player.contract_year_1 || 0)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(player.contract_year_2 || 0)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(player.contract_year_3 || 0)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(player.contract_year_4 || 0)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">{formatCurrency(player.signing_bonus || 0)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(contract?.contract_year_1 || 0)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(contract?.contract_year_2 || 0)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(contract?.contract_year_3 || 0)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(contract?.contract_year_4 || 0)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">{formatCurrency(contract?.signing_bonus || 0)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{formatCurrency(totalValue)}</td>
                     </tr>
                   );
@@ -329,4 +444,5 @@ export default function FinancesPage() {
     </div>
   );
 }
+
 

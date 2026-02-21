@@ -424,13 +424,25 @@ export default function LeaguePage() {
                   href="/league/standings"
                   className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors text-sm"
                 >
-                  View Standings
+                  Standings
                 </Link>
                 <Link
                   href="/league/schedule"
                   className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors text-sm"
                 >
-                  Full Schedule
+                  Schedule
+                </Link>
+                <Link
+                  href="/league/stats"
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors text-sm"
+                >
+                  Stats
+                </Link>
+                <Link
+                  href="/league/leaders"
+                  className="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-900 rounded-lg font-bold transition-colors text-sm"
+                >
+                  Leaders
                 </Link>
               </div>
             </div>
@@ -693,7 +705,7 @@ export default function LeaguePage() {
                       League Leaders
                     </h2>
                     <Link
-                      href="/league/stats"
+                      href="/league/leaders"
                       className="text-sm text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
                     >
                       View All <ArrowRight className="w-4 h-4" />

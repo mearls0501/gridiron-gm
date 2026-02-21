@@ -17,6 +17,7 @@ import {
 import { useDebounce } from "use-debounce";
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, Users, Filter } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
+import { useGameStore } from "@/lib/store/game-store";
 
 // Position list for dropdown filter
 const positions = [
@@ -33,18 +34,21 @@ interface Player {
   potential: number;
   college: string;
   team_id: string | null;
-  contract_year_1: number;
-  contract_year_2: number;
-  contract_year_3: number;
-  contract_year_4: number;
-  signing_bonus: number;
   teams?: { name: string; abbreviation: string } | { name: string; abbreviation: string }[] | null;
 }
 
 function PlayersPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { saveGameId } = useGameStore();
   const [players, setPlayers] = useState<Player[]>([]);
+  const [contracts, setContracts] = useState<Map<string, {
+    contract_year_1: number;
+    contract_year_2: number | null;
+    contract_year_3: number | null;
+    contract_year_4: number | null;
+    signing_bonus: number;
+  }>>(new Map());
   interface Team {
     id: string;
     name: string;
@@ -55,6 +59,7 @@ function PlayersPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [selectedForComparison, setSelectedForComparison] = useState<Set<string>>(new Set());
 
   const selectedPosition = searchParams.get("position") || "All";
   const selectedTeam = searchParams.get("team") || "All";
@@ -68,7 +73,7 @@ function PlayersPageContent() {
   useEffect(() => {
     fetchPlayers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPosition, selectedTeam, debouncedSearch]);
+  }, [selectedPosition, selectedTeam, debouncedSearch, saveGameId]);
 
   async function fetchTeams() {
     try {
@@ -90,42 +95,98 @@ function PlayersPageContent() {
     setError(null);
 
     try {
-      let query = supabase.from("players").select(`
-        id,
-        full_name,
-        position,
-        age,
-        overall,
-        potential,
-        college,
-        team_id,
-        contract_year_1,
-        contract_year_2,
-        contract_year_3,
-        contract_year_4,
-        signing_bonus,
-        teams ( name, abbreviation )
-      `).order("overall", { ascending: false });
+      // Fetch players (contract data is no longer in players table)
+      // Use pagination to fetch ALL players beyond 1000 row default limit
+      let allPlayers: any[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      // Apply filters
-      if (selectedPosition !== "All") {
-        query = query.eq("position", selectedPosition);
+      while (hasMore) {
+        let query = supabase.from("players").select(`
+          id,
+          full_name,
+          position,
+          age,
+          overall,
+          potential,
+          college,
+          team_id,
+          teams ( name, abbreviation )
+        `).order("overall", { ascending: false })
+          .range(offset, offset + pageSize - 1);
+
+        // Apply filters
+        if (selectedPosition !== "All") {
+          query = query.eq("position", selectedPosition);
+        }
+
+        if (selectedTeam !== "All") {
+          query = query.eq("team_id", selectedTeam);
+        }
+
+        if (debouncedSearch) {
+          query = query.ilike("full_name", `%${debouncedSearch}%`);
+        }
+
+        const { data: page, error: queryError } = await query;
+
+        if (queryError) {
+          setError(queryError.message);
+          setLoading(false);
+          return;
+        }
+
+        if (page && page.length > 0) {
+          allPlayers = [...allPlayers, ...page];
+          offset += pageSize;
+          hasMore = page.length === pageSize && !selectedPosition && !selectedTeam && !debouncedSearch; // Only paginate on full unfiltered query
+        } else {
+          hasMore = false;
+        }
       }
 
-      if (selectedTeam !== "All") {
-        query = query.eq("team_id", selectedTeam);
-      }
+      const data = allPlayers;
+      setPlayers(data || []);
 
-      if (debouncedSearch) {
-        query = query.ilike("full_name", `%${debouncedSearch}%`);
-      }
+      // Load contracts if we have a save game
+      if (saveGameId && data && data.length > 0) {
+        console.log(`[Players Page] Loading contracts for ${data.length} players with saveGameId: ${saveGameId}`);
+        const playerIds = data.map((p) => p.id);
+        
+        // Fetch contracts in smaller batches - Supabase .in() has limits on array size
+        const contractMap = new Map();
+        const batchSize = 100; // Reduced from 1000 to avoid .in() query limits
+        
+        for (let i = 0; i < playerIds.length; i += batchSize) {
+          const batch = playerIds.slice(i, i + batchSize);
+          
+          const result = await supabase
+            .from("player_contracts_per_save_game")
+            .select("player_id, contract_year_1, contract_year_2, contract_year_3, contract_year_4, signing_bonus")
+            .eq("save_game_id", saveGameId)
+            .in("player_id", batch);
 
-      const { data, error: queryError } = await query;
-
-      if (queryError) {
-        setError(queryError.message);
+          if (result.data && result.data.length > 0) {
+            result.data.forEach((contract) => {
+              if (contract.player_id) {
+                contractMap.set(contract.player_id, {
+                  contract_year_1: contract.contract_year_1 || 0,
+                  contract_year_2: contract.contract_year_2,
+                  contract_year_3: contract.contract_year_3,
+                  contract_year_4: contract.contract_year_4,
+                  signing_bonus: contract.signing_bonus || 0,
+                });
+              }
+            });
+          }
+        }
+        
+        console.log(`[Players Page] Total contracts loaded: ${contractMap.size} from ${Math.ceil(playerIds.length / batchSize)} batches`);
+        setContracts(contractMap);
       } else {
-        setPlayers(data || []);
+        console.log(`[Players Page] No saveGameId (${saveGameId}) or no players (${data?.length || 0})`);
+        setContracts(new Map());
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load players");
@@ -165,9 +226,50 @@ function PlayersPageContent() {
     setGlobalFilter(value);
   }
 
+  function togglePlayerSelection(playerId: string) {
+    const newSelection = new Set(selectedForComparison);
+    if (newSelection.has(playerId)) {
+      newSelection.delete(playerId);
+    } else {
+      if (newSelection.size < 3) {
+        newSelection.add(playerId);
+      }
+    }
+    setSelectedForComparison(newSelection);
+  }
+
+  function handleCompare() {
+    if (selectedForComparison.size < 2) {
+      alert("Please select at least 2 players to compare");
+      return;
+    }
+    const playerIds = Array.from(selectedForComparison).join(",");
+    router.push(`/players/compare?players=${playerIds}`);
+  }
+
   // Table columns definition
   const columns = useMemo<ColumnDef<Player>[]>(
     () => [
+      {
+        id: "select",
+        header: () => (
+          <div className="text-center">
+            <span className="text-xs">Compare</span>
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-center">
+            <input
+              type="checkbox"
+              checked={selectedForComparison.has(row.original.id)}
+              onChange={() => togglePlayerSelection(row.original.id)}
+              disabled={!selectedForComparison.has(row.original.id) && selectedForComparison.size >= 3}
+              className="cursor-pointer"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        ),
+      },
       {
         accessorKey: "full_name",
         header: ({ column }) => (
@@ -318,7 +420,7 @@ function PlayersPageContent() {
         },
       },
       {
-        accessorKey: "contract_year_1",
+        id: "contract_year_1",
         header: ({ column }) => (
           <button
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
@@ -334,41 +436,57 @@ function PlayersPageContent() {
             )}
           </button>
         ),
-        cell: ({ getValue }) => (
-          <span className="text-sm text-right text-gray-700 block">
-            {formatCurrency(getValue() as number)}
-          </span>
-        ),
+        accessorFn: (row) => contracts.get(row.id)?.contract_year_1 || 0,
+        cell: ({ row }) => {
+          const contract = contracts.get(row.original.id);
+          return (
+            <span className="text-sm text-right text-gray-700 block">
+              {contract ? formatCurrency(contract.contract_year_1) : "-"}
+            </span>
+          );
+        },
       },
       {
-        accessorKey: "contract_year_2",
+        id: "contract_year_2",
         header: "Y2",
-        cell: ({ getValue }) => (
-          <span className="text-sm text-right text-gray-700 block">
-            {formatCurrency(getValue() as number)}
-          </span>
-        ),
+        accessorFn: (row) => contracts.get(row.id)?.contract_year_2 || 0,
+        cell: ({ row }) => {
+          const contract = contracts.get(row.original.id);
+          return (
+            <span className="text-sm text-right text-gray-700 block">
+              {contract?.contract_year_2 ? formatCurrency(contract.contract_year_2) : "-"}
+            </span>
+          );
+        },
       },
       {
-        accessorKey: "contract_year_3",
+        id: "contract_year_3",
         header: "Y3",
-        cell: ({ getValue }) => (
-          <span className="text-sm text-right text-gray-700 block">
-            {formatCurrency(getValue() as number)}
-          </span>
-        ),
+        accessorFn: (row) => contracts.get(row.id)?.contract_year_3 || 0,
+        cell: ({ row }) => {
+          const contract = contracts.get(row.original.id);
+          return (
+            <span className="text-sm text-right text-gray-700 block">
+              {contract?.contract_year_3 ? formatCurrency(contract.contract_year_3) : "-"}
+            </span>
+          );
+        },
       },
       {
-        accessorKey: "contract_year_4",
+        id: "contract_year_4",
         header: "Y4",
-        cell: ({ getValue }) => (
-          <span className="text-sm text-right text-gray-700 block">
-            {formatCurrency(getValue() as number)}
-          </span>
-        ),
+        accessorFn: (row) => contracts.get(row.id)?.contract_year_4 || 0,
+        cell: ({ row }) => {
+          const contract = contracts.get(row.original.id);
+          return (
+            <span className="text-sm text-right text-gray-700 block">
+              {contract?.contract_year_4 ? formatCurrency(contract.contract_year_4) : "-"}
+            </span>
+          );
+        },
       },
     ],
-    []
+    [contracts, selectedForComparison]
   );
 
   // Filter players based on global filter (client-side for instant feedback)
@@ -416,9 +534,20 @@ function PlayersPageContent() {
   return (
     <div className="ootp-container">
       <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <Users className="w-8 h-8 text-blue-600" />
-          <h1 className="ootp-page-title">Players</h1>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <Users className="w-8 h-8 text-blue-600" />
+            <h1 className="ootp-page-title">Players</h1>
+          </div>
+          {selectedForComparison.size > 0 && (
+            <button
+              onClick={handleCompare}
+              disabled={selectedForComparison.size < 2}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
+            >
+              Compare {selectedForComparison.size} Player{selectedForComparison.size !== 1 ? "s" : ""}
+            </button>
+          )}
         </div>
         <p className="ootp-text-secondary">Browse and search all players in the league</p>
       </div>

@@ -8,6 +8,7 @@ import { SalaryCapChart } from '@/app/components/SalaryCapChart';
 import { CapBreakdown } from '@/app/components/CapBreakdown';
 import { DollarSign, Users, TrendingUp, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useGameStore } from '@/lib/store/game-store';
 
 interface Team {
   id: string;
@@ -27,12 +28,20 @@ interface Player {
   age: number;
   overall: number;
   potential: number;
+  is_prospect?: boolean;
+}
+
+interface PlayerContract {
+  player_id: string | null;
+  prospect_id: string | null;
   contract_year_1: number;
 }
 
 export default function MyTeamPage() {
+  const { saveGameId } = useGameStore();
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [contracts, setContracts] = useState<Map<string, PlayerContract>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -90,19 +99,110 @@ export default function MyTeamPage() {
 
       setTeam(teamData);
 
-      // Fetch players on this team
-      const { data: playersData, error: playersError } = await supabase
-        .from('players')
-        .select('id, full_name, position, age, overall, potential, contract_year_1')
-        .eq('team_id', teamId)
-        .order('position', { ascending: true })
-        .order('overall', { ascending: false });
-
-      if (playersError) {
-        console.error('Error fetching players:', playersError);
-      } else {
-        setPlayers(playersData || []);
+      // CRITICAL: saveGameId is required - no legacy support
+      if (!saveGameId) {
+        setError('saveGameId is required. Cannot load roster without save game context.');
+        setLoading(false);
+        return;
       }
+
+      // Fetch players from player_team_assignments
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('player_team_assignments')
+        .select(`
+          player_id,
+          prospect_id,
+          team_id,
+          players (*),
+          draft_prospects (*)
+        `)
+        .eq('team_id', teamId)
+        .eq('save_game_id', saveGameId);
+
+      if (assignmentsError) {
+        console.error('Error loading player assignments:', assignmentsError);
+        setLoading(false);
+        return;
+      }
+
+      if (!assignments || assignments.length === 0) {
+        setPlayers([]);
+        setContracts(new Map());
+        setLoading(false);
+        return;
+      }
+
+      // Map assignments to player/prospect data (without contracts)
+      const playersData = assignments.map((assignment: any) => {
+        if (assignment.player_id && assignment.players) {
+          return {
+            ...assignment.players,
+            is_prospect: false,
+          };
+        }
+        if (assignment.prospect_id && assignment.draft_prospects) {
+          return {
+            ...assignment.draft_prospects,
+            is_prospect: true,
+            is_rookie: true,
+          };
+        }
+        return null;
+      }).filter(Boolean);
+
+      // Sort players
+      playersData.sort((a: any, b: any) => {
+        if (a.position !== b.position) {
+          return a.position.localeCompare(b.position);
+        }
+        return (b.overall || 0) - (a.overall || 0);
+      });
+
+      setPlayers(playersData || []);
+
+      // Load contracts separately from player_contracts_per_save_game
+      const playerIds = playersData
+        .map((p: any) => p.is_prospect ? null : p.id)
+        .filter(Boolean) as string[];
+      const prospectIds = playersData
+        .map((p: any) => p.is_prospect ? p.id : null)
+        .filter(Boolean) as string[];
+
+      const contractMap = new Map<string, PlayerContract>();
+
+      if (playerIds.length > 0) {
+        const { data: playerContracts } = await supabase
+          .from('player_contracts_per_save_game')
+          .select('player_id, contract_year_1')
+          .in('player_id', playerIds)
+          .eq('save_game_id', saveGameId);
+
+        if (playerContracts) {
+          playerContracts.forEach((contract: any) => {
+            if (contract.player_id) {
+              contractMap.set(contract.player_id, contract);
+            }
+          });
+        }
+      }
+
+      if (prospectIds.length > 0) {
+        const { data: prospectContracts } = await supabase
+          .from('player_contracts_per_save_game')
+          .select('prospect_id, contract_year_1')
+          .in('prospect_id', prospectIds)
+          .eq('save_game_id', saveGameId);
+
+        if (prospectContracts) {
+          prospectContracts.forEach((contract: any) => {
+            if (contract.prospect_id) {
+              contractMap.set(contract.prospect_id, contract);
+            }
+          });
+        }
+      }
+
+      setContracts(contractMap);
     } catch (err) {
       throw err;
     } finally {
@@ -152,7 +252,10 @@ export default function MyTeamPage() {
   }
 
   // Calculate salary cap info
-  const totalCapHit = players.reduce((sum, p) => sum + (p.contract_year_1 || 0), 0);
+  const totalCapHit = players.reduce((sum, p) => {
+    const contract = contracts.get(p.id);
+    return sum + (contract?.contract_year_1 || 0);
+  }, 0);
   const SALARY_CAP = team.salary_cap_total ?? 255000000;
   const remainingCap = SALARY_CAP - totalCapHit;
   const capPercentage = (totalCapHit / SALARY_CAP) * 100;
@@ -169,10 +272,12 @@ export default function MyTeamPage() {
   // Calculate cap by position
   const capByPosition: Record<string, number> = {};
   players.forEach((p) => {
+    const contract = contracts.get(p.id);
+    const capHit = contract?.contract_year_1 || 0;
     if (!capByPosition[p.position]) {
       capByPosition[p.position] = 0;
     }
-    capByPosition[p.position] += p.contract_year_1 || 0;
+    capByPosition[p.position] += capHit;
   });
 
   const capBreakdownSorted = Object.entries(capByPosition).sort(

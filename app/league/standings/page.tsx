@@ -67,49 +67,72 @@ export default function StandingsPage() {
     setLoading(true);
     setError(null);
     try {
+      console.log(`[Standings] Loading standings for season ${season}, saveGameId: ${saveGameId || "null"}`);
+      
       // First, try to get standings from team_season_stats
+      // Use conditional logic to match /league page behavior
       let seasonQuery = supabase
         .from("seasons")
         .select("id")
         .eq("year", season);
       
+      // Filter by save_game_id if available
       if (saveGameId) {
         seasonQuery = seasonQuery.eq("save_game_id", saveGameId);
       } else {
         seasonQuery = seasonQuery.is("save_game_id", null);
       }
       
-      const { data: seasonData } = await seasonQuery.single();
+      const { data: seasonData, error: seasonError } = await seasonQuery.maybeSingle();
+      
+      console.log(`[Standings] Season query result:`, { 
+        season, 
+        seasonData: seasonData?.id || "not found", 
+        seasonError: seasonError?.message || "none" 
+      });
 
       let teamStats: any[] = [];
 
-      if (seasonData) {
-        let statsQuery = supabase
-          .from("team_season_stats")
-          .select(
-            `
-            *,
-            teams!inner (id, name, abbreviation, conference, division)
-          `
-          )
-          .eq("season_id", seasonData.id);
-        
-        if (saveGameId) {
-          statsQuery = statsQuery.eq("save_game_id", saveGameId);
-        } else {
-          statsQuery = statsQuery.is("save_game_id", null);
-        }
-        
-        const { data: statsData } = await statsQuery;
-
-        if (statsData && statsData.length > 0) {
-          teamStats = statsData;
-        }
-      }
-
-      // If no stats exist, calculate from games
-      if (teamStats.length === 0) {
+      // For the current season, always calculate from games (team_season_stats is only updated at end of season)
+      // For historical seasons, try to use cached team_season_stats first
+      if (season === currentSeason) {
+        console.log(`[Standings] Current season ${season}, calculating from games`);
         teamStats = await calculateStandingsFromGames(season);
+        console.log(`[Standings] Calculated ${teamStats.length} team stats from games`);
+      } else {
+        // Historical season - try to get cached stats first
+        if (seasonData && !seasonError) {
+          let statsQuery = supabase
+            .from("team_season_stats")
+            .select(
+              `
+              *,
+              teams!inner (id, name, abbreviation, conference, division)
+            `
+            )
+            .eq("season_id", seasonData.id);
+          
+          // Filter by save_game_id if available
+          if (saveGameId) {
+            statsQuery = statsQuery.eq("save_game_id", saveGameId);
+          } else {
+            statsQuery = statsQuery.is("save_game_id", null);
+          }
+          
+          const { data: statsData } = await statsQuery;
+
+          if (statsData && statsData.length > 0) {
+            teamStats = statsData;
+            console.log(`[Standings] Using ${teamStats.length} team stats from team_season_stats for historical season ${season}`);
+          }
+        }
+
+        // If no cached stats exist, calculate from games
+        if (teamStats.length === 0) {
+          console.log(`[Standings] No team_season_stats found, calculating from games for season ${season}`);
+          teamStats = await calculateStandingsFromGames(season);
+          console.log(`[Standings] Calculated ${teamStats.length} team stats from games`);
+        }
       }
 
       // Fetch all teams to ensure we have all teams in standings
@@ -132,6 +155,7 @@ export default function StandingsPage() {
           statsMap.set(teamId, stat);
         }
       });
+      console.log(`[Standings] Stats map has ${statsMap.size} entries`);
 
       // Build standings for all teams
       const standingsList: TeamStanding[] = allTeams.map((team) => {
@@ -164,6 +188,8 @@ export default function StandingsPage() {
           conferenceTies: stat?.conference_ties || 0,
         };
       });
+      
+      console.log(`[Standings] Built standings for ${standingsList.length} teams, first team:`, standingsList[0]);
 
       // Calculate division and conference records
       const standingsWithDivConf = await calculateDivisionConferenceRecords(
@@ -181,23 +207,28 @@ export default function StandingsPage() {
   }
 
   async function calculateStandingsFromGames(season: number): Promise<any[]> {
-    // Get all played games for this season
+    console.log(`[Standings] Calculating from games for season ${season}, saveGameId: ${saveGameId || "null"}`);
+    
+    // Get all played games for this season with conditional save_game_id handling
     let gamesQuery = supabase
       .from("games")
       .select("home_team_id, away_team_id, home_score, away_score")
       .eq("season", season)
       .eq("played", true);
     
-    // Filter by save_game_id if available
+    // Filter by save_game_id if available (same pattern as /league page)
     if (saveGameId) {
       gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
     } else {
       gamesQuery = gamesQuery.is("save_game_id", null);
     }
     
-    const { data: games } = await gamesQuery;
+    const { data: games, error: gamesError } = await gamesQuery;
+    
+    console.log(`[Standings] Games query result: ${games?.length || 0} games found, error: ${gamesError?.message || "none"}`);
 
     if (!games || games.length === 0) {
+      console.log(`[Standings] No games found for season ${season}`);
       return [];
     }
 
@@ -205,7 +236,7 @@ export default function StandingsPage() {
     const teamStatsMap = new Map<string, any>();
 
     games.forEach((game) => {
-      if (!game.home_score || !game.away_score) return;
+      if (game.home_score === null || game.away_score === null) return;
 
       // Home team
       if (!teamStatsMap.has(game.home_team_id)) {
@@ -254,6 +285,7 @@ export default function StandingsPage() {
       }
     });
 
+    console.log(`[Standings] Processed ${games.length} games into ${teamStatsMap.size} team stats`);
     return Array.from(teamStatsMap.values());
   }
 
@@ -523,6 +555,15 @@ export default function StandingsPage() {
         {loading ? (
           <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-12 text-center">
             <p className="text-slate-500">Loading standings...</p>
+          </div>
+        ) : standings.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-12 text-center">
+            <p className="text-slate-500 mb-2">No standings available for season {season}</p>
+            <p className="text-sm text-slate-400">
+              {saveGameId 
+                ? "No games have been played yet this season. Simulate games to see standings."
+                : "No games have been played yet this season."}
+            </p>
           </div>
         ) : (
           <div className="space-y-6">
