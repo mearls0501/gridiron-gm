@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-client";
 import { simulateGame } from "@/lib/simulation/engine";
 
+// Extended timeout for season transitions (especially preseason which generates draft class)
+export const maxDuration = 120; // 120 seconds (2 minutes)
+
 type AdvanceType = "next_week" | "regular_season" | "playoffs" | "offseason" | "preseason";
 
 /**
@@ -54,6 +57,14 @@ export async function POST(req: Request) {
     );
   }
 
+  // Validate saveGameId - it's required for all operations
+  if (!saveGameId) {
+    return NextResponse.json(
+      { error: "saveGameId is required. Games must be associated with a save game." },
+      { status: 400 }
+    );
+  }
+
   // Create a readable stream for SSE
   const stream = new ReadableStream({
     async start(controller) {
@@ -63,31 +74,139 @@ export async function POST(req: Request) {
         // Handle special advance types that don't simulate games
         if (advanceType === "preseason") {
           // Advance from offseason to next season's preseason
-          // Call the advance-to-season endpoint
-          const advanceResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/offseason/advance-to-season`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ season, saveGameId }),
-            }
+          // Send progress updates during the long process
+          const newSeason = season + 1;
+          
+          console.log(`[Simulate Advance] Starting preseason transition for season ${newSeason}...`);
+          
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ 
+              type: "progress", 
+              total: 6, 
+              current: 0,
+              week: 0,
+              message: `Initializing ${newSeason} season...`
+            })}\n\n`)
           );
 
-          if (!advanceResponse.ok) {
-            const errorData = await advanceResponse.json();
-            throw new Error(errorData.error || "Failed to advance to preseason");
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ 
+              type: "progress", 
+              total: 6, 
+              current: 1,
+              week: 0,
+              message: `Generating schedule (272 games)... This may take 15-45 seconds.`
+            })}\n\n`)
+          );
+
+          await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure message is sent
+
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ 
+              type: "progress", 
+              total: 6, 
+              current: 2,
+              week: 0,
+              message: `Replenishing team rosters (up to 800 players)...`
+            })}\n\n`)
+          );
+
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ 
+              type: "progress", 
+              total: 6, 
+              current: 3,
+              week: 0,
+              message: `Generating draft class (350 prospects × 71 attributes = 25,000+ data points)...`
+            })}\n\n`)
+          );
+
+          // Call the advance-to-season endpoint with extended timeout
+          // This can take 15-45 seconds due to draft class generation with detailed attributes
+          console.log(`[Simulate Advance] Calling advance-to-season API for season ${season}...`);
+          const advanceStartTime = Date.now();
+          
+          // Send progress update to user
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ 
+              type: "progress", 
+              total: 6, 
+              current: 2,
+              week: 0,
+              message: `Creating new season ${season + 1}... (this may take 30-45 seconds)`
+            })}\n\n`)
+          );
+          
+          try {
+            // Create an AbortController with 90 second timeout (generous for slow operations)
+            const abortController = new AbortController();
+            const timeoutId = setTimeout(() => abortController.abort(), 90000); // 90 seconds
+            
+            const advanceResponse = await fetch(
+              `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/offseason/advance-to-season`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ season, saveGameId }),
+                signal: abortController.signal,
+              }
+            );
+
+            clearTimeout(timeoutId);
+            console.log(`[Simulate Advance] Advance-to-season response status: ${advanceResponse.status}, took ${Date.now() - advanceStartTime}ms`);
+
+            if (!advanceResponse.ok) {
+              const errorData = await advanceResponse.json().catch(() => ({ error: "Unknown error" }));
+              console.error(`[Simulate Advance] Advance-to-season failed:`, errorData);
+              throw new Error(errorData.error || `Failed to advance to preseason (HTTP ${advanceResponse.status})`);
+            }
+            
+            const advanceData = await advanceResponse.json();
+            console.log(`[Simulate Advance] Advance-to-season completed successfully in ${Date.now() - advanceStartTime}ms`, advanceData);
+            
+            // Send progress update
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ 
+                type: "progress", 
+                total: 6, 
+                current: 4,
+                week: 0,
+                message: `Season ${season + 1} created successfully! Finalizing...`
+              })}\n\n`)
+            );
+          } catch (fetchError) {
+            console.error(`[Simulate Advance] Error calling advance-to-season:`, fetchError);
+            
+            // Check if it was a timeout
+            if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+              throw new Error(`Season creation timed out after 90 seconds. This usually means the database is slow or overloaded. Please try again.`);
+            }
+            
+            throw new Error(`Failed to advance to preseason: ${fetchError instanceof Error ? fetchError.message : "Unknown error"}`);
           }
 
-          const newSeason = season + 1;
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ 
+              type: "progress", 
+              total: 6, 
+              current: 5,
+              week: 0,
+              message: `Initializing draft picks and season data...`
+            })}\n\n`)
+          );
+
+          const totalAdvanceTime = Date.now() - advanceStartTime;
+          console.log(`[Simulate Advance] Successfully advanced to ${newSeason} preseason in ${totalAdvanceTime}ms (${(totalAdvanceTime / 1000).toFixed(1)}s)`);
+
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ 
               type: "complete", 
-              total: 1, 
-              current: 1,
+              total: 6, 
+              current: 6,
               finalWeek: 0,
               finalSeason: newSeason,
               simulatedWeeks: 0,
-              message: `Advanced to ${newSeason} preseason (Week 0)`
+              message: `Successfully advanced to ${newSeason} preseason (Week 0) in ${(totalAdvanceTime / 1000).toFixed(1)}s`
             })}\n\n`)
           );
           controller.close();
@@ -96,7 +215,33 @@ export async function POST(req: Request) {
 
         if (advanceType === "regular_season") {
           // Advance from preseason (week 0) to regular season (week 1)
-          // Just update the season phase and week, no games to simulate
+          
+          // CRITICAL: Validate salary cap compliance before allowing season start
+          const { data: saveGame } = await supabase
+            .from("save_games")
+            .select("selected_team_id")
+            .eq("id", saveGameId)
+            .single();
+
+          if (saveGame?.selected_team_id) {
+            const { calculateTeamCapHit } = await import("@/lib/utils/player-contracts");
+            const userCapHit = await calculateTeamCapHit(saveGame.selected_team_id, saveGameId);
+            const SALARY_CAP = 255000000;
+
+            if (userCapHit > SALARY_CAP) {
+              const overage = userCapHit - SALARY_CAP;
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ 
+                  type: "error", 
+                  error: `Cannot start season: Your team is $${(overage / 1000000).toFixed(1)}M over the salary cap. You must cut players or restructure contracts before advancing.`
+                })}\n\n`)
+              );
+              controller.close();
+              return;
+            }
+          }
+
+          // Update the season phase and week
           let seasonUpdateQuery = supabase
             .from("seasons")
             .update({ 
@@ -168,7 +313,70 @@ export async function POST(req: Request) {
         const totalWeeks = Math.max(1, targetWeek - currentWeek);
         let simulatedWeeks = 0;
         let currentSimWeek = currentWeek;
+        
+        console.log(`[Simulate Advance] Starting: currentWeek=${currentWeek}, targetWeek=${targetWeek}, advanceType=${advanceType}, saveGameId=${saveGameId}`);
         const results: Array<{ week: number; simulated: number; total: number; errors?: Array<{ gameId: string; error: string }> }> = [];
+
+        async function flushGameUpdates(
+          updates: Array<{ id: string; home_score: number; away_score: number }>
+        ) {
+          const updateResults = await Promise.all(
+            updates.map((update) =>
+              supabase
+                .from("games")
+                .update({
+                  home_score: update.home_score,
+                  away_score: update.away_score,
+                  played: true,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", update.id)
+            )
+          );
+
+          const failedUpdates = updateResults
+            .map((result, index) => ({
+              gameId: updates[index]?.id,
+              error: result.error,
+            }))
+            .filter((item) => item.error);
+
+          if (failedUpdates.length > 0) {
+            const firstFailure = failedUpdates[0];
+            throw new Error(
+              `Failed to persist game results for game ${firstFailure?.gameId}: ${firstFailure?.error?.message || "Unknown error"}`
+            );
+          }
+        }
+
+        // CRITICAL: Check salary cap compliance for user's team
+        // Prevent ANY advancement (preseason or regular season) if over cap
+        const { data: saveGame } = await supabase
+          .from("save_games")
+          .select("selected_team_id")
+          .eq("id", saveGameId)
+          .single();
+
+        if (saveGame?.selected_team_id) {
+          const { calculateTeamCapHit } = await import("@/lib/utils/player-contracts");
+          const userCapHit = await calculateTeamCapHit(saveGame.selected_team_id, saveGameId);
+          const SALARY_CAP = 255000000;
+
+          if (userCapHit > SALARY_CAP) {
+            const overage = userCapHit - SALARY_CAP;
+            const errorMessage = `Cannot advance: Your team is $${(overage / 1000000).toFixed(1)}M over the salary cap ($${(userCapHit / 1000000).toFixed(1)}M / $${(SALARY_CAP / 1000000).toFixed(1)}M). You must cut players or restructure contracts.`;
+            console.error(`[Simulate Advance] Salary cap violation:`, errorMessage);
+            
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ 
+                type: "error", 
+                error: errorMessage
+              })}\n\n`)
+            );
+            controller.close();
+            return;
+          }
+        }
 
         // Send initial progress
         controller.enqueue(
@@ -184,7 +392,151 @@ export async function POST(req: Request) {
         let lastHeartbeat = Date.now();
         const HEARTBEAT_INTERVAL = 30000; // Send heartbeat every 30 seconds
         
-        while (currentSimWeek < targetWeek && currentSimWeek <= 22) {
+        while (currentSimWeek < targetWeek && currentSimWeek <= 25) {
+          console.log(`[Simulate Advance] Loop: currentSimWeek=${currentSimWeek}, targetWeek=${targetWeek}, condition=${currentSimWeek < targetWeek && currentSimWeek <= 25}`);
+          
+          // Offseason weeks (23-25) don't have games to simulate, just advance the week
+          if (currentSimWeek >= 23 && currentSimWeek <= 25) {
+            const previousWeek = currentSimWeek;
+            
+            // Process contracts when advancing from week 23 (resign phase) to week 24 (free agency)
+            if (previousWeek === 23 && saveGameId) {
+              console.log(`[Simulate Advance] Starting week 23 -> 24 transition (resignings + FA processing)...`);
+              
+              // STEP 1: CPU teams resign their players FIRST (before contracts expire)
+              try {
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify({ 
+                    type: "progress", 
+                    total: totalWeeks, 
+                    current: simulatedWeeks,
+                    week: previousWeek,
+                    message: `CPU teams resigning players...`
+                  })}\n\n`)
+                );
+
+                const { cpuResignPlayers } = await import("@/lib/offseason/cpu-resign");
+                
+                // Get user team ID for this save game
+                const { data: saveGame } = await supabase
+                  .from("save_games")
+                  .select("selected_team_id")
+                  .eq("id", saveGameId)
+                  .single();
+
+                const resignStart = Date.now();
+                const resignResult = await cpuResignPlayers(
+                  saveGameId,
+                  season,
+                  saveGame?.selected_team_id || undefined
+                );
+
+                if (resignResult.success) {
+                  console.log(
+                    `[Simulate Advance] CPU resignings: ${resignResult.playersResigned} players resigned in ${Date.now() - resignStart}ms`
+                  );
+                  
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify({ 
+                      type: "progress", 
+                      total: totalWeeks, 
+                      current: simulatedWeeks,
+                      week: previousWeek,
+                      message: `${resignResult.playersResigned} players resigned by CPU teams`
+                    })}\n\n`)
+                  );
+                } else {
+                  console.error("Error in CPU resignings:", resignResult.error);
+                }
+              } catch (err) {
+                console.error("Error during CPU resignings:", err);
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify({ 
+                    type: "warning", 
+                    message: `CPU resignings had issues but continuing: ${err instanceof Error ? err.message : "Unknown error"}`
+                  })}\n\n`)
+                );
+              }
+
+              // STEP 2: Process remaining expiring contracts (move unsigned players to FA)
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ 
+                  type: "progress", 
+                  total: totalWeeks, 
+                  current: simulatedWeeks,
+                  week: previousWeek,
+                  message: `Processing unsigned expiring contracts...`
+                })}\n\n`)
+              );
+              
+              try {
+                const contractProcessingPromise = (async () => {
+                  const { processExpiringContracts } = await import(
+                    "@/lib/offseason/contract-processor"
+                  );
+                  return await processExpiringContracts(season, saveGameId);
+                })();
+                
+                const timeoutPromise = new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error("Contract processing timeout")), 60000)
+                );
+                
+                const contractResult = await Promise.race([
+                  contractProcessingPromise,
+                  timeoutPromise
+                ]) as any;
+                
+                if (!contractResult.success) {
+                  console.error("Error processing contracts:", contractResult.error);
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify({ 
+                      type: "warning", 
+                      message: `Contract processing had issues but continuing: ${contractResult.error}`
+                    })}\n\n`)
+                  );
+                } else {
+                  console.log(
+                    `[Simulate Advance] Contract processing: ${contractResult.playersMovedToFA} players moved to FA, ${contractResult.contractsShifted} contracts shifted`
+                  );
+                  
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify({ 
+                      type: "progress", 
+                      total: totalWeeks, 
+                      current: simulatedWeeks,
+                      week: previousWeek,
+                      message: `${contractResult.playersMovedToFA} unsigned players moved to FA`
+                    })}\n\n`)
+                  );
+                }
+              } catch (err) {
+                console.error("Error processing contracts:", err);
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify({ 
+                    type: "warning", 
+                    message: `Contract processing failed but continuing: ${err instanceof Error ? err.message : "Unknown error"}`
+                  })}\n\n`)
+                );
+              }
+            }
+            
+            currentSimWeek++;
+            simulatedWeeks++;
+            
+            console.log(`[Simulate Advance] Offseason advance: ${previousWeek} -> ${currentSimWeek}`);
+            
+            // Send progress update
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ 
+                type: "progress", 
+                total: totalWeeks, 
+                current: simulatedWeeks,
+                week: currentSimWeek,
+                message: `Advanced to Week ${currentSimWeek} (Offseason)`
+              })}\n\n`)
+            );
+            continue;
+          }
           // Send heartbeat if needed
           const now = Date.now();
           if (now - lastHeartbeat > HEARTBEAT_INTERVAL) {
@@ -214,21 +566,34 @@ export async function POST(req: Request) {
           await new Promise(resolve => setTimeout(resolve, 50));
 
           // Get all unplayed games for this week
-          let gamesQuery = supabase
+          // CRITICAL: saveGameId is required - all games should have save_game_id set at creation
+          if (!saveGameId) {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ 
+                type: "error", 
+                error: "saveGameId is required. All games must have save_game_id set." 
+              })}\n\n`)
+            );
+            controller.close();
+            return;
+          }
+          
+          console.log(`[Simulate Advance] Querying games for week ${currentSimWeek}, season ${season}, saveGameId: ${saveGameId}`);
+          
+          // Query games with exact save_game_id match - no fallback to NULL
+          // All games should have save_game_id set when created
+          const gamesQuery = supabase
             .from("games")
             .select("*")
             .eq("season", season)
             .eq("week", currentSimWeek)
-            .eq("played", false);
-          
-          // Filter by save_game_id if provided
-          if (saveGameId) {
-            gamesQuery = gamesQuery.eq("save_game_id", saveGameId);
-          } else {
-            gamesQuery = gamesQuery.is("save_game_id", null);
-          }
-          
+            .eq("played", false)
+            .eq("save_game_id", saveGameId);
+
+          // Query games (with timeout protection if needed)
           const { data: games, error: gamesError } = await gamesQuery;
+          
+          console.log(`[Simulate Advance] Games query result: ${games?.length || 0} games found for week ${currentSimWeek}, error: ${gamesError?.message || "none"}`);
 
           if (gamesError) {
             controller.enqueue(
@@ -241,8 +606,31 @@ export async function POST(req: Request) {
             return;
           }
 
+          // CRITICAL: All games should have the correct save_game_id set at creation
+          // If any games don't have the correct save_game_id, that's an error condition
+          if (games && games.length > 0) {
+            const gamesWithWrongSaveGameId = games.filter(
+              (g) => !g.save_game_id || g.save_game_id !== saveGameId
+            );
+            if (gamesWithWrongSaveGameId.length > 0) {
+              console.error(
+                `[Simulate Advance] Found ${gamesWithWrongSaveGameId.length} games with incorrect or missing save_game_id. ` +
+                `All games should have save_game_id set at creation. Game IDs: ${gamesWithWrongSaveGameId.map(g => g.id).join(', ')}`
+              );
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ 
+                  type: "error", 
+                  error: `Found ${gamesWithWrongSaveGameId.length} games with incorrect save_game_id. All games should have save_game_id set at creation. This indicates a data integrity issue.` 
+                })}\n\n`)
+              );
+              controller.close();
+              return;
+            }
+          }
+
           // If no games, advance to next week
           if (!games || games.length === 0) {
+            console.log(`[Simulate Advance] No games found for week ${currentSimWeek}, advancing to next week`);
             currentSimWeek++;
             simulatedWeeks++;
             continue;
@@ -272,7 +660,8 @@ export async function POST(req: Request) {
                   gameId: game.id,
                   season: game.season,
                   week: game.week,
-                });
+                  useEnhancedAttributes: true,  // 🏈 Enable attribute-based simulation
+                }, undefined, saveGameId);
                 
                 const timeoutPromise = new Promise<never>((_, reject) => 
                   setTimeout(() => reject(new Error('Game simulation timeout')), 30000)
@@ -282,12 +671,14 @@ export async function POST(req: Request) {
 
                 // Collect for batch operations
                 if (result.playerStats && result.playerStats.length > 0) {
-                  // Add save_game_id to player stats
                   const statsWithSaveGameId = result.playerStats.map(stat => ({
                     ...stat,
-                    save_game_id: saveGameId || game.save_game_id || null,
+                    save_game_id: saveGameId,
                   }));
                   allPlayerStats.push(...statsWithSaveGameId);
+                  console.log(`[Simulate Advance] Collected ${statsWithSaveGameId.length} stats for game ${game.id}, total stats so far: ${allPlayerStats.length}`);
+                } else {
+                  console.warn(`[Simulate Advance] No player stats returned for game ${game.id} (home: ${game.home_team_id}, away: ${game.away_team_id})`);
                 }
 
                 gameUpdates.push({
@@ -355,23 +746,14 @@ export async function POST(req: Request) {
             const updateBatchSize = 50;
             for (let i = 0; i < gameUpdates.length; i += updateBatchSize) {
               const batch = gameUpdates.slice(i, i + updateBatchSize);
-              const updatePromises = batch.map((update) =>
-                supabase
-                  .from("games")
-                  .update({
-                    home_score: update.home_score,
-                    away_score: update.away_score,
-                    played: true,
-                    updated_at: new Date().toISOString(),
-                  })
-                  .eq("id", update.id)
-              );
-              await Promise.all(updatePromises);
+              await flushGameUpdates(batch);
             }
           }
 
           // Batch insert all player stats
+          console.log(`[Simulate Advance] Stats collection complete for week ${currentSimWeek}: ${allPlayerStats.length} total stats collected from ${weekResults.length} games`);
           if (allPlayerStats.length > 0) {
+            console.log(`[Simulate Advance] Preparing to save ${allPlayerStats.length} player stats for week ${currentSimWeek}, saveGameId: ${saveGameId || "null"}`);
             // Send progress update before saving stats
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify({ 
@@ -392,16 +774,19 @@ export async function POST(req: Request) {
                 .select();
 
               if (statsError) {
-                console.error(`Error saving stats chunk ${i}-${i + chunkSize}:`, statsError);
-                console.error("Error details:", {
-                  message: statsError.message,
-                  code: statsError.code,
-                  details: statsError.details,
-                  hint: statsError.hint,
-                });
-                // Continue with next chunk even if one fails
+                throw new Error(
+                  `Failed to persist player stats chunk ${i}-${Math.min(i + chunkSize, allPlayerStats.length)}: ${statsError.message}`
+                );
               } else {
-                console.log(`Successfully saved ${insertedStats?.length || 0} stats in chunk ${i}-${i + chunkSize}`);
+                console.log(`[Simulate Advance] Successfully saved ${insertedStats?.length || 0} stats in chunk ${i}-${i + chunkSize} for saveGameId: ${saveGameId || "null"}`);
+                if (insertedStats && insertedStats.length > 0) {
+                  console.log(`[Simulate Advance] Sample saved stat:`, {
+                    player_id: insertedStats[0].player_id,
+                    save_game_id: insertedStats[0].save_game_id,
+                    season: insertedStats[0].season,
+                    week: insertedStats[0].week,
+                  });
+                }
               }
               
               // Send progress update for each chunk
@@ -417,6 +802,8 @@ export async function POST(req: Request) {
                 );
               }
             }
+          } else {
+            console.warn(`[Simulate Advance] WARNING: No player stats to save for week ${currentSimWeek} even though ${weekResults.length} games were simulated. This may indicate that simulateGame is not returning playerStats.`);
           }
 
           // Aggregate season stats after week is complete
@@ -454,8 +841,9 @@ export async function POST(req: Request) {
           });
 
           // Regenerate scouting points for all teams for the new week (async, don't block)
-          if (currentSimWeek < targetWeek) {
+          if (currentSimWeek < targetWeek && saveGameId) {
             // Do this asynchronously so it doesn't block the simulation
+            // Only run if we have a saveGameId (required for scout_priority table)
             Promise.resolve().then(async () => {
               try {
                 const { regenerateWeeklyPoints } = await import("@/lib/scouting/weekly-points");
@@ -476,19 +864,26 @@ export async function POST(req: Request) {
                 if (teams && teams.length > 0) {
                   // Regenerate points for all teams for the new week
                   const nextWeek = currentSimWeek + 1;
-                  const regeneratePromises = teams.map((team) =>
-                    regenerateWeeklyPoints(team.id, saveGameId || "", season, nextWeek)
-                  );
+                  const regeneratePromises = teams.map(async (team) => {
+                    try {
+                      return await regenerateWeeklyPoints(team.id, saveGameId, season, nextWeek);
+                    } catch (err) {
+                      console.error(`Error regenerating points for team ${team.id}:`, err);
+                      return { success: true }; // Return success to not block other teams
+                    }
+                  });
                   
-                  await Promise.all(regeneratePromises);
-                  console.log(`Regenerated scouting points for ${teams.length} teams for week ${nextWeek}`);
+                  const results = await Promise.allSettled(regeneratePromises);
+                  const successful = results.filter(r => r.status === 'fulfilled').length;
+                  console.log(`Regenerated scouting points for ${successful}/${teams.length} teams for week ${nextWeek}`);
                 }
               } catch (err) {
-                console.error("Error regenerating scouting points:", err);
+                console.error("Error in scouting points regeneration:", err);
                 // Don't fail the simulation if point regeneration fails
               }
             }).catch(err => {
               console.error("Error in async scouting points regeneration:", err);
+              // Silently fail - don't block simulation
             });
           }
           
@@ -531,15 +926,48 @@ export async function POST(req: Request) {
         }
 
         // Update current week and phase in seasons table using season manager
-        // Always update phase when explicitly advancing to a specific phase
-        if (simulatedWeeks > 0 || advanceType === "playoffs" || advanceType === "offseason" || advanceType === "regular_season") {
+        // Always update if we advanced (simulatedWeeks > 0) OR if we're in offseason (weeks 23-25)
+        // For offseason weeks, we always want to update even if no games were simulated
+        // Also update if we've advanced weeks (currentSimWeek > currentWeek) to ensure week is always updated
+        if (simulatedWeeks > 0 || currentSimWeek >= 23 || currentSimWeek > currentWeek || advanceType === "playoffs" || advanceType === "offseason" || advanceType === "regular_season" || advanceType === "next_week") {
           let phase: "preseason" | "regular_season" | "playoffs" | "offseason" = "regular_season";
           
+          // Check if Super Bowl is complete (week 22) - if so, transition to offseason
+          let superBowlComplete = false;
+          if (currentSimWeek >= 22) {
+            let superBowlQuery = supabase
+              .from("playoff_games")
+              .select("winner_id, played")
+              .eq("season", season)
+              .eq("round", "super_bowl");
+            
+            if (saveGameId) {
+              superBowlQuery = superBowlQuery.eq("save_game_id", saveGameId);
+            } else {
+              superBowlQuery = superBowlQuery.is("save_game_id", null);
+            }
+            
+            const { data: superBowl } = await superBowlQuery.maybeSingle();
+            superBowlComplete = superBowl?.played && !!superBowl?.winner_id;
+          }
+          
           // Determine phase based on advanceType first, then fall back to week-based logic
-          if (advanceType === "offseason") {
+          // BUT: if Super Bowl is complete, always transition to offseason regardless of advanceType
+          if (superBowlComplete && currentSimWeek >= 22) {
+            phase = "offseason";
+            // If we're at week 22 and Super Bowl is complete, advance to week 23 (offseason)
+            if (currentSimWeek === 22) {
+              currentSimWeek = 23;
+            }
+          } else if (advanceType === "offseason") {
             phase = "offseason";
           } else if (advanceType === "playoffs") {
-            phase = "playoffs";
+            // Only set to playoffs if Super Bowl isn't complete yet
+            if (currentSimWeek >= 23) {
+              phase = "offseason";
+            } else {
+              phase = "playoffs";
+            }
           } else if (advanceType === "regular_season") {
             phase = "regular_season";
           } else if (advanceType === "preseason") {
@@ -559,12 +987,33 @@ export async function POST(req: Request) {
 
           if (!phaseUpdateResult.success) {
             console.error("Error updating season phase and week:", phaseUpdateResult.error);
+            // Send error to client but don't fail the whole simulation
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ 
+                type: "warning", 
+                message: `Warning: Failed to update season week in database: ${phaseUpdateResult.error}. Week may be out of sync.` 
+              })}\n\n`)
+            );
           } else {
             console.log(`[Simulate Advance] Updated season ${season} to phase: ${phase}, week: ${currentSimWeek}`);
+          }
+        } else {
+          // Even if we didn't meet the condition above, if we've advanced weeks, we should update
+          if (currentSimWeek > currentWeek) {
+            console.log(`[Simulate Advance] Week advanced from ${currentWeek} to ${currentSimWeek}, updating database even though no games were simulated`);
+            const { updateSeasonPhase } = await import("@/lib/seasons/season-manager");
+            const phaseUpdateResult = await updateSeasonPhase(season, saveGameId || null, "regular_season", currentSimWeek);
+            
+            if (!phaseUpdateResult.success) {
+              console.error("Error updating season phase and week:", phaseUpdateResult.error);
+            } else {
+              console.log(`[Simulate Advance] Updated season ${season} to week: ${currentSimWeek}`);
+            }
           }
         }
 
         // Send completion message
+        console.log(`[Simulate Advance] Complete: simulatedWeeks=${simulatedWeeks}, finalWeek=${currentSimWeek}, from ${currentWeek} to ${currentSimWeek}`);
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ 
             type: "complete", 
@@ -573,7 +1022,7 @@ export async function POST(req: Request) {
             finalWeek: currentSimWeek,
             simulatedWeeks,
             results,
-            message: `Successfully simulated ${simulatedWeeks} week(s) from week ${currentWeek} to week ${currentSimWeek - 1}`
+            message: `Successfully advanced from week ${currentWeek} to week ${currentSimWeek}`
           })}\n\n`)
         );
 
@@ -598,4 +1047,3 @@ export async function POST(req: Request) {
     },
   });
 }
-

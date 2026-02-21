@@ -64,7 +64,8 @@ export async function POST(req: Request) {
           gameId: game.id,
           season: game.season,
           week: game.week,
-        });
+          useEnhancedAttributes: true,  // 🏈 Enable attribute-based simulation
+        }, undefined, saveGameId);
 
         // Determine winner
         const winnerId = result.homeScore > result.awayScore 
@@ -144,6 +145,56 @@ export async function POST(req: Request) {
         } else {
           console.log(`Successfully saved ${insertedStats?.length || 0} stats in chunk ${i}-${i + batchSize}`);
         }
+      }
+    }
+
+    // If Super Bowl was just completed, automatically transition to offseason
+    if (round === "super_bowl" && results.length > 0) {
+      try {
+        // Check if Super Bowl is complete
+        let superBowlQuery = supabase
+          .from("playoff_games")
+          .select("winner_id, played")
+          .eq("season", season)
+          .eq("round", "super_bowl");
+        
+        if (saveGameId) {
+          superBowlQuery = superBowlQuery.eq("save_game_id", saveGameId);
+        } else {
+          superBowlQuery = superBowlQuery.is("save_game_id", null);
+        }
+        
+        const { data: superBowl } = await superBowlQuery.maybeSingle();
+        
+        if (superBowl?.played && superBowl?.winner_id) {
+          // Import and call updateSeasonPhase to transition to offseason
+          const { updateSeasonPhase } = await import("@/lib/seasons/season-manager");
+          const phaseUpdateResult = await updateSeasonPhase(season, saveGameId || null, "offseason", 23);
+          
+          if (phaseUpdateResult.success) {
+            console.log(`[Playoff Simulate Round] Automatically transitioned season ${season} to offseason after Super Bowl`);
+          } else {
+            console.warn(`[Playoff Simulate Round] Failed to transition to offseason: ${phaseUpdateResult.error}`);
+          }
+          
+          // Also set champion_team_id
+          let updateSeasonQuery = supabase
+            .from("seasons")
+            .update({ champion_team_id: superBowl.winner_id })
+            .eq("year", season)
+            .eq("is_active", true);
+          
+          if (saveGameId) {
+            updateSeasonQuery = updateSeasonQuery.eq("save_game_id", saveGameId);
+          } else {
+            updateSeasonQuery = updateSeasonQuery.is("save_game_id", null);
+          }
+          
+          await updateSeasonQuery;
+        }
+      } catch (err) {
+        console.error("Error transitioning to offseason after Super Bowl:", err);
+        // Don't fail the request if transition fails
       }
     }
 

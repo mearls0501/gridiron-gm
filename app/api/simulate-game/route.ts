@@ -13,6 +13,17 @@ export async function POST(req: Request) {
       );
     }
 
+    // CRITICAL: Require saveGameId to prevent stats from being saved with wrong/null save_game_id
+    if (!saveGameId) {
+      return NextResponse.json(
+        {
+          error: "saveGameId is required",
+          hint: "All games and stats must be associated with a save game. Make sure you're using a valid save game.",
+        },
+        { status: 400 }
+      );
+    }
+
     // Quick check if stats tables exist (non-blocking)
     const { error: statsTableError } = await supabase
       .from("player_game_stats")
@@ -54,18 +65,125 @@ export async function POST(req: Request) {
       );
     }
 
+    // CRITICAL: Ensure game has the correct save_game_id
+    // This prevents stats from being saved with wrong/null save_game_id
+    // saveGameId is guaranteed to be non-null at this point (validated above)
+    if (game.save_game_id !== saveGameId) {
+      const { error: updateGameError } = await supabase
+        .from("games")
+        .update({ save_game_id: saveGameId })
+        .eq("id", gameId);
+
+      if (updateGameError) {
+        console.error(
+          `[SimulateGame] CRITICAL: Failed to update game save_game_id:`,
+          updateGameError
+        );
+        return NextResponse.json(
+          {
+            error: `Failed to update game with save_game_id. This is required for proper data isolation.`,
+            details: updateGameError.message,
+          },
+          { status: 500 }
+        );
+      } else {
+        console.log(
+          `[SimulateGame] Updated game ${gameId} with save_game_id ${saveGameId}`
+        );
+        // Update local game object so we use the correct save_game_id below
+        game.save_game_id = saveGameId;
+      }
+    }
+
     // Use provided season/week or fall back to game data
     const gameSeason = season || game.season;
     const gameWeek = week || game.week;
 
+    // CRITICAL: Check roster sizes and auto-replenish if needed
+    // This prevents simulation failures due to incomplete rosters
+    const { count: homeRosterSize } = await supabase
+      .from("player_team_assignments")
+      .select("*", { count: "exact", head: true })
+      .eq("team_id", game.home_team_id)
+      .eq("save_game_id", saveGameId);
+
+    const { count: awayRosterSize } = await supabase
+      .from("player_team_assignments")
+      .select("*", { count: "exact", head: true })
+      .eq("team_id", game.away_team_id)
+      .eq("save_game_id", saveGameId);
+
+    if ((homeRosterSize || 0) !== 53 || (awayRosterSize || 0) !== 53) {
+      console.log(
+        `[SimulateGame] Roster size issue detected. Home: ${homeRosterSize || 0}, Away: ${awayRosterSize || 0}. Auto-replenishing...`
+      );
+
+      const { replenishTeamRosterOnly } = await import(
+        "@/lib/utils/roster-replenisher"
+      );
+
+      if ((homeRosterSize || 0) !== 53) {
+        const homeReplenishResult = await replenishTeamRosterOnly(
+          game.home_team_id,
+          saveGameId,
+          gameSeason,
+          gameWeek
+        );
+        console.log(
+          `[SimulateGame] Home team replenished: ${homeReplenishResult.beforeSize} → ${homeReplenishResult.afterSize} (added ${homeReplenishResult.playersAdded})`
+        );
+      }
+
+      if ((awayRosterSize || 0) !== 53) {
+        const awayReplenishResult = await replenishTeamRosterOnly(
+          game.away_team_id,
+          saveGameId,
+          gameSeason,
+          gameWeek
+        );
+        console.log(
+          `[SimulateGame] Away team replenished: ${awayReplenishResult.beforeSize} → ${awayReplenishResult.afterSize} (added ${awayReplenishResult.playersAdded})`
+        );
+      }
+    }
+
     // Simulate the game
-    const result = await simulateGame({
-      homeTeamId: game.home_team_id,
-      awayTeamId: game.away_team_id,
-      gameId: game.id,
-      season: gameSeason,
-      week: gameWeek,
-    });
+    let result;
+    try {
+      result = await simulateGame(
+        {
+          homeTeamId: game.home_team_id,
+          awayTeamId: game.away_team_id,
+          gameId: game.id,
+          season: gameSeason,
+          week: gameWeek,
+          useEnhancedAttributes: true, // 🏈 Enable attribute-based simulation
+        },
+        undefined,
+        saveGameId
+      );
+    } catch (simError) {
+      // If it's a roster size error even after replenishment, provide helpful error
+      if (
+        simError instanceof Error &&
+        simError.message.includes("ROSTER_SIZE_ERROR")
+      ) {
+        console.error(
+          `[SimulateGame] Roster size error after replenishment:`,
+          simError.message
+        );
+        return NextResponse.json(
+          {
+            error: "ROSTER_INVALID",
+            message: simError.message.replace("ROSTER_SIZE_ERROR: ", ""),
+            hint: "Try using the roster replenishment tool or manually fix the rosters. There may be invalid player assignments.",
+          },
+          { status: 400 }
+        );
+      }
+      // Re-throw other errors
+      throw simError;
+    }
 
     // Update game record with scores (ensure integers)
     const { error: updateError } = await supabase
@@ -88,15 +206,12 @@ export async function POST(req: Request) {
 
     // Save player stats to database with save_game_id
     if (result.playerStats && result.playerStats.length > 0) {
-      // Ensure we have a save_game_id - prioritize in this order:
-      // 1. Provided saveGameId
-      // 2. Game's save_game_id
-      // 3. null (for legacy compatibility)
-      const effectiveSaveGameId = saveGameId || game.save_game_id || null;
-
+      // CRITICAL: Always use saveGameId from request (guaranteed to be non-null at this point)
+      // Never fall back to game.save_game_id - if game didn't have it, we updated it above
+      // This ensures all stats are saved with the correct save_game_id
       const statsWithSaveGameId = result.playerStats.map((stat) => ({
         ...stat,
-        save_game_id: effectiveSaveGameId,
+        save_game_id: saveGameId, // Always use the provided saveGameId
       }));
 
       const { error: statsError, data: insertedStats } = await supabase
@@ -115,7 +230,7 @@ export async function POST(req: Request) {
         console.error("Attempted to insert stats:", {
           count: statsWithSaveGameId.length,
           sample: statsWithSaveGameId[0],
-          save_game_id: effectiveSaveGameId,
+          save_game_id: saveGameId,
         });
         // Still don't fail the request, but log extensively
       } else {
@@ -130,14 +245,19 @@ export async function POST(req: Request) {
               console.error("Error updating player ratings:", err);
             });
             // Aggregate season stats for the season
-            aggregateSeasonStats(gameSeason, effectiveSaveGameId).catch(
-              (err) => {
-                console.error("Error aggregating season stats:", err);
-              }
-            );
+            aggregateSeasonStats(gameSeason, saveGameId).catch((err) => {
+              console.error("Error aggregating season stats:", err);
+            });
           }
         );
       }
+    } else {
+      // Log warning if no stats were generated
+      console.warn(
+        `[SimulateGame] WARNING: Game ${gameId} simulated but generated 0 player stats. ` +
+          `This may indicate incomplete rosters (teams with < 53 players) or simulation issues. ` +
+          `Home team: ${game.home_team_id}, Away team: ${game.away_team_id}, saveGameId: ${saveGameId}`
+      );
     }
 
     return NextResponse.json({

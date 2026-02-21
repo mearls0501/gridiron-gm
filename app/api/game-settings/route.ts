@@ -1,0 +1,125 @@
+import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase-client";
+
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const saveGameId = searchParams.get("saveGameId");
+
+    if (!saveGameId) {
+      return NextResponse.json(
+        { error: "saveGameId is required" },
+        { status: 400 }
+      );
+    }
+
+    // Get game settings for this save game
+    const { data: settings, error } = await supabase
+      .from("game_settings")
+      .select("*")
+      .eq("save_game_id", saveGameId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error fetching game settings:", error);
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    // If no settings exist, return defaults
+    if (!settings) {
+      return NextResponse.json({
+        settings: {
+          injury_management: "manual",
+          depth_chart_management: "manual",
+          scouting_management: "manual",
+          contract_management: "manual",
+          roster_management: "manual",
+        },
+        isDefault: true,
+      });
+    }
+
+    return NextResponse.json({ settings, isDefault: false });
+  } catch (error: unknown) {
+    console.error("Error in GET /api/game-settings:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const { saveGameId, settings } = await req.json();
+
+    if (!saveGameId) {
+      return NextResponse.json(
+        { error: "saveGameId is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!settings) {
+      return NextResponse.json(
+        { error: "settings object is required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate settings
+    const validSettings = ["auto", "manual"];
+    const settingFields = [
+      "injury_management",
+      "depth_chart_management",
+      "scouting_management",
+      "contract_management",
+      "roster_management",
+    ];
+
+    for (const field of settingFields) {
+      if (settings[field] && !validSettings.includes(settings[field])) {
+        return NextResponse.json(
+          { error: `Invalid value for ${field}. Must be 'auto' or 'manual'` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Upsert settings
+    const { data, error } = await supabase
+      .from("game_settings")
+      .upsert(
+        {
+          save_game_id: saveGameId,
+          ...settings,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "save_game_id",
+        }
+      )
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error upserting game settings:", error);
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ settings: data });
+  } catch (error: unknown) {
+    console.error("Error in POST /api/game-settings:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
