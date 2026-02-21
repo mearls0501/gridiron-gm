@@ -62,12 +62,11 @@ export async function GET(req: Request) {
 
     const totalProspects = prospects?.length || 0;
 
-    // Get scouting reports for this team and season
+    // Get scouted prospects for this team and season (current scouting system)
     let reportsQuery = supabase
-      .from("scouting_reports")
-      .select("prospect_id, scouting_progress, accuracy_percentage")
-      .eq("team_id", teamId)
-      .eq("season", draftSeason);
+      .from("scouted_prospects")
+      .select("prospect_id")
+      .eq("team_id", teamId);
     
     // Filter by save_game_id if provided
     if (saveGameId) {
@@ -79,9 +78,9 @@ export async function GET(req: Request) {
     const { data: reports, error: reportsError } = await reportsQuery;
 
     if (reportsError) {
-      console.error("Error fetching scouting reports:", reportsError);
+      console.error("Error fetching scouted prospects:", reportsError);
       return NextResponse.json(
-        { error: "Failed to fetch scouting reports" },
+        { error: "Failed to fetch scouting status" },
         { status: 500 }
       );
     }
@@ -133,8 +132,8 @@ export async function GET(req: Request) {
       unscoutedProspects: unscoutedProspects || [],
       reports: reports?.map((r) => ({
         prospect_id: r.prospect_id,
-        progress: r.scouting_progress,
-        accuracy: r.accuracy_percentage,
+        progress: 100,
+        accuracy: null,
       })) || [],
     });
   } catch (error) {
@@ -145,4 +144,3 @@ export async function GET(req: Request) {
     );
   }
 }
-

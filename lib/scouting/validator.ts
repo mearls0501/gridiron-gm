@@ -72,49 +72,29 @@ export async function validateScoutingComplete(
     .order("overall", { ascending: false })
     .limit(Math.max(maxPickNumber, 50));
 
-  const topProspectIds = new Set(topProspects?.map((p) => p.id) || []);
+  const topProspectIdList = topProspects?.map((p) => p.id) || [];
+  const topProspectIds = new Set(topProspectIdList);
 
-  // Get scouting reports for this team
-  let reportsQuery = supabase
-    .from("scouting_reports")
-    .select("prospect_id, scouting_progress, season")
+  // Get scouted prospects for this team in the current draft pool
+  let scoutedQuery = supabase
+    .from("scouted_prospects")
+    .select("prospect_id")
     .eq("team_id", teamId);
-  
-  // Filter by save_game_id if provided
+
   if (saveGameId) {
-    reportsQuery = reportsQuery.eq("save_game_id", saveGameId);
+    scoutedQuery = scoutedQuery.eq("save_game_id", saveGameId);
   } else {
-    reportsQuery = reportsQuery.is("save_game_id", null);
-  }
-  
-  // Try to filter by season (column might not exist)
-  let { data: reports, error: reportsError } = await reportsQuery;
-  
-  // If season column doesn't exist or error, filter in JavaScript
-  if (reportsError && (reportsError.code === "42703" || reportsError.message?.includes("season"))) {
-    // Retry without season filter
-    let retryQuery = supabase
-      .from("scouting_reports")
-      .select("prospect_id, scouting_progress, season")
-      .eq("team_id", teamId);
-    
-    if (saveGameId) {
-      retryQuery = retryQuery.eq("save_game_id", saveGameId);
-    } else {
-      retryQuery = retryQuery.is("save_game_id", null);
-    }
-    
-    const retryResult = await retryQuery;
-    reports = retryResult.data;
-    
-    // Filter by season in JavaScript if needed
-    if (reports && reports.length > 0) {
-      // We'll need to get prospect seasons to filter properly
-      // For now, just use all reports (season filtering is less critical)
-    }
+    scoutedQuery = scoutedQuery.is("save_game_id", null);
   }
 
-  const scoutedProspectIds = new Set(reports?.map((r) => r.prospect_id) || []);
+  if (topProspectIdList.length > 0) {
+    scoutedQuery = scoutedQuery.in("prospect_id", topProspectIdList);
+  }
+
+  const { data: scoutedProspects } = await scoutedQuery;
+  const scoutedProspectIds = new Set(
+    scoutedProspects?.map((r) => r.prospect_id) || []
+  );
 
   // Check requirements
   const totalProspects = topProspects?.length || 0;
@@ -185,4 +165,3 @@ export async function validateScoutingComplete(
     unscoutedCritical: unscoutedCritical,
   };
 }
-

@@ -1,5 +1,5 @@
 import { random } from "@/lib/utils";
-import { ScoutingStaff, ScoutingStaffRole } from "./engine";
+import { ScoutingStaff, ScoutingStaffRole } from "./types";
 
 const firstNames = [
   "James", "Robert", "Michael", "William", "David", "Richard", "Joseph", "Thomas",
@@ -65,7 +65,7 @@ export function generateScoutingStaff(teamId: string): Omit<ScoutingStaff, 'id'>
       role: 'regional',
       scouting_accuracy: random(65, 80),
       experience: random(3, 12),
-      region: region,
+      region: region as "northeast" | "southeast" | "midwest" | "southwest" | "west_coast",
       trait_evaluation: random(60, 80),
       character_evaluation: random(60, 80),
     });

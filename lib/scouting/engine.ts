@@ -4,29 +4,113 @@
  */
 
 import { random } from "@/lib/utils";
-import { Scout, ScoutArchetype, ScoutingActionType, PriorityLevel, ScoutedProspect } from "./types";
-import { applyArchetypeMultipliers, getPriorityFactor } from "./archetype-multipliers";
+import { Scout, ScoutArchetype, ScoutingActionType, PriorityLevel, ScoutedProspect, ScoutPersonality } from "./types";
+import { applyArchetypeMultipliers, getPriorityFactor, calculateRegionalBonus, applyRegionalBonusToBand } from "./archetype-multipliers";
+import { generateScoutNote, generateHeadlineOpinion, checkScoutDisagreement } from "./scout-personality";
 
 export interface ProspectTrueData {
   true_overall: number;
   true_potential: number;
-  true_speed?: number;
-  true_acceleration?: number;
-  true_agility?: number;
-  true_strength?: number;
-  true_awareness?: number;
-  true_instincts?: number;
-  true_technique?: number;
-  true_burst?: number;
-  true_mental_iq?: number;
-  true_competitiveness?: number;
+  position?: string;
+  college?: string;
+  college_conference?: string;
+  
+  // Physical attributes
+  true_spd?: number;
+  true_acc?: number;
+  true_agi?: number;
+  true_str?: number;
+  
+  // QB/Passing attributes
+  true_thp?: number;
+  true_sac?: number;
+  true_mac?: number;
+  true_dac?: number;
+  true_tup?: number;
+  true_pac?: number;
+  true_dec?: number;
+  true_awr?: number;
+  
+  // Ball carrier/Blocking
+  true_btk?: number;
+  true_car?: number;
+  true_vsn?: number;
+  true_rtr?: number;
+  true_pblk?: number;
+  true_rblk?: number;
+  true_iblk?: number;
+  true_agg?: number;
+  
+  // Receiving
+  true_rls?: number;
+  true_rte?: number;
+  true_cth?: number;
+  true_cit?: number;
+  true_yac?: number;
+  
+  // Defensive line
+  true_pmv?: number;
+  true_fmv?: number;
+  true_bsh?: number;
+  true_pur?: number;
+  
+  // Linebacker/Defense
+  true_tak?: number;
+  true_cov?: number;
+  
+  // Coverage
+  true_mcv?: number;
+  true_zcv?: number;
+  true_prs?: number;
+  
+  // Kicking
+  true_kpw?: number;
+  true_kac?: number;
+  
+  // Technical skills
+  true_footwork?: number;
+  true_hand_placement?: number;
+  true_release_tech?: number;
+  true_hand_tech?: number;
+  true_mechanics?: number;
+  true_decision_time?: number;
+  true_leverage?: number;
+  true_move_set?: number;
+  true_backpedal?: number;
+  true_ball_skills?: number;
+  true_play_recognition?: number;
+  
+  // Mental/Character
+  true_football_iq?: number;
+  true_motor?: number;
+  true_work_ethic?: number;
   true_coachability?: number;
   true_leadership?: number;
   true_durability?: number;
+  true_consistency?: number;
+  true_injury_risk?: number;
+  
+  // Projection/Scouting
+  true_athletic_ceiling?: number;
+  true_technique_ceiling?: number;
+  true_mental_ceiling?: number;
+  true_breakout_probability?: number;
+  true_bust_probability?: number;
+  
+  // Backward compatibility - legacy simplified attributes
+  true_speed?: number; // Maps to true_spd
+  true_acceleration?: number; // Maps to true_acc
+  true_agility?: number; // Maps to true_agi
+  true_strength?: number; // Maps to true_str
+  true_awareness?: number; // Maps to true_awr
+  true_instincts?: number; // Maps to true_play_recognition
+  true_technique?: number; // Maps to true_mechanics or true_footwork
+  true_burst?: number; // Maps to true_acc
+  true_mental_iq?: number; // Maps to true_football_iq
+  true_competitiveness?: number; // Maps to true_motor
   true_bust_risk?: "low" | "medium" | "high";
   true_scheme_fit?: string;
   true_playstyle?: string;
-  position?: string;
 }
 
 export interface ScoutingResult {
@@ -41,6 +125,157 @@ export interface ScoutingResult {
   confidence?: number;
   round_projection?: number;
   notes?: string;
+  // New personality-driven fields
+  scoutNote?: string;
+  scoutHeadline?: string;
+  scoutPersonality?: {
+    type: string;
+    biasDirection: number;
+    riskTolerance: number;
+  };
+  // Regional bonus info
+  regionalBonus?: {
+    bonus: number;
+    description: string;
+    isHomeRegion: boolean;
+  };
+}
+
+/**
+ * Get position-specific traits for scouting reveals
+ * Returns detailed attributes relevant to each position
+ */
+function getPositionSpecificTraits(prospect: ProspectTrueData): Array<{ key: string; value: number | undefined }> {
+  const position = prospect.position;
+  const traits: Array<{ key: string; value: number | undefined }> = [];
+  
+  // Always include these core attributes
+  traits.push(
+    { key: "awareness", value: prospect.true_awr },
+    { key: "football_iq", value: prospect.true_football_iq },
+    { key: "play_recognition", value: prospect.true_play_recognition }
+  );
+  
+  switch (position) {
+    case "QB":
+      traits.push(
+        { key: "throw_power", value: prospect.true_thp },
+        { key: "short_accuracy", value: prospect.true_sac },
+        { key: "medium_accuracy", value: prospect.true_mac },
+        { key: "deep_accuracy", value: prospect.true_dac },
+        { key: "throw_under_pressure", value: prospect.true_tup },
+        { key: "mechanics", value: prospect.true_mechanics },
+        { key: "decision_making", value: prospect.true_dec }
+      );
+      break;
+      
+    case "RB":
+      traits.push(
+        { key: "break_tackle", value: prospect.true_btk },
+        { key: "carrying", value: prospect.true_car },
+        { key: "vision", value: prospect.true_vsn },
+        { key: "speed", value: prospect.true_spd },
+        { key: "agility", value: prospect.true_agi },
+        { key: "catching", value: prospect.true_cth },
+        { key: "yac", value: prospect.true_yac }
+      );
+      break;
+      
+    case "WR":
+    case "TE":
+      traits.push(
+        { key: "route_running", value: prospect.true_rte },
+        { key: "release", value: prospect.true_rls },
+        { key: "catching", value: prospect.true_cth },
+        { key: "catch_in_traffic", value: prospect.true_cit },
+        { key: "yac", value: prospect.true_yac },
+        { key: "speed", value: prospect.true_spd },
+        { key: "ball_skills", value: prospect.true_ball_skills }
+      );
+      if (position === "TE") {
+        traits.push(
+          { key: "run_blocking", value: prospect.true_rblk },
+          { key: "strength", value: prospect.true_str }
+        );
+      }
+      break;
+      
+    case "OT":
+    case "OG":
+    case "C":
+      traits.push(
+        { key: "pass_blocking", value: prospect.true_pblk },
+        { key: "run_blocking", value: prospect.true_rblk },
+        { key: "strength", value: prospect.true_str },
+        { key: "footwork", value: prospect.true_footwork },
+        { key: "hand_placement", value: prospect.true_hand_placement },
+        { key: "leverage", value: prospect.true_leverage }
+      );
+      break;
+      
+    case "DE":
+    case "DT":
+      traits.push(
+        { key: "power_moves", value: prospect.true_pmv },
+        { key: "finesse_moves", value: prospect.true_fmv },
+        { key: "block_shedding", value: prospect.true_bsh },
+        { key: "pursuit", value: prospect.true_pur },
+        { key: "tackling", value: prospect.true_tak },
+        { key: "strength", value: prospect.true_str },
+        { key: "move_set", value: prospect.true_move_set }
+      );
+      break;
+      
+    case "LB":
+      traits.push(
+        { key: "tackling", value: prospect.true_tak },
+        { key: "pursuit", value: prospect.true_pur },
+        { key: "block_shedding", value: prospect.true_bsh },
+        { key: "coverage", value: prospect.true_cov },
+        { key: "man_coverage", value: prospect.true_mcv },
+        { key: "zone_coverage", value: prospect.true_zcv },
+        { key: "speed", value: prospect.true_spd }
+      );
+      break;
+      
+    case "CB":
+    case "S":
+      traits.push(
+        { key: "man_coverage", value: prospect.true_mcv },
+        { key: "zone_coverage", value: prospect.true_zcv },
+        { key: "press", value: prospect.true_prs },
+        { key: "speed", value: prospect.true_spd },
+        { key: "agility", value: prospect.true_agi },
+        { key: "ball_skills", value: prospect.true_ball_skills },
+        { key: "backpedal", value: prospect.true_backpedal }
+      );
+      if (position === "S") {
+        traits.push(
+          { key: "tackling", value: prospect.true_tak },
+          { key: "pursuit", value: prospect.true_pur }
+        );
+      }
+      break;
+      
+    case "K":
+    case "P":
+      traits.push(
+        { key: "kick_power", value: prospect.true_kpw },
+        { key: "kick_accuracy", value: prospect.true_kac },
+        { key: "mechanics", value: prospect.true_mechanics }
+      );
+      break;
+      
+    default:
+      // Generic physical attributes for unknown positions
+      traits.push(
+        { key: "speed", value: prospect.true_spd },
+        { key: "strength", value: prospect.true_str },
+        { key: "agility", value: prospect.true_agi }
+      );
+  }
+  
+  return traits;
 }
 
 /**
@@ -66,15 +301,29 @@ export function performInitialScouting(
     },
     scout.archetype
   );
-  
+
   const priorityFactor = getPriorityFactor(priority);
   const evaluatorEval = effectiveAttributes.evaluation;
-  
-  // Calculate band sizes
+
+  // Calculate regional bonus
+  const regionalBonusResult = calculateRegionalBonus(
+    scout.region,
+    prospect.college || "",
+    prospect.college_conference
+  );
+
+  // Calculate band sizes with regional bonus applied
   // OVR_band = ±(20 - evaluator_eval/5 × priority_factor)
-  const ovrBandSize = Math.max(5, Math.round(20 - (evaluatorEval / 5) * priorityFactor));
-  const potBandSize = Math.max(8, Math.round(25 - (evaluatorEval / 4) * priorityFactor));
+  const baseOvrBand = Math.max(5, Math.round(20 - (evaluatorEval / 5) * priorityFactor));
+  const basePotBand = Math.max(8, Math.round(25 - (evaluatorEval / 4) * priorityFactor));
+
+  // Apply regional bonus - home region scouts get tighter bands
+  const ovrBandSize = applyRegionalBonusToBand(baseOvrBand, regionalBonusResult.bonus);
+  const potBandSize = applyRegionalBonusToBand(basePotBand, regionalBonusResult.bonus);
   
+  // Confidence boosted by regional expertise
+  const confidenceBoost = regionalBonusResult.isHomeRegion ? 10 : 0;
+
   const result: ScoutingResult = {
     est_overall_low: Math.max(0, prospect.true_overall - ovrBandSize),
     est_overall_high: Math.min(100, prospect.true_overall + ovrBandSize),
@@ -83,7 +332,8 @@ export function performInitialScouting(
     trait_reveals: {},
     athletic_bands: {},
     psych_reveals: {},
-    confidence: Math.min(100, Math.round(evaluatorEval * priorityFactor * 0.6)),
+    confidence: Math.min(100, Math.round(evaluatorEval * priorityFactor * 0.6) + confidenceBoost),
+    regionalBonus: regionalBonusResult,
   };
   
   // Round projection based on overall
@@ -121,7 +371,43 @@ export function performInitialScouting(
   }
   
   result.notes = generateInitialNotes(scout, result);
-  
+
+  // Generate personality-driven scout opinion
+  if (scout.personality_type) {
+    const personality: ScoutPersonality = {
+      type: scout.personality_type as any,
+      biasDirection: scout.personality_bias || 0,
+      riskTolerance: scout.personality_risk_tolerance || 50,
+      verbosity: (scout.personality_verbosity as "terse" | "normal" | "verbose") || "normal",
+    };
+
+    const estimatedOverall = Math.round(
+      ((result.est_overall_low || 50) + (result.est_overall_high || 50)) / 2
+    );
+
+    result.scoutNote = generateScoutNote(
+      scout.archetype,
+      personality,
+      estimatedOverall + personality.biasDirection, // Apply bias
+      {
+        hasBustRisk: prospect.true_bust_risk === "high",
+        prospectName: prospect.position,
+      }
+    );
+
+    result.scoutHeadline = generateHeadlineOpinion(
+      scout.archetype,
+      personality,
+      estimatedOverall + personality.biasDirection
+    );
+
+    result.scoutPersonality = {
+      type: personality.type,
+      biasDirection: personality.biasDirection,
+      riskTolerance: personality.riskTolerance,
+    };
+  }
+
   return result;
 }
 
@@ -171,24 +457,8 @@ export function performGameTapeReview(
     numTraits = random(1, 2);
   }
   
-  // Reveal traits based on position and archetype strengths
-  const availableTraits: Array<{ key: string; value: number | undefined }> = [
-    { key: "awareness", value: prospect.true_awareness },
-    { key: "instincts", value: prospect.true_instincts },
-    { key: "technique", value: prospect.true_technique },
-    { key: "mental_iq", value: prospect.true_mental_iq },
-  ];
-  
-  // Add physical traits if available
-  if (prospect.true_speed !== undefined) {
-    availableTraits.push({ key: "speed", value: prospect.true_speed });
-  }
-  if (prospect.true_strength !== undefined) {
-    availableTraits.push({ key: "strength", value: prospect.true_strength });
-  }
-  if (prospect.true_agility !== undefined) {
-    availableTraits.push({ key: "agility", value: prospect.true_agility });
-  }
+  // Reveal traits based on position - now using detailed attributes
+  const availableTraits = getPositionSpecificTraits(prospect);
   
   // Shuffle and pick traits
   const shuffled = availableTraits.sort(() => Math.random() - 0.5);
@@ -226,7 +496,47 @@ export function performGameTapeReview(
   }
   
   result.notes = generateTapeNotes(scout, result);
-  
+
+  // Generate personality-driven scout opinion for tape review
+  if (scout.personality_type) {
+    const personality: ScoutPersonality = {
+      type: scout.personality_type as any,
+      biasDirection: scout.personality_bias || 0,
+      riskTolerance: scout.personality_risk_tolerance || 50,
+      verbosity: (scout.personality_verbosity as "terse" | "normal" | "verbose") || "normal",
+    };
+
+    // Estimate overall from traits
+    const traitAvg = Object.values(result.trait_reveals)
+      .map((t: any) => t.estimate || (t.low + t.high) / 2 || 50)
+      .reduce((sum: number, val: number) => sum + val, 0) / Math.max(Object.keys(result.trait_reveals).length, 1);
+
+    result.scoutNote = generateScoutNote(
+      scout.archetype,
+      personality,
+      traitAvg + personality.biasDirection,
+      {
+        schemeFit: result.scheme_fit?.toLowerCase().includes("good")
+          ? "good"
+          : result.scheme_fit?.toLowerCase().includes("poor")
+            ? "poor"
+            : "average",
+      }
+    );
+
+    result.scoutHeadline = generateHeadlineOpinion(
+      scout.archetype,
+      personality,
+      traitAvg + personality.biasDirection
+    );
+
+    result.scoutPersonality = {
+      type: personality.type,
+      biasDirection: personality.biasDirection,
+      riskTolerance: personality.riskTolerance,
+    };
+  }
+
   return result;
 }
 
@@ -263,66 +573,72 @@ export function performCombine(
   };
   
   if (scout.archetype === "athletic_analyst") {
-    // Athletic Analyst reveals actual bands
+    // Athletic Analyst reveals actual bands for detailed attributes
     const athleticAnalysis = effectiveAttributes.athletic_analysis;
     const error = Math.max(2, Math.round(12 - (athleticAnalysis / 10) * priorityFactor));
     
-    if (prospect.true_speed !== undefined) {
+    // Use new detailed attribute names
+    if (prospect.true_spd !== undefined) {
       result.athletic_bands.speed = {
-        low: Math.max(0, prospect.true_speed - error),
-        high: Math.min(100, prospect.true_speed + error),
+        low: Math.max(0, prospect.true_spd - error),
+        high: Math.min(100, prospect.true_spd + error),
       };
     }
-    if (prospect.true_acceleration !== undefined) {
+    if (prospect.true_acc !== undefined) {
       result.athletic_bands.acceleration = {
-        low: Math.max(0, prospect.true_acceleration - error),
-        high: Math.min(100, prospect.true_acceleration + error),
+        low: Math.max(0, prospect.true_acc - error),
+        high: Math.min(100, prospect.true_acc + error),
       };
     }
-    if (prospect.true_agility !== undefined) {
+    if (prospect.true_agi !== undefined) {
       result.athletic_bands.agility = {
-        low: Math.max(0, prospect.true_agility - error),
-        high: Math.min(100, prospect.true_agility + error),
+        low: Math.max(0, prospect.true_agi - error),
+        high: Math.min(100, prospect.true_agi + error),
       };
     }
-    if (prospect.true_strength !== undefined) {
+    if (prospect.true_str !== undefined) {
       result.athletic_bands.strength = {
-        low: Math.max(0, prospect.true_strength - error),
-        high: Math.min(100, prospect.true_strength + error),
+        low: Math.max(0, prospect.true_str - error),
+        high: Math.min(100, prospect.true_str + error),
       };
     }
-    if (prospect.true_burst !== undefined) {
-      result.athletic_bands.burst = {
-        low: Math.max(0, prospect.true_burst - error),
-        high: Math.min(100, prospect.true_burst + error),
+    // Also reveal athletic ceiling for prospects
+    if (prospect.true_athletic_ceiling !== undefined) {
+      result.athletic_bands.athletic_ceiling = {
+        low: Math.max(0, prospect.true_athletic_ceiling - error),
+        high: Math.min(100, prospect.true_athletic_ceiling + error),
       };
     }
     
     result.confidence = Math.min(100, Math.round(athleticAnalysis * priorityFactor * 0.8));
   } else {
     // Others see text only
-    if (prospect.true_speed !== undefined) {
-      if (prospect.true_speed >= 80) {
+    const speed = prospect.true_spd || prospect.true_speed;
+    const acceleration = prospect.true_acc || prospect.true_acceleration;
+    const agility = prospect.true_agi || prospect.true_agility;
+    
+    if (speed !== undefined) {
+      if (speed >= 80) {
         result.athletic_bands.speed = "Elite";
-      } else if (prospect.true_speed >= 65) {
+      } else if (speed >= 65) {
         result.athletic_bands.speed = "Good";
       } else {
         result.athletic_bands.speed = "Average";
       }
     }
-    if (prospect.true_acceleration !== undefined) {
-      if (prospect.true_acceleration >= 80) {
+    if (acceleration !== undefined) {
+      if (acceleration >= 80) {
         result.athletic_bands.acceleration = "Elite";
-      } else if (prospect.true_acceleration >= 65) {
+      } else if (acceleration >= 65) {
         result.athletic_bands.acceleration = "Good";
       } else {
         result.athletic_bands.acceleration = "Average";
       }
     }
-    if (prospect.true_agility !== undefined) {
-      if (prospect.true_agility >= 80) {
+    if (agility !== undefined) {
+      if (agility >= 80) {
         result.athletic_bands.agility = "Elite";
-      } else if (prospect.true_agility >= 65) {
+      } else if (agility >= 65) {
         result.athletic_bands.agility = "Good";
       } else {
         result.athletic_bands.agility = "Average";
@@ -384,32 +700,57 @@ export function performInterview(
     }
     
     // Reveal character traits
+    // Reveal mental/character attributes
+    const error = Math.max(5, Math.round(15 - (psychInsight / 10) * priorityFactor));
+    
     if (prospect.true_leadership !== undefined) {
-      const error = Math.max(5, Math.round(15 - (psychInsight / 10) * priorityFactor));
       result.psych_reveals.leadership = {
         low: Math.max(0, prospect.true_leadership - error),
         high: Math.min(100, prospect.true_leadership + error),
       };
     }
     if (prospect.true_coachability !== undefined) {
-      const error = Math.max(5, Math.round(15 - (psychInsight / 10) * priorityFactor));
       result.psych_reveals.coachability = {
         low: Math.max(0, prospect.true_coachability - error),
         high: Math.min(100, prospect.true_coachability + error),
       };
     }
-    if (prospect.true_competitiveness !== undefined) {
-      const error = Math.max(5, Math.round(15 - (psychInsight / 10) * priorityFactor));
-      result.psych_reveals.competitiveness = {
-        low: Math.max(0, prospect.true_competitiveness - error),
-        high: Math.min(100, prospect.true_competitiveness + error),
+    if (prospect.true_motor !== undefined) {
+      result.psych_reveals.motor = {
+        low: Math.max(0, prospect.true_motor - error),
+        high: Math.min(100, prospect.true_motor + error),
+      };
+    }
+    if (prospect.true_football_iq !== undefined) {
+      result.psych_reveals.football_iq = {
+        low: Math.max(0, prospect.true_football_iq - error),
+        high: Math.min(100, prospect.true_football_iq + error),
+      };
+    }
+    if (prospect.true_work_ethic !== undefined) {
+      result.psych_reveals.work_ethic = {
+        low: Math.max(0, prospect.true_work_ethic - error),
+        high: Math.min(100, prospect.true_work_ethic + error),
+      };
+    }
+    if (prospect.true_consistency !== undefined) {
+      result.psych_reveals.consistency = {
+        low: Math.max(0, prospect.true_consistency - error),
+        high: Math.min(100, prospect.true_consistency + error),
+      };
+    }
+    // Reveal mental ceiling for prospects
+    if (prospect.true_mental_ceiling !== undefined) {
+      result.psych_reveals.mental_ceiling = {
+        low: Math.max(0, prospect.true_mental_ceiling - error),
+        high: Math.min(100, prospect.true_mental_ceiling + error),
       };
     }
     
     result.confidence = Math.min(100, Math.round(psychInsight * priorityFactor * 0.8));
   } else {
     // Others get vague notes
-    result.psych_reveals.personality = "Personality assessment: " + random(1, 3) === 1 ? "Positive" : "Neutral";
+    result.psych_reveals.personality = "Personality assessment: " + (random(1, 3) === 1 ? "Positive" : "Neutral");
     result.confidence = 30; // Low confidence
   }
   
@@ -608,4 +949,117 @@ function generateMedicalNotes(scout: Scout, result: ScoutingResult): string {
   }
   
   return notes.join(" ");
+}
+
+/**
+ * Convert draft prospect to ProspectTrueData for scouting
+ * Maps all detailed attributes to the true_ prefix format
+ */
+export function prospectToTrueData(prospect: any): ProspectTrueData {
+  return {
+    true_overall: prospect.overall,
+    true_potential: prospect.potential,
+    position: prospect.position,
+    college: prospect.college,
+    college_conference: prospect.college_conference,
+    
+    // Physical attributes
+    true_spd: prospect.spd,
+    true_acc: prospect.acc,
+    true_agi: prospect.agi,
+    true_str: prospect.str,
+    
+    // QB/Passing attributes
+    true_thp: prospect.thp,
+    true_sac: prospect.sac,
+    true_mac: prospect.mac,
+    true_dac: prospect.dac,
+    true_tup: prospect.tup,
+    true_pac: prospect.pac,
+    true_dec: prospect.dec,
+    true_awr: prospect.awr,
+    
+    // Ball carrier/Blocking
+    true_btk: prospect.btk,
+    true_car: prospect.car,
+    true_vsn: prospect.vsn,
+    true_rtr: prospect.rtr,
+    true_pblk: prospect.pblk,
+    true_rblk: prospect.rblk,
+    true_iblk: prospect.iblk,
+    true_agg: prospect.agg,
+    
+    // Receiving
+    true_rls: prospect.rls,
+    true_rte: prospect.rte,
+    true_cth: prospect.cth,
+    true_cit: prospect.cit,
+    true_yac: prospect.yac,
+    
+    // Defensive line
+    true_pmv: prospect.pmv,
+    true_fmv: prospect.fmv,
+    true_bsh: prospect.bsh,
+    true_pur: prospect.pur,
+    
+    // Linebacker/Defense
+    true_tak: prospect.tak,
+    true_cov: prospect.cov,
+    
+    // Coverage
+    true_mcv: prospect.mcv,
+    true_zcv: prospect.zcv,
+    true_prs: prospect.prs,
+    
+    // Kicking
+    true_kpw: prospect.kpw,
+    true_kac: prospect.kac,
+    
+    // Technical skills
+    true_footwork: prospect.footwork,
+    true_hand_placement: prospect.hand_placement,
+    true_release_tech: prospect.release_tech,
+    true_hand_tech: prospect.hand_tech,
+    true_mechanics: prospect.mechanics,
+    true_decision_time: prospect.decision_time,
+    true_leverage: prospect.leverage,
+    true_move_set: prospect.move_set,
+    true_backpedal: prospect.backpedal,
+    true_ball_skills: prospect.ball_skills,
+    true_play_recognition: prospect.play_recognition,
+    
+    // Mental/Character
+    true_football_iq: prospect.football_iq,
+    true_motor: prospect.motor,
+    true_work_ethic: prospect.work_ethic,
+    true_coachability: prospect.coachability,
+    true_leadership: prospect.leadership,
+    true_durability: prospect.durability,
+    true_consistency: prospect.consistency,
+    true_injury_risk: prospect.injury_risk,
+    
+    // Projection/Scouting
+    true_athletic_ceiling: prospect.athletic_ceiling,
+    true_technique_ceiling: prospect.technique_ceiling,
+    true_mental_ceiling: prospect.mental_ceiling,
+    true_breakout_probability: prospect.breakout_probability,
+    true_bust_probability: prospect.bust_probability,
+    
+    // Calculate bust risk from bust probability
+    true_bust_risk: prospect.bust_probability 
+      ? (prospect.bust_probability > 60 ? "high" : prospect.bust_probability > 30 ? "medium" : "low")
+      : undefined,
+      
+    // Backward compatibility mappings
+    true_speed: prospect.spd,
+    true_acceleration: prospect.acc,
+    true_agility: prospect.agi,
+    true_strength: prospect.str,
+    true_awareness: prospect.awr,
+    true_instincts: prospect.play_recognition,
+    true_technique: prospect.mechanics || prospect.footwork,
+    true_burst: prospect.acc,
+    true_mental_iq: prospect.football_iq,
+    true_competitiveness: prospect.motor,
+  };
 }

@@ -13,6 +13,8 @@ import { ScoutingActionType } from "@/lib/scouting/types";
 import { getAvailablePoints, spendScoutPoints } from "@/lib/scouting/weekly-points";
 import { getTeamPriorities } from "@/lib/scouting/priorities";
 import { getTeamScouts } from "@/lib/scouting/hiring";
+import type { Scout } from "@/lib/scouting/types";
+import type { ScoutContract } from "@/lib/scouting/types";
 
 const ACTION_COSTS: Record<ScoutingActionType, number> = {
   initial: 1,
@@ -35,12 +37,14 @@ export async function POST(req: Request) {
 
     // Validate action type
     const validActions: ScoutingActionType[] = ["initial", "game_tape", "combine", "interview", "medical"];
-    if (!validActions.includes(actionType)) {
+    if (!validActions.includes(actionType as ScoutingActionType)) {
       return NextResponse.json(
         { error: "Invalid action type" },
         { status: 400 }
       );
     }
+    // Type assertion after validation
+    const typedActionType = actionType as ScoutingActionType;
 
     // Get prospect with true attributes
     const { data: prospect, error: prospectError } = await supabase
@@ -70,7 +74,7 @@ export async function POST(req: Request) {
     let selectedScout = teamScouts.find((s) => s.id === scoutId);
     if (!selectedScout) {
       // Select best scout for this action type
-      selectedScout = selectBestScoutForAction(teamScouts, actionType);
+      selectedScout = selectBestScoutForAction(teamScouts, typedActionType);
     }
 
     if (!selectedScout) {
@@ -94,7 +98,7 @@ export async function POST(req: Request) {
     }
 
     // Check if scout has enough points
-    const cost = ACTION_COSTS[actionType];
+    const cost = ACTION_COSTS[typedActionType];
     const availablePoints = await getAvailablePoints(
       teamId,
       selectedScout.id,
@@ -137,7 +141,7 @@ export async function POST(req: Request) {
 
     // Perform scouting action
     let scoutingResult;
-    switch (actionType) {
+    switch (typedActionType) {
       case "initial":
         scoutingResult = performInitialScouting(selectedScout, trueData, scoutPriority.priority as 1 | 2 | 3 | 4);
         break;
@@ -222,7 +226,7 @@ export async function POST(req: Request) {
         prospect_id: prospectId,
         scout_id: selectedScout.id,
         save_game_id: saveGameId,
-        action_type: actionType,
+        action_type: typedActionType,
         points_used: cost,
         revealed: scoutingResult,
         created_at: new Date().toISOString(),
@@ -278,11 +282,11 @@ export async function POST(req: Request) {
  * Select best scout for a given action type
  */
 function selectBestScoutForAction(
-  scouts: Array<{ id: string; archetype: string; [key: string]: any }>,
+  scouts: (Scout & { contract: ScoutContract })[],
   actionType: ScoutingActionType
-): { id: string; archetype: string; [key: string]: any } | null {
+): (Scout & { contract: ScoutContract }) | undefined {
   if (scouts.length === 0) {
-    return null;
+    return undefined;
   }
 
   // Archetype preferences for each action

@@ -37,6 +37,7 @@ export default function AllScoutsPage() {
   const { saveGameId } = useGameStore();
   const [scouts, setScouts] = useState<ScoutWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
   const [selectedArchetype, setSelectedArchetype] = useState<string>("all");

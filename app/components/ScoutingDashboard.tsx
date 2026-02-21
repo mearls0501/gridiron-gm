@@ -424,7 +424,7 @@ export default function ScoutingDashboard() {
           
           // Filter to only include reports for prospects we loaded
           const prospectIds = new Set((prospectsData || []).map((p: any) => p.id));
-          const filteredReports = convertedReports.filter((r: any) => prospectIds.has(r.prospect_id));
+          const filteredReports = convertedReports.filter((r: any) => prospectIds.has(r.prospect_id)) as ScoutingReport[];
           
           setReports(filteredReports);
         }
@@ -1269,6 +1269,9 @@ export default function ScoutingDashboard() {
                                      getRevealedAttribute(report, "speed", "trait");
                         if (speed) {
                           if (typeof speed === "string") {
+                            if (speed.includes("-")) {
+                              return <span className="text-xs text-slate-600">{speed}</span>;
+                            }
                             return (
                               <span className={`text-xs font-semibold ${
                                 speed === "Elite" ? "text-purple-600" : 
@@ -1288,9 +1291,6 @@ export default function ScoutingDashboard() {
                               </span>
                             );
                           }
-                          if (typeof speed === "string" && speed.includes("-")) {
-                            return <span className="text-xs text-slate-600">{speed}</span>;
-                          }
                         }
                         return <span className="text-slate-400 text-sm">??</span>;
                       })()}
@@ -1298,10 +1298,13 @@ export default function ScoutingDashboard() {
                     {/* Strength */}
                     <td className="text-center py-4 px-4">
                       {(() => {
-                        const strength = getRevealedAttribute(report, "strength", "athletic") || 
-                                        getRevealedAttribute(report, "strength", "trait");
+                        const strength = getRevealedAttribute(report, "strength", "athletic") ||
+                                       getRevealedAttribute(report, "strength", "trait");
                         if (strength) {
                           if (typeof strength === "string") {
+                            if (strength.includes("-")) {
+                              return <span className="text-xs text-slate-600">{strength}</span>;
+                            }
                             return (
                               <span className={`text-xs font-semibold ${
                                 strength === "Elite" ? "text-purple-600" : 
@@ -1320,9 +1323,6 @@ export default function ScoutingDashboard() {
                                 {strength}
                               </span>
                             );
-                          }
-                          if (typeof strength === "string" && strength.includes("-")) {
-                            return <span className="text-xs text-slate-600">{strength}</span>;
                           }
                         }
                         return <span className="text-slate-400 text-sm">??</span>;

@@ -162,7 +162,6 @@ export async function autoStaffCPUTeams(
     return { 
       success: true, 
       staffedTeams: staffedCount,
-      errors: errors.length > 0 ? errors : undefined
     };
   } catch (error) {
     console.error("Error in autoStaffCPUTeams:", error);

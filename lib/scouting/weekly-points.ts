@@ -275,10 +275,64 @@ export async function regenerateWeeklyPoints(
     prioritiesQuery = prioritiesQuery.is("save_game_id", null);
   }
   
-  const { data: priorities } = await prioritiesQuery;
+  let { data: priorities } = await prioritiesQuery;
   
+  // If no priorities exist for this season, try to copy from previous season
   if (!priorities || priorities.length === 0) {
-    return { success: true }; // No scouts, nothing to regenerate
+    console.log(`[regenerateWeeklyPoints] No priorities found for season ${season}, attempting to copy from previous season`);
+    
+    const previousSeason = season - 1;
+    let previousPrioritiesQuery = supabase
+      .from("scout_priority")
+      .select("scout_id, priority, weekly_points")
+      .eq("team_id", teamId)
+      .eq("season", previousSeason);
+    
+    if (saveGameId) {
+      previousPrioritiesQuery = previousPrioritiesQuery.eq("save_game_id", saveGameId);
+    } else {
+      previousPrioritiesQuery = previousPrioritiesQuery.is("save_game_id", null);
+    }
+    
+    const { data: previousPriorities } = await previousPrioritiesQuery;
+    
+    if (previousPriorities && previousPriorities.length > 0) {
+      // Copy priorities from previous season
+      // Note: save_game_id is NOT NULL in scout_priority table, so we must have it
+      if (!saveGameId) {
+        console.warn(`[regenerateWeeklyPoints] Cannot copy priorities: saveGameId is required but was not provided`);
+        return { success: true }; // Don't fail, just skip copying
+      }
+      
+      const newPriorities = previousPriorities.map((p) => ({
+        team_id: teamId,
+        scout_id: p.scout_id,
+        save_game_id: saveGameId, // Required field, don't use null
+        season,
+        priority: p.priority,
+        weekly_points: p.weekly_points,
+      }));
+      
+      const { error: copyError } = await supabase
+        .from("scout_priority")
+        .insert(newPriorities);
+      
+      if (copyError) {
+        console.error(`[regenerateWeeklyPoints] Error copying priorities from previous season:`, copyError);
+        // Don't fail the whole operation, just log and continue
+        // User can manually reassign priorities if needed
+        console.warn(`[regenerateWeeklyPoints] Continuing without copied priorities - user may need to reassign manually`);
+        // Continue with empty priorities - will return success but no points will be generated
+        return { success: true }; // Return success to not block simulation
+      }
+      
+      console.log(`[regenerateWeeklyPoints] Copied ${newPriorities.length} priorities from season ${previousSeason} to ${season}`);
+      priorities = previousPriorities; // Use the copied priorities
+    } else {
+      // No scouts or priorities at all, nothing to regenerate
+      console.log(`[regenerateWeeklyPoints] No priorities found for season ${season} or ${previousSeason}, no scouts to regenerate points for`);
+      return { success: true };
+    }
   }
   
   // Check if records already exist for this week

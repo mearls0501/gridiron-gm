@@ -4,8 +4,9 @@
  */
 
 import { random } from "@/lib/utils";
-import { Scout, ScoutArchetype } from "./types";
+import { Scout, ScoutArchetype, PersonalityType } from "./types";
 import { applyArchetypeMultipliers } from "./archetype-multipliers";
+import { generateScoutPersonality } from "./scout-personality";
 
 const firstNames = [
   "James", "Robert", "Michael", "William", "David", "Richard", "Joseph", "Thomas",
@@ -30,10 +31,12 @@ const lastNames = [
 
 const positions = ["QB", "RB", "WR", "TE", "OL", "DL", "DB", "LB"];
 
+const regions = ["SEC", "Big Ten", "Pac-12", "ACC", "Big 12", "Independent"];
+
 /**
  * Generate a single scout with specified archetype
  */
-export function generateScout(archetype: ScoutArchetype): Omit<Scout, "id" | "created_at"> {
+export function generateScout(archetype: ScoutArchetype, saveGameId: string): Omit<Scout, "id" | "created_at"> {
   // Generate base attributes (before multipliers)
   // Base range varies by archetype to ensure they have appropriate strengths
   const baseAttributes = generateBaseAttributes(archetype);
@@ -50,8 +53,18 @@ export function generateScout(archetype: ScoutArchetype): Omit<Scout, "id" | "cr
   // Generate reputation and loyalty
   const reputation = random(40, 90);
   const loyalty = random(30, 80);
-  
+
+  // Generate personality
+  const personality = generateScoutPersonality();
+
+  // Assign a random region specialty
+  const region = regions[random(0, regions.length - 1)];
+
+  // Generate avatar seed for consistent avatar generation
+  const avatarSeed = `${generateName()}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
   return {
+    save_game_id: saveGameId,
     name: generateName(),
     archetype,
     evaluation: effectiveAttributes.evaluation,
@@ -72,6 +85,13 @@ export function generateScout(archetype: ScoutArchetype): Omit<Scout, "id" | "cr
     salary,
     reputation,
     loyalty,
+    // New personality fields
+    personality_type: personality.type,
+    personality_bias: personality.biasDirection,
+    personality_risk_tolerance: personality.riskTolerance,
+    personality_verbosity: personality.verbosity,
+    region,
+    avatar_seed: avatarSeed,
   };
 }
 
@@ -237,8 +257,7 @@ export function generateScoutPool(count: number, saveGameId: string): (Omit<Scou
     
     for (let j = 0; j < numToGenerate; j++) {
       scouts.push({
-        ...generateScout(archetype),
-        save_game_id: saveGameId,
+        ...generateScout(archetype, saveGameId),
       });
     }
   }
