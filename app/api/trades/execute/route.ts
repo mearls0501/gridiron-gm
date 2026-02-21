@@ -56,8 +56,18 @@ export async function POST(req: Request) {
     }
 
     // Re-evaluate trade to ensure it's still valid (cap check)
-    const fromTeamContext = await getTeamContext(trade.from_team_id, trade.season);
-    const toTeamContext = await getTeamContext(trade.to_team_id, trade.season);
+    // Get saveGameId from trade object
+    const saveGameId = trade.save_game_id;
+    
+    if (!saveGameId) {
+      return NextResponse.json(
+        { error: "saveGameId is required for trade execution. Trade must have save_game_id." },
+        { status: 400 }
+      );
+    }
+
+    const fromTeamContext = await getTeamContext(trade.from_team_id, trade.season, saveGameId);
+    const toTeamContext = await getTeamContext(trade.to_team_id, trade.season, saveGameId);
 
     if (!fromTeamContext || !toTeamContext) {
       return NextResponse.json(
@@ -162,18 +172,63 @@ export async function POST(req: Request) {
       );
     }
 
-    // Execute trade: Update player team_ids
+    // Execute trade: Update player team assignments (not base players table)
     for (const item of tradeItems) {
       if (item.item_type === "player" && item.player_id) {
-        const { error: updateError } = await supabase
-          .from("players")
-          .update({ team_id: item.to_team_id })
-          .eq("id", item.player_id);
+        // Update player_team_assignments instead of players.team_id
+        if (trade.save_game_id) {
+          // Check if assignment already exists (for partial unique index support)
+          const { data: existingAssignment } = await supabase
+            .from("player_team_assignments")
+            .select("id")
+            .eq("player_id", item.player_id)
+            .eq("save_game_id", trade.save_game_id)
+            .maybeSingle();
 
-        if (updateError) {
+          if (existingAssignment) {
+            // Update existing assignment
+            const { error: updateError } = await supabase
+              .from("player_team_assignments")
+              .update({
+                team_id: item.to_team_id,
+                assigned_reason: "trade",
+                season: trade.season,
+                week: trade.week,
+                assigned_at: new Date().toISOString(),
+              })
+              .eq("id", existingAssignment.id);
+
+            if (updateError) {
+              return NextResponse.json(
+                { error: `Failed to transfer player: ${updateError.message}` },
+                { status: 500 }
+              );
+            }
+          } else {
+            // Insert new assignment
+            const { error: insertError } = await supabase
+              .from("player_team_assignments")
+              .insert({
+                player_id: item.player_id,
+                team_id: item.to_team_id,
+                save_game_id: trade.save_game_id,
+                assigned_reason: "trade",
+                season: trade.season,
+                week: trade.week,
+              });
+
+            if (insertError) {
+              return NextResponse.json(
+                { error: `Failed to transfer player: ${insertError.message}` },
+                { status: 500 }
+              );
+            }
+          }
+        } else {
+          // No save_game_id - cannot execute trade without save game context
           return NextResponse.json(
-            { error: `Failed to transfer player: ${updateError.message}` },
-            { status: 500 }
+            { error: "Cannot execute trade without save_game_id. Team assignments require save game context." },
+            { status: 400 }
           );
         }
       } else if (item.item_type === "draft_pick" && item.draft_pick_id) {

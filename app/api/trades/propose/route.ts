@@ -35,6 +35,13 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!saveGameId) {
+      return NextResponse.json(
+        { error: "saveGameId is required for trade proposal" },
+        { status: 400 }
+      );
+    }
+
     // Validate items and fetch player/draft pick data
     const validatedItemsFrom: TradeItem[] = [];
     const validatedItemsTo: TradeItem[] = [];
@@ -62,6 +69,18 @@ export async function POST(req: Request) {
           );
         }
 
+        // Load contract from player_contracts_per_save_game
+        let contract = null;
+        if (saveGameId) {
+          const { data: contractData } = await supabase
+            .from("player_contracts_per_save_game")
+            .select("*")
+            .eq("player_id", player.id)
+            .eq("save_game_id", saveGameId)
+            .maybeSingle();
+          contract = contractData;
+        }
+
         validatedItemsFrom.push({
           type: "player",
           playerId: player.id,
@@ -72,29 +91,32 @@ export async function POST(req: Request) {
             age: player.age,
             overall: player.overall,
             potential: player.potential,
-            contract_year_1: player.contract_year_1 || 0,
-            contract_year_2: player.contract_year_2 || undefined,
-            contract_year_3: player.contract_year_3 || undefined,
-            contract_year_4: player.contract_year_4 || undefined,
+            contract_year_1: contract?.contract_year_1 || 0,
+            contract_year_2: contract?.contract_year_2 || undefined,
+            contract_year_3: contract?.contract_year_3 || undefined,
+            contract_year_4: contract?.contract_year_4 || undefined,
           },
         });
       } else if (item.type === "draft_pick" && item.draftPickId) {
-        let draftPickQuery = supabase
+        // saveGameId is required - always filter by it
+        const { data: draftPick, error: draftPickError } = await supabase
           .from("draft_picks")
           .select("*")
-          .eq("id", item.draftPickId);
-        
-        if (saveGameId) {
-          draftPickQuery = draftPickQuery.eq("save_game_id", saveGameId);
-        } else {
-          draftPickQuery = draftPickQuery.is("save_game_id", null);
+          .eq("id", item.draftPickId)
+          .eq("save_game_id", saveGameId)
+          .maybeSingle();
+
+        if (draftPickError) {
+          console.error("Error fetching draft pick:", draftPickError);
+          return NextResponse.json(
+            { error: `Error fetching draft pick: ${draftPickError.message}` },
+            { status: 500 }
+          );
         }
-        
-        const { data: draftPick } = await draftPickQuery.single();
 
         if (!draftPick) {
           return NextResponse.json(
-            { error: `Draft pick ${item.draftPickId} not found` },
+            { error: `Draft pick ${item.draftPickId} not found for save game ${saveGameId}` },
             { status: 404 }
           );
         }
@@ -142,6 +164,18 @@ export async function POST(req: Request) {
           );
         }
 
+        // Load contract from player_contracts_per_save_game
+        let contract = null;
+        if (saveGameId) {
+          const { data: contractData } = await supabase
+            .from("player_contracts_per_save_game")
+            .select("*")
+            .eq("player_id", player.id)
+            .eq("save_game_id", saveGameId)
+            .maybeSingle();
+          contract = contractData;
+        }
+
         validatedItemsTo.push({
           type: "player",
           playerId: player.id,
@@ -152,29 +186,32 @@ export async function POST(req: Request) {
             age: player.age,
             overall: player.overall,
             potential: player.potential,
-            contract_year_1: player.contract_year_1 || 0,
-            contract_year_2: player.contract_year_2 || undefined,
-            contract_year_3: player.contract_year_3 || undefined,
-            contract_year_4: player.contract_year_4 || undefined,
+            contract_year_1: contract?.contract_year_1 || 0,
+            contract_year_2: contract?.contract_year_2 || undefined,
+            contract_year_3: contract?.contract_year_3 || undefined,
+            contract_year_4: contract?.contract_year_4 || undefined,
           },
         });
       } else if (item.type === "draft_pick" && item.draftPickId) {
-        let draftPickQuery = supabase
+        // saveGameId is required - always filter by it
+        const { data: draftPick, error: draftPickError } = await supabase
           .from("draft_picks")
           .select("*")
-          .eq("id", item.draftPickId);
-        
-        if (saveGameId) {
-          draftPickQuery = draftPickQuery.eq("save_game_id", saveGameId);
-        } else {
-          draftPickQuery = draftPickQuery.is("save_game_id", null);
+          .eq("id", item.draftPickId)
+          .eq("save_game_id", saveGameId)
+          .maybeSingle();
+
+        if (draftPickError) {
+          console.error("Error fetching draft pick:", draftPickError);
+          return NextResponse.json(
+            { error: `Error fetching draft pick: ${draftPickError.message}` },
+            { status: 500 }
+          );
         }
-        
-        const { data: draftPick } = await draftPickQuery.single();
 
         if (!draftPick) {
           return NextResponse.json(
-            { error: `Draft pick ${item.draftPickId} not found` },
+            { error: `Draft pick ${item.draftPickId} not found for save game ${saveGameId}` },
             { status: 404 }
           );
         }
@@ -200,8 +237,15 @@ export async function POST(req: Request) {
     }
 
     // Evaluate trade from both perspectives
-    const fromTeamContext = await getTeamContext(fromTeamId, season);
-    const toTeamContext = await getTeamContext(toTeamId, season);
+    if (!saveGameId) {
+      return NextResponse.json(
+        { error: "saveGameId is required for trade proposal" },
+        { status: 400 }
+      );
+    }
+
+    const fromTeamContext = await getTeamContext(fromTeamId, season, saveGameId);
+    const toTeamContext = await getTeamContext(toTeamId, season, saveGameId);
 
     if (!fromTeamContext || !toTeamContext) {
       return NextResponse.json(

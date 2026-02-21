@@ -32,8 +32,9 @@ interface Player {
   age: number;
   overall: number;
   potential: number;
-  contract_year_1: number;
+  contract_year_1?: number;
   team_id: string;
+  is_prospect?: boolean;
 }
 
 interface DraftPick {
@@ -70,6 +71,8 @@ export default function TradePage() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // This pattern is necessary to prevent hydration mismatches in Next.js
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -136,7 +139,12 @@ export default function TradePage() {
 }
 
 function CreateTradeTab() {
-  const { currentSeason, currentWeek, selectedTeamId: userTeamId, saveGameId } = useGameStore();
+  const {
+    currentSeason,
+    currentWeek,
+    selectedTeamId: userTeamId,
+    saveGameId,
+  } = useGameStore();
   const [yourTeam, setYourTeam] = useState<Team | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [teams, setTeams] = useState<Team[]>([]);
@@ -144,8 +152,12 @@ function CreateTradeTab() {
   const [selectedTeamPlayers, setSelectedTeamPlayers] = useState<Player[]>([]);
   const [yourTeamPicks, setYourTeamPicks] = useState<DraftPick[]>([]);
   const [selectedTeamPicks, setSelectedTeamPicks] = useState<DraftPick[]>([]);
-  const [itemsFromTeam, setItemsFromTeam] = useState<Array<{ type: string; id: string }>>([]);
-  const [itemsToTeam, setItemsToTeam] = useState<Array<{ type: string; id: string }>>([]);
+  const [itemsFromTeam, setItemsFromTeam] = useState<
+    Array<{ type: string; id: string }>
+  >([]);
+  const [itemsToTeam, setItemsToTeam] = useState<
+    Array<{ type: string; id: string }>
+  >([]);
   const [evaluation, setEvaluation] = useState<TradeEvaluation | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,11 +170,25 @@ function CreateTradeTab() {
   } | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedPick, setSelectedPick] = useState<DraftPick | null>(null);
-  const [selectingFor, setSelectingFor] = useState<"your" | "selected" | null>(null);
-  const [yourTeamNeeds, setYourTeamNeeds] = useState<Record<string, number>>({});
-  const [selectedTeamNeeds, setSelectedTeamNeeds] = useState<Record<string, number>>({});
-  const [yourTeamCap, setYourTeamCap] = useState<{ total: number; used: number; remaining: number } | null>(null);
-  const [selectedTeamCap, setSelectedTeamCap] = useState<{ total: number; used: number; remaining: number } | null>(null);
+  const [selectingFor, setSelectingFor] = useState<"your" | "selected" | null>(
+    null
+  );
+  const [yourTeamNeeds, setYourTeamNeeds] = useState<Record<string, number>>(
+    {}
+  );
+  const [selectedTeamNeeds, setSelectedTeamNeeds] = useState<
+    Record<string, number>
+  >({});
+  const [yourTeamCap, setYourTeamCap] = useState<{
+    total: number;
+    used: number;
+    remaining: number;
+  } | null>(null);
+  const [selectedTeamCap, setSelectedTeamCap] = useState<{
+    total: number;
+    used: number;
+    remaining: number;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [positionFilter, setPositionFilter] = useState<string>("all");
 
@@ -247,19 +273,37 @@ function CreateTradeTab() {
       .eq("id", teamId)
       .single();
 
-    const { data: players } = await supabase
-      .from("players")
-      .select("contract_year_1")
-      .eq("team_id", teamId);
+    // Load contracts from player_contracts_per_save_game
+    let usedCap = 0;
+
+    if (saveGameId) {
+      const { data: contracts } = await supabase
+        .from("player_contracts_per_save_game")
+        .select("contract_year_1")
+        .eq("team_id", teamId)
+        .eq("save_game_id", saveGameId);
+
+      usedCap = (contracts || []).reduce(
+        (sum, c) => sum + (c.contract_year_1 || 0),
+        0
+      );
+    }
 
     const totalCap = team?.salary_cap_total || 255000000;
-    const usedCap = (players || []).reduce((sum, p) => sum + (p.contract_year_1 || 0), 0);
     const remainingCap = totalCap - usedCap;
 
     if (side === "your") {
-      setYourTeamCap({ total: totalCap, used: usedCap, remaining: remainingCap });
+      setYourTeamCap({
+        total: totalCap,
+        used: usedCap,
+        remaining: remainingCap,
+      });
     } else {
-      setSelectedTeamCap({ total: totalCap, used: usedCap, remaining: remainingCap });
+      setSelectedTeamCap({
+        total: totalCap,
+        used: usedCap,
+        remaining: remainingCap,
+      });
     }
 
     // Load team needs
@@ -272,18 +316,120 @@ function CreateTradeTab() {
   }
 
   async function loadTeamAssets(teamId: string, side: "your" | "selected") {
-    const { data: players } = await supabase
-      .from("players")
-      .select("*")
-      .eq("team_id", teamId)
-      .order("overall", { ascending: false });
+    // Load players from player_team_assignments if saveGameId exists
+    let players: Player[] = [];
 
-    const seasonsToLoad = [currentSeason, currentSeason + 1, currentSeason + 2, currentSeason + 3];
-    const { data: picks } = await supabase
+    if (saveGameId) {
+      const { data: assignments } = await supabase
+        .from("player_team_assignments")
+        .select(
+          `
+          player_id,
+          prospect_id,
+          players (*),
+          draft_prospects (*)
+        `
+        )
+        .eq("team_id", teamId)
+        .eq("save_game_id", saveGameId);
+
+      if (assignments) {
+        players = assignments
+          .map((a: any) => {
+            if (a.player_id && a.players) {
+              return { ...a.players, is_prospect: false };
+            }
+            if (a.prospect_id && a.draft_prospects) {
+              return { ...a.draft_prospects, is_prospect: true };
+            }
+            return null;
+          })
+          .filter(Boolean);
+      }
+    } else {
+      // Fallback to base players table (should not happen)
+      const { data: basePlayers } = await supabase
+        .from("players")
+        .select("*")
+        .eq("team_id", teamId)
+        .order("overall", { ascending: false });
+      players = basePlayers || [];
+    }
+
+    // Load contracts and merge with players
+    if (saveGameId && players.length > 0) {
+      const playerIds = players.filter((p) => !p.is_prospect).map((p) => p.id);
+      const prospectIds = players.filter((p) => p.is_prospect).map((p) => p.id);
+
+      const contractsMap = new Map<string, { contract_year_1: number }>();
+
+      if (playerIds.length > 0) {
+        const { data: playerContracts } = await supabase
+          .from("player_contracts_per_save_game")
+          .select("player_id, contract_year_1")
+          .in("player_id", playerIds)
+          .eq("save_game_id", saveGameId);
+
+        if (playerContracts) {
+          playerContracts.forEach((c: any) => {
+            if (c.player_id) contractsMap.set(c.player_id, c);
+          });
+        }
+      }
+
+      if (prospectIds.length > 0) {
+        const { data: prospectContracts } = await supabase
+          .from("player_contracts_per_save_game")
+          .select("prospect_id, contract_year_1")
+          .in("prospect_id", prospectIds)
+          .eq("save_game_id", saveGameId);
+
+        if (prospectContracts) {
+          prospectContracts.forEach((c: any) => {
+            if (c.prospect_id) contractsMap.set(c.prospect_id, c);
+          });
+        }
+      }
+
+      // Merge contracts with players
+      players = players.map((p) => ({
+        ...p,
+        contract_year_1: contractsMap.get(p.id)?.contract_year_1 || 0,
+      }));
+    }
+
+    players.sort((a, b) => (b.overall || 0) - (a.overall || 0));
+
+    const seasonsToLoad = [
+      currentSeason,
+      currentSeason + 1,
+      currentSeason + 2,
+      currentSeason + 3,
+    ];
+
+    // CRITICAL: Filter draft picks by save_game_id for save game isolation
+    let picksQuery = supabase
       .from("draft_picks")
       .select("*")
       .eq("owning_team_id", teamId)
-      .in("season", seasonsToLoad)
+      .in("season", seasonsToLoad);
+
+    if (saveGameId) {
+      picksQuery = picksQuery.eq("save_game_id", saveGameId);
+    } else {
+      // If no saveGameId, this is an error - we can't load draft picks without save game context
+      console.error(
+        "[loadTeamAssets] Cannot load draft picks without saveGameId"
+      );
+      if (side === "your") {
+        setYourTeamPicks([]);
+      } else {
+        setSelectedTeamPicks([]);
+      }
+      return;
+    }
+
+    const { data: picks } = await picksQuery
       .order("season", { ascending: true })
       .order("pick_overall", { ascending: true });
 
@@ -321,6 +467,14 @@ function CreateTradeTab() {
     setError(null);
 
     try {
+      if (!saveGameId) {
+        setError(
+          "saveGameId is required. Please ensure you have a save game loaded."
+        );
+        setLoading(false);
+        return;
+      }
+
       const res = await fetch("/api/trades/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -337,6 +491,7 @@ function CreateTradeTab() {
             draftPickId: item.type === "draft_pick" ? item.id : undefined,
           })),
           season: currentSeason,
+          saveGameId: saveGameId,
         }),
       });
 
@@ -355,7 +510,11 @@ function CreateTradeTab() {
     }
   }
 
-  function addItem(teamSide: "your" | "selected", type: "player" | "draft_pick", id: string) {
+  function addItem(
+    teamSide: "your" | "selected",
+    type: "player" | "draft_pick",
+    id: string
+  ) {
     if (teamSide === "your") {
       setItemsFromTeam([...itemsFromTeam, { type, id }]);
     } else {
@@ -451,9 +610,10 @@ function CreateTradeTab() {
       }
 
       const receivingTeamEvaluation = proposeData.trade?.to_team_evaluation;
-      
-      const shouldAccept = receivingTeamEvaluation && 
-        receivingTeamEvaluation.overallScore >= 50 && 
+
+      const shouldAccept =
+        receivingTeamEvaluation &&
+        receivingTeamEvaluation.overallScore >= 50 &&
         receivingTeamEvaluation.canAfford;
 
       if (shouldAccept) {
@@ -469,7 +629,9 @@ function CreateTradeTab() {
         const executeData = await executeRes.json();
 
         if (!executeRes.ok) {
-          throw new Error(executeData.error || "Trade was proposed but failed to execute");
+          throw new Error(
+            executeData.error || "Trade was proposed but failed to execute"
+          );
         }
 
         setTradeResult({
@@ -494,10 +656,11 @@ function CreateTradeTab() {
           console.error("Failed to reject trade:", rejectData);
         }
 
-        const reason = receivingTeamEvaluation?.canAfford === false
-          ? "Trade would exceed salary cap"
-          : `Score too low: ${receivingTeamEvaluation?.overallScore.toFixed(0) || "N/A"} (minimum: 50)`;
-        
+        const reason =
+          receivingTeamEvaluation?.canAfford === false
+            ? "Trade would exceed salary cap"
+            : `Score too low: ${receivingTeamEvaluation?.overallScore.toFixed(0) || "N/A"} (minimum: 50)`;
+
         setTradeResult({
           accepted: false,
           message: `Trade declined: ${reason}`,
@@ -525,9 +688,11 @@ function CreateTradeTab() {
 
   const validSelectedTeamId = useMemo(() => {
     if (!yourTeam) return "";
-    return selectedTeamId && selectedTeamId !== yourTeam.id 
-      ? selectedTeamId 
-      : (otherTeams.length > 0 ? otherTeams[0].id : "");
+    return selectedTeamId && selectedTeamId !== yourTeam.id
+      ? selectedTeamId
+      : otherTeams.length > 0
+        ? otherTeams[0].id
+        : "";
   }, [selectedTeamId, yourTeam, otherTeams]);
 
   const selectedTeam = useMemo(() => {
@@ -554,32 +719,50 @@ function CreateTradeTab() {
   // Filter players
   const filteredYourPlayers = useMemo(() => {
     return yourTeamPlayers.filter((p) => {
-      const matchesSearch = searchQuery === "" || p.full_name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesPosition = positionFilter === "all" || p.position === positionFilter;
+      const matchesSearch =
+        searchQuery === "" ||
+        p.full_name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesPosition =
+        positionFilter === "all" || p.position === positionFilter;
       return matchesSearch && matchesPosition;
     });
   }, [yourTeamPlayers, searchQuery, positionFilter]);
 
   const filteredSelectedPlayers = useMemo(() => {
     return selectedTeamPlayers.filter((p) => {
-      const matchesSearch = searchQuery === "" || p.full_name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesPosition = positionFilter === "all" || p.position === positionFilter;
+      const matchesSearch =
+        searchQuery === "" ||
+        p.full_name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesPosition =
+        positionFilter === "all" || p.position === positionFilter;
       return matchesSearch && matchesPosition;
     });
   }, [selectedTeamPlayers, searchQuery, positionFilter]);
 
   const positions = useMemo(() => {
-    return Array.from(new Set([...yourTeamPlayers, ...selectedTeamPlayers].map((p) => p.position))).sort();
+    return Array.from(
+      new Set(
+        [...yourTeamPlayers, ...selectedTeamPlayers].map((p) => p.position)
+      )
+    ).sort();
   }, [yourTeamPlayers, selectedTeamPlayers]);
 
   // Get roster sizes
-  const yourRosterSize = useMemo(() => yourTeamPlayers.length, [yourTeamPlayers]);
-  const selectedRosterSize = useMemo(() => selectedTeamPlayers.length, [selectedTeamPlayers]);
+  const yourRosterSize = useMemo(
+    () => yourTeamPlayers.length,
+    [yourTeamPlayers]
+  );
+  const selectedRosterSize = useMemo(
+    () => selectedTeamPlayers.length,
+    [selectedTeamPlayers]
+  );
 
   if (!userTeamId || !yourTeam) {
     return (
       <div className="bg-slate-800 rounded-xl shadow-2xl border border-slate-700 p-12 text-center">
-        <p className="text-slate-400 text-lg">Please select a team to start trading</p>
+        <p className="text-slate-400 text-lg">
+          Please select a team to start trading
+        </p>
       </div>
     );
   }
@@ -587,18 +770,21 @@ function CreateTradeTab() {
   return (
     <div className="space-y-4">
       {/* Propose Trade Button - Top Center */}
-      {yourTeam && validSelectedTeamId && itemsFromTeam.length > 0 && itemsToTeam.length > 0 && (
-        <div className="flex justify-center">
-          <button
-            onClick={proposeTrade}
-            disabled={loading || (evaluation ? !evaluation.canAfford : false)}
-            className="px-12 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-black text-xl hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xl hover:shadow-3xl hover:scale-105 flex items-center gap-3 border-2 border-blue-500"
-          >
-            <ArrowLeftRight className="w-7 h-7" />
-            {loading ? "Processing Trade..." : "Propose Trade"}
-          </button>
-        </div>
-      )}
+      {yourTeam &&
+        validSelectedTeamId &&
+        itemsFromTeam.length > 0 &&
+        itemsToTeam.length > 0 && (
+          <div className="flex justify-center">
+            <button
+              onClick={proposeTrade}
+              disabled={loading || (evaluation ? !evaluation.canAfford : false)}
+              className="px-12 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-black text-xl hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xl hover:shadow-3xl hover:scale-105 flex items-center gap-3 border-2 border-blue-500"
+            >
+              <ArrowLeftRight className="w-7 h-7" />
+              {loading ? "Processing Trade..." : "Propose Trade"}
+            </button>
+          </div>
+        )}
 
       {/* Three Column Layout - Madden Style */}
       <div className="grid grid-cols-12 gap-4">
@@ -609,7 +795,9 @@ function CreateTradeTab() {
             <div className="text-xs font-bold text-red-200 uppercase tracking-wider mb-1">
               Your Team
             </div>
-            <div className="text-2xl font-black text-white">{yourTeam.abbreviation}</div>
+            <div className="text-2xl font-black text-white">
+              {yourTeam.abbreviation}
+            </div>
             <div className="text-xs text-red-200 mt-1">
               {yourTeam.conference} • {yourTeam.division}
             </div>
@@ -630,7 +818,9 @@ function CreateTradeTab() {
                     </div>
                   ))
                 ) : (
-                  <div className="text-sm text-red-300/50 italic">No major needs</div>
+                  <div className="text-sm text-red-300/50 italic">
+                    No major needs
+                  </div>
                 )}
               </div>
             </div>
@@ -700,19 +890,23 @@ function CreateTradeTab() {
                           selectedPlayer?.id === player.id
                             ? "bg-red-600 border-red-400"
                             : isSelected
-                            ? "bg-red-800/30 border-red-700 opacity-50"
-                            : "bg-red-800/20 border-red-700 hover:bg-red-700/50"
+                              ? "bg-red-800/30 border-red-700 opacity-50"
+                              : "bg-red-800/20 border-red-700 hover:bg-red-700/50"
                         }`}
                       >
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 bg-red-600 rounded flex items-center justify-center border border-red-500">
-                            <span className="text-xs font-black text-white">{player.overall}</span>
+                            <span className="text-xs font-black text-white">
+                              {player.overall}
+                            </span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-xs font-bold text-white truncate">
                               {player.full_name}
                             </div>
-                            <div className="text-xs text-red-200">{player.position}</div>
+                            <div className="text-xs text-red-200">
+                              {player.position}
+                            </div>
                           </div>
                         </div>
                       </button>
@@ -720,7 +914,8 @@ function CreateTradeTab() {
                   })}
                   {yourTeamPicks.map((pick) => {
                     const isSelected = itemsFromTeam.some(
-                      (item) => item.type === "draft_pick" && item.id === pick.id
+                      (item) =>
+                        item.type === "draft_pick" && item.id === pick.id
                     );
                     return (
                       <button
@@ -731,8 +926,8 @@ function CreateTradeTab() {
                           selectedPick?.id === pick.id
                             ? "bg-red-600 border-red-400"
                             : isSelected
-                            ? "bg-red-800/30 border-red-700 opacity-50"
-                            : "bg-red-800/20 border-red-700 hover:bg-red-700/50"
+                              ? "bg-red-800/30 border-red-700 opacity-50"
+                              : "bg-red-800/20 border-red-700 hover:bg-red-700/50"
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -741,7 +936,9 @@ function CreateTradeTab() {
                             <div className="text-xs font-bold text-white">
                               {pick.season} R{pick.round}
                             </div>
-                            <div className="text-xs text-red-200">#{pick.pick_overall}</div>
+                            <div className="text-xs text-red-200">
+                              #{pick.pick_overall}
+                            </div>
                           </div>
                         </div>
                       </button>
@@ -761,18 +958,22 @@ function CreateTradeTab() {
               {selectedPlayer && (
                 <div className="flex items-center gap-6">
                   <div className="w-24 h-24 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center border-4 border-blue-500">
-                    <span className="text-4xl font-black text-white">{selectedPlayer.overall}</span>
+                    <span className="text-4xl font-black text-white">
+                      {selectedPlayer.overall}
+                    </span>
                   </div>
                   <div className="flex-1">
                     <div className="text-3xl font-black text-white mb-1">
                       {selectedPlayer.full_name}
                     </div>
                     <div className="text-lg text-slate-300 mb-2">
-                      AGE: {selectedPlayer.age} | CAP HIT {formatCurrency(selectedPlayer.contract_year_1)}
+                      AGE: {selectedPlayer.age} | CAP HIT{" "}
+                      {formatCurrency(selectedPlayer.contract_year_1 ?? 0)}
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-sm text-slate-400">
-                        {selectedPlayer.position} • POT {selectedPlayer.potential}
+                        {selectedPlayer.position} • POT{" "}
+                        {selectedPlayer.potential}
                       </div>
                     </div>
                   </div>
@@ -823,8 +1024,12 @@ function CreateTradeTab() {
                 <div className="grid grid-cols-3 gap-2">
                   {Array.from({ length: 3 }).map((_, idx) => {
                     const item = itemsFromTeam[idx];
-                    const player = item ? yourTeamPlayers.find((p) => p.id === item.id) : null;
-                    const pick = item ? yourTeamPicks.find((p) => p.id === item.id) : null;
+                    const player = item
+                      ? yourTeamPlayers.find((p) => p.id === item.id)
+                      : null;
+                    const pick = item
+                      ? yourTeamPicks.find((p) => p.id === item.id)
+                      : null;
                     return (
                       <div
                         key={idx}
@@ -839,12 +1044,16 @@ function CreateTradeTab() {
                             {player && (
                               <>
                                 <div className="w-10 h-10 bg-red-600 rounded flex items-center justify-center mb-1">
-                                  <span className="text-sm font-black text-white">{player.overall}</span>
+                                  <span className="text-sm font-black text-white">
+                                    {player.overall}
+                                  </span>
                                 </div>
                                 <div className="text-xs font-bold text-white text-center truncate w-full">
                                   {player.full_name}
                                 </div>
-                                <div className="text-xs text-red-200 text-center">{player.position}</div>
+                                <div className="text-xs text-red-200 text-center">
+                                  {player.position}
+                                </div>
                                 <button
                                   onClick={() => removeItem("your", idx)}
                                   className="mt-1 p-1 text-red-400 hover:bg-red-500/20 rounded"
@@ -859,7 +1068,9 @@ function CreateTradeTab() {
                                 <div className="text-xs font-bold text-white text-center">
                                   {pick.season} R{pick.round}
                                 </div>
-                                <div className="text-xs text-red-200 text-center">#{pick.pick_overall}</div>
+                                <div className="text-xs text-red-200 text-center">
+                                  #{pick.pick_overall}
+                                </div>
                                 <button
                                   onClick={() => removeItem("your", idx)}
                                   className="mt-1 p-1 text-red-400 hover:bg-red-500/20 rounded"
@@ -888,8 +1099,12 @@ function CreateTradeTab() {
                 <div className="grid grid-cols-3 gap-2">
                   {Array.from({ length: 3 }).map((_, idx) => {
                     const item = itemsToTeam[idx];
-                    const player = item ? selectedTeamPlayers.find((p) => p.id === item.id) : null;
-                    const pick = item ? selectedTeamPicks.find((p) => p.id === item.id) : null;
+                    const player = item
+                      ? selectedTeamPlayers.find((p) => p.id === item.id)
+                      : null;
+                    const pick = item
+                      ? selectedTeamPicks.find((p) => p.id === item.id)
+                      : null;
                     return (
                       <div
                         key={idx}
@@ -904,12 +1119,16 @@ function CreateTradeTab() {
                             {player && (
                               <>
                                 <div className="w-10 h-10 bg-blue-600 rounded flex items-center justify-center mb-1">
-                                  <span className="text-sm font-black text-white">{player.overall}</span>
+                                  <span className="text-sm font-black text-white">
+                                    {player.overall}
+                                  </span>
                                 </div>
                                 <div className="text-xs font-bold text-white text-center truncate w-full">
                                   {player.full_name}
                                 </div>
-                                <div className="text-xs text-blue-200 text-center">{player.position}</div>
+                                <div className="text-xs text-blue-200 text-center">
+                                  {player.position}
+                                </div>
                                 <button
                                   onClick={() => removeItem("selected", idx)}
                                   className="mt-1 p-1 text-blue-400 hover:bg-blue-500/20 rounded"
@@ -924,7 +1143,9 @@ function CreateTradeTab() {
                                 <div className="text-xs font-bold text-white text-center">
                                   {pick.season} R{pick.round}
                                 </div>
-                                <div className="text-xs text-blue-200 text-center">#{pick.pick_overall}</div>
+                                <div className="text-xs text-blue-200 text-center">
+                                  #{pick.pick_overall}
+                                </div>
                                 <button
                                   onClick={() => removeItem("selected", idx)}
                                   className="mt-1 p-1 text-blue-400 hover:bg-blue-500/20 rounded"
@@ -954,21 +1175,33 @@ function CreateTradeTab() {
                     <div className="text-xs font-bold text-blue-200 uppercase tracking-wider mb-1">
                       Score
                     </div>
-                    <div className="text-xl font-black text-white">{evaluation.overallScore.toFixed(0)}</div>
+                    <div className="text-xl font-black text-white">
+                      {evaluation.overallScore.toFixed(0)}
+                    </div>
                   </div>
                   <div className="bg-slate-600 rounded-lg p-2 border border-slate-500">
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
                       Position
                     </div>
-                    <div className="text-lg font-black text-white">{evaluation.positionalFit.toFixed(0)}</div>
+                    <div className="text-lg font-black text-white">
+                      {evaluation.positionalFit.toFixed(0)}
+                    </div>
                   </div>
                   <div className="bg-slate-600 rounded-lg p-2 border border-slate-500">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Age</div>
-                    <div className="text-lg font-black text-white">{evaluation.ageFit.toFixed(0)}</div>
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                      Age
+                    </div>
+                    <div className="text-lg font-black text-white">
+                      {evaluation.ageFit.toFixed(0)}
+                    </div>
                   </div>
                   <div className="bg-slate-600 rounded-lg p-2 border border-slate-500">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Value</div>
-                    <div className="text-lg font-black text-white">{evaluation.valueAssessment.toFixed(0)}</div>
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                      Value
+                    </div>
+                    <div className="text-lg font-black text-white">
+                      {evaluation.valueAssessment.toFixed(0)}
+                    </div>
                   </div>
                   <div
                     className={`rounded-lg p-2 border ${
@@ -1024,13 +1257,17 @@ function CreateTradeTab() {
                 </div>
                 {selectedTeam ? (
                   <>
-                    <div className="text-2xl font-black text-white">{selectedTeam.abbreviation}</div>
+                    <div className="text-2xl font-black text-white">
+                      {selectedTeam.abbreviation}
+                    </div>
                     <div className="text-xs text-blue-200 mt-1">
                       {selectedTeam.conference} • {selectedTeam.division}
                     </div>
                   </>
                 ) : (
-                  <div className="text-2xl font-black text-white">Select Team</div>
+                  <div className="text-2xl font-black text-white">
+                    Select Team
+                  </div>
                 )}
               </div>
               <div className="flex items-center gap-1">
@@ -1051,7 +1288,9 @@ function CreateTradeTab() {
             <select
               value={validSelectedTeamId}
               onChange={(e) => {
-                const newIndex = otherTeams.findIndex((t) => t.id === e.target.value);
+                const newIndex = otherTeams.findIndex(
+                  (t) => t.id === e.target.value
+                );
                 setTeamIndex(newIndex >= 0 ? newIndex : 0);
                 setSelectedTeamId(e.target.value);
               }}
@@ -1080,7 +1319,9 @@ function CreateTradeTab() {
                     </div>
                   ))
                 ) : (
-                  <div className="text-sm text-blue-300/50 italic">No major needs</div>
+                  <div className="text-sm text-blue-300/50 italic">
+                    No major needs
+                  </div>
                 )}
               </div>
             </div>
@@ -1091,7 +1332,9 @@ function CreateTradeTab() {
                 Cap Room
               </div>
               <div className="text-2xl font-black text-white">
-                {selectedTeamCap ? formatCurrency(selectedTeamCap.remaining) : "$0"}
+                {selectedTeamCap
+                  ? formatCurrency(selectedTeamCap.remaining)
+                  : "$0"}
               </div>
             </div>
 
@@ -1150,19 +1393,23 @@ function CreateTradeTab() {
                           selectedPlayer?.id === player.id
                             ? "bg-blue-600 border-blue-400"
                             : isSelected
-                            ? "bg-blue-800/30 border-blue-700 opacity-50"
-                            : "bg-blue-800/20 border-blue-700 hover:bg-blue-700/50"
+                              ? "bg-blue-800/30 border-blue-700 opacity-50"
+                              : "bg-blue-800/20 border-blue-700 hover:bg-blue-700/50"
                         }`}
                       >
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center border border-blue-500">
-                            <span className="text-xs font-black text-white">{player.overall}</span>
+                            <span className="text-xs font-black text-white">
+                              {player.overall}
+                            </span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-xs font-bold text-white truncate">
                               {player.full_name}
                             </div>
-                            <div className="text-xs text-blue-200">{player.position}</div>
+                            <div className="text-xs text-blue-200">
+                              {player.position}
+                            </div>
                           </div>
                         </div>
                       </button>
@@ -1170,7 +1417,8 @@ function CreateTradeTab() {
                   })}
                   {selectedTeamPicks.map((pick) => {
                     const isSelected = itemsToTeam.some(
-                      (item) => item.type === "draft_pick" && item.id === pick.id
+                      (item) =>
+                        item.type === "draft_pick" && item.id === pick.id
                     );
                     return (
                       <button
@@ -1181,8 +1429,8 @@ function CreateTradeTab() {
                           selectedPick?.id === pick.id
                             ? "bg-blue-600 border-blue-400"
                             : isSelected
-                            ? "bg-blue-800/30 border-blue-700 opacity-50"
-                            : "bg-blue-800/20 border-blue-700 hover:bg-blue-700/50"
+                              ? "bg-blue-800/30 border-blue-700 opacity-50"
+                              : "bg-blue-800/20 border-blue-700 hover:bg-blue-700/50"
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -1191,7 +1439,9 @@ function CreateTradeTab() {
                             <div className="text-xs font-bold text-white">
                               {pick.season} R{pick.round}
                             </div>
-                            <div className="text-xs text-blue-200">#{pick.pick_overall}</div>
+                            <div className="text-xs text-blue-200">
+                              #{pick.pick_overall}
+                            </div>
                           </div>
                         </div>
                       </button>
@@ -1242,25 +1492,33 @@ function CreateTradeTab() {
       {/* Trade Result Dialog */}
       {showTradeResult && tradeResult && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className={`rounded-xl shadow-2xl border-2 p-8 max-w-md w-full mx-4 ${
-            tradeResult.accepted
-              ? "bg-gradient-to-br from-green-900 to-green-800 border-green-500"
-              : "bg-gradient-to-br from-red-900 to-red-800 border-red-500"
-          }`}>
+          <div
+            className={`rounded-xl shadow-2xl border-2 p-8 max-w-md w-full mx-4 ${
+              tradeResult.accepted
+                ? "bg-gradient-to-br from-green-900 to-green-800 border-green-500"
+                : "bg-gradient-to-br from-red-900 to-red-800 border-red-500"
+            }`}
+          >
             <div className="text-center">
               {tradeResult.accepted ? (
                 <>
                   <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-green-400">
                     <Check className="w-12 h-12 text-white" />
                   </div>
-                  <h2 className="text-3xl font-black text-white mb-2">Trade Accepted!</h2>
-                  <p className="text-green-200 text-lg mb-4">{tradeResult.message}</p>
+                  <h2 className="text-3xl font-black text-white mb-2">
+                    Trade Accepted!
+                  </h2>
+                  <p className="text-green-200 text-lg mb-4">
+                    {tradeResult.message}
+                  </p>
                   {tradeResult.score !== undefined && (
                     <div className="bg-green-800/50 rounded-lg p-4 border border-green-600 mb-4">
                       <div className="text-sm text-green-200 uppercase tracking-wider mb-1">
                         Evaluation Score
                       </div>
-                      <div className="text-4xl font-black text-white">{tradeResult.score.toFixed(0)}</div>
+                      <div className="text-4xl font-black text-white">
+                        {tradeResult.score.toFixed(0)}
+                      </div>
                     </div>
                   )}
                 </>
@@ -1269,14 +1527,20 @@ function CreateTradeTab() {
                   <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-red-400">
                     <XCircle className="w-12 h-12 text-white" />
                   </div>
-                  <h2 className="text-3xl font-black text-white mb-2">Trade Declined</h2>
-                  <p className="text-red-200 text-lg mb-4">{tradeResult.message}</p>
+                  <h2 className="text-3xl font-black text-white mb-2">
+                    Trade Declined
+                  </h2>
+                  <p className="text-red-200 text-lg mb-4">
+                    {tradeResult.message}
+                  </p>
                   {tradeResult.score !== undefined && (
                     <div className="bg-red-800/50 rounded-lg p-4 border border-red-600 mb-4">
                       <div className="text-sm text-red-200 uppercase tracking-wider mb-1">
                         Evaluation Score
                       </div>
-                      <div className="text-4xl font-black text-white">{tradeResult.score.toFixed(0)}</div>
+                      <div className="text-4xl font-black text-white">
+                        {tradeResult.score.toFixed(0)}
+                      </div>
                     </div>
                   )}
                 </>
@@ -1341,13 +1605,17 @@ function TradeHistoryTab() {
   }
 
   if (!mounted) {
-    return <div className="bg-slate-800 rounded-xl shadow-lg p-8">Loading...</div>;
+    return (
+      <div className="bg-slate-800 rounded-xl shadow-lg p-8">Loading...</div>
+    );
   }
 
   if (!selectedTeamId) {
     return (
       <div className="bg-slate-800 rounded-xl shadow-lg border border-slate-700 p-8 text-center">
-        <p className="text-slate-400">Please select a team to view trade history</p>
+        <p className="text-slate-400">
+          Please select a team to view trade history
+        </p>
       </div>
     );
   }
@@ -1363,7 +1631,9 @@ function TradeHistoryTab() {
         <div className="space-y-4">
           {trades.map((trade) => {
             const otherTeam =
-              trade.from_team_id === selectedTeamId ? trade.to_team : trade.from_team;
+              trade.from_team_id === selectedTeamId
+                ? trade.to_team
+                : trade.from_team;
             const isFromTeam = trade.from_team_id === selectedTeamId;
 
             return (
@@ -1378,11 +1648,12 @@ function TradeHistoryTab() {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <div className="font-bold text-white text-lg">
-                      {trade.status === "executed" ? "Executed" : "Rejected"} with{" "}
-                      {otherTeam?.abbreviation || otherTeam?.name}
+                      {trade.status === "executed" ? "Executed" : "Rejected"}{" "}
+                      with {otherTeam?.abbreviation || otherTeam?.name}
                     </div>
                     <div className="text-sm text-slate-400">
-                      Week {trade.week} • {new Date(trade.proposed_at).toLocaleDateString()}
+                      Week {trade.week} •{" "}
+                      {new Date(trade.proposed_at).toLocaleDateString()}
                     </div>
                   </div>
                   <span
@@ -1418,12 +1689,14 @@ function TradeHistoryTab() {
                                 {item.player.full_name} ({item.player.position})
                               </div>
                             )}
-                            {item.item_type === "draft_pick" && item.draft_pick && (
-                              <div>
-                                {item.draft_pick.season} Round {item.draft_pick.round} • Pick #
-                                {item.draft_pick.pick_overall}
-                              </div>
-                            )}
+                            {item.item_type === "draft_pick" &&
+                              item.draft_pick && (
+                                <div>
+                                  {item.draft_pick.season} Round{" "}
+                                  {item.draft_pick.round} • Pick #
+                                  {item.draft_pick.pick_overall}
+                                </div>
+                              )}
                           </div>
                         ))}
                     </div>
@@ -1449,12 +1722,14 @@ function TradeHistoryTab() {
                                 {item.player.full_name} ({item.player.position})
                               </div>
                             )}
-                            {item.item_type === "draft_pick" && item.draft_pick && (
-                              <div>
-                                {item.draft_pick.season} Round {item.draft_pick.round} • Pick #
-                                {item.draft_pick.pick_overall}
-                              </div>
-                            )}
+                            {item.item_type === "draft_pick" &&
+                              item.draft_pick && (
+                                <div>
+                                  {item.draft_pick.season} Round{" "}
+                                  {item.draft_pick.round} • Pick #
+                                  {item.draft_pick.pick_overall}
+                                </div>
+                              )}
                           </div>
                         ))}
                     </div>

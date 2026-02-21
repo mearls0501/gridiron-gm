@@ -41,6 +41,18 @@ export async function POST(req: Request) {
           .single();
 
         if (player) {
+          // Load contract from player_contracts_per_save_game
+          let contract = null;
+          if (saveGameId) {
+            const { data: contractData } = await supabase
+              .from("player_contracts_per_save_game")
+              .select("*")
+              .eq("player_id", player.id)
+              .eq("save_game_id", saveGameId)
+              .maybeSingle();
+            contract = contractData;
+          }
+
           validatedReceiving.push({
             type: "player",
             playerId: player.id,
@@ -51,10 +63,10 @@ export async function POST(req: Request) {
               age: player.age,
               overall: player.overall,
               potential: player.potential,
-              contract_year_1: player.contract_year_1 || 0,
-              contract_year_2: player.contract_year_2 || undefined,
-              contract_year_3: player.contract_year_3 || undefined,
-              contract_year_4: player.contract_year_4 || undefined,
+              contract_year_1: contract?.contract_year_1 || 0,
+              contract_year_2: contract?.contract_year_2 || undefined,
+              contract_year_3: contract?.contract_year_3 || undefined,
+              contract_year_4: contract?.contract_year_4 || undefined,
             },
           });
         }
@@ -97,6 +109,18 @@ export async function POST(req: Request) {
           .single();
 
         if (player) {
+          // Load contract from player_contracts_per_save_game
+          let contract = null;
+          if (saveGameId) {
+            const { data: contractData } = await supabase
+              .from("player_contracts_per_save_game")
+              .select("*")
+              .eq("player_id", player.id)
+              .eq("save_game_id", saveGameId)
+              .maybeSingle();
+            contract = contractData;
+          }
+
           validatedGiving.push({
             type: "player",
             playerId: player.id,
@@ -107,10 +131,10 @@ export async function POST(req: Request) {
               age: player.age,
               overall: player.overall,
               potential: player.potential,
-              contract_year_1: player.contract_year_1 || 0,
-              contract_year_2: player.contract_year_2 || undefined,
-              contract_year_3: player.contract_year_3 || undefined,
-              contract_year_4: player.contract_year_4 || undefined,
+              contract_year_1: contract?.contract_year_1 || 0,
+              contract_year_2: contract?.contract_year_2 || undefined,
+              contract_year_3: contract?.contract_year_3 || undefined,
+              contract_year_4: contract?.contract_year_4 || undefined,
             },
           });
         }
@@ -144,7 +168,14 @@ export async function POST(req: Request) {
     }
 
     // Get team context
-    const teamContext = await getTeamContext(teamId, season);
+    if (!saveGameId) {
+      return NextResponse.json(
+        { error: "saveGameId is required for trade evaluation" },
+        { status: 400 }
+      );
+    }
+
+    const teamContext = await getTeamContext(teamId, season, saveGameId);
 
     if (!teamContext) {
       return NextResponse.json(

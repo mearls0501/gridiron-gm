@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase-client";
  */
 export async function POST(req: Request) {
   try {
-    const { season } = await req.json();
+    const { season, saveGameId } = await req.json();
     
     if (!season || typeof season !== "number") {
       return NextResponse.json(
@@ -18,12 +18,19 @@ export async function POST(req: Request) {
     }
 
     // Fetch all prospects for this season that haven't been drafted
-    // (Assuming drafted prospects are removed from draft_prospects or have a drafted flag)
-    // For now, we'll move all prospects to free agency
-    const { data: prospects, error: fetchError } = await supabase
+    // Filter by save_game_id if provided
+    let prospectsQuery = supabase
       .from("draft_prospects")
       .select("*")
       .eq("season", season);
+    
+    if (saveGameId) {
+      prospectsQuery = prospectsQuery.eq("save_game_id", saveGameId);
+    } else {
+      prospectsQuery = prospectsQuery.is("save_game_id", null);
+    }
+    
+    const { data: prospects, error: fetchError } = await prospectsQuery;
 
     if (fetchError) {
       console.error("Error fetching prospects:", fetchError);
@@ -41,43 +48,65 @@ export async function POST(req: Request) {
       });
     }
 
-    // Convert prospects to free agents format
-    const freeAgentsToInsert = prospects.map((prospect) => ({
-      id: prospect.id || crypto.randomUUID(),
-      full_name: prospect.full_name,
-      position: prospect.position,
-      age: prospect.age,
-      college: prospect.college || null,
-      archetype: prospect.archetype || null,
-      overall: prospect.overall,
-      potential: prospect.potential,
-      traits: prospect.traits,
-      contract_year_1: prospect.contract_year_1 || 0,
-      contract_year_2: prospect.contract_year_2 || 0,
-      contract_year_3: prospect.contract_year_3 || 0,
-      contract_year_4: prospect.contract_year_4 || 0,
-      signing_bonus: prospect.signing_bonus || 0,
-      entered_free_agency_season: season, // Track when they entered free agency
+    if (!saveGameId) {
+      return NextResponse.json(
+        { error: "saveGameId is required to track undrafted prospects" },
+        { status: 400 }
+      );
+    }
+
+    // Track undrafted prospects in undrafted_prospects table
+    const undraftedRecords = prospects.map((prospect) => ({
+      prospect_id: prospect.id,
+      save_game_id: saveGameId,
+      season: season,
+      entered_free_agency_season: season,
       archived: false,
     }));
 
-    // Insert into free_agents table (upsert to handle duplicates)
-    const { error: insertError } = await supabase
-      .from("free_agents")
-      .upsert(freeAgentsToInsert, { onConflict: "id" });
+    const { error: undraftedError } = await supabase
+      .from("undrafted_prospects")
+      .upsert(undraftedRecords, {
+        onConflict: "prospect_id,save_game_id",
+      });
 
-    if (insertError) {
-      console.error("Error moving prospects to free agency:", insertError);
+    if (undraftedError) {
+      console.error("Error tracking undrafted prospects:", undraftedError);
       return NextResponse.json(
-        { error: "Failed to move prospects to free agency: " + insertError.message },
+        { error: "Failed to track undrafted prospects: " + undraftedError.message },
+        { status: 500 }
+      );
+    }
+
+    // Create free_agent_availability records with prospect_id (not player_id)
+    // This makes them available as free agents for this save game
+    const availabilityRecords = prospects.map((prospect) => ({
+      prospect_id: prospect.id,
+      save_game_id: saveGameId,
+      entered_free_agency_season: season,
+      reason: "draft_undrafted",
+      archived: false,
+    }));
+
+    // Insert availability records
+    const { error: availabilityError } = await supabase
+      .from("free_agent_availability")
+      .upsert(availabilityRecords, {
+        onConflict: "save_game_id,prospect_id",
+      });
+
+    if (availabilityError) {
+      console.error("Error creating free agent availability:", availabilityError);
+      return NextResponse.json(
+        { error: "Failed to create free agent availability: " + availabilityError.message },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: `Moved ${freeAgentsToInsert.length} prospects to free agency`,
-      movedCount: freeAgentsToInsert.length,
+      message: `Moved ${prospects.length} prospects to free agency`,
+      movedCount: prospects.length,
     });
   } catch (error) {
     console.error("Error moving prospects to free agency:", error);

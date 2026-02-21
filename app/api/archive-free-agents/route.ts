@@ -16,12 +16,30 @@ export async function POST(req: Request) {
       );
     }
 
+    // Archive free agents in free_agent_availability table (per save game)
+    // Note: players table is seed data and should not be modified
+    // This endpoint should be called per save game, or we need saveGameId parameter
+    const { saveGameId } = await req.json();
+    
+    if (!saveGameId) {
+      return NextResponse.json(
+        { error: "saveGameId is required to archive free agents" },
+        { status: 400 }
+      );
+    }
+
     // Find all non-archived free agents who entered free agency 3+ seasons ago
     const cutoffSeason = currentSeason - 3;
 
     const { data: freeAgentsToArchive, error: fetchError } = await supabase
-      .from("free_agents")
-      .select("id, full_name, entered_free_agency_season")
+      .from("free_agent_availability")
+      .select(`
+        id,
+        player_id,
+        entered_free_agency_season,
+        players!inner (id, full_name)
+      `)
+      .eq("save_game_id", saveGameId)
       .eq("archived", false)
       .lte("entered_free_agency_season", cutoffSeason);
 
@@ -41,11 +59,11 @@ export async function POST(req: Request) {
       });
     }
 
-    // Archive the players
+    // Archive the free agents in free_agent_availability
     const idsToArchive = freeAgentsToArchive.map((fa) => fa.id);
     
     const { error: updateError } = await supabase
-      .from("free_agents")
+      .from("free_agent_availability")
       .update({ archived: true })
       .in("id", idsToArchive);
 
@@ -62,8 +80,8 @@ export async function POST(req: Request) {
       message: `Archived ${freeAgentsToArchive.length} free agents who have been unsigned for 3+ seasons`,
       archivedCount: freeAgentsToArchive.length,
       archivedPlayers: freeAgentsToArchive.map((fa) => ({
-        id: fa.id,
-        name: fa.full_name,
+        id: fa.player_id,
+        name: (fa.players as any)?.full_name || "Unknown",
         enteredSeason: fa.entered_free_agency_season,
       })),
     });
