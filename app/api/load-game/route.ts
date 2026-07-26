@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase-client";
+import { requireUser } from "@/lib/auth/route-auth";
 
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const { supabase, user } = auth.context;
+
   try {
     const { saveId } = await req.json();
 
@@ -12,28 +16,29 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get save game
+    // Get save game owned by the caller
     const { data: saveGame, error } = await supabase
       .from("save_games")
       .select("*")
       .eq("id", saveId)
-      .single();
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-    if (error) {
-      if (error.code === "PGRST116") {
-        return NextResponse.json(
-          { error: "Save game not found" },
-          { status: 404 }
-        );
-      }
-      throw error;
+    if (error) throw error;
+
+    if (!saveGame) {
+      return NextResponse.json(
+        { error: "Save game not found" },
+        { status: 404 }
+      );
     }
 
     // Update last played timestamp
     await supabase
       .from("save_games")
       .update({ last_played_at: new Date().toISOString() })
-      .eq("id", saveId);
+      .eq("id", saveId)
+      .eq("user_id", user.id);
 
     return NextResponse.json({
       success: true,
@@ -54,4 +59,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

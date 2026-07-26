@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase-client";
+import {
+  requireUser,
+  isRowLevelSecurityError,
+  forbiddenSaveGameResponse,
+} from "@/lib/auth/route-auth";
 import { isMissingSupabaseTableError } from "@/lib/supabase-errors";
 
 const DEFAULT_SETTINGS = {
@@ -11,6 +15,10 @@ const DEFAULT_SETTINGS = {
 };
 
 export async function GET(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const { supabase } = auth.context;
+
   try {
     const { searchParams } = new URL(req.url);
     const saveGameId = searchParams.get("saveGameId");
@@ -65,6 +73,10 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const { supabase } = auth.context;
+
   try {
     const { saveGameId, settings } = await req.json();
 
@@ -126,6 +138,10 @@ export async function POST(req: Request) {
           },
           { status: 503 }
         );
+      }
+
+      if (isRowLevelSecurityError(error)) {
+        return forbiddenSaveGameResponse();
       }
 
       console.error("Error upserting game settings:", error);

@@ -16,6 +16,7 @@ import Link from 'next/link';
 import PhaseProgressTracker from '@/app/components/PhaseProgressTracker';
 import GameSettings from '@/app/components/GameSettings';
 import SalaryCapWarning from '@/app/components/SalaryCapWarning';
+import { authFetch } from '@/lib/auth/browser-auth';
 
 interface GameSettingsData {
   injury_management: 'auto' | 'manual';
@@ -43,7 +44,7 @@ export default function RegularSeasonPage() {
       setLoading(true);
 
       // Load game settings
-      const response = await fetch(`/api/game-settings?saveGameId=${saveGameId}`);
+      const response = await authFetch(`/api/game-settings?saveGameId=${saveGameId}`);
       const data = await response.json();
       setSettings(data.settings || null);
 

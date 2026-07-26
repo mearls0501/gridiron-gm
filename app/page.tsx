@@ -6,8 +6,17 @@ import { Play, FolderOpen, Plus } from "lucide-react";
 import { useGameStore } from "@/lib/store/game-store";
 import GameSetupWizard from "./components/GameSetupWizard";
 import SaveGameManager from "./components/SaveGameManager";
+import AuthGate from "./components/AuthGate";
 
 export default function Home() {
+  return (
+    <AuthGate>
+      <HomeContent />
+    </AuthGate>
+  );
+}
+
+function HomeContent() {
   const { saveGameId, selectedTeamId } = useGameStore();
   const [showWizard, setShowWizard] = useState(false);
   const [showSaveManager, setShowSaveManager] = useState(false);

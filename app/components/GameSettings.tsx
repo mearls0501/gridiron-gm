@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useGameStore } from "@/lib/store/game-store";
 import { Settings, Save, RotateCcw, Info, CheckCircle } from "lucide-react";
+import { authFetch } from "@/lib/auth/browser-auth";
 
 interface GameSettingsData {
   injury_management: "auto" | "manual";
@@ -39,7 +40,9 @@ export default function GameSettings() {
     }
 
     try {
-      const response = await fetch(`/api/game-settings?saveGameId=${saveGameId}`);
+      const response = await authFetch(
+        `/api/game-settings?saveGameId=${saveGameId}`
+      );
       const data = await response.json();
 
       if (data.settings) {
@@ -63,7 +66,7 @@ export default function GameSettings() {
 
     try {
       setSaving(true);
-      const response = await fetch("/api/game-settings", {
+      const response = await authFetch("/api/game-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,7 +1,26 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase-client";
+import { requireUser } from "@/lib/auth/route-auth";
+
+const MIGRATION_INSTRUCTIONS = [
+  "1. Go to your Supabase dashboard",
+  "2. Navigate to SQL Editor",
+  "3. Run the SQL from: supabase/migrations/create_save_games.sql",
+  "4. Or use the Supabase CLI: supabase db push",
+];
+
+function isMissingSaveGamesTable(error: { code?: string; message?: string }) {
+  return (
+    error.code === "PGRST116" ||
+    (error.message?.includes("does not exist") ?? false) ||
+    (error.message?.includes("Could not find the table") ?? false)
+  );
+}
 
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const { supabase, user } = auth.context;
+
   try {
     const {
       saveName,
@@ -28,20 +47,11 @@ export async function POST(req: Request) {
       .limit(1);
 
     if (tableCheckError) {
-      if (
-        tableCheckError.code === "PGRST116" ||
-        tableCheckError.message.includes("does not exist") ||
-        tableCheckError.message.includes("Could not find the table")
-      ) {
+      if (isMissingSaveGamesTable(tableCheckError)) {
         return NextResponse.json(
           {
             error: "Save games table does not exist. Please run the migration first.",
-            instructions: [
-              "1. Go to your Supabase dashboard",
-              "2. Navigate to SQL Editor",
-              "3. Run the SQL from: supabase/migrations/create_save_games.sql",
-              "4. Or use the Supabase CLI: supabase db push",
-            ],
+            instructions: MIGRATION_INSTRUCTIONS,
             sqlFile: "supabase/migrations/create_save_games.sql",
           },
           { status: 400 }
@@ -54,6 +64,7 @@ export async function POST(req: Request) {
     const buildSaveData = (
       existingMetadata?: Record<string, unknown> | null
     ) => ({
+      user_id: user.id,
       save_name: saveName,
       description: description || null,
       current_season: currentSeason,
@@ -81,12 +92,13 @@ export async function POST(req: Request) {
     // CRITICAL: If saveGameId is provided, UPDATE that save (don't create new one)
     // This prevents accidentally creating a new save and breaking the current season
     if (saveGameId) {
-      // Verify the save exists
+      // Verify the save exists AND belongs to the caller
       const { data: existingSave, error: checkError } = await supabase
         .from("save_games")
         .select("id, save_name, metadata")
         .eq("id", saveGameId)
-        .single();
+        .eq("user_id", user.id)
+        .maybeSingle();
 
       if (checkError || !existingSave) {
         return NextResponse.json(
@@ -103,6 +115,7 @@ export async function POST(req: Request) {
         .from("save_games")
         .update(buildSaveData(existingSave.metadata))
         .eq("id", saveGameId)
+        .eq("user_id", user.id)
         .select()
         .single();
 
@@ -110,12 +123,13 @@ export async function POST(req: Request) {
       savedGame = data;
       console.log(`[SaveGame] Updated existing save ${saveGameId} (name: ${saveName})`);
     } else {
-      // No saveGameId provided - check if save name already exists
+      // No saveGameId provided - check if the caller already owns a save with this name
       const { data: existingByName, error: existingError } = await supabase
         .from("save_games")
         .select("id, metadata")
         .eq("save_name", saveName)
-        .single();
+        .eq("user_id", user.id)
+        .maybeSingle();
 
       // If error is not "not found", it's a real error
       if (existingError && existingError.code !== "PGRST116") {
@@ -128,6 +142,7 @@ export async function POST(req: Request) {
           .from("save_games")
           .update(buildSaveData(existingByName.metadata))
           .eq("id", existingByName.id)
+          .eq("user_id", user.id)
           .select()
           .single();
 
@@ -135,7 +150,7 @@ export async function POST(req: Request) {
         savedGame = data;
         console.log(`[SaveGame] Updated existing save by name ${saveName} (ID: ${existingByName.id})`);
       } else {
-        // Create new save
+        // Create new save owned by the caller
         const { data, error } = await supabase
           .from("save_games")
           .insert(buildSaveData())
@@ -155,23 +170,19 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Error saving game:", error);
     const errorMessage = error instanceof Error ? error.message : "Failed to save game";
-    
+
     // Provide more helpful error messages
     if (errorMessage.includes("does not exist") || errorMessage.includes("Could not find the table")) {
       return NextResponse.json(
         {
           error: "Save games table does not exist. Please run the migration first.",
-          instructions: [
-            "1. Go to your Supabase dashboard",
-            "2. Navigate to SQL Editor",
-            "3. Run the SQL from: supabase/migrations/create_save_games.sql",
-          ],
+          instructions: MIGRATION_INSTRUCTIONS.slice(0, 3),
           sqlFile: "supabase/migrations/create_save_games.sql",
         },
         { status: 400 }
       );
     }
-    
+
     return NextResponse.json(
       { error: errorMessage },
       { status: 500 }
@@ -180,6 +191,10 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const { supabase, user } = auth.context;
+
   try {
     const { searchParams } = new URL(req.url);
     const saveId = searchParams.get("id");
@@ -191,11 +206,7 @@ export async function GET(req: Request) {
       .limit(1);
 
     if (tableCheckError) {
-      if (
-        tableCheckError.code === "PGRST116" ||
-        tableCheckError.message.includes("does not exist") ||
-        tableCheckError.message.includes("Could not find the table")
-      ) {
+      if (isMissingSaveGamesTable(tableCheckError)) {
         // Table doesn't exist, return empty array instead of error
         return NextResponse.json({
           success: true,
@@ -207,24 +218,33 @@ export async function GET(req: Request) {
     }
 
     if (saveId) {
-      // Get specific save
+      // Get specific save owned by the caller
       const { data: saveGame, error } = await supabase
         .from("save_games")
         .select("*")
         .eq("id", saveId)
-        .single();
+        .eq("user_id", user.id)
+        .maybeSingle();
 
       if (error) throw error;
+
+      if (!saveGame) {
+        return NextResponse.json(
+          { error: "Save game not found" },
+          { status: 404 }
+        );
+      }
 
       return NextResponse.json({
         success: true,
         saveGame: saveGame,
       });
     } else {
-      // List all saves
+      // List the caller's saves
       const { data: saveGames, error } = await supabase
         .from("save_games")
         .select("*")
+        .eq("user_id", user.id)
         .order("last_played_at", { ascending: false });
 
       if (error) throw error;
@@ -244,6 +264,10 @@ export async function GET(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const { supabase, user } = auth.context;
+
   try {
     const { searchParams } = new URL(req.url);
     const saveId = searchParams.get("id");
@@ -255,12 +279,21 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const { error } = await supabase
+    const { data: deleted, error } = await supabase
       .from("save_games")
       .delete()
-      .eq("id", saveId);
+      .eq("id", saveId)
+      .eq("user_id", user.id)
+      .select("id");
 
     if (error) throw error;
+
+    if (!deleted || deleted.length === 0) {
+      return NextResponse.json(
+        { error: "Save game not found" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

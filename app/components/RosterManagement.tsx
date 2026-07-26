@@ -12,6 +12,7 @@ import {
   TrendingDown,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
+import { authFetch } from "@/lib/auth/browser-auth";
 
 interface Player {
   id: string;
@@ -52,7 +53,7 @@ export default function RosterManagement() {
       setLoading(true);
 
       // Get roster validation
-      const validationResponse = await fetch(
+      const validationResponse = await authFetch(
         `/api/roster-validation?saveGameId=${saveGameId}&season=${currentSeason}&teamId=${selectedTeamId}`
       );
       const validationData = await validationResponse.json();

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useGameStore } from "@/lib/store/game-store";
 import { Save, FolderOpen, Trash2, X, Plus } from "lucide-react";
+import { authFetch } from "@/lib/auth/browser-auth";
 
 interface SaveGame {
   id: string;
@@ -57,8 +58,13 @@ export default function SaveGameManager({
   async function loadSaveGames() {
     setLoading(true);
     try {
-      const res = await fetch("/api/save-game");
+      const res = await authFetch("/api/save-game");
       const data = await res.json();
+      if (res.status === 401) {
+        console.warn("Not signed in; cannot list save games.");
+        setSaveGames([]);
+        return;
+      }
       if (data.success) {
         setSaveGames(data.saveGames || []);
         if (data.message) {
@@ -112,7 +118,7 @@ export default function SaveGameManager({
     try {
       // CRITICAL: Always pass saveGameId if it exists to UPDATE the current save
       // This prevents accidentally creating a new save and breaking the current season
-      const res = await fetch("/api/save-game", {
+      const res = await authFetch("/api/save-game", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -168,7 +174,7 @@ export default function SaveGameManager({
 
   async function loadGame(saveId: string) {
     try {
-      const res = await fetch("/api/load-game", {
+      const res = await authFetch("/api/load-game", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ saveId }),
@@ -215,7 +221,7 @@ export default function SaveGameManager({
 
     setDeleting(saveId);
     try {
-      const res = await fetch(`/api/save-game?id=${saveId}`, {
+      const res = await authFetch(`/api/save-game?id=${saveId}`, {
         method: "DELETE",
       });
 

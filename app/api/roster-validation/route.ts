@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase-client";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  requireUser,
+  isRowLevelSecurityError,
+  forbiddenSaveGameResponse,
+} from "@/lib/auth/route-auth";
 import { isMissingSupabaseTableError } from "@/lib/supabase-errors";
 
 const MAX_ROSTER_SIZE = 53;
 
 export async function GET(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const { supabase } = auth.context;
+
   try {
     const { searchParams } = new URL(req.url);
     const saveGameId = searchParams.get("saveGameId");
@@ -20,7 +29,12 @@ export async function GET(req: Request) {
 
     if (teamId) {
       // Get validation for specific team
-      const validation = await validateTeamRoster(teamId, saveGameId, parseInt(season));
+      const validation = await validateTeamRoster(
+        supabase,
+        teamId,
+        saveGameId,
+        parseInt(season)
+      );
       return NextResponse.json({ validation });
     } else {
       // Get validation for all teams
@@ -38,7 +52,7 @@ export async function GET(req: Request) {
 
       const validations = await Promise.all(
         (teams || []).map((team) =>
-          validateTeamRoster(team.id, saveGameId, parseInt(season))
+          validateTeamRoster(supabase, team.id, saveGameId, parseInt(season))
         )
       );
 
@@ -61,6 +75,10 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const { supabase } = auth.context;
+
   try {
     const { saveGameId, season, teamId } = await req.json();
 
@@ -71,7 +89,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const validation = await validateTeamRoster(teamId, saveGameId, parseInt(season));
+    const validation = await validateTeamRoster(
+      supabase,
+      teamId,
+      saveGameId,
+      parseInt(season)
+    );
 
     // Upsert validation
     const { data, error } = await supabase
@@ -105,6 +128,10 @@ export async function POST(req: Request) {
         });
       }
 
+      if (isRowLevelSecurityError(error)) {
+        return forbiddenSaveGameResponse();
+      }
+
       console.error("Error upserting roster validation:", error);
       return NextResponse.json(
         { error: error.message },
@@ -122,7 +149,12 @@ export async function POST(req: Request) {
   }
 }
 
-async function validateTeamRoster(teamId: string, saveGameId: string, season: number) {
+async function validateTeamRoster(
+  supabase: SupabaseClient,
+  teamId: string,
+  saveGameId: string,
+  season: number
+) {
   // Get current roster size using player_team_assignments (includes both players and prospects)
   const { data: assignments, error: assignmentsError } = await supabase
     .from("player_team_assignments")

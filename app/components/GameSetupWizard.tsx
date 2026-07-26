@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase-client";
 import { Loader2, Check, ArrowRight, ArrowLeft, X } from "lucide-react";
+import { authFetch } from "@/lib/auth/browser-auth";
 
 interface Team {
   id: string;
@@ -87,7 +88,7 @@ export default function GameSetupWizard({
       let currentSaveGameId: string | null = null;
       // Generate unique save name with timestamp to prevent reusing existing saves
       const uniqueSaveName = `New Game - ${new Date().toISOString()}`;
-      const saveGameResponse = await fetch("/api/save-game", {
+      const saveGameResponse = await authFetch("/api/save-game", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -466,7 +467,7 @@ export default function GameSetupWizard({
 
       // Step 8: Update save game to mark as initialized (if it was created)
       if (currentSaveGameId) {
-        await fetch("/api/save-game", {
+        await authFetch("/api/save-game", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

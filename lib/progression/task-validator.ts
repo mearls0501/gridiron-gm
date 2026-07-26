@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "@/lib/supabase-client";
+import { authFetch } from "@/lib/auth/browser-auth";
 
 export interface TaskValidation {
   taskId: string;
@@ -337,7 +338,7 @@ export async function canAdvanceFromPhase(
       validation = await validatePreseasonTasks(saveGameId, teamId, season);
     } else if (phase === "regular_season") {
       // Load settings
-      const response = await fetch(
+      const response = await authFetch(
         `/api/game-settings?saveGameId=${saveGameId}`
       );
       const data = await response.json();
