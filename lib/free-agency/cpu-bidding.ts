@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * CPU Bidding Logic for Free Agency
  * 

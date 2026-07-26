@@ -66,7 +66,6 @@ export async function POST(req: Request) {
         archetype: player.archetype || null,
         overall: player.overall,
         potential: player.potential,
-        traits: player.traits || {},
         is_free_agent: true, // Mark as free agent
         team_id: null, // Free agents have no team
       });

@@ -26,7 +26,6 @@ export async function POST(req: Request) {
       archetype: string;
       overall: number;
       potential: number;
-      traits: string;
       is_free_agent: boolean;
       contract_year_1: number;
       contract_year_2: number;

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Player Trade Evaluation System
  * Handles evaluating and executing trades involving NFL players

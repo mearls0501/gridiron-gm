@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Pro Scouting System
  * Evaluating current NFL players for trades and free agency

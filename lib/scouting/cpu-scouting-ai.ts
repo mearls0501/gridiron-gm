@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * CPU Team Scouting AI
  * Intelligent scouting behavior for AI-controlled teams

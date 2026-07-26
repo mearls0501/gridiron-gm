@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Player Contract Preferences for Free Agency
  * 

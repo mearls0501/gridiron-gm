@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "db:verify": "node scripts/verify-supabase-env.mjs",
     "calibrate": "tsx scripts/run-calibration.ts"
   },
   "dependencies": {

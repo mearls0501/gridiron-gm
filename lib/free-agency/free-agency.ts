@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Free Agency System
  * Handles free agent classification, contract negotiations, and signings

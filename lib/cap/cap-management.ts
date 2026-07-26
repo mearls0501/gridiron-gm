@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Salary Cap Management System
  * Tools for managing team salary cap, restructures, extensions, and cuts

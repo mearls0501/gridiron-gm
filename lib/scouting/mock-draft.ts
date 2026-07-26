@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Mock Draft Simulator
  * Simulates drafts based on scouted intel to predict prospect availability

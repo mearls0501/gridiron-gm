@@ -127,10 +127,14 @@ function ProspectRow({
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-900 truncate">{prospect.name}</span>
             {prospect.boomPotential && (
-              <Sparkles className="w-4 h-4 text-purple-500" title="Boom potential" />
+              <span title="Boom potential">
+                <Sparkles className="w-4 h-4 text-purple-500" />
+              </span>
             )}
             {prospect.bustRisk === "high" && (
-              <TrendingDown className="w-4 h-4 text-red-500" title="High bust risk" />
+              <span title="High bust risk">
+                <TrendingDown className="w-4 h-4 text-red-500" />
+              </span>
             )}
             {!prospect.isScouted && (
               <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-xs rounded">
@@ -340,8 +344,8 @@ export default function BigBoard({
   }, [prospects, filterPosition, searchQuery]);
 
   // Group by tier if enabled
-  const prospectsByTier = useMemo(() => {
-    if (!showTiers) return { all: filteredProspects };
+  const prospectsByTier = useMemo<Record<number, BigBoardProspect[]>>(() => {
+    if (!showTiers) return { 0: filteredProspects };
 
     const grouped: Record<number, BigBoardProspect[]> = {};
     tiers.forEach((tier) => {

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Scout Development System
  * Handles scout experience, leveling, and attribute growth

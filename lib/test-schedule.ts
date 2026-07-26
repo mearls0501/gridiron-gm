@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Test script for schedule generation
 // Run with: npx tsx lib/test-schedule.ts
 

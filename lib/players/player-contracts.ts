@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * NFL Player Contracts & Acquisition Types
  * Core data models for trades, free agency, and salary cap

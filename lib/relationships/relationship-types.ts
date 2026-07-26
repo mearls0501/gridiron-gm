@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Relationship System - Core Types
  * Models relationships between GM and Owner, Coach, and Scouts

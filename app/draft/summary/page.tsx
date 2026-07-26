@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import { useGameStore } from "@/lib/store/game-store";
 import { supabase } from "@/lib/supabase-client";
 import { useSearchParams } from "next/navigation";
@@ -50,7 +50,7 @@ interface DraftResult {
   };
 }
 
-export default function DraftSummaryPage() {
+function DraftSummaryPageContent() {
   const searchParams = useSearchParams();
   const { saveGameId } = useGameStore();
   const [season, setSeason] = useState<number>(
@@ -430,6 +430,24 @@ export default function DraftSummaryPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function DraftSummaryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen" style={{ background: 'var(--futuristic-bg-primary)' }}>
+          <div className="container mx-auto px-4 py-8">
+            <div className="glass-panel rounded-xl p-8 text-center">
+              <p style={{ color: 'var(--futuristic-text-secondary)' }}>Loading draft summary...</p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <DraftSummaryPageContent />
+    </Suspense>
   );
 }
 

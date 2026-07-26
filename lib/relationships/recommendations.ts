@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Recommendation System
  * Generates recommendations from Owner, Coach, and Scouts

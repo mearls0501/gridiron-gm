@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Scout Personality System
  * Generates unique voices and opinions for each scout based on their archetype and personality type

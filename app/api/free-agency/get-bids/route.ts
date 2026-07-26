@@ -50,14 +50,6 @@ export async function POST(req: Request) {
 
     const bids = Array.from(latestBidsMap.values());
 
-    if (error) {
-      console.error("Error fetching bids:", error);
-      return NextResponse.json(
-        { error: `Failed to fetch bids: ${error.message}` },
-        { status: 500 }
-      );
-    }
-
     // Group bids by player
     const bidsByPlayer: Record<
       string,

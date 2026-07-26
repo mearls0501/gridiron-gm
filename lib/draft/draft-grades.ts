@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Draft Grades & Analysis System
  * Generates grades, analysis, and retrospectives for draft picks

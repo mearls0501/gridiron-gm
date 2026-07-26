@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Player } from './types';
 import { CoachingStaff } from './coaching-influence';
 

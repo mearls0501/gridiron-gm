@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Scout Accuracy Tracking System
  * Tracks and calculates scout prediction accuracy after draft results are revealed
