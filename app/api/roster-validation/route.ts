@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-client";
+import { isMissingSupabaseTableError } from "@/lib/supabase-errors";
 
 const MAX_ROSTER_SIZE = 53;
 
@@ -95,6 +96,15 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
+      if (isMissingSupabaseTableError(error)) {
+        return NextResponse.json({
+          validation,
+          notPersisted: true,
+          schemaMissing: true,
+          warning: "roster_validation table is missing. Apply supabase/migrations/20240101000046_create_game_settings.sql to persist roster validation history.",
+        });
+      }
+
       console.error("Error upserting roster validation:", error);
       return NextResponse.json(
         { error: error.message },

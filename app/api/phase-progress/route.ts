@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-client";
+import { isMissingSupabaseTableError } from "@/lib/supabase-errors";
 
 export async function GET(req: Request) {
   try {
@@ -26,6 +27,11 @@ export async function GET(req: Request) {
     const { data: progress, error } = await query.maybeSingle();
 
     if (error) {
+      if (isMissingSupabaseTableError(error)) {
+        console.warn("phase_progress table is missing; returning null progress");
+        return NextResponse.json({ progress: null, schemaMissing: true });
+      }
+
       console.error("Error fetching phase progress:", error);
       return NextResponse.json(
         { error: error.message },
@@ -85,6 +91,18 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
+      if (isMissingSupabaseTableError(error)) {
+        return NextResponse.json(
+          {
+            progress: progressData,
+            notPersisted: true,
+            schemaMissing: true,
+            error: "phase_progress table is missing. Apply supabase/migrations/20240101000046_create_game_settings.sql to persist phase progress.",
+          },
+          { status: 503 }
+        );
+      }
+
       console.error("Error upserting phase progress:", error);
       return NextResponse.json(
         { error: error.message },

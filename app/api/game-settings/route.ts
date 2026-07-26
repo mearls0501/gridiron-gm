@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-client";
+import { isMissingSupabaseTableError } from "@/lib/supabase-errors";
+
+const DEFAULT_SETTINGS = {
+  injury_management: "manual",
+  depth_chart_management: "manual",
+  scouting_management: "manual",
+  contract_management: "manual",
+  roster_management: "manual",
+};
 
 export async function GET(req: Request) {
   try {
@@ -21,6 +30,15 @@ export async function GET(req: Request) {
       .maybeSingle();
 
     if (error) {
+      if (isMissingSupabaseTableError(error)) {
+        console.warn("game_settings table is missing; returning manual defaults");
+        return NextResponse.json({
+          settings: DEFAULT_SETTINGS,
+          isDefault: true,
+          schemaMissing: true,
+        });
+      }
+
       console.error("Error fetching game settings:", error);
       return NextResponse.json(
         { error: error.message },
@@ -31,13 +49,7 @@ export async function GET(req: Request) {
     // If no settings exist, return defaults
     if (!settings) {
       return NextResponse.json({
-        settings: {
-          injury_management: "manual",
-          depth_chart_management: "manual",
-          scouting_management: "manual",
-          contract_management: "manual",
-          roster_management: "manual",
-        },
+        settings: DEFAULT_SETTINGS,
         isDefault: true,
       });
     }
@@ -106,6 +118,16 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
+      if (isMissingSupabaseTableError(error)) {
+        return NextResponse.json(
+          {
+            error: "game_settings table is missing. Apply supabase/migrations/20240101000046_create_game_settings.sql before saving automation preferences.",
+            schemaMissing: true,
+          },
+          { status: 503 }
+        );
+      }
+
       console.error("Error upserting game settings:", error);
       return NextResponse.json(
         { error: error.message },

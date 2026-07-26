@@ -70,4 +70,18 @@ if (serviceRoleKey) {
   ok = (await countWith('service_role', serviceRoleKey)) && ok;
 }
 
+if (serviceRoleKey) {
+  const supabase = createClient(url, serviceRoleKey, { auth: { persistSession: false } });
+  const requiredTables = ['game_settings', 'phase_progress', 'roster_validation'];
+  for (const table of requiredTables) {
+    const { error } = await supabase.from(table).select('*').limit(1);
+    if (error) {
+      console.error(`- required table ${table}: FAILED — ${error.message}`);
+      ok = false;
+    } else {
+      console.log(`- required table ${table}: visible`);
+    }
+  }
+}
+
 process.exit(ok ? 0 : 1);

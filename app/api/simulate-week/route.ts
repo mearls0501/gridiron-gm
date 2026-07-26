@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-client";
+import { isMissingSupabaseTableError } from "@/lib/supabase-errors";
 import { simulateGame, loadTeamsWithRosters } from "@/lib/simulation/engine";
 import { PlayerGameStat } from "@/lib/simulation/types";
 
@@ -449,11 +450,15 @@ export async function POST(req: Request) {
           try {
             if (saveGameId) {
               // Check if auto depth chart is enabled
-              const { data: settings } = await supabase
+              const { data: settings, error: settingsError } = await supabase
                 .from("game_settings")
                 .select("depth_chart_management")
                 .eq("save_game_id", saveGameId)
                 .single();
+
+              if (settingsError && !isMissingSupabaseTableError(settingsError)) {
+                console.warn("[Simulate Week] Could not load game settings:", settingsError);
+              }
 
               if (settings?.depth_chart_management === "auto") {
                 console.log("[Simulate Week] Auto-updating depth charts...");
