@@ -1,0 +1,458 @@
+"use client";
+
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { useGame } from "@/lib/store/game";
+import { PHASE_LABEL } from "@/components/Shell";
+import {
+  Button, Card, Cell, Empty, OvrBadge, Pill, PlayerLink, PosBadge, Row, Stat, Table, TeamMark, cx,
+} from "@/components/ui";
+import {
+  computeRecords, recordString, formatMoney, teamCap, rosterCount, rosterIssues,
+} from "@/lib/core/select";
+import { userNextGame, isOnBye, injuredPlayers, weekGames } from "@/lib/core/season/engine";
+import { divisionStandings } from "@/lib/core/season/standings";
+import { currentLine } from "@/lib/core/season/stats";
+import { OFFSEASON_STEPS, reconcileRoster } from "@/lib/core/offseason";
+import { Rng } from "@/lib/core/rng";
+import { describeAsset } from "@/lib/core/trades";
+import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, isHarsh, weatherLabel } from "@/lib/core/types";
+
+/**
+ * The hub.
+ *
+ * One rule drives this screen: whatever the franchise needs next, the button
+ * for it is here. The previous build hid week advancement on an admin page and
+ * told users to click a button that did not exist — this is the fix for that.
+ */
+export default function Hub() {
+  const state = useGame((s) => s.state);
+  const advance = useGame((s) => s.advance);
+  const apply = useGame((s) => s.apply);
+  const busy = useGame((s) => s.busy);
+  const [confirming, setConfirming] = useState(false);
+
+  const derived = useMemo(() => {
+    if (!state) return null;
+    const team = state.teams[state.userTeamId];
+    const recs = computeRecords(state);
+    const rec = recs.get(team.id)!;
+    const cap = teamCap(state, team.id);
+    const next = userNextGame(state);
+    const bye = isOnBye(state, team.id);
+    const injured = injuredPlayers(state, team.id);
+    const issues = rosterIssues(state, team.id);
+    const div = divisionStandings(state, team.division);
+    const divRank = div.findIndex((r) => r.teamId === team.id) + 1;
+    const roster = state.players.filter(
+      (p) => p.teamId === team.id && !p.retired && !p.prospect
+    );
+    const topPerformers = roster
+      .map((p) => ({ p, l: currentLine(p, state.season) }))
+      .filter((x) => x.l.games > 0)
+      .map((x) => ({
+        ...x,
+        score:
+          x.l.passYds * 0.04 + x.l.passTd * 4 - x.l.passInt * 2 +
+          x.l.rushYds * 0.06 + x.l.rushTd * 4 +
+          x.l.recYds * 0.055 + x.l.recTd * 4 +
+          x.l.sacks * 7 + x.l.ints * 8 + x.l.tackles * 0.4,
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+    const lastResults = weekGames(state, Math.max(1, state.week - 1)).filter((g) => g.played);
+    return { team, rec, cap, next, bye, injured, issues, div, divRank, roster, topPerformers, lastResults };
+  }, [state]);
+
+  if (!state || !derived) return null;
+  const { team, rec, cap, next, bye, injured, issues, divRank, roster, topPerformers } = derived;
+  const offers = state.tradeOffers ?? [];
+
+  const isOffseason = state.phase.startsWith("offseason");
+  const step = OFFSEASON_STEPS[state.phase];
+
+  const primaryLabel = (() => {
+    if (state.phase === "preseason") return "Start the Season";
+    if (state.phase === "regular") return bye ? `Advance Week ${state.week} (Bye)` : `Play Week ${state.week}`;
+    if (state.phase === "playoffs") {
+      return state.playoffs?.complete ? "Continue to the Offseason" : `Sim ${state.playoffs?.round ?? ""} Round`;
+    }
+    return step?.action ?? "Continue";
+  })();
+
+  const blocking = issues.filter((i) => i.kind !== "underLimit" || state.phase === "preseason");
+  const canAdvance = !(state.phase === "preseason" && blocking.length > 0);
+
+  const doAdvance = () => {
+    setConfirming(false);
+    advance();
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* ---- Action bar ---------------------------------------------------- */}
+      <Card padded={false} className="overflow-visible">
+        <div className="p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <TeamMark team={team} size={44} />
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold truncate">
+                {team.city} {team.name}
+              </h1>
+              <p className="text-xs text-[var(--color-muted)] tnum">
+                {state.season} {PHASE_LABEL[state.phase]}
+                {state.phase === "regular" && ` · Week ${state.week} of ${REGULAR_SEASON_WEEKS}`}
+                {" · "}
+                {recordString(rec)} · {divRank > 0 ? `${divRank}${["st", "nd", "rd", "th"][Math.min(divRank - 1, 3)]} in ${team.division}` : team.division}
+              </p>
+            </div>
+          </div>
+
+          <div className="sm:ml-auto flex items-center gap-2">
+            {!canAdvance && (
+              <span className="text-xs text-[var(--color-warn)] max-w-[220px]">
+                Fix your roster before the season starts.
+              </span>
+            )}
+            {confirming ? (
+              <>
+                <Button variant="primary" size="lg" onClick={doAdvance}>Confirm</Button>
+                <Button variant="ghost" size="lg" onClick={() => setConfirming(false)}>Cancel</Button>
+              </>
+            ) : (
+              <Button
+                variant="primary"
+                size="lg"
+                disabled={busy || !canAdvance}
+                onClick={() => (isOffseason || state.phase === "preseason" ? setConfirming(true) : doAdvance())}
+              >
+                {primaryLabel}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {isOffseason && step && (
+          <div className="px-4 pb-4 -mt-1">
+            <div className="bg-[var(--color-surface-2)] border border-[var(--color-line-soft)] rounded-lg px-3 py-2.5">
+              <div className="text-xs font-medium">{step.title}</div>
+              <div className="text-xs text-[var(--color-muted)] mt-0.5">{step.description}</div>
+              <div className="flex gap-2 mt-2">
+                {state.phase === "offseason-fa" && (
+                  <Link href="/free-agency"><Button size="sm">Go to Free Agency</Button></Link>
+                )}
+                {state.phase === "offseason-draft" && (
+                  <Link href="/draft"><Button size="sm">Go to the Draft Room</Button></Link>
+                )}
+                {state.phase === "offseason-final" && (
+                  <Link href="/roster"><Button size="sm">Review the Roster</Button></Link>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* ---- Alerts -------------------------------------------------------- */}
+      {issues.length > 0 && (
+        <Card
+          title="Needs attention"
+          actions={
+            <Button
+              size="sm"
+              onClick={() =>
+                apply((s) => {
+                  const rng = new Rng(s.rngState);
+                  reconcileRoster(s, s.userTeamId, rng);
+                  s.rngState = rng.state;
+                  return "Roster and cap brought back into compliance";
+                })
+              }
+              title="Signs, releases and renegotiates until you are at 53 players and under the cap"
+            >
+              Auto-fix
+            </Button>
+          }
+        >
+          <div className="space-y-2">
+            {issues.map((i, n) => (
+              <div key={n} className="flex items-start gap-2.5 text-sm">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-warn)] shrink-0" />
+                <div>
+                  <div>{i.message}</div>
+                  {i.detail && <div className="text-xs text-[var(--color-muted)]">{i.detail}</div>}
+                </div>
+                <Link href={i.kind === "overCap" ? "/finances" : "/roster"} className="ml-auto shrink-0">
+                  <Button size="sm" variant="ghost">Fix</Button>
+                </Link>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {offers.length > 0 && (
+        <Card
+          title="Trade offers"
+          subtitle={`${offers.length} club${offers.length === 1 ? "" : "s"} waiting on an answer`}
+          actions={
+            <Link href="/trades">
+              <Button size="sm" title="Read the offers in full and accept or turn them down">
+                Review offers
+              </Button>
+            </Link>
+          }
+        >
+          <div className="space-y-2">
+            {offers.map((o) => (
+              <div key={o.id} className="flex items-start gap-2.5 text-sm">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] shrink-0" />
+                <div className="min-w-0">
+                  <div>
+                    {state.teams[o.fromTeamId].abbr} want{" "}
+                    {o.get.map((a) => describeAsset(state, a)).join(", ") || "nothing"}
+                  </div>
+                  <div className="text-xs text-[var(--color-muted)]">
+                    Offering {o.give.map((a) => describeAsset(state, a)).join(", ") || "nothing"}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Stat label="Record" value={recordString(rec)} sub={`${rec.pf} PF · ${rec.pa} PA`} />
+        <Stat
+          label="Cap Space"
+          value={formatMoney(cap.space)}
+          sub={cap.dead > 0 ? `${formatMoney(cap.dead)} dead` : "no dead money"}
+          tone={cap.space < 0 ? "bad" : undefined}
+        />
+        <Stat
+          label="Roster"
+          value={`${rosterCount(state, team.id)}/${ROSTER_LIMIT}`}
+          sub={`${injured.length} injured`}
+          tone={rosterCount(state, team.id) !== ROSTER_LIMIT ? "warn" : undefined}
+        />
+        <Stat
+          label="Point Diff"
+          value={`${rec.pf - rec.pa > 0 ? "+" : ""}${rec.pf - rec.pa}`}
+          tone={rec.pf - rec.pa >= 0 ? "good" : "bad"}
+        />
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        {/* ---- Next game / last results ----------------------------------- */}
+        <Card title={next ? "Next Game" : "Season"} className="lg:col-span-1">
+          {next ? (
+            (() => {
+              const home = next.homeId === team.id;
+              const opp = state.teams[home ? next.awayId : next.homeId];
+              const oppRec = computeRecords(state).get(opp.id)!;
+              const forecast = next.conditions?.weather;
+              return (
+                <div className="text-center py-2">
+                  <div className="text-xs text-[var(--color-muted)]">
+                    {next.playoffRound ? next.playoffRound : `Week ${next.week}`} · {home ? "Home" : "Away"}
+                  </div>
+                  <div className="flex items-center justify-center gap-3 my-3">
+                    <TeamMark team={opp} size={40} />
+                    <div className="text-left">
+                      <div className="font-semibold">{opp.city} {opp.name}</div>
+                      <div className="text-xs text-[var(--color-muted)] tnum">{recordString(oppRec)}</div>
+                      {forecast && (
+                        <div
+                          className={cx(
+                            "text-xs tnum mt-0.5",
+                            isHarsh(forecast) ? "text-[var(--color-warn)]" : "text-[var(--color-faint)]"
+                          )}
+                        >
+                          {weatherLabel(forecast)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <Link href="/depth-chart">
+                    <Button size="sm" variant="ghost">Check the depth chart</Button>
+                  </Link>
+                </div>
+              );
+            })()
+          ) : bye && state.phase === "regular" ? (
+            <Empty title="Bye week" hint="No game this week. Advance to move on." />
+          ) : (
+            <Empty
+              title={state.phase === "preseason" ? "Season hasn't started" : "No games scheduled"}
+              hint={state.phase === "preseason" ? "Start the season when your roster is set." : undefined}
+            />
+          )}
+        </Card>
+
+        {/* ---- Division ----------------------------------------------------- */}
+        <Card title={team.division} className="lg:col-span-1" padded={false}>
+          <Table head={["Team", "W", "L", "PCT"]}>
+            {derived.div.map((r) => {
+              const t = state.teams[r.teamId];
+              const g = r.w + r.l + r.t;
+              return (
+                <Row key={r.teamId} highlight={r.teamId === team.id}>
+                  <Cell align="left">
+                    <span className="flex items-center gap-2">
+                      <TeamMark team={t} size={18} />
+                      <span className="truncate">{t.name}</span>
+                    </span>
+                  </Cell>
+                  <Cell>{r.w}</Cell>
+                  <Cell>{r.l}</Cell>
+                  <Cell>{g === 0 ? "—" : ((r.w + r.t * 0.5) / g).toFixed(3).replace(/^0/, "")}</Cell>
+                </Row>
+              );
+            })}
+          </Table>
+        </Card>
+
+        {/* ---- Injuries ----------------------------------------------------- */}
+        <Card title="Injury Report" subtitle={`${injured.length} player${injured.length === 1 ? "" : "s"} out`} className="lg:col-span-1" padded={false}>
+          {injured.length === 0 ? (
+            <Empty title="Everyone's healthy" />
+          ) : (
+            <Table head={["Player", "Injury", "Wks"]}>
+              {injured.slice(0, 8).map((p) => (
+                <Row key={p.id}>
+                  <Cell align="left">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <PosBadge pos={p.pos} />
+                      <PlayerLink p={p} className="truncate" />
+                    </span>
+                  </Cell>
+                  <Cell align="right"><span className="text-xs text-[var(--color-muted)]">{p.injuryDesc}</span></Cell>
+                  <Cell>{p.injuryWeeks}</Cell>
+                </Row>
+              ))}
+            </Table>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        {/* ---- Team leaders -------------------------------------------------- */}
+        <Card title="Team Leaders" subtitle={`${state.season} season`} padded={false}>
+          {topPerformers.length === 0 ? (
+            <Empty title="No games played yet" hint="Play a week to see who's producing." />
+          ) : (
+            <Table head={["Player", "OVR", "Line"]}>
+              {topPerformers.map(({ p, l }) => {
+                const line =
+                  l.passAtt > 0 ? `${l.passYds} yds, ${l.passTd} TD, ${l.passInt} INT`
+                  : l.rushAtt > l.rec ? `${l.rushYds} yds, ${l.rushTd} TD`
+                  : l.rec > 0 ? `${l.rec} rec, ${l.recYds} yds, ${l.recTd} TD`
+                  : `${l.tackles} tkl, ${l.sacks} sk, ${l.ints} INT`;
+                return (
+                  <Row key={p.id}>
+                    <Cell align="left">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <PosBadge pos={p.pos} />
+                        <PlayerLink p={p} className="truncate" />
+                      </span>
+                    </Cell>
+                    <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                    <Cell><span className="text-xs text-[var(--color-muted)]">{line}</span></Cell>
+                  </Row>
+                );
+              })}
+            </Table>
+          )}
+        </Card>
+
+        {/* ---- Activity ------------------------------------------------------ */}
+        <Card title="Around the League" padded={false}>
+          {state.log.length === 0 ? (
+            <Empty title="Nothing has happened yet" />
+          ) : (
+            <div className="max-h-[320px] overflow-y-auto divide-y divide-[var(--color-line-soft)]">
+              {state.log.slice(-40).reverse().map((e, i) => (
+                <div key={i} className="px-4 py-2 flex items-start gap-2.5">
+                  <span
+                    className={cx(
+                      "mt-1.5 w-1.5 h-1.5 rounded-full shrink-0",
+                      e.kind === "injury" ? "bg-[var(--color-bad)]"
+                      : e.kind === "milestone" ? "bg-[var(--color-elite)]"
+                      : e.kind === "transaction" ? "bg-[var(--color-accent)]"
+                      : e.kind === "draft" ? "bg-[var(--color-warn)]"
+                      : "bg-[var(--color-faint)]"
+                    )}
+                  />
+                  <span className="text-xs leading-relaxed">{e.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {roster.length > 0 && (
+        <Card
+          title="Roster Snapshot"
+          subtitle="Your five highest-rated players"
+          actions={<Link href="/roster"><Button size="sm" variant="ghost">Full roster</Button></Link>}
+          padded={false}
+        >
+          <Table head={["Player", "Pos", "Age", "OVR", "Cap Hit"]}>
+            {roster
+              .slice()
+              .sort((a, b) => b.ovr - a.ovr)
+              .slice(0, 5)
+              .map((p) => (
+                <Row key={p.id}>
+                  <Cell align="left"><PlayerLink p={p} /></Cell>
+                  <Cell><PosBadge pos={p.pos} /></Cell>
+                  <Cell>{p.age}</Cell>
+                  <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                  <Cell>{formatMoney(p.contract ? (p.contract.baseSalary[0] ?? 0) + (p.contract.bonusProrationYears > 0 ? p.contract.signingBonus / p.contract.bonusProrationYears : 0) : 0)}</Cell>
+                </Row>
+              ))}
+          </Table>
+        </Card>
+      )}
+
+      {state.phase === "regular" && derived.lastResults.length > 0 && (
+        <Card title={`Week ${Math.max(1, state.week - 1)} Results`} padded={false}>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-[var(--color-line-soft)]">
+            {derived.lastResults.map((g) => {
+              const h = state.teams[g.homeId];
+              const a = state.teams[g.awayId];
+              const mine = g.homeId === team.id || g.awayId === team.id;
+              return (
+                <Link
+                  key={g.id}
+                  href={`/game/${g.id}`}
+                  className={cx(
+                    "bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)] p-3 transition-colors",
+                    mine && "bg-[var(--color-accent-dim)]/30"
+                  )}
+                >
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <TeamMark team={a} size={16} />
+                      <span className="truncate">{a.abbr}</span>
+                    </span>
+                    <span className={cx("tnum", g.awayScore > g.homeScore && "font-semibold")}>{g.awayScore}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <TeamMark team={h} size={16} />
+                      <span className="truncate">{h.abbr}</span>
+                    </span>
+                    <span className={cx("tnum", g.homeScore > g.awayScore && "font-semibold")}>{g.homeScore}</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}

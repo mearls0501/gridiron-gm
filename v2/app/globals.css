@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens. One dark theme, tuned for long sessions staring at tables of
+ * numbers: low-chroma surfaces, one accent, and a small semantic ramp for
+ * player quality that stays legible for the ~8% of men with red/green CVD
+ * (the ramp runs dim-to-bright as well as hue-shifted, so it never relies on
+ * hue alone).
+ */
+@theme {
+  --color-bg: #0c0e12;
+  --color-surface: #14171d;
+  --color-surface-2: #1b1f27;
+  --color-surface-3: #232833;
+  --color-line: #2b313d;
+  --color-line-soft: #21262f;
+
+  --color-text: #e6e9ef;
+  --color-muted: #8b95a7;
+  --color-faint: #626c7d;
+
+  --color-accent: #4c9aff;
+  --color-accent-dim: #1f3a5f;
+
+  --color-good: #4ade80;
+  --color-warn: #fbbf24;
+  --color-bad: #f87171;
+
+  --color-elite: #c4b5fd;
+  --color-great: #7dd3fc;
+  --color-ok: #86efac;
+  --color-avg: #cbd5e1;
+  --color-weak: #94a3b8;
+  --color-poor: #6b7280;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+  padding: 0;
+}
+
+/* Tabular numerals everywhere numbers are compared down a column. */
+.tnum { font-variant-numeric: tabular-nums; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-surface-3); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: #303743; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.animate-in { animation: fadeIn 0.18s ease-out; }
+
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.animate-up { animation: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1); }

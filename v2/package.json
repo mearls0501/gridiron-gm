@@ -1,0 +1,42 @@
+{
+  "name": "gridiron-gm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "verify": "tsx scripts/verify.ts 5",
+    "calibrate": "tsx scripts/calibrate.ts",
+    "statcheck": "tsx scripts/statcheck.ts",
+    "records": "tsx scripts/statcheck.ts",
+    "tails": "tsx scripts/tails.ts 16",
+    "leverage": "tsx scripts/leverage.ts 150",
+    "conditions": "tsx scripts/conditions.ts 6",
+    "coherence": "tsx scripts/coherence.ts 5",
+    "drift": "tsx scripts/drift.ts 20",
+    "codec": "tsx scripts/codeccheck.ts 3",
+    "savesize": "tsx scripts/savesize.ts 20"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "next": "^15.5.22",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "playwright": "^1.62.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.1",
+    "typescript": "^5.7.3"
+  }
+}

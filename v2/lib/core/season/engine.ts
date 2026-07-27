@@ -1,0 +1,173 @@
+import { Rng } from "../rng";
+import { simulateGame } from "../sim/game";
+import { refreshDepthCharts } from "../generate";
+import { generateSchedule } from "../schedule";
+import { GameState, Player, REGULAR_SEASON_WEEKS, TRADE_DEADLINE_WEEK } from "../types";
+import { applyGameStats } from "./stats";
+import { recordGame } from "./records";
+import { initPlayoffs, simulatePlayoffRound } from "./playoffs";
+import { applyGameWear, healWeek, healthySet, rollWeeklyInjuries } from "./injuries";
+import { generateUserOffers, runCpuTrades } from "../trades";
+
+/**
+ * Week-by-week engine.
+ *
+ * One entry point — `advance(state)` — moves the franchise forward by exactly
+ * one step, whatever that step happens to be for the current phase. Every
+ * transition the game can make is reachable from it, so there is no state the
+ * UI can get into with no way out.
+ */
+
+export function startRegularSeason(state: GameState): void {
+  const rng = new Rng(state.rngState);
+  state.games = generateSchedule(state, rng);
+  state.phase = "regular";
+  state.week = 1;
+  state.playoffs = null;
+  refreshDepthCharts(state);
+  state.rngState = rng.state;
+  state.log.push({
+    season: state.season, week: 1, kind: "system",
+    text: `The ${state.season} season is underway.`,
+  });
+}
+
+/** Simulate every unplayed game in the current week. */
+export function simulateWeek(state: GameState): void {
+  const rng = new Rng(state.rngState);
+  refreshDepthCharts(state);
+
+  const games = state.games.filter(
+    (g) => g.season === state.season && g.week === state.week && !g.played && g.playoffRound === null
+  );
+
+  // Who was fit at kickoff, so anything that turns serious during the games can
+  // be charged against the player's durability afterwards.
+  const healthyBefore = healthySet(state);
+
+  for (const g of games) {
+    const result = simulateGame(state, g, rng);
+    g.homeScore = result.homeScore;
+    g.awayScore = result.awayScore;
+    g.boxScore = result.box;
+    g.played = true;
+    applyGameStats(state, g);
+    recordGame(state, g);
+  }
+
+  // Log the user's result prominently.
+  const userGame = games.find(
+    (g) => g.homeId === state.userTeamId || g.awayId === state.userTeamId
+  );
+  if (userGame) {
+    const isHome = userGame.homeId === state.userTeamId;
+    const us = isHome ? userGame.homeScore : userGame.awayScore;
+    const them = isHome ? userGame.awayScore : userGame.homeScore;
+    const opp = state.teams[isHome ? userGame.awayId : userGame.homeId];
+    const verb = us > them ? "beat" : us < them ? "lost to" : "tied";
+    state.log.push({
+      season: state.season, week: state.week, kind: "result",
+      text: `Week ${state.week}: You ${verb} ${opp.city} ${opp.name} ${us}-${them}`,
+    });
+  }
+
+  // Heal first: everyone carrying an injury has now missed this week's game.
+  // Then take the durability hit for anything serious that happened in it, and
+  // only then roll the week's non-contact injuries — which cost their full
+  // stated duration because nothing decrements them again until next week.
+  applyGameWear(state, healthyBefore, rng);
+  healWeek(state);
+  rollWeeklyInjuries(state, games, rng);
+
+  // The phones stay on until the deadline. Fewer attempts than the offseason —
+  // in-season deals are rare, and a club that has just lost a starter is
+  // exactly who goes looking.
+  if (state.week <= TRADE_DEADLINE_WEEK) {
+    runCpuTrades(state, rng, 12);
+    generateUserOffers(state, rng, 1);
+  } else if (state.week === TRADE_DEADLINE_WEEK + 1) {
+    state.tradeOffers = [];
+    state.log.push({
+      season: state.season, week: state.week, kind: "system",
+      text: "The trade deadline has passed.",
+    });
+  }
+
+  state.rngState = rng.state;
+}
+
+/**
+ * Advance the franchise one step. Returns a short description of what happened
+ * so the UI can surface it without re-deriving the phase.
+ */
+export function advance(state: GameState): string {
+  switch (state.phase) {
+    case "preseason": {
+      startRegularSeason(state);
+      return `${state.season} season started`;
+    }
+
+    case "regular": {
+      simulateWeek(state);
+      if (state.week >= REGULAR_SEASON_WEEKS) {
+        state.phase = "playoffs";
+        state.playoffs = initPlayoffs(state);
+        state.week = 19;
+        return "Regular season complete — playoff field set";
+      }
+      state.week += 1;
+      return `Week ${state.week - 1} complete`;
+    }
+
+    case "playoffs": {
+      const rng = new Rng(state.rngState);
+      const before = state.playoffs?.round;
+      simulatePlayoffRound(state, rng);
+      state.rngState = rng.state;
+
+      if (state.playoffs?.complete) {
+        state.phase = "offseason-recap";
+        return "Champion crowned";
+      }
+      state.week += 1;
+      return `${before} round complete`;
+    }
+
+    default:
+      // Offseason phases are driven by lib/core/offseason.
+      return "";
+  }
+}
+
+/** Games for a given week, sorted so the user's game is first. */
+export function weekGames(state: GameState, week = state.week) {
+  return state.games
+    .filter((g) => g.season === state.season && g.week === week)
+    .sort((a, b) => {
+      const aUser = a.homeId === state.userTeamId || a.awayId === state.userTeamId ? 0 : 1;
+      const bUser = b.homeId === state.userTeamId || b.awayId === state.userTeamId ? 0 : 1;
+      return aUser - bUser || a.id - b.id;
+    });
+}
+
+export function userNextGame(state: GameState) {
+  return state.games.find(
+    (g) =>
+      g.season === state.season &&
+      !g.played &&
+      (g.homeId === state.userTeamId || g.awayId === state.userTeamId)
+  );
+}
+
+export function isOnBye(state: GameState, teamId: number, week = state.week): boolean {
+  if (state.phase !== "regular") return false;
+  return !state.games.some(
+    (g) => g.season === state.season && g.week === week && (g.homeId === teamId || g.awayId === teamId)
+  );
+}
+
+export function injuredPlayers(state: GameState, teamId: number): Player[] {
+  return state.players
+    .filter((p) => p.teamId === teamId && p.injuryWeeks > 0 && !p.retired)
+    .sort((a, b) => b.injuryWeeks - a.injuryWeeks);
+}

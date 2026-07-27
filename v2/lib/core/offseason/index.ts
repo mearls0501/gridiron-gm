@@ -1,0 +1,240 @@
+import { Rng } from "../rng";
+import { refreshDepthCharts } from "../generate";
+import { clearDeadCap } from "../select";
+import { GameState, Phase } from "../types";
+import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
+import { cpuResign, expireContracts, reconcileRoster, spendToFloor } from "./contracts";
+import { FA_ROUNDS, runCpuFaRound } from "./freeAgency";
+import { convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, generateDraftClass, initialScoutingPass } from "./draft";
+import { ensurePickInventory, generateUserOffers, prunePickInventory, runCpuTrades } from "../trades";
+import { runHousekeeping } from "../housekeeping";
+
+export * from "./contracts";
+export * from "./draft";
+export * from "./freeAgency";
+export * from "./progression";
+
+/**
+ * Offseason orchestration.
+ *
+ * Four phases, each advanced by one call. Every phase leaves the save in a
+ * valid, playable state — there is no half-completed rollover that can strand a
+ * franchise with no active season.
+ */
+
+export interface OffseasonStep {
+  phase: Phase;
+  title: string;
+  description: string;
+  action: string;
+}
+
+export const OFFSEASON_STEPS: Record<string, OffseasonStep> = {
+  "offseason-recap": {
+    phase: "offseason-recap",
+    title: "Season Review",
+    description: "Awards, retirements, and player development for the year just finished.",
+    action: "Continue to Free Agency",
+  },
+  "offseason-fa": {
+    phase: "offseason-fa",
+    title: "Free Agency",
+    description: "Contracts have expired. Sign replacements before the draft.",
+    action: "Continue to the Draft",
+  },
+  "offseason-draft": {
+    phase: "offseason-draft",
+    title: "The Draft",
+    description: "Scout the class and make your picks.",
+    action: "Finish the Draft",
+  },
+  "offseason-final": {
+    phase: "offseason-final",
+    title: "Roster Cutdown",
+    description: "Get to 53 players and under the cap before the season opens.",
+    action: "Start the Season",
+  },
+};
+
+export interface OffseasonState {
+  report: OffseasonReport | null;
+  faRound: number;
+}
+
+/** Season review: history, awards, aging, development, retirement. */
+export function runRecap(state: GameState): OffseasonReport {
+  const rng = new Rng(state.rngState);
+
+  const history = recordSeasonHistory(state);
+  state.history.push(history);
+
+  const report = runProgression(state, rng);
+
+  for (const r of report.retirements) {
+    state.log.push({
+      season: state.season, week: 0, kind: "milestone",
+      text: `${r.player.firstName} ${r.player.lastName} (${r.player.pos}, ${r.player.ovr} OVR) retires at ${r.age}.`,
+    });
+  }
+
+  state.rngState = rng.state;
+  state.phase = "offseason-fa";
+  return report;
+}
+
+/** Contracts expire, CPU teams re-sign their own, then the market opens. */
+export function runFreeAgencyOpen(state: GameState): void {
+  const rng = new Rng(state.rngState);
+
+  clearDeadCap(state);
+  const expiring = expireContracts(state);
+
+  // CPU teams get first crack at retaining their own expiring players.
+  const byTeam = new Map<number, typeof expiring>();
+  for (const p of expiring) {
+    // teamId was cleared by expireContracts; recover the last team from stats.
+    const last = p.stats[p.stats.length - 1]?.teamId ?? null;
+    if (last === null || last === state.userTeamId) continue;
+    const arr = byTeam.get(last) ?? [];
+    arr.push(p);
+    byTeam.set(last, arr);
+  }
+  for (const [teamId, players] of byTeam) {
+    cpuResign(state, teamId, players, rng);
+  }
+
+  state.rngState = rng.state;
+}
+
+export function runFaWave(state: GameState, round: number) {
+  const rng = new Rng(state.rngState);
+  const signings = runCpuFaRound(state, rng, round);
+  state.rngState = rng.state;
+  return signings;
+}
+
+/** Skip ahead: run every remaining CPU wave at once. */
+export function runAllFaWaves(state: GameState): void {
+  for (let r = 1; r <= FA_ROUNDS; r++) runFaWave(state, r);
+}
+
+/** Clubs work the phones. Returns how many deals were struck. */
+export function runOffseasonTrades(state: GameState): number {
+  const rng = new Rng(state.rngState);
+  const n = runCpuTrades(state, rng);
+  generateUserOffers(state, rng);
+  state.rngState = rng.state;
+  return n;
+}
+
+export function enterDraft(state: GameState): void {
+  const rng = new Rng(state.rngState);
+  if (!state.draft || state.draft.season !== state.season) {
+    state.draft = initDraft(state, rng);
+  }
+  runDraftUntilUser(state, rng);
+  state.rngState = rng.state;
+  state.phase = "offseason-draft";
+}
+
+export function simToUserPick(state: GameState): void {
+  const rng = new Rng(state.rngState);
+  runDraftUntilUser(state, rng);
+  state.rngState = rng.state;
+}
+
+export function simEntireDraft(state: GameState): void {
+  const rng = new Rng(state.rngState);
+  runFullDraft(state, rng);
+  state.rngState = rng.state;
+}
+
+/**
+ * Close out the offseason: undrafted players hit the pool, every roster is
+ * brought to a legal 53 under the cap, and the calendar rolls to next season.
+ */
+export function finalizeOffseason(state: GameState): void {
+  const rng = new Rng(state.rngState);
+
+  if (state.draft) {
+    convertUndrafted(state, state.draft.season);
+    // That class is spent; its pick rows can go.
+    prunePickInventory(state, state.draft.season);
+  }
+
+  // CPU housekeeping first, then the user's team, so the user gets the last
+  // word on their own roster but never starts a season with an illegal one.
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    reconcileRoster(state, t.id, rng);
+    // Then spend up to the league floor. Deliberately not applied to the user's
+    // club: how much of their own cap they use is their decision, not ours.
+    spendToFloor(state, t.id, rng);
+    reconcileRoster(state, t.id, rng);
+  }
+  reconcileRoster(state, state.userTeamId, rng);
+
+  // Roll the calendar.
+  state.season += 1;
+  state.week = 0;
+  state.phase = "preseason";
+  state.games = [];
+  state.playoffs = null;
+  state.draft = null;
+  state.fa = null;
+  for (const t of state.teams) t.scoutingPoints = 100;
+
+  // Seed next year's class so the user can scout during the season.
+  generateDraftClass(state, rng, state.season);
+  initialScoutingPass(state, state.season, rng);
+
+  refreshDepthCharts(state);
+  // Roll the pick horizon forward so next year's class is tradeable too.
+  ensurePickInventory(state);
+  state.tradeOffers = [];
+  state.rngState = rng.state;
+
+  // Last, so the entry announcing the new season is never the one trimmed.
+  runHousekeeping(state);
+
+  state.log.push({
+    season: state.season, week: 0, kind: "system",
+    text: `${state.season} preseason begins.`,
+  });
+}
+
+/**
+ * One-call offseason advance used by the hub button and the headless harness.
+ * Returns a human-readable description of what just happened.
+ */
+export function advanceOffseason(state: GameState): string {
+  switch (state.phase) {
+    case "offseason-recap":
+      runRecap(state);
+      runFreeAgencyOpen(state);
+      runOffseasonTrades(state);
+      return "Season review complete — free agency is open";
+
+    case "offseason-fa":
+      runAllFaWaves(state);
+      runOffseasonTrades(state);
+      enterDraft(state);
+      return "Free agency closed — the draft is on the clock";
+
+    case "offseason-draft":
+      simEntireDraft(state);
+      state.phase = "offseason-final";
+      return "Draft complete";
+
+    case "offseason-final":
+      finalizeOffseason(state);
+      return `${state.season} preseason begins`;
+
+    default:
+      return "";
+  }
+}
+
+export function isOffseason(phase: Phase): boolean {
+  return phase.startsWith("offseason");
+}
