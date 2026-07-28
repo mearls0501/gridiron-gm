@@ -15,7 +15,7 @@ function loadEnvFile(path) {
     if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
       value = value.slice(1, -1);
     }
-    process.env[key] ||= value;
+    process.env[key] = value;
   }
 }
 

@@ -857,8 +857,8 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     if (rng.chance((0.046 + (skill - 60) * 0.0011) * breakout)) {
       yards += Math.abs(rng.normal(13, 9));           // through the second level
     }
-    if (rng.chance((0.0115 + (skill - 60) * 0.00055) * breakout)) {
-      yards += Math.abs(rng.normal(24, 14));          // gone
+    if (rng.chance((0.0113 + (skill - 60) * 0.00054) * breakout)) {
+      yards += Math.abs(rng.normal(23, 13.5));          // gone
     }
     yards = Math.round(clamp(yards, -6, 100 - yardLine));
 
