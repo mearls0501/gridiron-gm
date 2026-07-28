@@ -18,6 +18,7 @@ import { simulateGame } from "../lib/core/sim/game";
 import { autoSortDepthChart } from "../lib/core/generate";
 import { AttrKey, Game, GameState, Player, Position } from "../lib/core/types";
 import { POSITION_WEIGHTS } from "../lib/core/ratings";
+import { emitAll } from "./metrics";
 
 const N = Number(process.argv[2] ?? 160);
 const LOW = 30;
@@ -61,6 +62,10 @@ function run(mutate: (st: GameState) => void): Measures {
     // the two trials diverged after the first differing outcome, so a 4% swing
     // could be noise rather than signal. Per-game seeding makes the comparison
     // properly paired: game i faces the identical random sequence in both runs.
+    // Injuries persist on the state, and this loop never advances a week, so
+    // without this the probed player gets hurt around game 20 and every
+    // measurement after that is noise. calibrate.ts carries the same fix.
+    for (const pl of st.players) { pl.injuryWeeks = 0; pl.injuryDesc = null; }
     const rng = new Rng(31337 + i * 7919);
     const game: Game = {
       id: 1, season: st.season, week: 1, homeId: TEAM, awayId: OPP,
@@ -219,4 +224,9 @@ if (unbacked === 0) console.log("  none — every probed OVR contributor moves i
 console.log(
   `\n${dead} probes with no effect, ${wrongSign} with the wrong sign, ${unbacked} unbacked OVR contributors`
 );
+emitAll({
+  "leverage.wrongSign": wrongSign,
+  "leverage.noEffect": dead,
+  "leverage.unbackedOvr": unbacked,
+});
 process.exit(dead + wrongSign + unbacked > 0 ? 1 : 0);

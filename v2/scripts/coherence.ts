@@ -19,6 +19,7 @@ import { GameState, Player } from "../lib/core/types";
 import { Rng } from "../lib/core/rng";
 import { simulateGame } from "../lib/core/sim/game";
 import { autoSortDepthChart } from "../lib/core/generate";
+import { emitAll } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 5);
 
@@ -242,6 +243,10 @@ const weighted =
   const shadowDrop = weak.wr1 - eliteShadow.wr1;
   console.log(`  elite corner playing sides costs WR1  ${sidesDrop.toFixed(1)} yds/game`);
   console.log(`  the same corner shadowing costs him   ${shadowDrop.toFixed(1)} yds/game`);
+  emitAll({
+    "coherence.eliteCbSidesDrop": sidesDrop,
+    "coherence.eliteCbShadowDrop": shadowDrop,
+  });
   console.log(
     shadowDrop > sidesDrop + 1
       ? "  shadowing is meaningfully worse for the receiver than side coverage"
@@ -252,4 +257,5 @@ const weighted =
 console.log(`\noverall: ${weighted.toFixed(1)}% of outlier games have at least two explaining factors`);
 const THRESHOLD = 85;
 console.log(weighted >= THRESHOLD ? "COHERENT" : `BELOW TARGET (${THRESHOLD}%)`);
+emitAll({ "coherence.outlierExplainedPct": weighted });
 process.exit(weighted >= THRESHOLD ? 0 : 1);

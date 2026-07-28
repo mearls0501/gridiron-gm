@@ -17,6 +17,7 @@ import {
 } from "../lib/core/types";
 import { SNAP_SHARE } from "../lib/core/sim/game";
 import { teamSeasonStats } from "../lib/core/season/records";
+import { emitAll } from "./metrics";
 
 let failures = 0;
 let checks = 0;
@@ -630,6 +631,7 @@ checkSnapShares();
 checkOvrTargeting();
 run(seasons, seed);
 
+emitAll({ "verify.failures": failures, "verify.checks": checks });
 console.log(`\n${checks - failures}/${checks} checks passed`);
 if (failures > 0) {
   console.log(`${failures} FAILURES`);

@@ -9,6 +9,7 @@
 import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { GameState, isHarsh } from "../lib/core/types";
+import { emitAll } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 6);
 
@@ -163,6 +164,19 @@ if (windy.n > 30 && dome.n > 50) {
   if (wp >= dp) problems.push(`wind should push teams toward the run (${(wp*100).toFixed(0)}% vs ${(dp*100).toFixed(0)}%)`);
 }
 
+const dl = (b: typeof cold) => (b.n && dome.n ? b.points / b.n - dome.points / dome.n : 0);
+const pRate = (b: typeof cold) => (b.passAtt + b.rushAtt ? (b.passAtt / (b.passAtt + b.rushAtt)) * 100 : 0);
+emitAll({
+  "conditions.problems": problems.length,
+  "conditions.homeWinPct": (homeWins / (homeWins + awayWins)) * 100,
+  "conditions.homeScoringEdge": (homePts - awayPts) / games,
+  "conditions.byeWinPct": byeGames > 0 ? (byeWins / byeGames) * 100 : 0,
+  "conditions.byeGames": byeGames,
+  "conditions.coldPointsDelta": dl(cold), "conditions.windPointsDelta": dl(windy),
+  "conditions.snowPointsDelta": dl(snowy),
+  "conditions.domePassRatePct": pRate(dome), "conditions.windPassRatePct": pRate(windy),
+  "conditions.domeLongestFg": dome.fgMax, "conditions.windLongestFg": windy.fgMax,
+});
 console.log(`\n${problems.length === 0 ? "CONDITIONS BEHAVE AS EXPECTED" : "PROBLEMS:"}`);
 for (const p of problems) console.log(`  - ${p}`);
 process.exit(problems.length === 0 ? 0 : 1);

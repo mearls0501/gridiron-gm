@@ -18,7 +18,11 @@
     "coherence": "tsx scripts/coherence.ts 5",
     "drift": "tsx scripts/drift.ts 20",
     "codec": "tsx scripts/codeccheck.ts 3",
-    "savesize": "tsx scripts/savesize.ts 20"
+    "savesize": "tsx scripts/savesize.ts 20",
+    "gate": "tsx scripts/gate.ts fast",
+    "gate:full": "tsx scripts/gate.ts full",
+    "gate:lock": "tsx scripts/gate.ts full --lock",
+    "determinism": "tsx scripts/determinism.ts 2"
   },
   "keywords": [],
   "author": "",

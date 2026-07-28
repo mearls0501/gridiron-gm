@@ -19,6 +19,7 @@ import { leagueStandings } from "../lib/core/season/standings";
 import { capHit } from "../lib/core/select";
 import { GameState, Player, Position, salaryCap } from "../lib/core/types";
 import { encodeSave } from "../lib/store/codec";
+import { emitAll } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 20);
 const SEEDS = process.argv.slice(3).map(Number);
@@ -228,5 +229,18 @@ guard(growth < 0.4, "save growth is bounded",
 guard(mean(last.map((r) => r.saveMB)) < 20, "save stays inside a sane quota",
   `${mean(last.map((r) => r.saveMB)).toFixed(1)} MB after ${SEASONS} seasons`);
 
+emitAll({
+  "drift.p0Failures": failures,
+  "drift.saveGrowthMbPerSeason": growth,
+  "drift.saveMbAtEnd": mean(last.map((r) => r.saveMB)),
+  "drift.tradesPerSeason": trades,
+  "drift.medianPayrollPct": medPay,
+  "drift.minPayrollSeasonsUnder55": poorHouse,
+  "drift.capBustSeasons": capBust,
+  "drift.passRecordSeasons": overPass,
+  "drift.playerWeeksLost": injuryLoad,
+  "drift.ovrDrift": ovrDrift,
+  "drift.eliteGrowthRatio": eliteGrowth,
+});
 console.log(failures === 0 ? "\nno P0 regressions" : `\n${failures} P0 REGRESSIONS`);
 process.exit(failures > 0 ? 1 : 0);

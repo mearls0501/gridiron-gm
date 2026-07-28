@@ -7,6 +7,7 @@ import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { passerRating, cmpPct } from "../lib/core/season/stats";
 import { Player } from "../lib/core/types";
+import { emitAll } from "./metrics";
 
 const st = newGame({ seed: 8675309 });
 advance(st);
@@ -92,3 +93,20 @@ const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
 console.log(`\n[team scores] n=${scores.length} mean ${mean.toFixed(1)} [NFL ~22.5]`);
 console.log(`  min ${scores[0]} | p25 ${scores[Math.floor(scores.length*0.25)]} | median ${scores[Math.floor(scores.length*0.5)]} | p75 ${scores[Math.floor(scores.length*0.75)]} | max ${scores[scores.length-1]}`);
 console.log(`  shutouts: ${scores.filter(s => s === 0).length} | 40+ point games: ${scores.filter(s => s >= 40).length}`);
+
+// --- machine-readable summary (see scripts/metrics.ts) -----------------------
+const gateLead = (k: string) => {
+  const t = top(k, 1)[0];
+  return t ? ((line(t) as unknown as Record<string, number>)[k] ?? 0) : 0;
+};
+emitAll({
+  "statcheck.fieldMismatches": drift, "statcheck.gameCounterDrift": gameDrift,
+  "statcheck.implausibleLines": absurd, "statcheck.playersWithStats": checked,
+  "statcheck.maxGamePassYds": maxPass, "statcheck.maxGameRushYds": maxRush,
+  "statcheck.maxGameRecYds": maxRec, "statcheck.maxGameSacks": maxSack,
+  "statcheck.leadPassYds": gateLead("passYds"), "statcheck.leadRushYds": gateLead("rushYds"),
+  "statcheck.leadRecYds": gateLead("recYds"), "statcheck.leadSacks": gateLead("sacks"),
+  "statcheck.leadTackles": gateLead("tackles"), "statcheck.meanTeamScore": mean,
+  "statcheck.shutouts": scores.filter((s) => s === 0).length,
+  "statcheck.fortyPlusGames": scores.filter((s) => s >= 40).length,
+});

@@ -11,6 +11,7 @@
 import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { GameState, Player } from "../lib/core/types";
+import { emitAll } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 12);
 
@@ -203,3 +204,12 @@ console.log(`  receiving ${extremes.sRecYds} yds [1,964]`);
 console.log(`  defense   ${extremes.sSacks} sacks [22.5] · ${extremes.sTackles} tackles [~184]`);
 
 console.log(`\n${gp + sp === 0 ? "TAILS LOOK RIGHT" : `${gp + sp} milestone frequencies are off`}`);
+
+// --- machine-readable summary (see scripts/metrics.ts) -----------------------
+emitAll({
+  "tails.milestonesOff": gp + sp, "tails.gameMilestonesOff": gp, "tails.seasonMilestonesOff": sp,
+  "tails.bestGamePassYds": extremes.passYds, "tails.bestGameRushYds": extremes.rushYds,
+  "tails.bestGameRecYds": extremes.recYds, "tails.bestSeasonPassYds": extremes.sPassYds,
+  "tails.bestSeasonRushYds": extremes.sRushYds, "tails.bestSeasonRecYds": extremes.sRecYds,
+  "tails.bestSeasonSacks": extremes.sSacks,
+});

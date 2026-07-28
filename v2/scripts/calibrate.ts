@@ -4,6 +4,7 @@ import { teamSeasonStats } from "../lib/core/season/records";
 import { simulateGame } from "../lib/core/sim/game";
 import { Rng } from "../lib/core/rng";
 import { Game } from "../lib/core/types";
+import { emitAll } from "./metrics";
 
 const state = newGame({ seed: 12345 });
 const rng = new Rng(999);
@@ -112,6 +113,9 @@ console.log("Punts in 20  ", per(ext.in20),    " NFL ~1.5");
 // ---------------------------------------------------------------------------
 
 console.log("\n--- full seasons (league-wide) ---");
+const seasonPfg: number[] = [];
+const seasonYds: number[] = [];
+const seasonSpread: number[] = [];
 for (const seed of [11, 22, 33]) {
   const season = newGame({ seed });
   advance(season);
@@ -121,6 +125,9 @@ for (const seed of [11, 22, 33]) {
   const avg = (f: (a: (typeof agg)[0]) => number) =>
     agg.reduce((sum, a) => sum + f(a), 0) / agg.length;
   const pfs = agg.map((a) => a.pointsFor / a.games).sort((x, y) => x - y);
+  seasonPfg.push(avg((a) => a.pointsFor / a.games));
+  seasonYds.push(avg((a) => a.totalYards / a.games));
+  seasonSpread.push(pfs[pfs.length - 1] - pfs[0]);
   console.log(
     `  seed ${seed}: PF/G ${avg((a) => a.pointsFor / a.games).toFixed(1)}` +
     ` (spread ${pfs[0].toFixed(1)}-${pfs[pfs.length - 1].toFixed(1)})` +
@@ -130,3 +137,27 @@ for (const seed of [11, 22, 33]) {
   );
 }
 console.log("  NFL:      PF/G 22.5 (spread ~15-30)      | Yds/G 340 | 3rd 39.0% | RZ 55.0%");
+
+// --- machine-readable summary (see scripts/metrics.ts) -----------------------
+const gateMean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+emitAll({
+  "calibrate.scoreMismatches": mismatches,
+  "calibrate.pts": acc.pts / n, "calibrate.plays": acc.plays / n,
+  "calibrate.passYds": acc.pass / n, "calibrate.rushYds": acc.rush / n,
+  "calibrate.passAtt": acc.patt / n, "calibrate.cmpPct": (acc.pcmp / acc.patt) * 100,
+  "calibrate.passTd": acc.ptd / n, "calibrate.int": acc.pint / n,
+  "calibrate.rushAtt": acc.ratt / n, "calibrate.ypc": acc.ryds / acc.ratt,
+  "calibrate.rushTd": acc.rtd / n, "calibrate.sacks": acc.sacks / n,
+  "calibrate.fgPct": acc.fga ? (acc.fgm / acc.fga) * 100 : 0,
+  "calibrate.punts": acc.punts / n,
+  "calibrate.thirdDownPct": acc.third ? (acc.thirdC / acc.third) * 100 : 0,
+  "calibrate.turnovers": acc.to / n, "calibrate.tieRatePct": (ties / (n / 2)) * 100,
+  "calibrate.firstDowns": ext.fd / n, "calibrate.penalties": ext.pen / n,
+  "calibrate.topMinutes": ext.top / n / 60,
+  "calibrate.redZoneTdPct": ext.rzAtt ? (ext.rzTd / ext.rzAtt) * 100 : 0,
+  "calibrate.fourthDownAtt": ext.fdAtt / n, "calibrate.fumbles": ext.fum / n,
+  "calibrate.qbRushYds": ext.qbRush / n,
+  "calibrate.seasonPfg": gateMean(seasonPfg),
+  "calibrate.seasonYdsPerGame": gateMean(seasonYds),
+  "calibrate.seasonPfgSpread": gateMean(seasonSpread),
+});
