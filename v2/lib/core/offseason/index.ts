@@ -3,7 +3,7 @@ import { refreshDepthCharts } from "../generate";
 import { clearDeadCap } from "../select";
 import { GameState, Phase } from "../types";
 import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
-import { cpuResign, expireContracts, reconcileRoster, spendToFloor } from "./contracts";
+import { cpuResign, expireContracts, reconcileRoster, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, runCpuFaRound } from "./freeAgency";
 import { convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, generateDraftClass, initialScoutingPass } from "./draft";
 import { ensurePickInventory, generateUserOffers, prunePickInventory, runCpuTrades } from "../trades";
@@ -170,6 +170,12 @@ export function finalizeOffseason(state: GameState): void {
     // Then spend up to the league floor. Deliberately not applied to the user's
     // club: how much of their own cap they use is their decision, not ours.
     spendToFloor(state, t.id, rng);
+    // Then contest every roster spot against the open market — the cutdown.
+    // Also not applied to the user, for the same reason: deciding who is worth
+    // a place is the job, and doing it for them would be doing the job for
+    // them. It does mean a headless run leaves the user's club stale, which is
+    // the same known bias `checkParity` already corrects for.
+    upgradeRoster(state, t.id, rng);
     reconcileRoster(state, t.id, rng);
   }
   reconcileRoster(state, state.userTeamId, rng);

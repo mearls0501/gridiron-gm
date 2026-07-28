@@ -107,6 +107,12 @@ function migrate(state: GameState): GameState {
   if (!state.pickOwners) state.pickOwners = [];
   if (!state.tradeOffers) state.tradeOffers = [];
   if (typeof state.nextTradeId !== "number") state.nextTradeId = 1;
+  // `ceiling` arrived with the development failure model. An older save has
+  // players without it, and undefined would poison every growth calculation.
+  // Backfilling to `pot` preserves those careers exactly as they were.
+  for (const p of state.players) {
+    if (typeof p.ceiling !== "number") p.ceiling = p.pot;
+  }
   for (const t of state.teams) {
     if (typeof t.deadCap !== "number") t.deadCap = 0;
     if (t.coach && typeof t.coach.shadowTendency !== "number") t.coach.shadowTendency = 0.42;

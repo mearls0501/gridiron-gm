@@ -204,6 +204,20 @@ export interface Player {
   // Development
   devSpeed: number;        // 0.5 slow .. 1.5 fast
   peakAge: number;
+  /**
+   * The rating he will ACTUALLY top out at, as opposed to `pot`, which is the
+   * ceiling he projects to. Most players never come close to their projection.
+   *
+   * Splitting the two is what makes a bust a bust. With growth aimed straight
+   * at `pot`, every player reached his ceiling — a standard deviation of 0.9
+   * against a mean of about 4 meant potential was destiny, so nothing ever
+   * washed out, rosters never turned over, and a seventh-round pick became a
+   * multi-year starter 15.8% of the time against a real 5.9%.
+   *
+   * Never shown, and deliberately not scoutable: this is genuine developmental
+   * variance rather than something a club could have known.
+   */
+  ceiling: number;
   durability: number;      // 0..100, higher = fewer injuries
 
   contract: Contract | null;

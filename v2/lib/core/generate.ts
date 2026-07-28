@@ -1,4 +1,11 @@
 import { Rng, clamp } from "./rng";
+
+/**
+ * How much wider a projected ceiling runs than the growth actually paid out.
+ * Paired with a mean realisation of 0.5 in `makePlayer`, so the league's
+ * equilibrium is unchanged and only the variance moves.
+ */
+export const POT_SPREAD = 2.0;
 import { makeName, makeCoachName, FRANCHISES } from "./names";
 import { computeOvr, relevantAttrs, POSITION_VALUE } from "./ratings";
 import { blankRecordBook } from "./season/records";
@@ -183,8 +190,33 @@ export function makePlayer(rng: Rng, id: number, o: MakePlayerOpts): Player {
   // twenty seasons. Most prospects have to fall short of their ceiling for the
   // ceiling to mean anything.
   const yearsToPeak = Math.max(0, 27 - o.age);
-  const rawPot = ovr + rng.normal(yearsToPeak * 1.15 + (o.potBoost ?? 0), 5);
+  // `pot` is the PROJECTION — the ceiling a scout would put on him — and it is
+  // deliberately drawn twice as wide as the growth the league actually pays
+  // out. `ceiling` is what he really tops out at: a share of that projection,
+  // drawn per player and hidden forever.
+  //
+  // The two together preserve the league's equilibrium (mean realisation of
+  // 0.5 against a doubled projection is the same expected growth as before)
+  // while making the SPREAD enormous. Same projected ceiling, two players, and
+  // one of them never gets there.
+  // Growth scales with talent. It used to be a flat additive, so a 50 OVR camp
+  // body was handed the same expected +14 as an 80 OVR blue chip and simply
+  // caught up — which is why a seventh-round pick became a multi-year starter
+  // 17% of the time against a real 5.9%. A marginal prospect has a low floor
+  // AND a low ceiling; that is most of what makes him marginal.
+  // Centred so a league-average player (~68 OVR) scales at 1.0 and the league's
+  // total growth is unchanged. Centring it at 42/32 instead deflated mean OVR
+  // by 1.9 points over 20 seasons and tripped the inflation guard — the SHAPE
+  // was right and the LEVEL was wrong, which is a distinction worth keeping in
+  // mind for anything that touches progression.
+  const talentScale = clamp((ovr - 42) / 26, 0.30, 1.30);
+  const rawPot = ovr + rng.normal(
+    (yearsToPeak * 1.15 + (o.potBoost ?? 0)) * POT_SPREAD * talentScale,
+    5 * POT_SPREAD * talentScale
+  );
   const pot = clamp(Math.round(Math.max(ovr, rawPot)), ovr, 99);
+  const realize = clamp(rng.normal(0.50, 0.34), 0, 1.1);
+  const ceiling = clamp(Math.round(ovr + (pot - ovr) * realize), ovr, 99);
 
   return {
     id,
@@ -199,6 +231,7 @@ export function makePlayer(rng: Rng, id: number, o: MakePlayerOpts): Player {
     // Wide on purpose: a tight distribution meant every player developed at
     // roughly the same rate and therefore every player reached his ceiling.
     // Busts are what make a scouting report worth reading.
+    ceiling,
     devSpeed: clamp(rng.normal(0.92, 0.32), 0.30, 1.65),
     peakAge: Math.round(clamp(rng.normal(o.pos === "RB" ? 26 : 28, 1.8), 24, 32)),
     durability: clamp(Math.round(rng.normal(70, 15)), 20, 99),

@@ -3,11 +3,11 @@ import { makeContract, makePlayer } from "../generate";
 import { POSITION_VALUE } from "../ratings";
 import {
   DraftPick, DraftState, GameState, LEAGUE_MINIMUM, Player, Position,
-  POSITION_TARGET, POSITIONS, ROSTER_LIMIT,
+  POSITION_TARGET, POSITIONS, ROSTER_LIMIT, STARTERS,
 } from "../types";
 import { positionCount, rosterCount } from "../select";
 import { draftOrder } from "../season/standings";
-import { Posture, frontOffice, teamOutlook } from "../frontOffice";
+import { Posture, REPLACEMENT_OVR, frontOffice, teamOutlook } from "../frontOffice";
 import { ensurePickInventory } from "../trades";
 
 /**
@@ -81,6 +81,21 @@ export function initialScoutingPass(state: GameState, season: number, rng: Rng):
     p.scouted = 0;
     scoutProspect(p, 12, rng);
   }
+}
+
+/**
+ * The OVR of the man who would be displaced — the best incumbent among the
+ * starting jobs at that position, or replacement level if there is nobody.
+ */
+function startersAt(state: GameState, teamId: number, pos: Position): number {
+  const group = state.players
+    .filter((p) => p.teamId === teamId && p.pos === pos && !p.retired && !p.prospect)
+    .map((p) => p.ovr)
+    .sort((a, b) => b - a);
+  const jobs = STARTERS[pos];
+  if (group.length < jobs) return REPLACEMENT_OVR;
+  // The weakest of the current starters is the one a newcomer replaces.
+  return group[jobs - 1];
 }
 
 export const SCOUT_COST = 10;
@@ -165,9 +180,21 @@ function cpuBoardValue(
   const perceived = mid + rng.normal(0, 3.5) + (fo.risk - 0.5) * (p.pot - p.ovr) * 0.35;
   const upside = Math.max(0, p.pot - p.ovr) * (0.18 + fo.risk * 0.30);
 
-  const have = positionCount(state, teamId, p.pos);
-  const want = POSITION_TARGET[p.pos];
-  const need = clamp((want - have) / Math.max(1, want), -0.5, 1);
+  // Need is about QUALITY, not bodies. Counting heads said a club with three
+  // quarterbacks had no need for one — true whether the starter was an 85 or a
+  // 62 — so nothing stopped a contender spending a first-round pick on a
+  // position it had already solved. With `POSITION_VALUE.QB` at 3.4 that made
+  // round one 38% quarterbacks against a real 10-15%, most of whom then never
+  // started a game because there are only 32 jobs.
+  //
+  // The real question a war room asks is how much better this man would make
+  // us, which is his projection measured against the man currently doing the
+  // job. A club with an elite starter has no need at that position no matter
+  // how many bodies it is carrying; a club with a bad one has enormous need.
+  const incumbent = startersAt(state, teamId, p.pos);
+  const marginal = clamp((mid - incumbent) / 20, -0.6, 1);
+  const thin = positionCount(state, teamId, p.pos) < POSITION_TARGET[p.pos] ? 0.35 : 0;
+  const need = clamp(marginal + thin, -0.6, 1);
 
   // bpaBias is literally how much the need term is allowed to move the board.
   // A pure best-player-available desk ignores the roster; a need drafter will
@@ -176,7 +203,27 @@ function cpuBoardValue(
   const bias = fo.posBias[p.pos] ?? 1;
   const rebuildUpside = posture === "rebuild" ? 1 + Math.max(0, p.pot - p.ovr) * 0.012 : 1;
 
-  return (perceived + upside) * POSITION_VALUE[p.pos] * bias * rebuildUpside * (1 + need * needWeight);
+  // Ability ABOVE REPLACEMENT times positional value, never raw ability times
+  // positional value. Multiplying the whole rating made a 61 OVR quarterback
+  // (61 x 3.4 = 207) worth more than an 85 OVR edge (85 x 1.7 = 145), and the
+  // draft went 87% quarterbacks in round one. This is the same mistake that
+  // was found and fixed in `evaluate()` when trades were built; it survived
+  // here because nothing measured the composition of a draft class until
+  // `scripts/careers.ts` existed.
+  //
+  // Floored at 1 so that below-replacement prospects still sort by positional
+  // value rather than inverting — a replacement-level quarterback is worth
+  // more than a replacement-level kicker, and a negative times 3.4 would say
+  // the opposite.
+  // Positional value only counts if he actually takes the job. A quarterback is
+  // worth 3.4x a safety when he STARTS; a backup quarterback is a minimum-wage
+  // clipboard holder worth almost nothing, because there are 32 jobs and no
+  // more. Discounting by whether he displaces the incumbent is what stops
+  // contenders spending firsts on a position they have already solved — the
+  // need term alone was far too weak a lever against a 3.4x multiplier.
+  const startsHere = clamp((mid - incumbent + 6) / 12, 0.25, 1);
+  const above = Math.max(1, perceived - REPLACEMENT_OVR + upside);
+  return above * POSITION_VALUE[p.pos] * startsHere * bias * rebuildUpside * (1 + need * needWeight);
 }
 
 export function rookieContract(state: GameState, round: number, rng: Rng) {

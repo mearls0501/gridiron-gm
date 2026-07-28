@@ -5,6 +5,7 @@ import { currentLine } from "../season/stats";
 import { healOffseason } from "../season/injuries";
 import { leagueStandings } from "../season/standings";
 import { computeRecords } from "../select";
+import { REPLACEMENT_OVR } from "../frontOffice";
 
 /**
  * Aging, development and retirement.
@@ -82,7 +83,8 @@ export function developPlayer(state: GameState, p: Player, rng: Rng): number {
   const coach = p.teamId !== null ? state.teams[p.teamId].coach : null;
   const coachBonus = coach ? (coach.development - 50) / 220 : 0;
 
-  const room = Math.max(0, p.pot - p.ovr);
+  // Toward what he will actually reach, not what he was projected to reach.
+  const room = Math.max(0, p.ceiling - p.ovr);
   const growing = p.age < p.peakAge;
 
   // Playing time accelerates development for young players.
@@ -126,7 +128,10 @@ export function developPlayer(state: GameState, p: Player, rng: Rng): number {
 
   refreshOvr(p);
   // Potential converges toward realised ability as a player ages.
-  if (p.age >= p.peakAge) p.pot = Math.max(p.ovr, p.pot - rng.int(0, 2));
+  if (p.age >= p.peakAge) {
+    p.pot = Math.max(p.ovr, p.pot - rng.int(0, 2));
+    p.ceiling = Math.max(p.ovr, Math.min(p.ceiling, p.pot));
+  }
   return p.ovr - before;
 }
 
@@ -146,6 +151,25 @@ export interface OffseasonReport {
   expiring: Player[];
 }
 
+/**
+ * Extra chance a man who could not find a club walks away.
+ *
+ * Nobody spends a career waiting for a call. Without this the unsigned pool
+ * only ever grows — measured at 258 free agents after one season and 542 after
+ * twelve, none of them ever leaving — which bloats the save and slows every
+ * scan over `state.players` in the bargain.
+ *
+ * Scaled by how far below replacement he is and by age, so a 24-year-old who
+ * just missed a roster hangs around for another camp while a 31-year-old who
+ * nobody wanted is finished. Zero for anyone under contract.
+ */
+export function unsignedAttrition(p: Player): number {
+  if (p.teamId !== null || p.retired || p.prospect) return 0;
+  const belowReplacement = clamp((REPLACEMENT_OVR + 4 - p.ovr) / 12, 0, 1);
+  const old = clamp((p.age - 26) / 8, 0, 1);
+  return clamp(0.18 + belowReplacement * 0.45 + old * 0.35, 0, 0.9);
+}
+
 export function runProgression(state: GameState, rng: Rng): OffseasonReport {
   const report: OffseasonReport = { retirements: [], risers: [], fallers: [], expiring: [] };
 
@@ -161,7 +185,7 @@ export function runProgression(state: GameState, rng: Rng): OffseasonReport {
     if (delta >= 3) report.risers.push({ player: p, delta });
     if (delta <= -3) report.fallers.push({ player: p, delta });
 
-    if (rng.chance(retirementChance(p))) {
+    if (rng.chance(retirementChance(p) + unsignedAttrition(p))) {
       p.retired = true;
       p.teamId = null;
       p.contract = null;

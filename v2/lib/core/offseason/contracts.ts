@@ -144,6 +144,19 @@ export function askingPrice(state: GameState, p: Player): number {
  */
 export const MAX_CONTRACT_SHARE = 0.25;
 
+/*
+ * KNOWN OPEN: `drift.ts` reports a peak single-season cap hit of 30% against a
+ * 28% guard, in 1 season of 20. It is NOT this ceiling leaking — dropping it to
+ * 0.22 changed the peak by exactly nothing, so the offending contract's AVERAGE
+ * is already well inside the limit. The peak comes from `makeContract`'s salary
+ * profile: base salaries are back-loaded and the prorated signing bonus rides
+ * on top, so a late year of a long deal can charge ~1.4x the APY.
+ *
+ * That was always true (the guard read 26% before the development work) and the
+ * bigger spread in player quality simply pushed one deal over the line. The fix
+ * belongs in the salary profile, not in this constant.
+ */
+
 /** Asking price with a club-specific premium, held under the hard ceiling. */
 export function negotiatedApy(
   state: GameState, teamId: number, p: Player, premium: number
@@ -212,7 +225,17 @@ export function cpuResign(state: GameState, teamId: number, candidates: Player[]
     // do — the alternative is losing a starter you then cannot replace, because
     // by the time free agency has run there is nobody left worth paying.
     const floorPull = clamp((floor - cap.committed) / Math.max(1, floor), 0, 1) * 0.45;
-    const chance = clamp(0.10 + quality * 0.70 + fo.loyalty * 0.35 + young + fits + floorPull, 0.02, 0.97);
+    const want = clamp(0.10 + quality * 0.70 + fo.loyalty * 0.35 + young + fits + floorPull, 0.02, 0.97);
+
+    // And whether HE wants to stay. Re-signing used to be a one-sided decision,
+    // so the better a player was the more certainly he stayed — which is the
+    // opposite of what happens. A man with a real market tests it, because
+    // somebody out there will pay more than the club that already has him.
+    // Reality: about 44% of first-round picks re-sign with the club that
+    // drafted them and about half sign somewhere else. Loyalty buys some of
+    // that back, which is the other half of what the dial is for.
+    const marketPull = clamp((p.ovr - 70) / 22, 0, 1) * 0.55 * (1 - fo.loyalty * 0.4);
+    const chance = clamp(want * (1 - marketPull), 0.02, 0.95);
     if (!rng.chance(chance)) continue;
 
     p.teamId = teamId;
@@ -263,7 +286,12 @@ function bestAffordable(
 
 /** Sign at the going rate, on a term appropriate to what he costs. */
 function signAtMarket(state: GameState, teamId: number, p: Player, rng: Rng): void {
-  const apy = askingPrice(state, p);
+  // Through the same ceiling as every other path. This one went straight to
+  // `askingPrice` and bypassed it, which is how a contract reached 30% of the
+  // cap while `negotiatedApy` was capping everything else at 22% — the comment
+  // on MAX_CONTRACT_SHARE claimed no negotiation could exceed it and one
+  // silently did.
+  const apy = negotiatedApy(state, teamId, p, 1);
   const yrs = apy <= LEAGUE_MINIMUM * 1.25 ? 1 : suggestedYears(p);
   p.teamId = teamId;
   p.contract = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
@@ -403,6 +431,93 @@ export function spendToFloor(state: GameState, teamId: number, rng: Rng): void {
       text: `${state.teams[teamId].abbr} signed ${best.firstName} ${best.lastName} (${best.pos}, ${best.ovr} OVR) — ${yrs}yr / $${(apy / 1e6).toFixed(1)}M per year`,
     });
   }
+}
+
+/**
+ * Competition for roster spots — the missing cutdown.
+ *
+ * `scripts/careers.ts` found that 84% of fourth-round picks were still on a
+ * roster in year three against a real 42.6%, and that a seventh rounder became
+ * a multi-year starter 15.5% of the time against a real 5.9%. The cause was
+ * structural rather than a bad constant: a player was only ever released when
+ * his club was over the cap or over 53, and a rookie on a minimum deal is
+ * never either. Nobody in the league lost a job on merit.
+ *
+ * The real analogue is the annual cutdown. Ninety men report, fifty-three stay,
+ * and every roster spot is contested every single year. This does the same job
+ * with the pieces already here: each club compares the weakest man at each
+ * position against the open market and takes the better player.
+ *
+ * `spendToFloor` already did exactly this, but only for clubs below the
+ * spending floor — and the median club sits at 92% of the cap, so in practice
+ * it almost never ran. Two things are different here beyond removing that gate:
+ *
+ *   - The comparison is on `evaluate()` rather than raw OVR, so a young player
+ *     with a high ceiling is protected by the club's own valuation instead of
+ *     by a special case. That is what gives high picks the longer rope they
+ *     get in reality, and it makes the rope vary by front office: a
+ *     risk-tolerant, youth-preferring club holds its projects, a win-now club
+ *     cuts them for a finished veteran.
+ *   - There is no overpay. A club upgrading from a position of strength pays
+ *     the market, not a premium.
+ */
+export const UPGRADE_MARGIN = 4;
+
+/** Swaps per club per offseason. A cutdown, not a teardown. */
+export const MAX_UPGRADES = 10;
+
+export function upgradeRoster(state: GameState, teamId: number, rng: Rng): number {
+  const { posture } = teamOutlook(state, teamId);
+  const val = (p: Player) => evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]);
+  let swaps = 0;
+
+  while (swaps < MAX_UPGRADES) {
+    const space = teamCap(state, teamId).space;
+    const roster = state.players.filter(
+      (p) => p.teamId === teamId && !p.retired && !p.prospect && p.contract
+    );
+
+    // The weakest man at each position, by the club's own valuation.
+    const worstAt = new Map<Position, Player>();
+    for (const p of roster) {
+      if (positionCount(state, teamId, p.pos) <= POSITION_MIN[p.pos]) continue;
+      const cur = worstAt.get(p.pos);
+      if (!cur || val(p) < val(cur)) worstAt.set(p.pos, p);
+    }
+
+    let best: Player | null = null;
+    let replaced: Player | null = null;
+    let bestGain = UPGRADE_MARGIN;
+
+    for (const fa of state.players) {
+      if (fa.teamId !== null || fa.retired || fa.prospect) continue;
+      const out = worstAt.get(fa.pos);
+      if (!out) continue;
+      const gain = val(fa) - val(out);
+      if (gain <= bestGain) continue;
+
+      const apy = negotiatedApy(state, teamId, fa, 1);
+      const yrs = suggestedYears(fa);
+      const probe = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
+      // Has to fit once the outgoing man's hit comes off and his dead money on.
+      if (capHit(probe) - capHit(out.contract) + deadMoney(out.contract) > space) continue;
+
+      best = fa;
+      replaced = out;
+      bestGain = gain;
+    }
+
+    if (!best || !replaced) break;
+
+    cutPlayer(state, replaced.id);
+    const apy = negotiatedApy(state, teamId, best, 1);
+    const yrs = suggestedYears(best);
+    best.teamId = teamId;
+    best.contract = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
+    swaps++;
+  }
+
+  return swaps;
 }
 
 /**
