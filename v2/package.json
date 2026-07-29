@@ -22,7 +22,9 @@
     "gate": "tsx scripts/gate.ts fast",
     "gate:full": "tsx scripts/gate.ts full",
     "gate:lock": "tsx scripts/gate.ts full --lock",
-    "determinism": "tsx scripts/determinism.ts 2"
+    "determinism": "tsx scripts/determinism.ts 2",
+    "staff": "tsx scripts/staffcheck.ts 8",
+    "careers": "tsx scripts/careers.ts 24"
   },
   "keywords": [],
   "author": "",

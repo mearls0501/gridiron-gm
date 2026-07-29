@@ -1,6 +1,8 @@
 import { Rng, clamp } from "../rng";
 import { defaultGuaranteedYears, makeContract, makePlayer, marketApy } from "../generate";
-import { GameState, LEAGUE_MINIMUM, Player, ROSTER_LIMIT, Position, POSITION_MIN } from "../types";
+import {
+  GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player, ROSTER_LIMIT, Position, POSITION_MIN,
+} from "../types";
 import { addDeadCap, capHit, deadMoney, positionCount, rosterCount, startSeason, teamCap } from "../select";
 import { POSITION_VALUE } from "../ratings";
 import { evaluate, frontOffice, targetSpend, teamOutlook, SPEND_FLOOR, payroll } from "../frontOffice";
@@ -142,7 +144,7 @@ export function askingPrice(state: GameState, p: Player): number {
  * the line. This is the backstop: no negotiation, for any reason, produces a
  * deal worth more than a quarter of the cap.
  */
-export const MAX_CONTRACT_SHARE = 0.25;
+export { MAX_CONTRACT_SHARE } from "../types";
 
 /*
  * KNOWN OPEN: `drift.ts` reports a peak single-season cap hit of 30% against a
@@ -329,6 +331,28 @@ export function fillRoster(state: GameState, teamId: number, rng: Rng): void {
   }
 }
 
+/**
+ * Release the least valuable surplus man.
+ *
+ * This used to sort on raw `p.ovr`, and that was the single largest drain on
+ * drafted careers in the game. A rookie is by construction the lowest-rated
+ * man on a roster — he is twenty-two, he has not developed yet, and his whole
+ * value is potential. So every draft class pushed its club over 53 and this
+ * function cut the class straight back off again, before any of them played a
+ * down. Seventh rounders had a median career of zero seasons against a real
+ * two, and rounds 2-6 were surviving to their fourth season 15-20 points below
+ * the real rate (`docs/nfl-reference.md` §2.2).
+ *
+ * `upgradeRoster` already argued this case in its own docstring — that a young
+ * player with a high ceiling should be protected by the club's own valuation
+ * rather than by a special case — and then this function, which does far more
+ * cutting, ignored it. It also sat against the grain of the third invariant:
+ * the game does not decide who plays by sorting on overall.
+ *
+ * Now it prices the same way `upgradeRoster` does, philosophy and cycle
+ * included, plus the sunk draft capital that keeps a real club patient with
+ * its own pick.
+ */
 function cutWorstSurplus(state: GameState, teamId: number, protectPos: Position | null): boolean {
   const roster = state.players.filter(
     (p) => p.teamId === teamId && !p.retired && !p.prospect
@@ -337,7 +361,10 @@ function cutWorstSurplus(state: GameState, teamId: number, protectPos: Position 
     if (protectPos && p.pos === protectPos) return false;
     return positionCount(state, teamId, p.pos) > POSITION_MIN[p.pos];
   });
-  const target = candidates.sort((a, b) => a.ovr - b.ovr)[0];
+  const { posture } = teamOutlook(state, teamId);
+  const worth = (p: Player) =>
+    evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season);
+  const target = candidates.sort((a, b) => worth(a) - worth(b))[0];
   if (!target) return false;
   cutPlayer(state, target.id);
   return true;
@@ -466,9 +493,46 @@ export const UPGRADE_MARGIN = 4;
 /** Swaps per club per offseason. A cutdown, not a teardown. */
 export const MAX_UPGRADES = 10;
 
+/**
+ * How much extra rope a club gives its own recent draft pick, in OVR points.
+ *
+ * The docstring above claims `evaluate()` alone protects a young player with a
+ * high ceiling. It does not protect him enough: with this function running ten
+ * swaps a club a year against a 420-man camp pool, fourth-round picks were
+ * surviving to their fourth season 52.9% of the time against a real 70.7%, and
+ * a seventh rounder's median career was zero seasons against a real two.
+ *
+ * The missing force is sunk draft capital. Teams demonstrably over-value their
+ * own picks — it is the central finding of Massey & Thaler's "The Loser's
+ * Curse" — and the effect is not a bias the game should correct away, it is
+ * the mechanism behind a real number in `docs/nfl-reference.md` §2.7: a first
+ * rounder who has not started by year three still becomes a starter 42% of the
+ * time, because his club keeps giving him chances that a comparable undrafted
+ * player never gets.
+ *
+ * Scaled by round and decaying across the rookie deal, so a first rounder is
+ * nearly uncuttable as a rookie and merely favoured by year four, while a
+ * seventh rounder gets a nudge. Undrafted players get nothing, which is why
+ * they wash out at the rate they do.
+ */
+const ROUND_HOLD: Record<number, number> = { 1: 14, 2: 10, 3: 7, 4: 5, 5: 4, 6: 3, 7: 2 };
+
+export function draftCapitalHold(p: Player, season: number): number {
+  if (p.draftedRound === null || p.draftClassSeason === null) return 0;
+  const yearsIn = season - p.draftClassSeason;
+  if (yearsIn < 0 || yearsIn > ROOKIE_HOLD_YEARS) return 0;
+  const base = ROUND_HOLD[p.draftedRound] ?? 0;
+  return base * (1 - yearsIn / (ROOKIE_HOLD_YEARS + 1));
+}
+
+/** Seasons of rookie-deal protection. The hold is gone once he is paid. */
+const ROOKIE_HOLD_YEARS = 4;
+
 export function upgradeRoster(state: GameState, teamId: number, rng: Rng): number {
   const { posture } = teamOutlook(state, teamId);
   const val = (p: Player) => evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]);
+  /** The club's own men are priced with the draft capital already spent on them. */
+  const held = (p: Player) => val(p) + draftCapitalHold(p, state.season);
   let swaps = 0;
 
   while (swaps < MAX_UPGRADES) {
@@ -482,7 +546,7 @@ export function upgradeRoster(state: GameState, teamId: number, rng: Rng): numbe
     for (const p of roster) {
       if (positionCount(state, teamId, p.pos) <= POSITION_MIN[p.pos]) continue;
       const cur = worstAt.get(p.pos);
-      if (!cur || val(p) < val(cur)) worstAt.set(p.pos, p);
+      if (!cur || held(p) < held(cur)) worstAt.set(p.pos, p);
     }
 
     let best: Player | null = null;
@@ -493,7 +557,7 @@ export function upgradeRoster(state: GameState, teamId: number, rng: Rng): numbe
       if (fa.teamId !== null || fa.retired || fa.prospect) continue;
       const out = worstAt.get(fa.pos);
       if (!out) continue;
-      const gain = val(fa) - val(out);
+      const gain = val(fa) - held(out);
       if (gain <= bestGain) continue;
 
       const apy = negotiatedApy(state, teamId, fa, 1);

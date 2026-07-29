@@ -167,6 +167,63 @@ if (await simTo.count()) {
   console.log("  note  draft room not reachable in this run (phase mismatch)");
 }
 
+// ---------------------------------------------------------------------------
+// The front office: allocation has to survive a reload
+//
+// The staff budget is the one screen where the player's decision lives on the
+// save rather than in a component, so a slider that moves and then silently
+// forgets would look completely correct in a screenshot. This drags the
+// development bucket to the top of its range, commits, reloads, and reads it
+// back off the page.
+// ---------------------------------------------------------------------------
+await page.goto(BASE + "/front-office", { waitUntil: "networkidle" });
+await page.waitForTimeout(400);
+{
+  const foText = await text();
+  if (!/Staff Budget/i.test(foText)) fail("front office did not render");
+  else {
+    const slider = page.locator('input[type="range"][aria-label="Player Development"]').first();
+    if (!(await slider.count())) fail("no development slider on the front office page");
+    else {
+      const max = await slider.getAttribute("max");
+      await slider.fill(max);
+      await page.waitForTimeout(200);
+      const commit = page.getByRole("button", { name: /Commit budget/i }).first();
+      if (!(await commit.count())) fail("no commit button after moving the budget");
+      else {
+        await commit.click();
+        await page.waitForTimeout(700);
+        await page.reload({ waitUntil: "networkidle" });
+        await page.waitForTimeout(600);
+        const after = await text();
+        const m = after.match(/Player Development\s*\n?\s*(\d+)\s*pts/);
+        if (m && Number(m[1]) >= 70) ok(`staff budget persisted across a reload (${m[1]} pts on development)`);
+        else fail(`staff budget did not persist [read back: ${m ? m[1] : "nothing"}]`);
+      }
+    }
+  }
+
+  // Naming a development priority is the other half of the screen.
+  const add = page.getByRole("button", { name: /^Add$/ }).first();
+  if (await add.count()) {
+    await add.click();
+    await page.waitForTimeout(600);
+    const t2 = await text();
+    if (/Priority/.test(t2)) ok("a development priority can be named");
+    else fail("naming a development priority did not stick");
+  } else fail("no development candidates listed");
+
+  // And an identity has to be selectable.
+  const scheme = page.getByRole("button", { name: /Downhill Run/i }).first();
+  if (await scheme.count()) {
+    await scheme.click();
+    await page.waitForTimeout(600);
+    const t3 = await text();
+    if (/Downhill Run/.test(t3)) ok("an offensive identity can be installed");
+    else fail("installing an identity did not stick");
+  } else fail("no scheme options rendered");
+}
+
 console.log(`\nconsole errors: ${errs.length}`);
 if (errs.length) errs.slice(0, 5).forEach(e => console.log("  - " + e.slice(0, 160)));
 console.log(failures === 0 ? "\nINTERACTION TEST PASSED" : `\n${failures} INTERACTION FAILURES`);

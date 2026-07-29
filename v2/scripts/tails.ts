@@ -11,7 +11,7 @@
 import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { GameState, Player } from "../lib/core/types";
-import { emitAll } from "./metrics";
+import { emitAll, seedFor } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 12);
 
@@ -133,12 +133,12 @@ function playSeason(st: GameState): void {
   while (st.phase === "regular" && g++ < 40) advance(st);
 }
 
-let st = newGame({ seed: 918273 });
+let st = newGame({ seed: seedFor(918273) });
 
 for (let s = 0; s < SEASONS; s++) {
   if (s > 0) {
     // Fresh league every few seasons so results are not one franchise's arc.
-    st = newGame({ seed: 918273 + s * 7919 });
+    st = newGame({ seed: seedFor(918273) + s * 7919 });
   }
   playSeason(st);
   seasonsRun++;

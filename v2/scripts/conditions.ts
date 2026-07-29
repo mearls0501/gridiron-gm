@@ -9,7 +9,7 @@
 import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { GameState, isHarsh } from "../lib/core/types";
-import { emitAll } from "./metrics";
+import { emitAll, seedFor } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 6);
 
@@ -67,7 +67,7 @@ let byeWins = 0;
 let byeGames = 0;
 
 for (let s = 0; s < SEASONS; s++) {
-  const st: GameState = newGame({ seed: 5150 + s * 977 });
+  const st: GameState = newGame({ seed: seedFor(5150) + s * 977 });
   advance(st);
   let g = 0;
   while (st.phase === "regular" && g++ < 40) advance(st);

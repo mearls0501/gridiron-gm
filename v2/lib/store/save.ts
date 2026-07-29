@@ -1,5 +1,6 @@
 import { GameState, STATE_VERSION } from "../core/types";
 import { blankRecordBook } from "../core/season/records";
+import { SCHEMES, evenBudget } from "../core/staff";
 import { decodeSave, encodeSave, EncodedSave } from "./codec";
 
 /**
@@ -116,6 +117,14 @@ function migrate(state: GameState): GameState {
   for (const t of state.teams) {
     if (typeof t.deadCap !== "number") t.deadCap = 0;
     if (t.coach && typeof t.coach.shadowTendency !== "number") t.coach.shadowTendency = 0.42;
+    // Staff budgets arrived after these saves were written. An even split is
+    // the neutral point of the whole model — every multiplier in `staff.ts` is
+    // exactly 1 there — so an old franchise carries on playing identically
+    // until its owner decides to specialise.
+    if (!t.staff) t.staff = evenBudget();
+    if (!Array.isArray(t.devFocus)) t.devFocus = [];
+    if (!t.offScheme) t.offScheme = SCHEMES.find((s) => s.side === "offense")!.id;
+    if (!t.defScheme) t.defScheme = SCHEMES.find((s) => s.side === "defense")!.id;
   }
 
   if (state.version === STATE_VERSION) return state;

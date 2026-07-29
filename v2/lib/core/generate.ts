@@ -1,3 +1,4 @@
+import { SCHEMES, evenBudget } from "./staff";
 import { Rng, clamp } from "./rng";
 
 /**
@@ -14,6 +15,7 @@ import {
   Attributes, ATTR_KEYS, Coach, Contract, GameState, LEAGUE_MINIMUM, Player,
   POSITION_TARGET, Position, POSITIONS, ROSTER_LIMIT, STATE_VERSION, Team,
   salaryCap,
+  MAX_CONTRACT_SHARE,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -137,7 +139,13 @@ export function makeContract(
   const baseSalary: number[] = [];
   // Escalating base salaries, normalized to hit baseTotal exactly.
   const weights: number[] = [];
-  for (let i = 0; i < years; i++) weights.push(0.75 + i * 0.22);
+  // Escalation, but gently. At 0.75 + 0.22i the last base of a five-year deal
+  // was 27% of the base total, and stacked on the prorated bonus that made the
+  // peak season charge 1.28x the average — so a contract at the 25%-of-cap
+  // ceiling billed 32% in its final year and tripped the cap guard. Real deals
+  // do escalate (it is what makes the back end cuttable), so the shape stays;
+  // only the slope changes. Peak is now ~1.06x the average.
+  for (let i = 0; i < years; i++) weights.push(0.94 + i * 0.04);
   const wSum = weights.reduce((a, b) => a + b, 0);
   let assigned = 0;
   for (let i = 0; i < years; i++) {
@@ -215,8 +223,19 @@ export function makePlayer(rng: Rng, id: number, o: MakePlayerOpts): Player {
     5 * POT_SPREAD * talentScale
   );
   const pot = clamp(Math.round(Math.max(ovr, rawPot)), ovr, 99);
-  const realize = clamp(rng.normal(0.50, 0.34), 0, 1.1);
-  const ceiling = clamp(Math.round(ovr + (pot - ovr) * realize), ovr, 99);
+  // Capped at 1, not 1.1.
+  //
+  // `realize` is the share of his projected growth this particular man
+  // actually gets, so anything above 1 is a player who beats the ceiling his
+  // own projection put on him. At 1.1 it happened to about one player in
+  // fifty, by up to two points — invisible while nothing depended on it, and
+  // load-bearing now that it does: the whole argument that staff investment
+  // cannot manufacture a roster of late-round Pro Bowlers is that `pot` is a
+  // wall, and a wall with a hole in it is a suggestion. The spread that makes
+  // two identical prospects turn out differently comes from the 0.34 standard
+  // deviation, not from the top of the clamp.
+  const realize = clamp(rng.normal(0.50, 0.34), 0, 1);
+  const ceiling = clamp(Math.round(ovr + (pot - ovr) * realize), ovr, pot);
 
   return {
     id,
@@ -337,9 +356,15 @@ function makeRosterForTeam(
   const scale = rawTotal > 0 ? clamp(targetSpend / rawTotal, 0.2, 3.0) : 1;
 
   for (const p of created) {
-    const apy = Math.max(
+    // Through the same ceiling every negotiation goes through. Without it the
+    // payroll scaling (up to 3.0x) could open the league with a contract
+    // averaging 29% of the cap, which no in-game negotiation could ever
+    // produce and which then sat on the books tripping the cap guard.
+    const ceiling = salaryCap(state.season, state.season) * MAX_CONTRACT_SHARE;
+    const apy = clamp(
+      Math.round((marketApy(p.ovr, p.pos, p.age, state.season, state.season) * scale) / 50_000) * 50_000,
       LEAGUE_MINIMUM,
-      Math.round((marketApy(p.ovr, p.pos, p.age, state.season, state.season) * scale) / 50_000) * 50_000
+      Math.round(ceiling)
     );
     const years = clamp(Math.round(rng.normal(3.2, 1.2)), 1, 5);
     // Only genuine money carries guarantees. Handing every contract two
@@ -454,6 +479,17 @@ export function createNewGame(opts: NewGameOptions = {}): GameState {
     frontOffice: offices[i],
     scoutingPoints: 100,
     deadCap: 0,
+    // An even split to start. `refreshCpuStaff` gives the CPU clubs their own
+    // allocation at the first rollover; the user's stays even until they
+    // change it, so nobody is committed to anything on day one.
+    staff: evenBudget(),
+    devFocus: [],
+    offScheme: SCHEMES.filter((s) => s.side === "offense")[
+      i % SCHEMES.filter((s) => s.side === "offense").length
+    ].id,
+    defScheme: SCHEMES.filter((s) => s.side === "defense")[
+      (i + 1) % SCHEMES.filter((s) => s.side === "defense").length
+    ].id,
   }));
 
   // Team strength spread, shuffled so franchise order isn't destiny.

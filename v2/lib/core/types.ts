@@ -292,8 +292,35 @@ export interface Team {
   /** Optional so saves written before front offices existed still load. */
   frontOffice?: FrontOffice;
   scoutingPoints: number;
+
+  /**
+   * How this club splits its staff points across development, scouting,
+   * training and scheme. See `lib/core/staff.ts` — every effect there is a
+   * deviation from an even split, so an absent budget behaves exactly as the
+   * game did before the system existed.
+   */
+  staff?: StaffBudget;
+  /** Up to three players the development staff is built around. */
+  devFocus?: number[];
+  /** Offensive and defensive identity ids, from `SCHEMES`. */
+  offScheme?: string;
+  defScheme?: string;
   /** Dead money charged to this season from cuts. Reset at the season rollover. */
   deadCap: number;
+}
+
+/**
+ * The four things a front office can spend its staff points on.
+ *
+ * Declared here rather than in `staff.ts` because `Team` carries it and
+ * `staff.ts` needs `Team` — the type has to live on the side of that
+ * dependency that does not create a cycle. The model itself is in `staff.ts`.
+ */
+export interface StaffBudget {
+  development: number;
+  scouting: number;
+  training: number;
+  scheme: number;
 }
 
 export interface Coach {
@@ -658,6 +685,18 @@ export interface GameState {
   records: RecordBook;
   log: LogEntry[];
 }
+
+/**
+ * The most any one contract may average against the cap.
+ *
+ * Lives here rather than in `offseason/contracts.ts` because LEAGUE GENERATION
+ * has to honour it too, and that module cannot import from the offseason
+ * without a cycle. It didn't honour it: the generator scales every opening
+ * contract by up to 3.0x to hit a club's target payroll, which handed one 89
+ * OVR quarterback a deal averaging 29% of the cap in the league's first season
+ * and tripped the cap guard forever after.
+ */
+export const MAX_CONTRACT_SHARE = 0.25;
 
 export const SALARY_CAP_BASE = 255_000_000;
 export const CAP_GROWTH = 0.06;

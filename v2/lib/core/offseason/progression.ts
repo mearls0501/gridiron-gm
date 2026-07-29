@@ -6,6 +6,9 @@ import { healOffseason } from "../season/injuries";
 import { leagueStandings } from "../season/standings";
 import { computeRecords } from "../select";
 import { REPLACEMENT_OVR } from "../frontOffice";
+import {
+  ceilingRecovery, declineMultiplier, developmentMultiplier, schemeDevelopmentMultiplier,
+} from "../staff";
 
 /**
  * Aging, development and retirement.
@@ -83,6 +86,12 @@ export function developPlayer(state: GameState, p: Player, rng: Rng): number {
   const coach = p.teamId !== null ? state.teams[p.teamId].coach : null;
   const coachBonus = coach ? (coach.development - 50) / 220 : 0;
 
+  // Staff investment first: a club that has built itself around this man buys
+  // back some of the gap between what he will reach and what he could have.
+  // `ceiling` moves, `pot` never does — see `lib/core/staff.ts`.
+  const recovered = ceilingRecovery(state, p);
+  if (recovered > 0) p.ceiling = Math.min(p.pot, p.ceiling + recovered);
+
   // Toward what he will actually reach, not what he was projected to reach.
   const room = Math.max(0, p.ceiling - p.ovr);
   const growing = p.age < p.peakAge;
@@ -91,14 +100,20 @@ export function developPlayer(state: GameState, p: Player, rng: Rng): number {
   const line = currentLine(p, state.season);
   const snapShare = clamp(line.snaps / 700, 0, 1);
 
+  // Both are exactly 1.0 for a club on an even staff budget with nobody named,
+  // so an unallocated league develops precisely as it did before.
+  const staff = developmentMultiplier(state, p) * schemeDevelopmentMultiplier(state, p);
+
   let delta: number;
   if (growing) {
     const rate = growthRate(p.age, p.peakAge);
-    const growth = room * rate * p.devSpeed * (1 + coachBonus + snapShare * 0.35);
+    const growth = room * rate * p.devSpeed * (1 + coachBonus + snapShare * 0.35) * staff;
     delta = Math.min(rng.normal(growth, 0.9), room);
   } else {
     const wear = 1 + (1 - p.durability / 100) * 0.6;
-    const decline = -declineRate(p.age, p.peakAge) * wear * (1 - coachBonus * 0.4);
+    // A well-funded training staff does not stop a man ageing, it slows it.
+    const kept = p.teamId !== null ? declineMultiplier(state.teams[p.teamId]) : 1;
+    const decline = -declineRate(p.age, p.peakAge) * wear * (1 - coachBonus * 0.4) * kept;
     delta = rng.normal(decline, 0.9);
   }
 
@@ -127,6 +142,31 @@ export function developPlayer(state: GameState, p: Player, rng: Rng): number {
   }
 
   refreshOvr(p);
+
+  // Potential is a wall, and until now it wasn't one.
+  //
+  // Growth is capped at `room = ceiling - ovr`, so the INTENDED delta can never
+  // break the ceiling. The realised one could: the delta is spread across the
+  // position's attributes, each is stochastically rounded to an integer and
+  // clamped to 15..99, and the recomposed OVR lands a little either side of
+  // what was asked for. Every one of those steps is correct on its own and the
+  // error is unbiased, but half the time it lands high, and nothing walked it
+  // back — `pot` was only reconciled at peak age, where the line
+  // `p.pot = Math.max(p.ovr, ...)` silently RAISED potential to meet whatever
+  // the player had already become. Potential quietly followed ability upward
+  // instead of bounding it.
+  //
+  // Measured at ~5% of all player-seasons in a league with no staff investment
+  // at all, so this predates the budget system. It matters much more now: the
+  // entire argument that development spending cannot manufacture a roster of
+  // late-round Pro Bowlers rests on `pot` being a hard stop.
+  if (p.ovr > p.pot) {
+    const overshoot = p.ovr - p.pot;
+    const rel2 = relevantAttrs(p.pos);
+    for (const k of rel2) p.attrs[k] = clamp(p.attrs[k] - overshoot, 15, 99);
+    refreshOvr(p);
+  }
+
   // Potential converges toward realised ability as a player ages.
   if (p.age >= p.peakAge) {
     p.pot = Math.max(p.ovr, p.pot - rng.int(0, 2));

@@ -83,7 +83,7 @@ export function simulateWeek(state: GameState): void {
   // in-season deals are rare, and a club that has just lost a starter is
   // exactly who goes looking.
   if (state.week <= TRADE_DEADLINE_WEEK) {
-    runCpuTrades(state, rng, 12);
+    runCpuTrades(state, rng, 40);
     generateUserOffers(state, rng, 1);
   } else if (state.week === TRADE_DEADLINE_WEEK + 1) {
     state.tradeOffers = [];

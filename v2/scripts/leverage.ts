@@ -18,13 +18,13 @@ import { simulateGame } from "../lib/core/sim/game";
 import { autoSortDepthChart } from "../lib/core/generate";
 import { AttrKey, Game, GameState, Player, Position } from "../lib/core/types";
 import { POSITION_WEIGHTS } from "../lib/core/ratings";
-import { emitAll } from "./metrics";
+import { emitAll, seedFor } from "./metrics";
 
 const N = Number(process.argv[2] ?? 160);
 const LOW = 30;
 const HIGH = 90;
 
-const base = newGame({ seed: 4321 });
+const base = newGame({ seed: seedFor(4321) });
 const TEAM = 0;
 const OPP = 1;
 

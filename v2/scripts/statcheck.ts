@@ -7,9 +7,9 @@ import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { passerRating, cmpPct } from "../lib/core/season/stats";
 import { Player } from "../lib/core/types";
-import { emitAll } from "./metrics";
+import { emitAll, seedFor } from "./metrics";
 
-const st = newGame({ seed: 8675309 });
+const st = newGame({ seed: seedFor(8675309) });
 advance(st);
 let g = 0; while (st.phase === "regular" && g++ < 40) advance(st);
 

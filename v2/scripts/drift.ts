@@ -19,11 +19,11 @@ import { leagueStandings } from "../lib/core/season/standings";
 import { capHit } from "../lib/core/select";
 import { GameState, Player, Position, salaryCap } from "../lib/core/types";
 import { encodeSave } from "../lib/store/codec";
-import { emitAll } from "./metrics";
+import { emitAll, seedFor } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 20);
 const SEEDS = process.argv.slice(3).map(Number);
-const seeds = SEEDS.length ? SEEDS : [12345];
+const seeds = SEEDS.length ? SEEDS : [seedFor(12345)];
 
 let failures = 0;
 function guard(ok: boolean, label: string, detail: string, p1 = false): void {

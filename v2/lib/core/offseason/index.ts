@@ -5,9 +5,10 @@ import { GameState, Phase } from "../types";
 import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
 import { cpuResign, expireContracts, reconcileRoster, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, runCpuFaRound } from "./freeAgency";
-import { convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, generateDraftClass, initialScoutingPass } from "./draft";
-import { ensurePickInventory, generateUserOffers, prunePickInventory, runCpuTrades } from "../trades";
+import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, generateDraftClass, initialScoutingPass } from "./draft";
+import { ensurePickInventory, generateUserOffers, prunePickInventory, runCpuTrades, runDraftDayTrades } from "../trades";
 import { runHousekeeping } from "../housekeeping";
+import { refreshCpuStaff, scoutingPointsFor } from "../staff";
 
 export * from "./contracts";
 export * from "./draft";
@@ -132,6 +133,16 @@ export function enterDraft(state: GameState): void {
   if (!state.draft || state.draft.season !== state.season) {
     state.draft = initDraft(state, rng);
   }
+  // Draft weekend is the busiest trade window of the year — 31-48% of all
+  // annual trade activity in three days (`docs/nfl-reference.md` §1.5). Clubs
+  // move on the board before the first pick is in.
+  //
+  // Known limitation: this is one burst before the draft opens rather than
+  // trades between picks, so a club cannot yet jump up for a specific player
+  // it has fallen for. The volume and the round distribution are right; the
+  // motivation is not.
+  runDraftDayTrades(state, rng);
+  if (state.draft) state.draft.picks = buildDraftPicks(state, state.draft.season);
   runDraftUntilUser(state, rng);
   state.rngState = rng.state;
   state.phase = "offseason-draft";
@@ -188,7 +199,11 @@ export function finalizeOffseason(state: GameState): void {
   state.playoffs = null;
   state.draft = null;
   state.fa = null;
-  for (const t of state.teams) t.scoutingPoints = 100;
+  // CPU clubs re-allocate their staff for the new year, then everyone's
+  // scouting budget follows from what they funded. The user's own split is
+  // left alone — it is theirs until they change it.
+  refreshCpuStaff(state);
+  for (const t of state.teams) t.scoutingPoints = scoutingPointsFor(t);
 
   // Seed next year's class so the user can scout during the season.
   generateDraftClass(state, rng, state.season);

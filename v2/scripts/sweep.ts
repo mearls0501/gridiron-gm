@@ -7,13 +7,14 @@ import { advance } from "../lib/core/season/engine";
 import { advanceOffseason, isOffseason } from "../lib/core/offseason";
 import { teamCap, rosterCount } from "../lib/core/select";
 import { ROSTER_LIMIT } from "../lib/core/types";
+import { seedFor } from "./metrics";
 
 const N = Number(process.argv[2] ?? 30);
 const SEASONS = Number(process.argv[3] ?? 2);
 let bad = 0;
 
 for (let i = 0; i < N; i++) {
-  const seed = 100000 + i * 7919;
+  const seed = seedFor(100000) + i * 7919;
   let st;
   try { st = newGame({ seed }); }
   catch (e) { console.log(`seed ${seed}: newGame THREW ${(e as Error).message}`); bad++; continue; }

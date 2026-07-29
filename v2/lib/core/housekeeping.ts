@@ -54,7 +54,27 @@ export function trimLog(state: GameState): void {
   state.log = kept;
 }
 
+/**
+ * Drop players who retired without ever playing a down.
+ *
+ * Retired players are kept on purpose — the record book derives season, career
+ * and franchise marks from their own stat lines, so pruning them would quietly
+ * rewrite history. But a man who never took a snap has no stat lines, holds no
+ * record, won no award and appears on no past roster. He is pure weight.
+ *
+ * This matters because the draft class is deliberately about twice the number
+ * of picks, so roughly 230 undrafted players enter the pool every year and most
+ * never catch on. Without this the save grew +0.49 MB a season against a +0.40
+ * guard, entirely on men who were never in the league.
+ */
+export function pruneNeverPlayed(state: GameState): void {
+  state.players = state.players.filter(
+    (p) => !p.retired || p.stats.length > 0 || p.careerAwards.length > 0
+  );
+}
+
 /** Everything the yearly rollover does to keep a save from growing forever. */
 export function runHousekeeping(state: GameState): void {
   trimLog(state);
+  pruneNeverPlayed(state);
 }

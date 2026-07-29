@@ -16,6 +16,7 @@
  * real number does not exist in public data it is left blank rather than
  * invented — an honest gap beats a fake target.
  */
+import { emitAll, seedFor } from "./metrics";
 import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { advanceOffseason, isOffseason } from "../lib/core/offseason";
@@ -27,40 +28,88 @@ import {
 } from "../lib/core/outcomes";
 
 const SEASONS = Number(process.argv[2] ?? 25);
-const SEED = Number(process.argv[3] ?? 12345);
+const SEED = seedFor(Number(process.argv[3] ?? 12345));
 
 const pad = (s: string | number, n: number) => String(s).padStart(n);
 const pct = (num: number, den: number) => (den === 0 ? "—" : `${((num / den) * 100).toFixed(1)}%`);
 const bar = (label: string) => console.log(`\n${label}\n${"─".repeat(label.length)}`);
 
 // ---------------------------------------------------------------------------
-// Real NFL targets. Sources in the design doc; blank where nothing is published.
+// Real NFL targets.
+//
+// Every number here is computed in `docs/nfl-reference.md` from the nflverse
+// mirror of Pro Football Reference's draft tables, classes 2011-2019
+// (n=2,289). Post-2011 only: the rookie wage scale changed behaviour at the top
+// of the draft, and pooling 2000-2010 inflates every bust rate.
+//
+// Three of these tables used to be wrong, one of them badly, and the sim had
+// been tuned toward them. See `docs/nfl-reference.md` §3. Do not edit a number
+// here without adding the computation that produced it to that file.
 // ---------------------------------------------------------------------------
 
-/** Became a 4+ year starter. 2000-2019, n=3,724 (rounds 3-7 subset n=564). */
+/**
+ * Became a 4+ year starter — PFR `seasons_started >= 4`.
+ * Reference §2.1. This table was already correct; the recomputation confirmed
+ * it to within 1.5 points in six of seven rounds.
+ */
 const TARGET_MULTIYEAR: Record<number, number> = {
-  1: 70.6, 2: 49.0, 3: 28.8, 4: 20.1, 5: 14.9, 6: 8.7, 7: 5.9,
+  1: 69.3, 2: 47.4, 3: 32.5, 4: 19.5, 5: 16.2, 6: 8.1, 7: 5.4,
 };
 
-/** Still on any 53-man roster a few years in. 2021-24 classes, Sportradar. */
+/**
+ * Still playing in season index 3 — the fourth season, which is what
+ * `rosteredInYear(c, 3)` asks. Reference §2.2.
+ *
+ * WAS `85/68.8/68.8/42.6/42.6/42.6/42.6`. The flat 42.6% across rounds 4-7
+ * appears to trace back to an LLM-generated statistic in a blog post that
+ * carried its own "verify this" disclaimer, and the roster churn model was
+ * tuned against it — about twice as harsh as reality in rounds 4-6.
+ */
 const TARGET_ROSTERED_Y3: Record<number, number> = {
-  1: 85.0, 2: 68.8, 3: 68.8, 4: 42.6, 5: 42.6, 6: 42.6, 7: 42.6,
+  1: 94.4, 2: 89.5, 3: 79.6, 4: 70.7, 5: 65.2, 6: 53.6, 7: 38.1,
 };
 
-/** Second contract with the drafting club. Two studies, midpoints. */
+/**
+ * Second contract with the drafting club. Reference §2.3 — no source publishes
+ * a full round-by-round series, so this is stitched from three partial studies
+ * that disagree with each other. Widest tolerance of anything here.
+ */
 const TARGET_SECOND_DEAL: Record<number, number> = {
-  1: 43.5, 2: 12.5, 3: 14.0, 4: 8.9, 5: 8.9, 6: 1.5, 7: 1.5,
+  1: 40.0, 2: 14.0, 3: 14.0, 4: 8.9, 5: 8.9, 6: 8.9, 7: 1.5,
 };
 
-/** Median career length in seasons. 1995-2007 classes, PFR, n=2,624. */
+/**
+ * Median career span in seasons. Reference §2.2.
+ *
+ * WAS `8/4/3/5/4/3/3` — non-monotonic, with round 4 outlasting round 3. Rounds
+ * 2 and 3 were three to four seasons short.
+ */
 const TARGET_CAREER_LEN: Record<number, number> = {
-  1: 8, 2: 4, 3: 3, 4: 5, 5: 4, 6: 3, 7: 3,
+  1: 8, 2: 7, 3: 7, 4: 5, 5: 5, 6: 4, 7: 2,
 };
 
-/** Round 1 hit rate by position — PFF snap-share definition. */
+/** Round 1 hit rate by position — PFF snap-share definition. Reference §2.5. */
 const TARGET_R1_HIT: Partial<Record<Position, number>> = {
   TE: 73.3, OT: 73.0, S: 71.4, OG: 70.0, C: 70.0, QB: 63.3,
   DT: 63.2, RB: 60.6, LB: 57.9, WR: 56.9, CB: 50.0, EDGE: 49.3,
+};
+
+/**
+ * Round 1 positional composition, share of the round. Reference §2.4, 15
+ * drafts 2011-2025. Grouped coarsely because PFR collapses to generic OL/DL
+ * from about 2021 and a fine-grained 15-year table would double-count.
+ */
+const TARGET_R1_SHARE: Record<string, number> = {
+  DL: 24.5, OL: 20.3, DB: 16.7, WR: 13.4, QB: 10.3, LB: 7.7, RB: 4.2, TE: 2.7,
+};
+
+/** Which coarse group each position belongs to, for TARGET_R1_SHARE. */
+const GROUP: Record<string, string> = {
+  QB: "QB", RB: "RB", FB: "RB", WR: "WR", TE: "TE",
+  OT: "OL", OG: "OL", C: "OL",
+  EDGE: "DL", DT: "DL",
+  LB: "LB", CB: "DB", S: "DB",
+  K: "ST", P: "ST",
 };
 
 // ---------------------------------------------------------------------------
@@ -164,6 +213,10 @@ console.log(`Burn-in of ${BURN_IN} seasons discarded — a new league is generat
 
 bar("BY ROUND — sim vs real NFL");
 console.log("  rd     n   4+yr starter        rostered y3        2nd deal (own)     med career    hit    bust    ever star");
+/** Absolute gaps against the reference, collected for the gate. */
+const gapStarter: number[] = [];
+const gapSurvival: number[] = [];
+const gapCareerLen: number[] = [];
 for (let r = 1; r <= 7; r++) {
   const g = drafted.filter((c) => c.round === r);
   if (!g.length) continue;
@@ -172,6 +225,9 @@ for (let r = 1; r <= 7; r++) {
   const sd = g.filter((c) => c.secondContract === "drafting-team").length;
   const lens = g.map(careerLength).sort((a, b) => a - b);
   const med = lens[Math.floor(lens.length / 2)] ?? 0;
+  gapStarter.push(Math.abs((ms / g.length) * 100 - TARGET_MULTIYEAR[r]));
+  gapSurvival.push(Math.abs((ry / g.length) * 100 - TARGET_ROSTERED_Y3[r]));
+  gapCareerLen.push(Math.abs(med - TARGET_CAREER_LEN[r]));
   console.log(
     `  ${pad(r, 2)}  ${pad(g.length, 4)}   ${pad(pct(ms, g.length), 6)} vs ${pad(TARGET_MULTIYEAR[r].toFixed(1) + "%", 6)}   ` +
     `${pad(pct(ry, g.length), 6)} vs ${pad(TARGET_ROSTERED_Y3[r].toFixed(1) + "%", 6)}   ` +
@@ -289,3 +345,56 @@ console.log(`  Round 5-7 true POT at draft: ${(late.reduce((a, c) => a + c.trueP
 console.log(`  Starter seasons, round 1 mean:   ${(r1s.reduce((a, c) => a + starterSeasons(c), 0) / Math.max(1, r1s.length)).toFixed(2)}`);
 console.log(`  Starter seasons, round 5-7 mean: ${(late.reduce((a, c) => a + starterSeasons(c), 0) / Math.max(1, late.length)).toFixed(2)}`);
 console.log("");
+
+// ---------------------------------------------------------------------------
+// Metrics
+//
+// The draft is the centre of this game and until now it was the only major
+// system with no regression protection at all: this harness existed, printed a
+// table, emitted nothing, and was not wired into the gate. A model could
+// rewrite the CPU draft board and the gate would stay green.
+//
+// The round-by-round tables collapse to a mean absolute error against the
+// reference rather than seven separate guards. Seven guards on seven
+// correlated numbers fail together and say nothing extra; one MAE has the
+// property the gate actually needs, which is that any change moving the draft
+// toward reality moves it down.
+// ---------------------------------------------------------------------------
+
+const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+
+bar("METRICS");
+
+const r1Counts: Record<string, number> = {};
+for (const c of r1) {
+  const grp = GROUP[c.pos] ?? "ST";
+  r1Counts[grp] = (r1Counts[grp] ?? 0) + 1;
+}
+const shareGaps = Object.entries(TARGET_R1_SHARE).map(([grp, want]) =>
+  Math.abs(((r1Counts[grp] ?? 0) / Math.max(1, r1.length)) * 100 - want)
+);
+
+const r1Starts = avg(r1s.map(starterSeasons));
+const lateStarts = avg(late.map(starterSeasons));
+
+emitAll({
+  // Sample-size floors. A harness measuring nothing has to fail loudly rather
+  // than report a flattering zero — that is exactly how the leverage probe
+  // stayed broken for weeks.
+  "careers.matureCareers": mature.length,
+  "careers.draftedCareers": drafted.length,
+
+  // The draft-value curve, one number per table.
+  "careers.starterRateMae": avg(gapStarter),
+  "careers.survivalMae": avg(gapSurvival),
+  "careers.careerLenMae": avg(gapCareerLen),
+
+  // The shape of round 1.
+  "careers.r1ShareMae": avg(shareGaps),
+  "careers.r1QbSharePct": ((r1Counts.QB ?? 0) / Math.max(1, r1.length)) * 100,
+  "careers.r1BustPct": (r1.filter(isBust).length / Math.max(1, r1.length)) * 100,
+
+  // Is the draft informative at all? If this ever inverts, every scouting
+  // feature built on top of it is decoration.
+  "careers.draftSignal": r1Starts - lateStarts,
+});

@@ -1,389 +1,457 @@
 {
-  "note": "Locked numbers for scripts/gate.ts. `target`/`tol` is a regression band; `max`/`min` is a hard bound. `nfl` is the real-world number the sim is aiming at and is informational only. Tolerances are deliberately wide enough that moving a metric TOWARD its nfl value never fails the gate. WORKERS MUST NOT EDIT THIS FILE \u2014 changing a baseline is a decision, and decisions go to the orchestrator. Re-lock with `npm run gate:lock`.",
-  "lockedAt": "2026-07-28",
-  "calibrateSampleSize": 300,
-  "metrics": {
-    "calibrate.scoreMismatches": {
-      "max": 0,
-      "note": "the box score must equal the scoreboard"
-    },
-    "statcheck.fieldMismatches": {
-      "max": 0,
-      "note": "season totals must equal the sum of box scores"
-    },
-    "statcheck.gameCounterDrift": {
-      "max": 0
-    },
-    "statcheck.implausibleLines": {
-      "max": 0,
-      "note": "no 600-yard passers"
-    },
-    "verify.failures": {
-      "max": 0
-    },
-    "determinism.failures": {
-      "max": 0,
-      "note": "same seed, same league, forever"
-    },
-    "determinism.bannedApiUses": {
-      "max": 0,
-      "note": "no Math.random/Date.now outside rng.ts"
-    },
-    "leverage.wrongSign": {
-      "max": 0,
-      "note": "no attribute may move its metric the wrong way"
-    },
-    "drift.p0Failures": {
-      "max": 0
-    },
-    "conditions.problems": {
-      "max": 0
-    },
-    "drift.minPayrollSeasonsUnder55": {
-      "max": 0,
-      "note": "no CPU club parked at replacement level"
-    },
-    "drift.capBustSeasons": {
-      "max": 0,
-      "note": "no contract over 28% of the cap"
-    },
-    "verify.checks": {
-      "min": 330,
-      "note": "fast tier runs verify 3; a drop means assertions were deleted, not that code got simpler"
-    },
-    "statcheck.playersWithStats": {
-      "min": 1300
-    },
-    "calibrate.pts": {
-      "target": 23.34,
-      "tol": 1.6,
-      "nfl": 22.5
-    },
-    "calibrate.plays": {
-      "target": 63.908,
-      "tol": 3.0,
-      "nfl": 63
-    },
-    "calibrate.passYds": {
-      "target": 238.228,
-      "tol": 12,
-      "nfl": 230
-    },
-    "calibrate.rushYds": {
-      "target": 122.152,
-      "tol": 10,
-      "nfl": 115
-    },
-    "calibrate.passAtt": {
-      "target": 34.5,
-      "tol": 2.5,
-      "nfl": 34
-    },
-    "calibrate.cmpPct": {
-      "target": 65.981,
-      "tol": 2.5,
-      "nfl": 65
-    },
-    "calibrate.passTd": {
-      "target": 1.58,
-      "tol": 0.22,
-      "nfl": 1.5
-    },
-    "calibrate.int": {
-      "target": 0.728,
-      "tol": 0.2,
-      "nfl": 0.8
-    },
-    "calibrate.rushAtt": {
-      "target": 27.213,
-      "tol": 2.5,
-      "nfl": 26
-    },
-    "calibrate.ypc": {
-      "target": 4.489,
-      "tol": 0.35,
-      "nfl": 4.3
-    },
-    "calibrate.rushTd": {
-      "target": 1.013,
-      "tol": 0.2,
-      "nfl": 0.9
-    },
-    "calibrate.sacks": {
-      "target": 2.195,
-      "tol": 0.45,
-      "nfl": 2.4
-    },
-    "calibrate.fgPct": {
-      "target": 85.728,
-      "tol": 4.0,
-      "nfl": 85
-    },
-    "calibrate.punts": {
-      "target": 3.405,
-      "tol": 0.9,
-      "nfl": 4.2,
-      "note": "known variance: drives run long, punts run light"
-    },
-    "calibrate.thirdDownPct": {
-      "target": 37.808,
-      "tol": 3.0,
-      "nfl": 39
-    },
-    "calibrate.turnovers": {
-      "target": 1.253,
-      "tol": 0.28,
-      "nfl": 1.3
-    },
-    "calibrate.tieRatePct": {
-      "target": 0.0,
-      "tol": 1.5,
-      "nfl": 0.6
-    },
-    "calibrate.firstDowns": {
-      "target": 19.533,
-      "tol": 2.0,
-      "nfl": 20.5,
-      "note": "known variance: ~1.5 low"
-    },
-    "calibrate.penalties": {
-      "target": 6.477,
-      "tol": 1.0,
-      "nfl": 6.2
-    },
-    "calibrate.topMinutes": {
-      "target": 30.117,
-      "tol": 0.6,
-      "nfl": 30.0
-    },
-    "calibrate.redZoneTdPct": {
-      "target": 61.486,
-      "tol": 7.0,
-      "nfl": 55
-    },
-    "calibrate.fourthDownAtt": {
-      "target": 1.662,
-      "tol": 0.5,
-      "nfl": 1.9
-    },
-    "calibrate.fumbles": {
-      "target": 1.118,
-      "tol": 0.3,
-      "nfl": 1.3
-    },
-    "calibrate.qbRushYds": {
-      "target": 18.033,
-      "tol": 8.0,
-      "nfl": 13
-    },
-    "calibrate.seasonPfg": {
-      "target": 21.788,
-      "tol": 1.6,
-      "nfl": 22.5,
-      "note": "full played seasons, not synthetic matchups"
-    },
-    "calibrate.seasonYdsPerGame": {
-      "target": 346.353,
-      "tol": 22,
-      "nfl": 340
-    },
-    "calibrate.seasonPfgSpread": {
-      "target": 18.804,
-      "tol": 7.0,
-      "nfl": 15,
-      "note": "league parity: best minus worst scoring offence"
-    },
-    "statcheck.meanTeamScore": {
-      "target": 22.105,
-      "tol": 1.6,
-      "nfl": 22.5
-    },
-    "statcheck.leadPassYds": {
-      "target": 4818.0,
-      "tol": 700,
-      "nfl": 4800
-    },
-    "statcheck.leadRushYds": {
-      "target": 1989.0,
-      "tol": 400,
-      "nfl": 1800
-    },
-    "statcheck.leadRecYds": {
-      "target": 1758.0,
-      "tol": 400,
-      "nfl": 1750
-    },
-    "statcheck.leadSacks": {
-      "target": 19.0,
-      "tol": 7,
-      "nfl": 20
-    },
-    "statcheck.leadTackles": {
-      "target": 162.0,
-      "tol": 40,
-      "nfl": 180
-    },
-    "statcheck.maxGamePassYds": {
-      "target": 491.0,
-      "tol": 90,
-      "nfl": 554
-    },
-    "statcheck.maxGameRushYds": {
-      "target": 236.0,
-      "tol": 80,
-      "nfl": 296
-    },
-    "statcheck.maxGameRecYds": {
-      "target": 229.0,
-      "tol": 80,
-      "nfl": 336
-    },
-    "statcheck.shutouts": {
-      "target": 4.0,
-      "tol": 6
-    },
-    "statcheck.fortyPlusGames": {
-      "target": 27.0,
-      "tol": 18
-    },
-    "leverage.noEffect": {
-      "max": 1,
-      "note": "currently LB.awr \u2014 task P1.3"
-    },
-    "leverage.unbackedOvr": {
-      "max": 1,
-      "note": "currently LB.awr \u2014 task P1.3"
-    },
-    "tails.milestonesOff": {
-      "max": 12,
-      "note": "known-high; the P2 target is 0"
-    },
-    "tails.bestSeasonPassYds": {
-      "target": 5527.0,
-      "tol": 500,
-      "nfl": 5477,
-      "note": "NFL record; see drift.passRecordSeasons"
-    },
-    "tails.bestSeasonRushYds": {
-      "target": 2046.0,
-      "tol": 350,
-      "nfl": 2105
-    },
-    "tails.bestSeasonRecYds": {
-      "target": 2077.0,
-      "tol": 350,
-      "nfl": 1964
-    },
-    "tails.bestSeasonSacks": {
-      "target": 25.0,
-      "tol": 8,
-      "nfl": 22.5
-    },
-    "tails.bestGamePassYds": {
-      "target": 517.0,
-      "tol": 90,
-      "nfl": 554
-    },
-    "tails.bestGameRushYds": {
-      "target": 279.0,
-      "tol": 80,
-      "nfl": 296
-    },
-    "tails.bestGameRecYds": {
-      "target": 295.0,
-      "tol": 80,
-      "nfl": 336
-    },
-    "conditions.homeWinPct": {
-      "target": 57.116,
-      "tol": 3.0,
-      "nfl": 55
-    },
-    "conditions.homeScoringEdge": {
-      "target": 2.569,
-      "tol": 1.0,
-      "nfl": 2.0
-    },
-    "conditions.byeWinPct": {
-      "target": 48.824,
-      "tol": 9.0,
-      "nfl": 55,
-      "note": "BACKWARDS today at 48.8% \u2014 task P2.3 target 53-58%"
-    },
-    "conditions.coldPointsDelta": {
-      "target": -1.343,
-      "tol": 1.6,
-      "nfl": -2.4,
-      "note": "cold must score LESS than a dome"
-    },
-    "conditions.windPointsDelta": {
-      "target": -3.089,
-      "tol": 1.8,
-      "nfl": -3.4
-    },
-    "conditions.snowPointsDelta": {
-      "target": -3.237,
-      "tol": 2.0,
-      "nfl": -4.2
-    },
-    "conditions.domePassRatePct": {
-      "target": 56.737,
-      "tol": 4.0,
-      "nfl": 57
-    },
-    "conditions.windPassRatePct": {
-      "target": 51.688,
-      "tol": 4.0,
-      "nfl": 49,
-      "note": "wind pushes teams to the run"
-    },
-    "coherence.outlierExplainedPct": {
-      "min": 85,
-      "note": "outliers must have reasons, not just frequency"
-    },
-    "coherence.eliteCbShadowDrop": {
-      "min": 4.0,
-      "note": "a shadowing shutdown corner must cost WR1 real yards"
-    },
-    "drift.saveGrowthMbPerSeason": {
-      "max": 0.45,
-      "note": "was +1.07 before the save codec and housekeeping landed; now +0.32"
-    },
-    "drift.saveMbAtEnd": {
-      "max": 10.0,
-      "note": "20 seasons; was 22.9 MB"
-    },
-    "drift.passRecordSeasons": {
-      "max": 10,
-      "note": "P1 today; task P2.2 target is <= 3 of 20"
-    },
-    "drift.tradesPerSeason": {
-      "target": 2.0,
-      "tol": 4.0,
-      "nfl": 3
-    },
-    "drift.medianPayrollPct": {
-      "target": 91.579,
-      "tol": 6.0,
-      "nfl": 92
-    },
-    "drift.playerWeeksLost": {
-      "target": 2158.2,
-      "tol": 700,
-      "nfl": 2200,
-      "note": "rotation player-weeks lost league-wide per season"
-    },
-    "drift.ovrDrift": {
-      "target": -0.254,
-      "tol": 1.5,
-      "nfl": 0,
-      "note": "20-season ratings inflation, must stay near zero"
-    },
-    "drift.eliteGrowthRatio": {
-      "target": 0.76,
-      "tol": 0.5,
-      "nfl": 1.0,
-      "note": "85+ players at season 20 vs season 1"
-    }
+ "note": "Locked numbers for scripts/gate.ts. `target`/`tol` is a regression band; `max`/`min` is a hard bound. `nfl` is the real-world number the sim is aiming at and is informational only. Tolerances are deliberately wide enough that moving a metric TOWARD its nfl value never fails the gate. WORKERS MUST NOT EDIT THIS FILE. Every `nfl` value must trace to a computation in docs/nfl-reference.md \u2014 changing a baseline is a decision, and decisions go to the orchestrator. Re-lock with `npm run gate:lock`.",
+ "lockedAt": "2026-07-29",
+ "calibrateSampleSize": 300,
+ "metrics": {
+  "calibrate.scoreMismatches": {
+   "max": 0,
+   "note": "the box score must equal the scoreboard"
+  },
+  "statcheck.fieldMismatches": {
+   "max": 0,
+   "note": "season totals must equal the sum of box scores"
+  },
+  "statcheck.gameCounterDrift": {
+   "max": 0
+  },
+  "statcheck.implausibleLines": {
+   "max": 0,
+   "note": "no 600-yard passers"
+  },
+  "verify.failures": {
+   "max": 0
+  },
+  "determinism.failures": {
+   "max": 0,
+   "note": "same seed, same league, forever"
+  },
+  "determinism.bannedApiUses": {
+   "max": 0,
+   "note": "no Math.random/Date.now outside rng.ts"
+  },
+  "leverage.wrongSign": {
+   "max": 0,
+   "note": "no attribute may move its metric the wrong way"
+  },
+  "drift.p0Failures": {
+   "max": 0
+  },
+  "conditions.problems": {
+   "max": 0
+  },
+  "drift.minPayrollSeasonsUnder55": {
+   "max": 0,
+   "note": "no CPU club parked at replacement level"
+  },
+  "drift.capBustSeasons": {
+   "max": 0,
+   "note": "no contract over 28% of the cap"
+  },
+  "verify.checks": {
+   "min": 330,
+   "note": "fast tier runs verify 3; a drop means assertions were deleted, not that code got simpler"
+  },
+  "statcheck.playersWithStats": {
+   "min": 1300
+  },
+  "calibrate.pts": {
+   "target": 23.144,
+   "tol": 1.6,
+   "nfl": 22.5
+  },
+  "calibrate.plays": {
+   "target": 63.893,
+   "tol": 3,
+   "nfl": 63
+  },
+  "calibrate.passYds": {
+   "target": 240.293,
+   "tol": 12,
+   "nfl": 230
+  },
+  "calibrate.rushYds": {
+   "target": 119.786,
+   "tol": 10,
+   "nfl": 115
+  },
+  "calibrate.passAtt": {
+   "target": 34.772,
+   "tol": 2.5,
+   "nfl": 34
+  },
+  "calibrate.cmpPct": {
+   "target": 66.723,
+   "tol": 2.5,
+   "nfl": 65
+  },
+  "calibrate.passTd": {
+   "target": 1.601,
+   "tol": 0.22,
+   "nfl": 1.5
+  },
+  "calibrate.int": {
+   "target": 0.774,
+   "tol": 0.2,
+   "nfl": 0.8
+  },
+  "calibrate.rushAtt": {
+   "target": 26.858,
+   "tol": 2.5,
+   "nfl": 26
+  },
+  "calibrate.ypc": {
+   "target": 4.46,
+   "tol": 0.35,
+   "nfl": 4.3
+  },
+  "calibrate.rushTd": {
+   "target": 0.943,
+   "tol": 0.2,
+   "nfl": 0.9
+  },
+  "calibrate.sacks": {
+   "target": 2.262,
+   "tol": 0.45,
+   "nfl": 2.4
+  },
+  "calibrate.fgPct": {
+   "target": 86.029,
+   "tol": 4,
+   "nfl": 85
+  },
+  "calibrate.punts": {
+   "target": 3.348,
+   "tol": 0.9,
+   "nfl": 4.2,
+   "note": "known variance: drives run long, punts run light"
+  },
+  "calibrate.thirdDownPct": {
+   "target": 37.944,
+   "tol": 3,
+   "nfl": 39
+  },
+  "calibrate.turnovers": {
+   "target": 1.356,
+   "tol": 0.28,
+   "nfl": 1.3
+  },
+  "calibrate.tieRatePct": {
+   "target": 0.533,
+   "tol": 1.5,
+   "nfl": 0.6
+  },
+  "calibrate.firstDowns": {
+   "target": 19.586,
+   "tol": 2,
+   "nfl": 20.5,
+   "note": "known variance: ~1.5 low"
+  },
+  "calibrate.penalties": {
+   "target": 6.525,
+   "tol": 1,
+   "nfl": 6.2
+  },
+  "calibrate.topMinutes": {
+   "target": 30.17,
+   "tol": 0.6,
+   "nfl": 30
+  },
+  "calibrate.redZoneTdPct": {
+   "target": 60.044,
+   "tol": 7,
+   "nfl": 55
+  },
+  "calibrate.fourthDownAtt": {
+   "target": 1.662,
+   "tol": 0.5,
+   "nfl": 1.9
+  },
+  "calibrate.fumbles": {
+   "target": 1.21,
+   "tol": 0.3,
+   "nfl": 1.3
+  },
+  "calibrate.qbRushYds": {
+   "target": 17.209,
+   "tol": 8,
+   "nfl": 13
+  },
+  "calibrate.seasonPfg": {
+   "target": 22.325,
+   "tol": 1.6,
+   "nfl": 22.5,
+   "note": "full played seasons, not synthetic matchups"
+  },
+  "calibrate.seasonYdsPerGame": {
+   "target": 350.379,
+   "tol": 22,
+   "nfl": 340
+  },
+  "calibrate.seasonPfgSpread": {
+   "target": 19.376,
+   "tol": 7,
+   "nfl": 15,
+   "note": "league parity: best minus worst scoring offence"
+  },
+  "statcheck.meanTeamScore": {
+   "target": 22.107,
+   "tol": 1.6,
+   "nfl": 22.5
+  },
+  "statcheck.leadPassYds": {
+   "target": 5085.8,
+   "tol": 700,
+   "nfl": 4800
+  },
+  "statcheck.leadRushYds": {
+   "target": 1726.8,
+   "tol": 400,
+   "nfl": 1800
+  },
+  "statcheck.leadRecYds": {
+   "target": 1615.8,
+   "tol": 400,
+   "nfl": 1750
+  },
+  "statcheck.leadSacks": {
+   "target": 18.4,
+   "tol": 7,
+   "nfl": 20
+  },
+  "statcheck.leadTackles": {
+   "target": 177,
+   "tol": 40,
+   "nfl": 180
+  },
+  "statcheck.maxGamePassYds": {
+   "target": 473.2,
+   "tol": 90,
+   "nfl": 554
+  },
+  "statcheck.maxGameRushYds": {
+   "target": 248.6,
+   "tol": 80,
+   "nfl": 296
+  },
+  "statcheck.maxGameRecYds": {
+   "target": 234.6,
+   "tol": 80,
+   "nfl": 336
+  },
+  "statcheck.shutouts": {
+   "target": 5.4,
+   "tol": 6
+  },
+  "statcheck.fortyPlusGames": {
+   "target": 26.8,
+   "tol": 18
+  },
+  "leverage.noEffect": {
+   "max": 1,
+   "note": "currently LB.awr \u2014 task P1.3"
+  },
+  "leverage.unbackedOvr": {
+   "max": 1,
+   "note": "currently LB.awr \u2014 task P1.3"
+  },
+  "tails.milestonesOff": {
+   "max": 12,
+   "note": "KNOWN-HIGH, target 0. Locked across a 5-seed panel; a single seed reads 17-18, so a 1-seed gate run fails this without a regression having happened."
+  },
+  "tails.bestSeasonPassYds": {
+   "target": 5392.4,
+   "tol": 500,
+   "nfl": 5477,
+   "note": "NFL record; see drift.passRecordSeasons"
+  },
+  "tails.bestSeasonRushYds": {
+   "target": 2033.2,
+   "tol": 350,
+   "nfl": 2105
+  },
+  "tails.bestSeasonRecYds": {
+   "target": 1988.4,
+   "tol": 350,
+   "nfl": 1964
+  },
+  "tails.bestSeasonSacks": {
+   "target": 22,
+   "tol": 8,
+   "nfl": 22.5
+  },
+  "tails.bestGamePassYds": {
+   "target": 545,
+   "tol": 90,
+   "nfl": 554
+  },
+  "tails.bestGameRushYds": {
+   "target": 303,
+   "tol": 80,
+   "nfl": 296
+  },
+  "tails.bestGameRecYds": {
+   "target": 301.8,
+   "tol": 80,
+   "nfl": 336
+  },
+  "conditions.homeWinPct": {
+   "target": 54.439,
+   "tol": 3,
+   "nfl": 55
+  },
+  "conditions.homeScoringEdge": {
+   "target": 1.847,
+   "tol": 1,
+   "nfl": 2
+  },
+  "conditions.byeWinPct": {
+   "target": 51.732,
+   "tol": 9,
+   "nfl": 55,
+   "note": "BACKWARDS today at 48.8% \u2014 task P2.3 target 53-58%"
+  },
+  "conditions.coldPointsDelta": {
+   "target": -2.134,
+   "tol": 1.6,
+   "nfl": -2.4,
+   "note": "cold must score LESS than a dome"
+  },
+  "conditions.windPointsDelta": {
+   "target": -3.302,
+   "tol": 1.8,
+   "nfl": -3.4
+  },
+  "conditions.snowPointsDelta": {
+   "target": -3.895,
+   "tol": 2,
+   "nfl": -4.2
+  },
+  "conditions.domePassRatePct": {
+   "target": 56.787,
+   "tol": 4,
+   "nfl": 57
+  },
+  "conditions.windPassRatePct": {
+   "target": 52.069,
+   "tol": 4,
+   "nfl": 49,
+   "note": "wind pushes teams to the run"
+  },
+  "coherence.outlierExplainedPct": {
+   "min": 85,
+   "note": "outliers must have reasons, not just frequency"
+  },
+  "coherence.eliteCbShadowDrop": {
+   "min": 4,
+   "note": "a shadowing shutdown corner must cost WR1 real yards"
+  },
+  "drift.saveGrowthMbPerSeason": {
+   "max": 0.45,
+   "note": "was +1.07 before the save codec and housekeeping landed; now +0.32"
+  },
+  "drift.saveMbAtEnd": {
+   "max": 10,
+   "note": "20 seasons; was 22.9 MB"
+  },
+  "drift.passRecordSeasons": {
+   "max": 10,
+   "note": "P1 today; task P2.2 target is <= 3 of 20"
+  },
+  "drift.tradesPerSeason": {
+   "min": 5,
+   "nfl": 90,
+   "note": "KNOWN-OPEN. Real volume is ~90 a year (nfl-reference.md S1.1); this guard used to read nfl:3 with a target of 1.44. Matched-seed 20-season comparison: 1.2 before the pick-swap and draft-weekend work, 7.75 after. The floor was briefly set to 8 off a 12-season run, which is a shorter and more generous window -- my error, and the same mistake this file exists to prevent. 5 is below every measurement taken."
+  },
+  "drift.medianPayrollPct": {
+   "target": 90.602,
+   "tol": 6,
+   "nfl": 92
+  },
+  "drift.playerWeeksLost": {
+   "target": 2158.23,
+   "tol": 700,
+   "nfl": 2200,
+   "note": "rotation player-weeks lost league-wide per season"
+  },
+  "drift.ovrDrift": {
+   "target": -0.52,
+   "tol": 1.5,
+   "nfl": 0,
+   "note": "20-season ratings inflation, must stay near zero"
+  },
+  "drift.eliteGrowthRatio": {
+   "target": 1.04,
+   "tol": 0.5,
+   "nfl": 1,
+   "note": "85+ players at season 20 vs season 1"
+  },
+  "careers.matureCareers": {
+   "min": 4000,
+   "note": "sample-size floor: a harness measuring nothing must fail, not report a flattering zero"
+  },
+  "careers.draftedCareers": {
+   "min": 1500
+  },
+  "careers.starterRateMae": {
+   "max": 8,
+   "nfl": 0,
+   "note": "mean abs error of the 4+ year starter rate vs PFR 2011-19, all 7 rounds. today 5.54"
+  },
+  "careers.survivalMae": {
+   "max": 11,
+   "nfl": 0,
+   "note": "KNOWN-OPEN. same for survival to season index 3. today 8.77, was ~12 when tuned against the fabricated 42.6% figure. rounds 3-6 are still 11-16 points too harsh"
+  },
+  "careers.careerLenMae": {
+   "max": 1.6,
+   "nfl": 0,
+   "note": "KNOWN-OPEN. median career span in seasons. today 1.0; rounds 6-7 are still far too short (median 1 and 0 against a real 4 and 2)"
+  },
+  "careers.r1ShareMae": {
+   "max": 5,
+   "nfl": 0,
+   "note": "round 1 positional composition vs 15 real drafts. today 2.83"
+  },
+  "careers.r1QbSharePct": {
+   "target": 15.9,
+   "tol": 3.2,
+   "nfl": 10.3,
+   "note": "KNOWN-OPEN, locked at today's value so it cannot get worse. Quarterbacks are 10.3% of round 1 in reality, 3.27 a draft, sd 1.44 (nfl-reference.md S2.4). Sim reads 14.1 and 17.7 on two seeds. The first band here was set from one seed and failed on another -- widened to cover both rather than to make it pass."
+  },
+  "careers.r1BustPct": {
+   "max": 34,
+   "nfl": 6.3,
+   "note": "KNOWN-OPEN. a first rounder who never started half a season in four years. today 28.4; the real never-primary-starter rate is 6.3% and the sim's bar is stricter, but not this much stricter"
+  },
+  "careers.draftSignal": {
+   "min": 2,
+   "note": "round 1 starter seasons minus round 5-7. if this inverts, every scouting feature above it is decoration. today 3.69"
+  },
+  "staff.problems": {
+   "max": 0,
+   "note": "the staff allocation harness's own four checks: neutrality, no inflation, concentration works, potential is a wall"
+  },
+  "staff.overPotential": {
+   "max": 0,
+   "note": "HARD INVARIANT. No player may exceed his potential, ever. The whole argument that development spending cannot manufacture a roster of late-round Pro Bowlers rests on this."
+  },
+  "staff.focusOvrGain": {
+   "min": 2,
+   "note": "OVR a named player gains over four seasons against the same player unnamed, same seed. today 4.36. if this reaches zero the feature is decoration"
+  },
+  "staff.leagueOvrDelta": {
+   "max": 1.2,
+   "note": "A fully specialised league minus a neutral one. Allocation moves value between clubs, it must not create it. today 0.70 -- rose from 0.11 when the scheme lean reached the play engine, which is expected and is why the bound is 1.2 rather than tight."
+  },
+  "staff.sampleSize": {
+   "min": 8,
+   "note": "sample-size floor for the concentration A/B"
+  },
+  "staff.schemeScoringDelta": {
+   "max": 1.5,
+   "nfl": 0,
+   "note": "League scoring with schemes fully funded minus schemes at the floor. The lean redistributes attributes within a player, but the play engine does not weight them the way the rating formula does, so zero-sum on the attribute list is not automatically zero-sum on the scoreboard. today 0.56 pts/team/game."
   }
+ },
+ "lockedSeeds": 5
 }

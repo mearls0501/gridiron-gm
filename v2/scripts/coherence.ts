@@ -19,7 +19,7 @@ import { GameState, Player } from "../lib/core/types";
 import { Rng } from "../lib/core/rng";
 import { simulateGame } from "../lib/core/sim/game";
 import { autoSortDepthChart } from "../lib/core/generate";
-import { emitAll } from "./metrics";
+import { emitAll, seedFor } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 5);
 
@@ -40,7 +40,7 @@ interface Case {
 const cases: Case[] = [];
 
 for (let s = 0; s < SEASONS; s++) {
-  const st: GameState = newGame({ seed: 24680 + s * 1013 });
+  const st: GameState = newGame({ seed: seedFor(24680) + s * 1013 });
   advance(st);
   let g = 0;
   while (st.phase === "regular" && g++ < 40) advance(st);
@@ -201,7 +201,7 @@ const weighted =
 // Does shadow coverage actually erase a number one receiver?
 // ---------------------------------------------------------------------------
 {
-  const base = newGame({ seed: 8899 });
+  const base = newGame({ seed: seedFor(8899) });
 
   const trial = (label: string, cbCov: number, shadow: number) => {
     const st = JSON.parse(JSON.stringify(base)) as GameState;

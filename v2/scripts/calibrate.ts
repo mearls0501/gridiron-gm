@@ -4,9 +4,9 @@ import { teamSeasonStats } from "../lib/core/season/records";
 import { simulateGame } from "../lib/core/sim/game";
 import { Rng } from "../lib/core/rng";
 import { Game } from "../lib/core/types";
-import { emitAll } from "./metrics";
+import { emitAll, seedFor } from "./metrics";
 
-const state = newGame({ seed: 12345 });
+const state = newGame({ seed: seedFor(12345) });
 const rng = new Rng(999);
 
 let n = 0;
@@ -116,7 +116,7 @@ console.log("\n--- full seasons (league-wide) ---");
 const seasonPfg: number[] = [];
 const seasonYds: number[] = [];
 const seasonSpread: number[] = [];
-for (const seed of [11, 22, 33]) {
+for (const seed of [11, 22, 33].map(seedFor)) {
   const season = newGame({ seed });
   advance(season);
   let w = 0;

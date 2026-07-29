@@ -21,31 +21,113 @@ import { ensurePickInventory } from "../trades";
 
 const ROUNDS = 7;
 
-export function generateDraftClass(state: GameState, rng: Rng, season: number): Player[] {
+/**
+ * The draft board: the men who will actually hear their names called.
+ * Real drafts run 254-262 picks including compensatory selections; v2 has 224
+ * (7 x 32, no comp picks), so a few dozen board-grade players go undrafted
+ * every year as priority free agents, which is exactly what happens.
+ */
+export const DRAFT_BOARD = 258;
+
+/**
+ * The camp pool: distinctly weaker bodies who fill out 90-man rosters and
+ * mostly wash out. Teams sign roughly 400-650 undrafted players a year against
+ * 2,880 offseason roster spots and only 1,696 active ones, so most of the men
+ * who enter the league every year were never draftable at all.
+ */
+export const CAMP_POOL = 420;
+
+/**
+ * Quality as a function of rank on the board.
+ *
+ * Replaces a five-tier lottery in which every prospect drew from one of five
+ * fixed bands. The lottery had no gradient INSIDE a tier, so the top of round
+ * one looked like the bottom of it, and the research is emphatic that pick
+ * band matters more than round: picks 1-16 and 17-32 differ more from each
+ * other than rounds 2 and 3 do.
+ *
+ * The curve is continuous rather than banded because a real board has no
+ * cliffs, and the noise term is what makes the ordering imperfect — a club
+ * mis-sorting this list is where steals and reaches come from.
+ */
+function boardQuality(rank: number, rng: Rng): number {
+  // Level calibrated against `drift.ovrDrift`, which is the league's mean OVR
+  // movement over twenty seasons and must sit near zero. Two measured points:
+  // `76 - 26x^0.55` gave -1.90 (the league deflated) and `82 - 30x^0.5` gave
+  // +1.45 (it inflated). This is the interpolation between them.
+  const base = 79.5 - 29 * Math.pow(rank / DRAFT_BOARD, 0.52);
+  return clamp(Math.round(base + rng.normal(0, 4)), 42, 92);
+}
+
+/**
+ * How much a quarterback's weight is suppressed at the top of the board.
+ *
+ * Shaping the ENTIRE top of the board to the real first-round position
+ * distribution was too blunt: it dropped running backs to 3% of the elite
+ * band, which is true of real first rounds but starved the league of good
+ * backs over twenty seasons and pulled league-leading rushing yards down to
+ * 1,554 against a 1,989 baseline. Position supply and position DRAFT ORDER are
+ * different things, and only the second one was wrong.
+ *
+ * So supply stays on roster need for every position, and only the quarterback
+ * — the one position priced high enough (3.4x) to distort the board on its own
+ * — is thinned at the top. Real first rounds are 11.3% quarterback.
+ */
+const ELITE_QB_SUPPRESSION = 0.34;
+
+/** How deep the suppression runs. */
+const ELITE_DEPTH = 48;
+
+/**
+ * Generate a draft class on its OWN random stream.
+ *
+ * `Rng` is mulberry32, whose state advance is `s += 0x6d2b79f5` — a pure
+ * counter that does not depend on the values produced. So the state after N
+ * draws is a function of N alone, and drawing a different NUMBER of values
+ * shifts every random outcome that follows for the rest of the league's life.
+ *
+ * Because `newGame` generates the first class before it stores `rngState`,
+ * that made class size silently couple to every game ever simulated. Changing
+ * the class from 460 players to 678 moved `statcheck.leadRushYds` from passing
+ * to 1554 — and it then read exactly 1554 across three completely different
+ * quality curves, because all three drew the same COUNT. The harness was
+ * measuring which stream the season landed on, not the draft.
+ *
+ * Deriving a child stream from a single parent draw fixes it: the parent
+ * advances by exactly one step no matter how big the class is, so the class
+ * model and the season simulation are finally independent.
+ */
+export function generateDraftClass(state: GameState, parent: Rng, season: number): Player[] {
+  const rng = new Rng(parent.int(1, 0x7ffffffe));
   const out: Player[] = [];
-  const size = 224 + rng.int(-10, 20);
 
-  for (let i = 0; i < size; i++) {
-    const pos = rng.weighted(POSITIONS, (p) => POSITION_TARGET[p] * (POSITION_VALUE[p] * 0.5 + 0.6));
-
-    // Talent curve: a handful of blue chips, a long tail of camp bodies.
-    const roll = rng.next();
-    let target: number;
-    if (roll < 0.02) target = rng.int(78, 88);
-    else if (roll < 0.08) target = rng.int(72, 80);
-    else if (roll < 0.25) target = rng.int(66, 74);
-    else if (roll < 0.55) target = rng.int(58, 68);
-    else target = rng.int(48, 60);
-
+  const add = (targetOvr: number, pos: Position) => {
     const age = rng.int(21, 23);
     const p = makePlayer(rng, state.nextPlayerId++, {
-      pos, targetOvr: target, age, season, prospect: true,
+      pos, targetOvr, age, season, prospect: true,
       potBoost: rng.chance(0.12) ? rng.int(3, 9) : 0,
     });
     p.draftClassSeason = season;
     p.yearsPro = 0;
     out.push(p);
     state.players.push(p);
+  };
+
+  const board = DRAFT_BOARD + rng.int(-8, 8);
+  for (let rank = 0; rank < board; rank++) {
+    const elite = rank < ELITE_DEPTH;
+    const pos = rng.weighted(POSITIONS, (q) => {
+      const base = POSITION_TARGET[q] * (POSITION_VALUE[q] * 0.5 + 0.6);
+      return elite && q === "QB" ? base * ELITE_QB_SUPPRESSION : base;
+    });
+    add(boardQuality(rank, rng), pos);
+  }
+
+  // The camp pool. Flat and low: these are bodies, not prospects.
+  const camp = CAMP_POOL + rng.int(-30, 30);
+  for (let i = 0; i < camp; i++) {
+    const pos = rng.weighted(POSITIONS, (q) => POSITION_TARGET[q]);
+    add(clamp(Math.round(rng.normal(49, 4)), 40, 60), pos);
   }
 
   return out;
@@ -75,7 +157,10 @@ export function scoutProspect(p: Player, effort: number, rng: Rng): void {
 }
 
 /** Give every prospect a rough initial read so boards aren't blank. */
-export function initialScoutingPass(state: GameState, season: number, rng: Rng): void {
+export function initialScoutingPass(state: GameState, season: number, parent: Rng): void {
+  // Same reasoning as `generateDraftClass`: this loops over the class, so its
+  // draw count scales with class size and would re-introduce the coupling.
+  const rng = new Rng(parent.int(1, 0x7ffffffe));
   for (const p of state.players) {
     if (!p.prospect || p.draftClassSeason !== season) continue;
     p.scouted = 0;

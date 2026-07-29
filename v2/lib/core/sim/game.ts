@@ -1,3 +1,4 @@
+import { schemeAttrMultiplier } from "../staff";
 import { Rng, clamp } from "../rng";
 import {
   BoxScore, CARRY_SHARE, Coach, Game, GameState, Player, PlayerGameStat, Position,
@@ -314,9 +315,42 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     return s;
   };
 
-  /** Attribute value for this player right now, after fatigue. */
+  /**
+   * Every club's scheme lean, resolved once per game rather than per read.
+   *
+   * `att` is called tens of thousands of times a game, and the lean depends
+   * only on the club, the position and the attribute — none of which change
+   * between snaps. Resolving it inside `att` would recompute the same lookup
+   * on every play for no benefit. It also consumes no randomness, so the play
+   * loop's rng stream is byte-identical with or without it.
+   */
+  const schemeLean = new Map<string, number>();
+  const lean = (p: Player, key: keyof Player["attrs"]): number => {
+    if (p.teamId === null) return 1;
+    const k = `${p.teamId}:${p.pos}:${key}`;
+    let v = schemeLean.get(k);
+    if (v === undefined) {
+      v = schemeAttrMultiplier(state.teams[p.teamId], p.pos, key);
+      schemeLean.set(k, v);
+    }
+    return v;
+  };
+
+  /**
+   * Scheme lean only, for the reads that deliberately skip the fatigue model.
+   *
+   * A good number of attribute reads in here bypass `att` — some by design,
+   * some by history — and half of what the schemes emphasise (coverage, pass
+   * rush, tackling, blocking) lives in exactly those reads. Routing them
+   * through `att` would silently apply the fatigue model where it has never
+   * applied and move every calibration number for reasons that have nothing to
+   * do with schemes. This applies the lean and nothing else.
+   */
+  const sc = (p: Player, key: keyof Player["attrs"]): number => p.attrs[key] * lean(p, key);
+
+  /** Attribute value for this player right now, after scheme and fatigue. */
   const att = (p: Player, key: keyof Player["attrs"]): number => {
-    const raw = p.attrs[key];
+    const raw = p.attrs[key] * lean(p, key);
     if (!PHYSICAL.includes(key)) return raw;
     const snaps = pstats.get(p.id)?.snaps ?? 0;
     return raw * fatigueMult(p, snaps);
@@ -601,7 +635,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
       const converter = target ?? qb;
       if (converter) statFor(converter, ctx).twoPtAtt++;
 
-      const skill = qb ? (qb.attrs.tha + qb.attrs.dec) / 2 : 55;
+      const skill = qb ? (att(qb, "tha") + att(qb, "dec")) / 2 : 55;
       if (rng.chance(clamp(0.475 + (skill - 60) * 0.004, 0.33, 0.66))) {
         // Both players are credited with the ATTEMPT, but only the player who
         // takes it into the end zone is credited with the conversion — crediting
@@ -619,7 +653,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     const st = statFor(k, ctx);
     st.xpa++;
     st.snaps++;
-    if (rng.chance(clamp(0.86 + (k.attrs.kac - 50) * 0.0022, 0.80, 0.985))) {
+    if (rng.chance(clamp(0.86 + (att(k, "kac") - 50) * 0.0022, 0.80, 0.985))) {
       st.xpm++;
       award(ctx.team.id, 1, "Extra point good");
     } else {
@@ -644,7 +678,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
 
     const pool = [...receiving.starters.WR, ...receiving.starters.RB, ...receiving.starters.CB];
     const returner = pool.length
-      ? rng.weighted(pool, (p) => Math.pow(Math.max(1, p.attrs.spd - 55), 2))
+      ? rng.weighted(pool, (p) => Math.pow(Math.max(1, sc(p, "spd") - 55), 2))
       : null;
 
     const td = rng.chance(0.0055);
@@ -690,7 +724,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     const visitorKick = offenseIsHome ? 1 : HOME_FIELD.visitorKick;
     const p = clamp(
       (1.03 - Math.pow(Math.max(0, distance - 17) / 42, 2.15) * 0.70 +
-        (k.attrs.kpw - 50) * 0.0016 + (k.attrs.kac - 50) * 0.0030)
+        (att(k, "kpw") - 50) * 0.0016 + (att(k, "kac") - 50) * 0.0030)
         * wx.kickAccuracy * visitorKick,
       0.01, 0.99
     );
@@ -712,7 +746,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     const receiving = offenseIsHome ? ctxAway : ctxHome;
     const p = ctx.starters.P[0];
 
-    const gross = Math.round(clamp((45 + (p ? (p.attrs.kpw - 50) * 0.16 : 0) + rng.normal(0, 7)) * wx.puntDistance, 22, 70));
+    const gross = Math.round(clamp((45 + (p ? (att(p, "kpw") - 50) * 0.16 : 0) + rng.normal(0, 7)) * wx.puntDistance, 22, 70));
     const landing = yardLine + gross;
     burn(rng.int(9, 14));
 
@@ -735,7 +769,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     if (rng.chance(0.55)) {
       const pool = [...receiving.starters.WR, ...receiving.starters.CB];
       const returner = pool.length
-        ? rng.weighted(pool, (x) => Math.pow(Math.max(1, x.attrs.spd - 55), 2))
+        ? rng.weighted(pool, (x) => Math.pow(Math.max(1, sc(x, "spd") - 55), 2))
         : null;
       const td = rng.chance(0.004);
       const ret = td ? 100 - spot : Math.round(clamp(rng.normal(8, 7), 0, 40));
@@ -823,7 +857,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
         ? rng.weighted(backs, (b, i) => {
             const share = shares[i] ?? CARRY_SHARE[i] ?? 0.04;
             const best = backs[0];
-            const quality = 1 + (b.attrs.elu + b.attrs.spd - best.attrs.elu - best.attrs.spd) * 0.006;
+            const quality = 1 + (att(b, "elu") + sc(b, "spd") - att(best, "elu") - sc(best, "spd")) * 0.006;
             return Math.max(0.01, share * quality);
           })
         : undefined;
@@ -839,8 +873,8 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
       unitAtt(lbs, "tkl") * 0.18 + unitAtt(lbs, "pur") * 0.18 +
       unitAvg(lbs, "awr") * 0.12;
     const advantage = edge(blockScore, frontScore, 26);
-    const skill = carrier.attrs.elu * 0.4 + carrier.attrs.acc * 0.25 +
-                  carrier.attrs.spd * 0.2 + carrier.attrs.agi * 0.15;
+    const skill = att(carrier, "elu") * 0.4 + sc(carrier, "acc") * 0.25 +
+                  sc(carrier, "spd") * 0.2 + sc(carrier, "agi") * 0.15;
 
     const goalLineSquash = yardLine >= 88 ? 1.36 : yardLine >= 80 ? 0.72 : 0;
     const homeRun = offenseIsHome ? HOME_FIELD.homeRush : 1;
@@ -873,7 +907,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     hitUnit(lbs, d, 0.11);
 
     // Fumble. Recovery is contested — not every fumble is a turnover.
-    const fumbleP = clamp(0.0330 - (carrier.attrs.car - 60) * 0.00032 + wx.fumble, 0.010, 0.085);
+    const fumbleP = clamp(0.0330 - (att(carrier, "car") - 60) * 0.00032 + wx.fumble, 0.010, 0.085);
     if (rng.chance(fumbleP)) {
       cs.fumbles++;
       const forcer = rng.pick([...dl, ...lbs]);
@@ -911,7 +945,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     o.stats.totalYards += yards;
 
     if (yards < 0) {
-      const tflPlayer = rng.weighted([...dl, ...lbs], (p) => Math.max(1, p.attrs.pur - 35));
+      const tflPlayer = rng.weighted([...dl, ...lbs], (p) => Math.max(1, att(p, "pur") - 35));
       if (tflPlayer) statFor(tflPlayer, d).tfl++;
     }
 
@@ -920,7 +954,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     // and one player takes close to a fifth of his team's stops.
     const tackler = rng.weighted(
       [...lbs, ...d.starters.S, ...dl, ...d.starters.CB],
-      (p) => Math.pow(Math.max(1, p.attrs.pur * 0.6 + p.attrs.tkl * 0.4 - 38), 1.52)
+      (p) => Math.pow(Math.max(1, att(p, "pur") * 0.6 + sc(p, "tkl") * 0.4 - 38), 1.52)
               * TACKLE_SHARE[p.pos]
               * (d.script.targetBoost.get(p.id) ?? 1)
     );
@@ -967,7 +1001,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     // Awareness is pre-snap: reading the front, identifying the free rusher and
     // getting the ball out. It cuts the sack rate before athleticism ever
     // matters.
-    const recognition = clamp(1 - (qb.attrs.awr - 55) * 0.0055, 0.66, 1.30);
+    const recognition = clamp(1 - (att(qb, "awr") - 55) * 0.0055, 0.66, 1.30);
     if (rng.chance(pressure * 0.315 * recognition)) {
       const escape = clamp((att(qb, "agi") + att(qb, "acc") + att(qb, "spd")) / 3, 20, 99);
       if (rng.chance(clamp(0.10 + (escape - 55) * 0.011, 0, 0.45))) {
@@ -980,7 +1014,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
       o.stats.sacksAllowed++;
       o.stats.sackYardsAllowed += loss;
       const sacker = rng.weighted(rushers, (p) =>
-        Math.pow(Math.max(1, p.attrs.prs - 38), 1.55)
+        Math.pow(Math.max(1, sc(p, "prs") - 38), 1.55)
           * (p.pos === "EDGE" ? 1.28 : 1)
           * (d.script.targetBoost.get(p.id) ?? 1));
       if (sacker) {
@@ -997,7 +1031,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
       o.stats.passYards -= loss;
 
       // Strip sack: the quarterback loses it going down.
-      if (rng.chance(clamp(0.10 - (qb.attrs.car - 60) * 0.0012, 0.03, 0.20))) {
+      if (rng.chance(clamp(0.10 - (att(qb, "car") - 60) * 0.0012, 0.03, 0.20))) {
         qbStat.fumbles++;
         if (sacker) statFor(sacker, d).ff++;
         if (rng.chance(0.58)) {
@@ -1024,14 +1058,14 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
 
     /** Separation this receiver generates, and the coverage he is facing. */
     const sepOf = (p: Player) =>
-      p.attrs.rte * 0.55 + att(p, "spd") * 0.25 + att(p, "agi") * 0.20;
+      sc(p, "rte") * 0.55 + att(p, "spd") * 0.25 + att(p, "agi") * 0.20;
     const covOf = (p: Player) => {
       const c = o.coverage.get(p.id);
-      return c ? c.attrs.cov * 0.52 + att(c, "spd") * 0.31 + c.attrs.awr * 0.17 : 55;
+      return c ? sc(c, "cov") * 0.52 + att(c, "spd") * 0.31 + att(c, "awr") * 0.17 : 55;
     };
 
     const target = rng.weighted(receivers, (p, i) => {
-      const base = p.attrs.rte * 0.6 + p.attrs.cth * 0.4;
+      const base = sc(p, "rte") * 0.6 + att(p, "cth") * 0.4;
       const roleBonus = i === 0 ? 16 : i === 1 ? 11 : i === 2 ? 5 : 1;
       const boost = o.script.targetBoost.get(p.id) ?? 1;
       // Inside the 20 the ball goes to the players you trust.
@@ -1054,21 +1088,21 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
       o.coverage.get(target.id) ??
       (coverPool.length
         ? rng.weighted(coverPool, (p) =>
-            Math.pow(Math.max(1, p.attrs.cov - 30), 1.5) * (d.script.targetBoost.get(p.id) ?? 1))
+            Math.pow(Math.max(1, sc(p, "cov") - 30), 1.5) * (d.script.targetBoost.get(p.id) ?? 1))
         : null);
     const coverage = defender
-      ? defender.attrs.cov * 0.52 + att(defender, "spd") * 0.31 + defender.attrs.awr * 0.17
+      ? sc(defender, "cov") * 0.52 + att(defender, "spd") * 0.31 + att(defender, "awr") * 0.17
       : 55;
     const separation =
-      target.attrs.rte * 0.55 + att(target, "spd") * 0.25 + att(target, "agi") * 0.20;
+      sc(target, "rte") * 0.55 + att(target, "spd") * 0.25 + att(target, "agi") * 0.20;
 
     const underPressure = rng.chance(pressure);
-    const accuracy = qb.attrs.tha * 0.7 + qb.attrs.dec * 0.3 - (underPressure ? 12 : 0);
+    const accuracy = att(qb, "tha") * 0.7 + att(qb, "dec") * 0.3 - (underPressure ? 12 : 0);
 
     // Compressed field: no room behind the defence once inside the 20.
     const rzBase = yardLine >= 90 ? 0.210 : yardLine >= 80 ? 0.140 : 0;
     const redZonePenalty = rzBase * clamp(
-      1 - (qb.attrs.tha * 0.4 + qb.attrs.dec * 0.3 + unitAvg(receivers, "cth") * 0.3 - 66) * 0.011,
+      1 - (att(qb, "tha") * 0.4 + att(qb, "dec") * 0.3 + unitAvg(receivers, "cth") * 0.3 - 66) * 0.011,
       0.70, 1.34
     );
     // Help over the top. Safeties are only assigned to tight ends, so without
@@ -1079,7 +1113,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     const homeEdge = offenseIsHome ? HOME_FIELD.homeCompletion : 1;
     const completionP = clamp(
       (0.533 + edge(separation, coverage, 30) * 0.32 +
-        (accuracy - 55) * 0.0050 + (target.attrs.cth - 60) * 0.0020
+        (accuracy - 55) * 0.0050 + (att(target, "cth") - 60) * 0.0020
         - redZonePenalty - clamp(safetyHelp, -0.06, 0.09)
         // Coverage tightens when the defence can sit on the sticks, and loosens
         // in short yardage when it has to respect the run.
@@ -1091,10 +1125,10 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     // quarterback, so no defensive back ever had a ball-hawking season and the
     // league leader topped out around four. Who is covering matters.
     const ballHawk = defender
-      ? (defender.attrs.cov * 0.45 + defender.attrs.awr * 0.40 + defender.attrs.jmp * 0.15) - 62
+      ? (sc(defender, "cov") * 0.45 + att(defender, "awr") * 0.40 + sc(defender, "jmp") * 0.15) - 62
       : 0;
     const intP = clamp(
-      (0.0166 - (qb.attrs.dec - 60) * 0.00038 + (underPressure ? 0.010 : 0))
+      (0.0166 - (att(qb, "dec") - 60) * 0.00038 + (underPressure ? 0.010 : 0))
         * clamp(1 + ballHawk * 0.030, 0.38, 3.00),
       0.003, 0.060
     );
@@ -1105,9 +1139,9 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     const jumpBallSpot = yardLine >= 85;
     const contested = (tightWindow || jumpBallSpot) && rng.chance(0.26);
     if (contested) {
-      const up = target.attrs.jmp * 0.55 + target.attrs.cth * 0.45;
+      const up = sc(target, "jmp") * 0.55 + att(target, "cth") * 0.45;
       const challenge = defender
-        ? defender.attrs.jmp * 0.45 + defender.attrs.cov * 0.35 + att(defender, "spd") * 0.20
+        ? sc(defender, "jmp") * 0.45 + sc(defender, "cov") * 0.35 + att(defender, "spd") * 0.20
         : 55;
       const win = clamp(0.415 + (up - challenge) * 0.011, 0.10, 0.82);
 
@@ -1187,10 +1221,10 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
 
     const roll = rng.next();
     const bombP =
-      (0.0115 + (qb.attrs.thp - 60) * 0.00035 + (target.attrs.spd - 60) * 0.0003)
+      (0.0115 + (att(qb, "thp") - 60) * 0.00035 + (sc(target, "spd") - 60) * 0.0003)
       * wx.deepPass * clamp(1 - safetyHelp, 0.45, 1.6);
-    const deepP = bombP + (0.115 + (qb.attrs.thp - 60) * 0.0015) * wx.deepPass * clamp(1 - safetyHelp * 0.5, 0.6, 1.4);
-    const armQuality = 0.865 + (qb.attrs.tha * 0.5 + qb.attrs.thp * 0.5) / 520;
+    const deepP = bombP + (0.115 + (att(qb, "thp") - 60) * 0.0015) * wx.deepPass * clamp(1 - safetyHelp * 0.5, 0.6, 1.4);
+    const armQuality = 0.865 + (att(qb, "tha") * 0.5 + att(qb, "thp") * 0.5) / 520;
     const air = (
       roll < bombP ? Math.abs(rng.normal(34, 14))     // shot down the field
       : roll < deepP ? Math.abs(rng.normal(16.2, 7.5))  // intermediate
@@ -1202,15 +1236,15 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     ) * armQuality;
     // A defender who is where he should be takes the run-after away.
     const tackleLeverage = defender
-      ? defender.attrs.awr * 0.36 + defender.attrs.tkl * 0.34 + att(defender, "spd") * 0.30
+      ? att(defender, "awr") * 0.36 + sc(defender, "tkl") * 0.34 + att(defender, "spd") * 0.30
       : 55;
     let yac = Math.max(0, rng.normal(
-      2.60 + (target.attrs.elu - 55) * 0.043 + (att(target, "spd") - 60) * 0.028
+      2.60 + (att(target, "elu") - 55) * 0.043 + (att(target, "spd") - 60) * 0.028
       - (tackleLeverage - 60) * 0.030,
       4.45
     ));
     // Broken tackle in space — how a 12-yard catch becomes a 60-yard gain.
-    if (rng.chance(0.012 + (target.attrs.elu - 60) * 0.0004)) {
+    if (rng.chance(0.012 + (att(target, "elu") - 60) * 0.0004)) {
       yac += Math.abs(rng.normal(16, 9.5));
     }
     const yards = Math.round(clamp(air + yac, -3, 100 - yardLine));
@@ -1225,7 +1259,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     o.stats.totalYards += yards;
 
     const tackler = rng.weighted([...cbs, ...safeties, ...lbs], (p) =>
-      Math.pow(Math.max(1, p.attrs.tkl - 34), 1.54) * TACKLE_SHARE[p.pos]
+      Math.pow(Math.max(1, sc(p, "tkl") - 34), 1.54) * TACKLE_SHARE[p.pos]
         * (d.script.targetBoost.get(p.id) ?? 1)
     );
     if (tackler) statFor(tackler, d).tackles++;
@@ -1233,7 +1267,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     hit(tackler, d, 0.50);
 
     // Fumble after the catch.
-    if (rng.chance(clamp(0.010 - (target.attrs.car - 60) * 0.00012, 0.003, 0.022))) {
+    if (rng.chance(clamp(0.010 - (att(target, "car") - 60) * 0.00012, 0.003, 0.022))) {
       tStat.fumbles++;
       if (tackler) statFor(tackler, d).ff++;
       if (rng.chance(0.55)) {
@@ -1290,7 +1324,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
   const inFieldGoalRange = (): boolean => {
     const k = off().starters.K[0];
     const distance = (100 - yardLine) + 17;
-    const leg = (k ? 54.5 + (k.attrs.kpw - 50) * 0.16 : 49) + wx.kickRange;
+    const leg = (k ? 54.5 + (att(k, "kpw") - 50) * 0.16 : 49) + wx.kickRange;
     const endOfHalf = (quarter === 2 || quarter === 4 || overtime) && clock < 30;
     const desperate =
       quarter >= 4 && scoreDiffFor(offenseIsHome) < 0 && clock < 150;
@@ -1305,7 +1339,8 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     if (down === 2 && toGo >= 8) p += 0.12;
     if (toGo <= 2) p -= 0.18;
     if (100 - yardLine <= 3) p -= 0.12;
-    if (yardLine >= 80) p += clamp((off().starters.QB[0]?.attrs.tha ?? 60) - 68, -10, 22) * 0.0035;
+    const qbTha = off().starters.QB[0];
+      if (yardLine >= 80) p += clamp((qbTha ? sc(qbTha, "tha") : 60) - 68, -10, 22) * 0.0035;
     if (quarter >= 4) {
       if (diff < -8 && clock < 480) p += 0.24;
       else if (diff > 16) p -= 0.42;
@@ -1414,7 +1449,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     // Quarterback keeps it: sneaks in short yardage, designed runs for the
     // mobile ones. Without this, quarterbacks finished seasons with 0 carries.
     const qb0 = off().starters.QB[0];
-    const mobility = qb0 ? (qb0.attrs.spd + qb0.attrs.agi) / 2 : 50;
+    const mobility = qb0 ? (sc(qb0, "spd") + sc(qb0, "agi")) / 2 : 50;
     const sneak =
       !doPass &&
       ((toGo <= 1 && rng.chance(0.30)) ||

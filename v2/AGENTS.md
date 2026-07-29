@@ -3,13 +3,16 @@
 Read this before you change a line. It applies to every model, every tool, and
 every human. It is short on purpose.
 
+**Picking the project back up after a break?** Read `docs/HANDOFF.md` first —
+it has where the work stands, what is still red and why, and what to do next.
+
 This is a pro-football front-office simulation that runs entirely in the
 browser. No database, no backend, no API keys, no network. A save is one
 serializable JSON document in IndexedDB.
 
 ---
 
-## The five invariants
+## The seven invariants
 
 These hold the build together. Violating any one of them fails review **even if
 every test passes**, because the failure they prevent is not one a test catches
@@ -61,13 +64,59 @@ report, a trade rationale, a season recap — behind a thin proxy. It will never
 be in a decision loop. Deterministic replay is what makes this codebase
 testable, and no CPU-intelligence gain is worth trading it away.
 
+### 6. An even staff budget changes nothing
+
+Every effect in `lib/core/staff.ts` is written as a deviation from an even
+25/25/25/25 split, and at that split every multiplier it returns is exactly 1.
+A league that has not allocated must play precisely as the game did before the
+budget system existed.
+
+That is what makes the whole system a strategy layer rather than a difficulty
+slider. Allocation moves value between players and between clubs; it may not
+create it. If it could, every outcome rate the NFL research pinned down would
+drift with it and none of the calibration below would mean anything.
+
+Two hard consequences, both gated:
+
+- **`pot` is a wall.** No investment, no scheme, no coaching may take a player
+  past his potential — `staff.overPotential` is gated at zero. This is the only
+  thing standing between "a reclamation project" and "a roster of seventh
+  rounders who all became Pro Bowlers", and it has already been quietly broken
+  twice: once in generation (a `realize` clamp of 1.1 handed ~2% of players a
+  ceiling above their own potential) and once in progression (`pot` was
+  reconciled only at peak age, where it silently rose to meet ability).
+- **A scheme redistributes.** `schemeAttrMultiplier` sharpens what an identity
+  practises and dulls the rest, sized so the mean across the position's graded
+  attributes is unchanged. `staff.schemeScoringDelta` watches league scoring
+  between a floor-funded and a fully-funded league.
+
+### 7. Every calibration number traces to a primary source
+
+**This one is new, and it is here because the repo failed it.**
+
+Any number that represents "what the real NFL does" — a target in
+`docs/baselines.json`, a `TARGET_*` table in a harness, a constant justified in
+a comment as realistic — must trace to a block in **`docs/nfl-reference.md`**,
+which shows the dataset, the computation, and the source URL.
+
+Three targets in `scripts/careers.ts` and one in `docs/baselines.json` were
+wrong by 2x to 30x, and the simulation had been tuned toward them for weeks.
+The flat 42.6% roster-survival figure for rounds 4-7 appears to have originated
+in an LLM-generated statistic in a blog post carrying its own "verify this"
+disclaimer. Real trade volume is ~90 a year; the guard said 3.
+
+A number with no provenance is worse than no number, because it manufactures
+confidence and then everything downstream is tuned to match a fiction. If a
+figure cannot be traced, the honest move is to leave that axis **ungated** and
+say so in `docs/nfl-reference.md` §4.
+
 ---
 
 ## The gate
 
 ```bash
-npm run gate         # fast tier, ~40s — run after every edit
-npm run gate:full    # full tier, ~5m  — run before asking for review
+npm run gate         # fast tier  — run after every edit
+npm run gate:full    # full tier  — run before asking for review
 ```
 
 One exit code. On failure it prints one line per violation:
@@ -81,25 +130,42 @@ Read the FAIL lines, fix the cause, run it again. That is the whole loop.
 
 Behind it: `tsc --noEmit`, `determinism`, `verify`, `sweep`, `calibrate`,
 `statcheck`, `leverage` in the fast tier, plus `tails`, `conditions`,
-`coherence` and `drift` in the full tier. Every harness emits its headline
-numbers as `##M <name> <value>` lines (`scripts/metrics.ts`); the gate compares
-each against `docs/baselines.json`.
+`coherence`, `drift`, `careers` and `staff` in the full tier. Every harness emits its
+headline numbers as `##M <name> <value>` lines (`scripts/metrics.ts`); the gate
+compares each against `docs/baselines.json`.
 
 A **missing** metric is a failure, not a skip. That rule exists because the
 `leverage` harness silently degraded for weeks after in-game injuries shipped
 and reported nine attributes as having backwards effects — a broken guard is
 worse than no guard, because it manufactures confidence.
 
+### Cost, and why the full tier may not run where you are
+
+The gate fans all steps out with `Promise.all` and sweeps a 5-seed panel. On a
+2-core box that is an hour-plus of thrashing and the output stays buffered the
+whole time, so it looks hung when it is merely slow. Check `nproc` first.
+
+```bash
+npm run gate:full -- --seeds 2      # honest on 2 cores
+npx tsx scripts/drift.ts 20         # or run the one harness your change risks
+```
+
+Fewer seeds means a noisier number, not a wrong one. Say which you ran.
+
 ### Things you may not do to make the gate pass
 
-- Edit anything in `scripts/`
-- Edit `docs/baselines.json`
 - Delete, weaken, or comment out an assertion
 - Add a dependency
 - Reduce `verify`'s check count (it is gated with a floor for this reason)
+- Change a baseline to match what your code now does
 
-A baseline that looks wrong might well be wrong — say so and stop. Changing one
-is a decision, and decisions go to the orchestrator, then to Matt.
+That last one is the whole game. **A baseline may only move when the number
+behind it moves in `docs/nfl-reference.md` first**, with the computation shown.
+"The sim does 1.44 and the guard wants 2, so lower the guard" is how the trade
+model stayed 60x off reality without a single red line.
+
+Editing `scripts/` and `docs/baselines.json` is a **lead** decision, not a
+worker one. If you are running as a worker on a task, report and stop.
 
 ---
 
@@ -112,8 +178,10 @@ change is actually risking, and what to look at when it goes red.
 |---|---|
 | `lib/core/sim/game.ts` | `calibrate`, `tails`, `conditions`, `coherence`, `leverage` — the whole quartet |
 | `lib/core/season/*` | `verify`, `statcheck`, `drift` |
-| `lib/core/offseason/*`, `frontOffice.ts`, `trades.ts` | `drift`, `verify`, `sweep` |
+| `lib/core/offseason/*`, `frontOffice.ts`, `trades.ts` | `drift`, `verify`, `sweep`, **`careers`** |
 | `lib/core/generate.ts`, `ratings.ts` | everything — generation feeds every harness |
+| `lib/core/outcomes.ts`, `offseason/draft.ts`, `progression.ts` | **`careers` first**, then `drift` |
+| `lib/core/staff.ts` | **`staff` first**, then `calibrate` and `statcheck` — the scheme lean reaches the play engine |
 | `lib/core/rng.ts` | `determinism` first, then everything |
 | `app/*`, `components/*` | `node scripts/e2e.mjs` and `node scripts/e2e-interact.mjs` |
 | `lib/store/*` | `determinism` (round-trip) and the save-size guard in `drift` |
@@ -147,6 +215,11 @@ stop and report: what you changed, what the gate said each time, and what you
 now think is actually wrong. An honest dead end is far more useful than a hack
 that goes green.
 
+**Check the target before you chase it.** Before tuning toward any number, open
+`docs/nfl-reference.md` and confirm the number is in there. If it is not, that
+is the finding — report it instead of hitting the target. This rule would have
+saved several days of tuning roster churn to twice the correct harshness.
+
 **Do not refactor.** Do not tidy adjacent code, rename things, reformat, or add
 comments explaining what the code obviously does. Make the one change.
 
@@ -162,10 +235,18 @@ their baselines are set to today's value so they cannot get *worse*:
 
 | item | today | target |
 |---|---|---|
+| `drift.tradesPerSeason` — real league-wide volume is ~90 a year | 7.8 of ~90 | 60-120 |
+| `careers.survivalMae` — rounds 3-6 still wash out 11-16 points too fast | 8.8 | < 4 |
+| `careers.careerLenMae` — a 6th or 7th rounder's median career is 1 and 0 seasons against a real 4 and 2 | 1.0 | < 0.5 |
+| `careers.r1QbSharePct` — quarterbacks are 10.3% of round 1 in reality | 14-18% | 10.3% |
+| `careers.r1BustPct` — a first rounder who never starts half a season in four years | 28% | ~15% |
+| second contracts with the drafting club run 3-5x too high at every round | R7 at 15% | R7 at 1.5% |
 | `leverage.noEffect` — LB awareness is 16% of OVR and the engine never reads it | 1 | 0 |
-| `drift.passRecordSeasons` — the 5,477-yard record falls in half of all seasons | 10 of 20 | ≤ 3 of 20 |
+| **`drift.passRecordSeasons` — REGRESSION, caused 2026-07-29.** Fixing `cutWorstSurplus` keeps high-potential young players alive, more of them reach their ceiling, and the 5,477-yard record now falls more often. Matched-seed: 10 → 13 of 20. Left red rather than widened. | 13 of 20 | ≤ 3 of 20 |
+| **`coherence.eliteCbShadowDrop` — REGRESSION on top of a pre-existing open.** A shadowing shutdown corner has never cost a WR1 much (1.0 against a target of ≥4). The scheme lean made it worse: **every offensive identity emphasises receivers, but only three of the four defensive ones emphasise corners**, so league-wide receivers get sharpened more often than the men covering them. Exempting a position's defining attribute from the drag recovered most of it (−10.3 → −2.9). The asymmetry in the emphasis tables is the remaining cause and the next thing to fix. | −2.9 | ≥ 4 |
+| `conditions.coldPointsDelta` — cold games barely suppress scoring (−0.5 against a real −2.4). Single-seed reading on a 6-season sample; not yet confirmed against a matched-seed baseline. | −0.5 | −2.4 |
 | `tails.milestonesOff` — milestone frequencies against NFL history | 12 | 0 |
-| `conditions.byeWinPct` — a bye currently *hurts* | 48.8% | 53–58% |
+| `conditions.byeWinPct` — a bye currently *hurts* | 48.8% | 53-58% |
 | `drift.saveGrowthMbPerSeason` — mostly fixed by the save codec and housekeeping | +0.32 MB | < 0.3 MB |
 
 Anything not on this list that goes red is a regression you caused.
@@ -176,6 +257,19 @@ null); scouting covers 2 prospects a year out of ~230 and a prospect's true
 rating leaks through the attribute panel on the player page; ROY is not
 restricted to rookies; `history[].standings` exists but no page reads it; there
 is no garbage-time QB rotation; kickers and punters cannot be hurt in-game.
+
+**The staff budget** (`lib/core/staff.ts`, screen at `/front-office`) is the
+strategy layer: one pool of 100 points a season across development, scouting,
+training and scheme, plus up to three named development priorities and an
+offensive and defensive identity. Development spending buys back the gap
+between a player's `ceiling` and his `pot` and never touches `pot` itself. CPU
+clubs allocate from their existing archetype via `refreshCpuStaff`.
+
+**Structurally missing in the trade model**, per `docs/nfl-reference.md` §1:
+there is no draft-weekend trade window (~38% of all real trade activity) and no
+cutdown window (~17%); `proposeTrade` only ever builds one shape, a veteran for
+picks, which is 32% of real deals, and never a pick-for-pick move, which is the
+largest single category at 37%.
 
 ---
 
@@ -191,10 +285,13 @@ lib/core/
   sim/game.ts     the play engine
   season/         standings, playoffs, stats, injuries, week engine
   offseason/      progression, contracts, draft, free agency
+  outcomes.ts     career outcome taxonomy — the labels `careers` grades against
+  staff.ts        the staff budget: one pool, four buckets, and the schemes
   frontOffice.ts  16 CPU archetypes as numeric dials
   trades.ts       asymmetric valuation — both clubs price a deal themselves
 lib/store/        zustand store + IndexedDB persistence
 app/              one route per screen
-scripts/          verification harnesses and the gate — READ ONLY to workers
-docs/baselines.json   the locked numbers — READ ONLY to workers
+scripts/          verification harnesses and the gate — lead-owned
+docs/baselines.json   the locked numbers — lead-owned
+docs/nfl-reference.md the primary-source computations every number traces to
 ```

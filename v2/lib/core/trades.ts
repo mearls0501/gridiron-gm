@@ -108,9 +108,33 @@ export function pickValue(state: GameState, teamId: number, pick: PickOwnership)
     value *= 1.25 - (slot / Math.max(1, order.length - 1)) * 0.5;
   }
 
-  // A pick two years out is a promise, not a player.
+  // How steeply this club's own board falls away.
+  //
+  // This is what makes a pick-for-pick trade possible at all, and it was
+  // missing. Every club used to price picks on the same curve scaled by one
+  // flat appetite multiplier — and a scalar cancels out of both sides of a
+  // swap, so the proposer's "am I better off" test and the receiver's "do I
+  // like this" test were exactly contradictory. Working it through: the
+  // receiver needed the bundle to be worth more than 1.13x the target and the
+  // proposer needed it to be worth less than 1.10x, so no bundle could ever
+  // satisfy both and the league struck zero pick swaps.
+  //
+  // The real disagreement is not about picks in general, it is about EARLY
+  // picks against LATE ones. A club with its window open wants the one player
+  // and will send three Day 3 picks to get him; a club two years out wants the
+  // three swings. That is the trade. `docs/nfl-reference.md` §1.4: rounds 5-7
+  // are 55% of every pick that changes hands.
+  //
+  // Mean-preserving at `winNow = 0.5`, so a league of neutral clubs prices
+  // picks exactly as before.
+  const earliness = (8 - pick.round) / 7;
+  const topHeavy = 0.8 + fo.winNow * 0.4;
+  value *= Math.pow(topHeavy, earliness * 3);
+
+  // A pick two years out is a promise, not a player — and how much of a promise
+  // depends on whether you expect to be good when it lands.
   const yearsOut = Math.max(0, pick.season - state.season);
-  value *= Math.pow(0.82, yearsOut);
+  value *= Math.pow(0.72 + (1 - fo.winNow) * 0.18, yearsOut);
 
   // Rebuilders and draft hoarders pay over the odds for picks; win-now clubs
   // treat them as loose change.
@@ -161,7 +185,17 @@ export function packageValue(
   for (const a of assets) total += assetValue(state, teamId, a, posture);
   // Two good players are not quite worth one great one — you can only start so
   // many. Mild concavity keeps quantity from beating quality.
-  return assets.length > 1 ? total * (1 - Math.min(0.14, (assets.length - 1) * 0.045)) : total;
+  //
+  // Counted over PLAYERS only. Applying it to picks was quietly fatal to
+  // pick-for-pick trading: a three-for-one swap took a 9% haircut on the side
+  // sending three, which meant the receiving club needed the bundle to be worth
+  // over 1.13x the target while the proposing club needed it to be worth under
+  // 1.10x. No bundle satisfies both, so the league struck none. The rationale
+  // does not apply to picks anyway — a club cannot start a draft pick, and
+  // stockpiling them is the recognised rebuilding strategy rather than a
+  // mistake the model should price against.
+  const players = assets.filter((a) => a.kind === "player").length;
+  return players > 1 ? total * (1 - Math.min(0.14, (players - 1) * 0.045)) : total;
 }
 
 // ---------------------------------------------------------------------------
@@ -517,13 +551,96 @@ export function proposeTrade(
 }
 
 /**
+ * Move up or down the board — picks for picks, no player involved.
+ *
+ * This is the largest single category of real NFL trade and the model did not
+ * have it at all. `docs/nfl-reference.md` §1.4: across 2018-2025, 36.6% of
+ * trades were pick-for-pick, 32.1% player-for-pick, 27.6% mixed bundles, and
+ * only 3.5% player-for-player. `proposeTrade` builds the 32% case and nothing
+ * else, which is most of why the league struck 1.4 deals a year against a real
+ * 90.
+ *
+ * Nothing new is needed to price it. `pickValue` is already club-specific — a
+ * rebuilder pays up to 1.44x for a pick and a win-now club as little as 0.72x
+ * — so two clubs at opposite ends of that range clear a swap the same way they
+ * clear a player deal, by disagreeing.
+ *
+ * The target is drawn weighted toward cheap picks because that is what
+ * actually moves: rounds 5-7 are 55% of every pick that changes hands and
+ * round 1 is 8% (§1.4). Picking uniformly would trade far too many firsts.
+ */
+function proposePickSwap(
+  state: GameState, fromTeamId: number, toTeamId: number, rng: Rng
+): TradeOffer | null {
+  const { posture } = teamOutlook(state, fromTeamId);
+  const { posture: theirs } = teamOutlook(state, toTeamId);
+
+  const theirPicks = picksOwnedBy(state, toTeamId);
+  if (!theirPicks.length) return null;
+
+  // Weighted toward the back of the board — a seventh is ~20x likelier to be
+  // the subject of a swap than a first.
+  const target = rng.weighted(theirPicks, (pk) => Math.pow(pk.round, 1.6));
+  // Just past the 1.03 margin the receiving club demands. Anything more
+  // generous and the proposer's own test rejects it; the two tests together
+  // leave a narrow band that only opens when the clubs genuinely disagree
+  // about early picks against late ones.
+  const price = pickValue(state, toTeamId, target) * 1.06;
+
+  // Offer what the other club rates higher than you do. Sorting by the ratio of
+  // their price to ours — rather than by our price, or by theirs — is the whole
+  // asymmetric-valuation idea applied to picks: a rebuilder hands a win-now
+  // club the future seconds it is desperate for and keeps the ones it likes.
+  const mine = picksOwnedBy(state, fromTeamId)
+    .filter((pk) => !(pk.season === target.season && pk.round === target.round && pk.originalTeamId === target.originalTeamId))
+    .map((pk) => ({
+      pk,
+      v: pickValue(state, toTeamId, pk),
+      edge: pickValue(state, toTeamId, pk) / Math.max(0.01, pickValue(state, fromTeamId, pk)),
+    }))
+    .sort((a, b) => b.edge - a.edge);
+  if (!mine.length) return null;
+
+  const give: TradeAsset[] = [];
+  let offered = 0;
+  for (const { pk, v } of mine) {
+    if (offered >= price) break;
+    if (give.length >= 3) break;
+    give.push({ kind: "pick", season: pk.season, round: pk.round, originalTeamId: pk.originalTeamId });
+    offered += v;
+  }
+  if (!give.length || offered < price) return null;
+
+  const get: TradeAsset[] = [
+    { kind: "pick", season: target.season, round: target.round, originalTeamId: target.originalTeamId },
+  ];
+
+  // Both clubs price it themselves, and both have to come out ahead. A club
+  // that would be paying three real picks for one it does not rate walks.
+  if (packageValue(state, fromTeamId, get, posture) <= packageValue(state, fromTeamId, give, posture)) {
+    return null;
+  }
+
+  return {
+    id: state.nextTradeId ?? 1,
+    fromTeamId,
+    toTeamId,
+    give,
+    get,
+    season: state.season,
+    week: state.week,
+    rationale: rationaleFor(theirs, false),
+  };
+}
+
+/**
  * One round of CPU trading.
  *
- * Deliberately sparse: a handful of attempts per call, most of which fail their
- * own valuation test. A league where a third of the rosters change hands every
- * March reads as noise, not as a market.
+ * Two shapes, mixed at roughly the real ratio: pick-for-pick is the larger
+ * category and also the one that clears most often, since no roster spot,
+ * contract or cap hit has to work out for either side.
  */
-export function runCpuTrades(state: GameState, rng: Rng, attempts = 34): number {
+export function runCpuTrades(state: GameState, rng: Rng, attempts = 120): number {
   if (!tradeWindowOpen(state)) return 0;
   ensurePickInventory(state);
 
@@ -533,12 +650,45 @@ export function runCpuTrades(state: GameState, rng: Rng, attempts = 34): number 
   for (let i = 0; i < attempts; i++) {
     const from = rng.pick(ids);
     const to = rng.pick(ids.filter((id) => id !== from));
-    const offer = proposeTrade(state, from, to, rng);
+    const offer = rng.next() < 0.55
+      ? proposePickSwap(state, from, to, rng)
+      : proposeTrade(state, from, to, rng);
     if (!offer) continue;
 
     const verdict = evaluateOffer(state, offer);
     if (!verdict.accept) continue;
 
+    state.nextTradeId = (state.nextTradeId ?? 1) + 1;
+    if (executeTrade(state, offer).ok) done++;
+  }
+  return done;
+}
+
+/**
+ * Draft weekend.
+ *
+ * The single biggest window in the calendar and the model had nothing in it:
+ * trades ran once before the draft opened and then stopped, so no club ever
+ * moved on the clock. Real drafts see ~35 trades moving ~115 picks with 24-30
+ * of 32 clubs involved, and that is 31-48% of all trade activity in the year
+ * (`docs/nfl-reference.md` §1.5).
+ *
+ * Only pick-for-pick here. Draft-weekend player trades exist but they are the
+ * minority, and a club reshaping its roster mid-draft is a different decision
+ * from moving up the board.
+ */
+export function runDraftDayTrades(state: GameState, rng: Rng, attempts = 260): number {
+  ensurePickInventory(state);
+  let done = 0;
+  const ids = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);
+  if (ids.length < 2) return 0;
+
+  for (let i = 0; i < attempts; i++) {
+    const from = rng.pick(ids);
+    const to = rng.pick(ids.filter((id) => id !== from));
+    const offer = proposePickSwap(state, from, to, rng);
+    if (!offer) continue;
+    if (!evaluateOffer(state, offer).accept) continue;
     state.nextTradeId = (state.nextTradeId ?? 1) + 1;
     if (executeTrade(state, offer).ok) done++;
   }

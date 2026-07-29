@@ -17,7 +17,7 @@ import {
 } from "../lib/core/types";
 import { SNAP_SHARE } from "../lib/core/sim/game";
 import { teamSeasonStats } from "../lib/core/season/records";
-import { emitAll } from "./metrics";
+import { emitAll, seedFor } from "./metrics";
 
 let failures = 0;
 let checks = 0;
@@ -68,7 +68,7 @@ function checkSnapShares(): void {
 
 function checkOvrTargeting(): void {
   console.log("[generate] OVR targeting accuracy");
-  const st = newGame({ seed: 77 });
+  const st = newGame({ seed: seedFor(77) });
   let worst = 0;
   for (const p of st.players) {
     const recomputed = computeOvr(p.attrs, p.pos);

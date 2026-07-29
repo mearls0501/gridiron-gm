@@ -1,3 +1,4 @@
+import { injuryRiskMultiplier, recoveryMultiplier } from "../staff";
 import { Rng, clamp } from "../rng";
 import { Game, GameState, Player, Position } from "../types";
 
@@ -122,11 +123,18 @@ export function rollWeeklyInjuries(
     const durability = 1 + (70 - p.durability) / 90;
     const age = 1 + Math.max(0, p.age - 27) * 0.075;
 
-    const chance = 0.0205 * workload * POSITION_RISK[p.pos] * durability * age;
+    // What the club funds its training and medical staff. Exactly 1.0 on an
+    // even staff budget, so a league that has not allocated is unchanged.
+    const staff = injuryRiskMultiplier(state.teams[p.teamId]);
+
+    const chance = 0.0205 * workload * POSITION_RISK[p.pos] * durability * age * staff;
     if (!rng.chance(clamp(chance, 0.0008, 0.09))) continue;
 
     const entry = rng.weighted(WEEKLY_TABLE, (e) => e.weight);
-    p.injuryWeeks = rng.int(entry.min, entry.max);
+    p.injuryWeeks = Math.max(
+      1,
+      Math.round(rng.int(entry.min, entry.max) * recoveryMultiplier(state.teams[p.teamId]))
+    );
     p.injuryDesc = entry.desc;
     if (p.injuryWeeks >= SERIOUS_WEEKS) applyWear(p, rng);
 
