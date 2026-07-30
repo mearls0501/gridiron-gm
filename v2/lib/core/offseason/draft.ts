@@ -8,7 +8,9 @@ import {
 import { positionCount, rosterCount } from "../select";
 import { draftOrder } from "../season/standings";
 import { Posture, REPLACEMENT_OVR, frontOffice, teamOutlook } from "../frontOffice";
-import { ensurePickInventory } from "../trades";
+import { ensurePickInventory, executeTrade, pickValue, picksOwnedBy } from "../trades";
+import { TradeAsset, TradeOffer } from "../types";
+import { consensusScore, cpuProspectView, generateProspectProfile, riskDiscount } from "../scouting";
 
 /**
  * Draft class generation, scouting and the draft itself.
@@ -109,6 +111,10 @@ export function generateDraftClass(state: GameState, parent: Rng, season: number
     });
     p.draftClassSeason = season;
     p.yearsPro = 0;
+    // His public identity: school, measurements, testing numbers, and the
+    // hidden risk grades scouting can reveal. Same child stream, so class
+    // size still cannot couple to the league's simulation stream.
+    generateProspectProfile(rng, p);
     out.push(p);
     state.players.push(p);
   };
@@ -252,18 +258,19 @@ export function availableProspects(state: GameState, season: number): Player[] {
  * information and without a position-vocabulary bug locking out whole groups.
  */
 function cpuBoardValue(
-  state: GameState, teamId: number, p: Player, posture: Posture, rng: Rng
+  state: GameState, teamId: number, p: Player, posture: Posture
 ): number {
   const fo = frontOffice(state, teamId);
-  const mid =
-    p.scoutedOvrLow != null && p.scoutedOvrHigh != null
-      ? (p.scoutedOvrLow + p.scoutedOvrHigh) / 2
-      : p.ovr;
 
-  // The CPU has its own independent read, so boards differ team to team. A
-  // risk-tolerant front office trusts a wider band and swings on the tail.
-  const perceived = mid + rng.normal(0, 3.5) + (fo.risk - 0.5) * (p.pot - p.ovr) * 0.35;
-  const upside = Math.max(0, p.pot - p.ovr) * (0.18 + fo.risk * 0.30);
+  // The club's OWN durable read of the man — never the user's paid-for band,
+  // never true `pot`. The old model had both leaks: user scouting sharpened
+  // all 31 rival boards, and on the dimension that decides a draft (potential)
+  // the CPU read the answer key while the user had no estimate at all. The
+  // per-call jitter is gone too — a war room holds an opinion.
+  const view = cpuProspectView(state, teamId, p);
+  const room = Math.max(0, view.pot - view.ovr);
+  const perceived = view.ovr + (fo.risk - 0.5) * room * 0.35;
+  const upside = room * (0.18 + fo.risk * 0.30);
 
   // Need is about QUALITY, not bodies. Counting heads said a club with three
   // quarterbacks had no need for one — true whether the starter was an 85 or a
@@ -277,7 +284,7 @@ function cpuBoardValue(
   // job. A club with an elite starter has no need at that position no matter
   // how many bodies it is carrying; a club with a bad one has enormous need.
   const incumbent = startersAt(state, teamId, p.pos);
-  const marginal = clamp((mid - incumbent) / 20, -0.6, 1);
+  const marginal = clamp((view.ovr - incumbent) / 20, -0.6, 1);
   const thin = positionCount(state, teamId, p.pos) < POSITION_TARGET[p.pos] ? 0.35 : 0;
   const need = clamp(marginal + thin, -0.6, 1);
 
@@ -286,7 +293,7 @@ function cpuBoardValue(
   // reach two rounds for a hole.
   const needWeight = (1 - fo.bpaBias) * 0.55;
   const bias = fo.posBias[p.pos] ?? 1;
-  const rebuildUpside = posture === "rebuild" ? 1 + Math.max(0, p.pot - p.ovr) * 0.012 : 1;
+  const rebuildUpside = posture === "rebuild" ? 1 + room * 0.012 : 1;
 
   // Ability ABOVE REPLACEMENT times positional value, never raw ability times
   // positional value. Multiplying the whole rating made a 61 OVR quarterback
@@ -306,9 +313,38 @@ function cpuBoardValue(
   // more. Discounting by whether he displaces the incumbent is what stops
   // contenders spending firsts on a position they have already solved — the
   // need term alone was far too weak a lever against a 3.4x multiplier.
-  const startsHere = clamp((mid - incumbent + 6) / 12, 0.25, 1);
+  const startsHere = clamp((view.ovr - incumbent + 6) / 12, 0.25, 1);
   const above = Math.max(1, perceived - REPLACEMENT_OVR + upside);
-  return above * POSITION_VALUE[p.pos] * startsHere * bias * rebuildUpside * (1 + need * needWeight);
+  // Medical and character checks are table stakes for a real department, so
+  // known risk prices in league-wide rather than per-club.
+  return above * POSITION_VALUE[p.pos] * startsHere * bias * rebuildUpside *
+    (1 + need * needWeight) * riskDiscount(p);
+}
+
+/**
+ * A club's read of the best man still on the board — exposed for the
+ * on-the-clock trade market, where "how badly do I want this slot" is exactly
+ * "what do I think is still there".
+ */
+export function cpuBoardShortlist(
+  state: GameState, teamId: number, pool: Player[], sample = 40
+): { p: Player; v: number }[] {
+  const { posture } = teamOutlook(state, teamId);
+  // Pre-filter by the public consensus so the market check stays cheap; a
+  // club's private crush deep down the board is a real thing this misses, and
+  // that is acceptable at 32 clubs x 224 picks.
+  return pool
+    .map((p) => ({ p, c: consensusScore(state, p) }))
+    .sort((a, b) => b.c - a.c)
+    .slice(0, sample)
+    .map((x) => ({ p: x.p, v: cpuBoardValue(state, teamId, x.p, posture) }))
+    .sort((a, b) => b.v - a.v);
+}
+
+export function cpuTopOfBoard(
+  state: GameState, teamId: number, pool: Player[], sample = 40
+): { p: Player; v: number } | null {
+  return cpuBoardShortlist(state, teamId, pool, sample)[0] ?? null;
 }
 
 export function rookieContract(state: GameState, round: number, rng: Rng) {
@@ -342,19 +378,26 @@ export function makePick(state: GameState, playerId: number, rng: Rng): boolean 
   });
 
   d.onClock += 1;
+  d.clockOffers = [];        // any offers were for the slot that just picked
   if (d.onClock >= d.picks.length) d.complete = true;
   return true;
 }
 
 /** Run CPU picks until the user is on the clock or the draft ends. */
-export function runDraftUntilUser(state: GameState, rng: Rng, limit = 300): void {
+export function runDraftUntilUser(state: GameState, rng: Rng, limit = 320): void {
   const d = state.draft;
   if (!d) return;
   let guard = 0;
   while (!d.complete && guard++ < limit) {
     const pick = d.picks[d.onClock];
     if (!pick) break;
-    if (pick.teamId === state.userTeamId) return;
+    if (pick.teamId === state.userTeamId) {
+      generateClockOffers(state, rng);
+      return;
+    }
+    // The market between picks. A trade changes who is on the clock but never
+    // hands the slot to the user, so the loop cannot stall.
+    if (rng.chance(0.4)) tryCpuClockTrade(state, rng);
     cpuPick(state, rng);
   }
 }
@@ -374,7 +417,7 @@ export function cpuPick(state: GameState, rng: Rng): void {
 
   const { posture } = teamOutlook(state, pick.teamId);
   const scored = pool
-    .map((p) => ({ p, v: cpuBoardValue(state, pick.teamId, p, posture, rng) }))
+    .map((p) => ({ p, v: cpuBoardValue(state, pick.teamId, p, posture) }))
     .sort((a, b) => b.v - a.v);
 
   // Slight randomness among the top of the board so drafts aren't deterministic.
@@ -390,14 +433,94 @@ export function runFullDraft(state: GameState, rng: Rng): void {
   while (!d.complete && guard++ < 400) {
     const pick = d.picks[d.onClock];
     if (!pick) break;
-    if (pick.teamId === state.userTeamId) {
-      // Auto-pick for the user when they choose to sim the whole thing.
-      cpuPick(state, rng);
-    } else {
-      cpuPick(state, rng);
-    }
+    // The clock market runs headlessly too — a simmed draft is still a draft.
+    if (pick.teamId !== state.userTeamId && rng.chance(0.4)) tryCpuClockTrade(state, rng);
+    // Auto-pick for the user when they choose to sim the whole thing.
+    cpuPick(state, rng);
   }
   d.complete = true;
+}
+
+// ---------------------------------------------------------------------------
+// Priority UDFA — the chase after the last pick
+// ---------------------------------------------------------------------------
+
+/**
+ * How many priority signings one club makes in the minutes after pick 224.
+ *
+ * Real clubs sign 10-15 UDFAs — into 90-man camps that cut back to 53. v2 has
+ * no 90-man roster, so the chase is capped at the men a club's board says can
+ * genuinely compete for a place: every signing that plays a down becomes
+ * permanent save history (the record book keeps played careers forever), and
+ * an appetite of 6 pushed the 20-season save past its 10 MB quota.
+ */
+export const UDFA_SIGNINGS_MAX = 4;
+
+/** The three-year league-minimum deal every real UDFA signs. */
+export function udfaContract(state: GameState, rng: Rng) {
+  return makeContract(rng, LEAGUE_MINIMUM, 3, state.season, 0);
+}
+
+/** Sign one undrafted prospect as a priority free agent. */
+export function signUdfa(state: GameState, teamId: number, playerId: number, rng: Rng): boolean {
+  const d = state.draft;
+  if (!d || !d.complete) return false;
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p || !p.prospect || p.teamId !== null) return false;
+  if (rosterCount(state, teamId) >= ROSTER_LIMIT + 20) return false;
+
+  p.teamId = teamId;
+  p.prospect = false;
+  p.contract = udfaContract(state, rng);
+  p.scoutedOvrLow = null;
+  p.scoutedOvrHigh = null;
+  state.log.push({
+    season: state.season, week: state.week, kind: "draft",
+    text: `UDFA: ${state.teams[teamId].abbr} sign ${p.firstName} ${p.lastName}, ${p.pos} (${p.profile?.college ?? "college"})`,
+  });
+  return true;
+}
+
+/**
+ * The CPU side of the chase. Runs in rounds so no one club corners the whole
+ * pool: each round every club (in a fresh random order) signs the best man
+ * left ON ITS OWN BOARD, if it still rates anyone above camp-body level.
+ *
+ * The user's club is deliberately skipped — choosing which undrafted names to
+ * chase is the job, same convention as `cpuResign` and `spendToFloor`. The
+ * interactive chase lives in the draft room; a headless run leaves the user's
+ * club out, which is the same known bias `checkParity` already corrects for.
+ */
+export function runUdfaChase(state: GameState, rng: Rng): number {
+  const d = state.draft;
+  if (!d || !d.complete || d.udfaDone) return 0;
+
+  const pool = () => availableProspects(state, d.season);
+  const signedCount = new Map<number, number>();
+  let total = 0;
+
+  for (let round = 0; round < UDFA_SIGNINGS_MAX; round++) {
+    const order = rng.shuffle(state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId));
+    let any = false;
+    for (const teamId of order) {
+      if ((signedCount.get(teamId) ?? 0) >= UDFA_SIGNINGS_MAX) continue;
+      if (rosterCount(state, teamId) >= ROSTER_LIMIT + 20) continue;
+      const best = cpuTopOfBoard(state, teamId, pool(), 60);
+      if (!best) continue;
+      // Camp-body threshold: a club only burns a priority call on a man its
+      // board says can genuinely compete for a roster spot.
+      const view = cpuProspectView(state, teamId, best.p);
+      if (Math.max(view.ovr, view.pot - 6) < REPLACEMENT_OVR + 1) continue;
+      if (signUdfa(state, teamId, best.p.id, rng)) {
+        signedCount.set(teamId, (signedCount.get(teamId) ?? 0) + 1);
+        total++;
+        any = true;
+      }
+    }
+    if (!any) break;
+  }
+  d.udfaDone = true;
+  return total;
 }
 
 /** Undrafted prospects become free agents so the pool never runs dry. */
@@ -444,4 +567,288 @@ export function positionsOfNeed(state: GameState, teamId: number): Position[] {
   return (Object.keys(POSITION_TARGET) as Position[])
     .filter((pos) => positionCount(state, teamId, pos) < POSITION_TARGET[pos])
     .sort((a, b) => POSITION_VALUE[b] - POSITION_VALUE[a]);
+}
+
+// ---------------------------------------------------------------------------
+// The on-the-clock trade market
+// ---------------------------------------------------------------------------
+//
+// Draft weekend is ~35 trades and 31-48% of all annual trade activity, and
+// until now the model ran one CPU burst before pick 1 — nobody could move for
+// a specific player. The funnel analysis (HANDOFF 2026-07-29) showed why that
+// matters: a generic pick swap almost never clears the double-sided margin
+// test, but a club on the clock watching its board tier collapse has a
+// concrete, LARGE, legible reason to pay. That premium is what clears deals,
+// and it is why this is a feature and not a constant.
+
+/** Most trades struck between picks in one draft. Real drafts run ~35 total
+ * including the pre-draft moves; the burst before pick 1 supplies the rest. */
+export const CLOCK_TRADES_MAX = 24;
+
+/** How many picks of board pressure a buyer looks ahead. */
+const CLOCK_LOOKAHEAD = 26;
+
+function liveAsset(d: DraftState, i: number): Extract<TradeAsset, { kind: "pick" }> {
+  const pk = d.picks[i];
+  return { kind: "pick", season: d.season, round: pk.round, originalTeamId: pk.originalTeamId };
+}
+
+function slotInRound(d: DraftState, i: number): number {
+  return (d.picks[i].pick - 1) % 32;
+}
+
+/** A pick row shaped for `pickValue`, priced at its KNOWN slot. */
+function liveValue(state: GameState, d: DraftState, teamId: number, i: number): number {
+  const pk = d.picks[i];
+  return pickValue(
+    state, teamId,
+    { teamId: pk.teamId, season: d.season, round: pk.round, originalTeamId: pk.originalTeamId },
+    slotInRound(d, i)
+  );
+}
+
+/** Re-point every unexercised pick at its current owner after a swap. */
+export function syncPicksToOwners(state: GameState): void {
+  const d = state.draft;
+  if (!d) return;
+  const owners = new Map<string, number>();
+  for (const row of state.pickOwners ?? []) {
+    if (row.season === d.season) owners.set(`${row.round}:${row.originalTeamId}`, row.teamId);
+  }
+  for (let i = d.onClock; i < d.picks.length; i++) {
+    const pk = d.picks[i];
+    if (pk.playerId !== null) continue;
+    pk.teamId = owners.get(`${pk.round}:${pk.originalTeamId}`) ?? pk.originalTeamId;
+  }
+}
+
+/**
+ * How much a club wants to move up: its board's best man against what its
+ * board says will still be there when it picks. This is the tier break —
+ * the whole reason draft-day trades exist.
+ */
+function boardPressure(
+  state: GameState, buyerId: number, gap: number, pool: Player[]
+): { premium: number; target: Player | null } {
+  const scored = cpuBoardShortlist(state, buyerId, pool, 40);
+  if (scored.length === 0) return { premium: 0, target: null };
+  const v1 = scored[0].v;
+  const later = scored[Math.min(gap, scored.length - 1)].v;
+  return { premium: (v1 - later) / Math.max(1, later), target: scored[0].p };
+}
+
+/** The buyer's next unexercised pick strictly after the slot on the clock. */
+function nextLivePickIndex(d: DraftState, teamId: number): number | null {
+  for (let i = d.onClock + 1; i < d.picks.length; i++) {
+    if (d.picks[i].playerId === null && d.picks[i].teamId === teamId) return i;
+  }
+  return null;
+}
+
+/**
+ * Build the cheapest bundle of the buyer's picks that the seller accepts.
+ * The buyer's next pick this draft always leads — that is what moving up IS —
+ * topped up from his remaining picks, smallest sufficient piece first.
+ */
+function buildMoveUpBundle(
+  state: GameState, d: DraftState, buyerId: number, sellerId: number, slotIdx: number, budget: number
+): TradeAsset[] | null {
+  const primaryIdx = nextLivePickIndex(d, buyerId);
+  if (primaryIdx === null) return null;
+
+  const need = liveValue(state, d, sellerId, slotIdx) * 1.03;
+  const bundle: TradeAsset[] = [liveAsset(d, primaryIdx)];
+  let toSeller = liveValue(state, d, sellerId, primaryIdx);
+  let toBuyer = liveValue(state, d, buyerId, primaryIdx);
+
+  if (toSeller < need) {
+    // Sweeteners: later live picks this draft, then future picks.
+    const extras: { a: TradeAsset; s: number; b: number }[] = [];
+    for (let i = primaryIdx + 1; i < d.picks.length; i++) {
+      const pk = d.picks[i];
+      if (pk.playerId !== null || pk.teamId !== buyerId) continue;
+      extras.push({ a: liveAsset(d, i), s: liveValue(state, d, sellerId, i), b: liveValue(state, d, buyerId, i) });
+    }
+    for (const row of picksOwnedBy(state, buyerId)) {
+      if (row.season === d.season) continue;
+      const a: TradeAsset = { kind: "pick", season: row.season, round: row.round, originalTeamId: row.originalTeamId };
+      extras.push({ a, s: pickValue(state, sellerId, row), b: pickValue(state, buyerId, row) });
+    }
+    // Smallest piece that still covers first — round up on the last one.
+    extras.sort((x, y) => x.s - y.s);
+    while (toSeller < need && bundle.length < 4) {
+      const gap = need - toSeller;
+      const piece = extras.find((e) => e.s >= gap) ?? extras[extras.length - 1];
+      if (!piece) break;
+      extras.splice(extras.indexOf(piece), 1);
+      bundle.push(piece.a);
+      toSeller += piece.s;
+      toBuyer += piece.b;
+    }
+  }
+
+  if (toSeller < need) return null;
+  if (toBuyer > budget) return null;   // the premium has a ceiling
+  return bundle;
+}
+
+/**
+ * One attempt at a CPU→CPU move-up for the slot currently on the clock.
+ * Returns true if a trade executed (the club on the clock changed).
+ */
+export function tryCpuClockTrade(state: GameState, rng: Rng): boolean {
+  const d = state.draft;
+  if (!d || d.complete) return false;
+  if ((d.clockTrades ?? 0) >= CLOCK_TRADES_MAX) return false;
+  const slotIdx = d.onClock;
+  const seller = d.picks[slotIdx]?.teamId;
+  if (seller == null || seller === state.userTeamId) return false;
+
+  const pool = availableProspects(state, d.season);
+  if (pool.length < 20) return false;
+
+  // Who is feeling pressure? Sample a few clubs picking soon-ish after this.
+  const seen = new Set<number>([seller, state.userTeamId]);
+  const candidates: { teamId: number; gap: number }[] = [];
+  for (let i = slotIdx + 1; i < Math.min(slotIdx + 1 + CLOCK_LOOKAHEAD, d.picks.length); i++) {
+    const t = d.picks[i].teamId;
+    if (seen.has(t) || d.picks[i].playerId !== null) continue;
+    seen.add(t);
+    candidates.push({ teamId: t, gap: i - slotIdx });
+  }
+  if (candidates.length === 0) return false;
+
+  const tries = rng.shuffle(candidates).slice(0, 3);
+  for (const { teamId: buyer, gap } of tries) {
+    if (gap < 3) continue;                       // no point jumping one spot
+    const { premium } = boardPressure(state, buyer, gap, pool);
+    // The bar rises steeply at the top of the draft: a move into the top five
+    // is a franchise-defining event (~5 first-overall trades in 25 real
+    // years), not a Tuesday. Below the top ~16 the tier-break threshold is
+    // the ordinary one.
+    const bar = slotIdx < 5 ? 0.55 : slotIdx < 16 ? 0.32 : 0.15;
+    if (premium < bar) continue;                 // no tier break, no deal
+
+    const budget = liveValue(state, d, buyer, slotIdx) * (1 + Math.min(premium, 0.6) * 0.8);
+    const bundle = buildMoveUpBundle(state, d, buyer, seller, slotIdx, budget);
+    if (!bundle) continue;
+
+    const offer: TradeOffer = {
+      id: state.nextTradeId ?? 1,
+      fromTeamId: buyer,
+      toTeamId: seller,
+      give: bundle,
+      get: [liveAsset(d, slotIdx)],
+      season: state.season,
+      week: state.week,
+      rationale: "Moving up for a man our board is not letting out of the building.",
+    };
+    state.nextTradeId = (state.nextTradeId ?? 1) + 1;
+    if (!executeTrade(state, offer).ok) continue;
+    d.clockTrades = (d.clockTrades ?? 0) + 1;
+    syncPicksToOwners(state);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Trade-down offers for the USER's slot, generated when they come on the
+ * clock. Same market, same pricing — the difference is these wait for a human.
+ */
+export function generateClockOffers(state: GameState, rng: Rng, max = 2): void {
+  const d = state.draft;
+  if (!d || d.complete) return;
+  const slotIdx = d.onClock;
+  if (d.picks[slotIdx]?.teamId !== state.userTeamId) return;
+  d.clockOffers = [];
+  if ((d.clockTrades ?? 0) >= CLOCK_TRADES_MAX) return;
+
+  const pool = availableProspects(state, d.season);
+  const seen = new Set<number>([state.userTeamId]);
+  const candidates: { teamId: number; gap: number }[] = [];
+  for (let i = slotIdx + 1; i < Math.min(slotIdx + 1 + CLOCK_LOOKAHEAD, d.picks.length); i++) {
+    const t = d.picks[i].teamId;
+    if (seen.has(t) || d.picks[i].playerId !== null) continue;
+    seen.add(t);
+    candidates.push({ teamId: t, gap: i - slotIdx });
+  }
+
+  for (const { teamId: buyer, gap } of rng.shuffle(candidates)) {
+    if (d.clockOffers.length >= max) break;
+    if (gap < 3) continue;
+    const { premium } = boardPressure(state, buyer, gap, pool);
+    if (premium < 0.15) continue;
+    const budget = liveValue(state, d, buyer, slotIdx) * (1 + Math.min(premium, 0.6) * 0.8);
+    const bundle = buildMoveUpBundle(state, d, buyer, state.userTeamId, slotIdx, budget);
+    if (!bundle) continue;
+    d.clockOffers.push({
+      id: state.nextTradeId ?? 1,
+      fromTeamId: buyer,
+      toTeamId: state.userTeamId,
+      give: bundle,
+      get: [liveAsset(d, slotIdx)],
+      season: state.season,
+      week: state.week,
+      rationale: "They want to come up and get their man.",
+    });
+    state.nextTradeId = (state.nextTradeId ?? 1) + 1;
+  }
+}
+
+/** The user accepts a trade-down offer for the slot they are on. */
+export function acceptClockOffer(state: GameState, offerId: number, rng: Rng): boolean {
+  const d = state.draft;
+  if (!d) return false;
+  const offer = (d.clockOffers ?? []).find((o) => o.id === offerId);
+  if (!offer) return false;
+  if (!executeTrade(state, offer).ok) return false;
+  d.clockTrades = (d.clockTrades ?? 0) + 1;
+  d.clockOffers = [];
+  syncPicksToOwners(state);
+  runDraftUntilUser(state, rng);
+  return true;
+}
+
+/**
+ * A quote for the user to move UP to the slot currently on the clock: what the
+ * club sitting there would take. Returns the bundle or null if the user cannot
+ * cover the price (or is already on the clock).
+ */
+export function quoteMoveUp(state: GameState): TradeAsset[] | null {
+  const d = state.draft;
+  if (!d || d.complete) return null;
+  const slotIdx = d.onClock;
+  const seller = d.picks[slotIdx]?.teamId;
+  if (seller == null || seller === state.userTeamId) return null;
+  if ((d.clockTrades ?? 0) >= CLOCK_TRADES_MAX) return null;
+  // The user decides their own premium by accepting or not; the quote itself
+  // is priced with no mover's premium beyond the seller's margin.
+  return buildMoveUpBundle(state, d, state.userTeamId, seller, slotIdx, Number.POSITIVE_INFINITY);
+}
+
+/** Execute the quoted move-up. */
+export function acceptMoveUp(state: GameState): boolean {
+  const d = state.draft;
+  if (!d || d.complete) return false;
+  const bundle = quoteMoveUp(state);
+  const slotIdx = d.onClock;
+  const seller = d.picks[slotIdx]?.teamId;
+  if (!bundle || seller == null) return false;
+  const offer: TradeOffer = {
+    id: state.nextTradeId ?? 1,
+    fromTeamId: state.userTeamId,
+    toTeamId: seller,
+    give: bundle,
+    get: [liveAsset(d, slotIdx)],
+    season: state.season,
+    week: state.week,
+    rationale: "",
+  };
+  state.nextTradeId = (state.nextTradeId ?? 1) + 1;
+  if (!executeTrade(state, offer).ok) return false;
+  d.clockTrades = (d.clockTrades ?? 0) + 1;
+  d.clockOffers = [];
+  syncPicksToOwners(state);
+  return true;
 }

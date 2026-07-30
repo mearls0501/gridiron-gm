@@ -381,19 +381,25 @@ function checkRecordBook(st: GameState): void {
 // These assert COHERENCE instead: the things that were wrong but legal.
 // ---------------------------------------------------------------------------
 
-/** The first pick must belong to a team that was actually bad. */
+/**
+ * The first SLOT must belong to a team that was actually bad. Measured on
+ * `originalTeamId`: the HOLDER may legitimately differ now that clubs trade up
+ * on the clock and future firsts move as sweeteners — the claim this check
+ * makes is that the ORDER tracks the standings, not that pick 1 never trades.
+ * (Same reconditioning as drift's pick-1 guard, 2026-07-30.)
+ */
 function checkDraftOrder(st: GameState, playedSeason: number): void {
   if (!st.draft) return;
   const table = leagueStandings(st, playedSeason);
   const bottom = new Set(table.slice(-6).map((r) => r.teamId));
   const first = st.draft.picks[0];
   check(
-    first != null && bottom.has(first.teamId),
-    "the first pick belongs to a bottom-six team",
-    `pick 1 = team ${first?.teamId}, bottom six = ${[...bottom].join(",")}`
+    first != null && bottom.has(first.originalTeamId),
+    "the first slot belongs to a bottom-six team",
+    `pick 1 slot = team ${first?.originalTeamId}, bottom six = ${[...bottom].join(",")}`
   );
 
-  const round1 = st.draft.picks.filter((p) => p.round === 1).map((p) => p.teamId);
+  const round1 = st.draft.picks.filter((p) => p.round === 1).map((p) => p.originalTeamId);
   const descendingById = round1.every((id, i) => i === 0 || id === round1[i - 1] - 1);
   check(!descendingById, "draft order is not the team-id fallback", round1.slice(0, 6).join(","));
 }

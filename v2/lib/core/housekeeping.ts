@@ -73,8 +73,36 @@ export function pruneNeverPlayed(state: GameState): void {
   );
 }
 
+/**
+ * Shrink prospect profiles once their draft is history.
+ *
+ * The testing sheet (seven combine numbers and their JSON keys) is the bulk of
+ * a profile, and nothing reads it after the war room closes on that class —
+ * profiles are only rendered for `prospect: true` players. Rookies keep their
+ * numbers for one season as a courtesy; a camp body who was never drafted and
+ * never signed loses the whole profile, because he is exactly the population
+ * `pruneNeverPlayed` exists for. The identity part — school, class, height,
+ * weight — is small and kept forever.
+ *
+ * Added when prospect profiles pushed save growth from +0.32 to +0.41
+ * MB/season against a 0.40 guard.
+ */
+export function pruneProspectProfiles(state: GameState): void {
+  for (const p of state.players) {
+    if (!p.profile || p.prospect) continue;
+    const freshRookie = p.draftedRound !== null && p.draftClassSeason === state.season - 1;
+    if (freshRookie) continue;
+    if (p.teamId === null && p.draftedRound === null && p.stats.length === 0) {
+      delete p.profile;
+      continue;
+    }
+    if (Object.keys(p.profile.combine).length > 0) p.profile.combine = {};
+  }
+}
+
 /** Everything the yearly rollover does to keep a save from growing forever. */
 export function runHousekeeping(state: GameState): void {
   trimLog(state);
   pruneNeverPlayed(state);
+  pruneProspectProfiles(state);
 }

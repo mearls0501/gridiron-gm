@@ -1,7 +1,102 @@
-# HANDOFF — 2026-07-29
+# HANDOFF — 2026-07-30
 
 Where the build stands, what is still wrong, and what to do next. Read this
 first, then `AGENTS.md`, then `docs/nfl-reference.md`.
+
+---
+
+## 2026-07-30 — the scouting + draft system, end to end
+
+Plan and reconciliation in `docs/scouting-draft-plan-2026-07-30.md`. Built in
+one pass, cloud session, branch `task/301-scouting-draft-e2e`.
+
+**What shipped.**
+
+- `lib/core/scouting.ts` — the fog of war. Public prospect profiles (college,
+  class, measurements, combine numbers derived from true physical attributes +
+  weight at real exchange rates); the user's stored per-method intel
+  (`state.scouting`: OVR **and potential** bands, both centred on genuinely
+  wrong estimates); CPU beliefs DERIVED from a pure stable hash — durable,
+  private, per-club, zero save growth, zero RNG stream consumption.
+- **Both information leaks are closed.** `cpuBoardValue` no longer reads true
+  `p.pot` (three sites) or the user's shared band; the player-page attribute
+  panel shows scouted ranges for prospects instead of the true values that
+  made every scouting mechanic cosmetic.
+- Method-based scouting: film / pro day / private workout / medical /
+  interview, different costs, different truths revealed. Runs all season from
+  the staff-budget scouting points. Risk grades are real — they act through
+  durability and devSpeed at generation, not flavor text.
+- War room on `/draft`: focus card per prospect (testing sheet, both bands,
+  method buttons, risk file), board calls (tiers 1-5, watchlist, do-not-draft,
+  notes), all persisted per save and pruned with the class.
+- **On-the-clock trading** — the feature the funnel analysis called for. CPU
+  clubs whose board tier collapses pay a premium to move up
+  (`tryCpuClockTrade`, ~18 in-draft trades a season on top of the pre-burst);
+  the user gets live trade-down offers on the clock and can ask a price to
+  move up (`quoteMoveUp`). Total draft-window volume now lands near the real
+  ~35.
+- **Priority UDFA** — after pick 224, clubs chase the undrafted from their own
+  boards (`runUdfaChase`); the user signs interactively from the big board.
+  Same user-club convention as `cpuResign`.
+- `scripts/scoutcheck.ts` in both gate tiers (`scout`), guarding: no rendered
+  surface reconstructs true OVR; CPU beliefs are stable, private, and carry
+  genuine potential error; user spend tightens only user bands; invariant 6
+  holds exactly; a headless draft completes with clock trades and a real UDFA
+  chase. Four structural baselines added (`scout.*` in `baselines.json`).
+
+**Verification record (2 cores, single-seed where noted).** Fast gate PASS
+(55 metrics, `scout` step included); `careers 24` PASS with real movement —
+survivalMae 8.8 → 4.4-4.7, r1BustPct 28.4 → 21.6-28.6, careerLenMae 1.0 →
+0.57, draftSignal 3.7 → 3.9-4.3 across three 24-season runs.
+`careers.r1QbSharePct` stays the known-open red it already was: it read 19.0,
+20.6 and 23.7 on three runs of near-identical code, which is the same
+seed-sensitivity the HANDOFF already documented (14.1/17.7/21.1) — judge it
+only after the panel re-lock. `drift 20` PASS, no P0 regressions,
+save growth +0.39; `conditions`/`coherence`/`staff`/`tails` all exit 0; both
+browser suites pass with 0 console errors.
+
+**Three decisions that need Matt's sign-off** (all lead-tier changes, made
+under his 2026-07-30 full-autonomy instruction, reversible):
+
+1. **`drift.saveMbAtEnd` raised 10 → 10.5.** The UDFA chase adds ~100 played
+   careers a season and the record book keeps played careers forever by
+   design. Growth guards unchanged.
+2. **The pick-1 guards in `verify.ts` and `drift.ts` now measure the SLOT
+   (`originalTeamId`), not the holder.** With on-the-clock trading and future
+   firsts as sweeteners, a bottom-six club legitimately may not HOLD pick 1 —
+   the guards' claim (order tracks standings) is unchanged, the confound is
+   removed. Same reconditioning pattern as the shadow-CB yards-per-target fix.
+3. **Four `scout.*` structural baselines added** (leak floor, tightening
+   floor, clock-trade floor, UDFA band).
+
+**Single-seed re-rolls pending the panel re-lock** (generation changed, the
+stream moved — `gate_stream_sensitivity` applies): `tails.milestonesOff` reads
+19 single-seed (baseline commit read 18 single-seed; the 12 max is
+panel-locked); `conditions.byeWinPct` reads 62.8 against 51.7±9 — note the
+bye is no longer BACKWARDS (it was 48.8; the P2.3 target is 53-58, this seed
+overshoots it). Run `gate:full -- --seeds 5` on a real machine and re-lock
+before tuning anything against these.
+
+**Honest notes for whoever is next.**
+
+- League generation changed (profiles draw on the class child stream), so the
+  PRNG stream moved and single-league metrics re-rolled. Fast gate passed at
+  the locked baselines on seed 1; run the panel re-lock (`gate:full --seeds 5`
+  on a real machine) before any further tuning — that instruction predates
+  this session and still stands.
+- CPU potential error is new: clubs used to draft with a perfect `pot` read.
+  Tuned so aggregate accuracy matches the old effective error (common ~7 sd +
+  club ~4.5 sd vs the old shared ~10 + 3.5 jitter), and `careers` bands held
+  on the seeds run this session — but the DYNAMICS are different (winner's
+  curse is real now), so watch `careers.r1BustPct` drift over future work.
+- The UDFA chase signs ~160 priority free agents league-wide (~5 a club).
+  Real clubs sign 10-15 into 90-man camps; v2 has no 90-man, and the cutdown
+  (`upgradeRoster`) contests every one of these deals at finalize. If roster
+  churn metrics move, the threshold in `runUdfaChase` is the dial.
+- `spendScouting`/`SCOUT_COST`/`initialScoutingPass` are legacy but still
+  live: the initial pass seeds the public default band every board falls back
+  to, and the legacy `p.scouted*` fields are kept mirrored so `displayedOvr`
+  and old saves stay coherent. Do not delete them without moving that.
 
 ---
 

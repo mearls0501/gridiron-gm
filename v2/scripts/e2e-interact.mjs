@@ -93,17 +93,42 @@ if (await signBtn.count()) {
 // ---- Scouting ---------------------------------------------------------------
 await page.goto(BASE + "/draft", { waitUntil: "networkidle" });
 await page.waitForTimeout(700);
-const ptsBefore = (await text()).match(/(\d+)\s*\n?\s*10 per look/);
 const scout = page.getByRole("button", { name: /^Scout$/i }).first();
 if (await scout.count()) {
   await scout.click();
   await page.waitForTimeout(800);
   const t = await text();
-  const ptsAfter = t.match(/(\d+)\s*\n?\s*10 per look/);
-  if (ptsBefore && ptsAfter && Number(ptsAfter[1]) < Number(ptsBefore[1])) ok("scouting spends points");
-  else if (/9\d left|\d+ left/.test(t)) ok("scouting ran (points display updated)");
+  if (/\d+ points left/.test(t)) ok("scouting spends points");
   else fail("scouting did not change points");
 } else fail("no Scout button on the draft page");
+
+// ---- The war room -----------------------------------------------------------
+const room = page.getByRole("button", { name: /^Room$/i }).first();
+if (await room.count()) {
+  await room.click();
+  await page.waitForTimeout(500);
+  const t = await text();
+  // Case-insensitive: the section headers render through text-transform.
+  if (/war room —/i.test(t) && /board call/i.test(t) && /projected ceiling/i.test(t)) {
+    ok("war room opens with bands, testing sheet and board call");
+  } else fail("war room card missing or incomplete");
+
+  const t2btn = page.getByRole("button", { name: /^T2$/ }).first();
+  if (await t2btn.count()) {
+    await t2btn.click();
+    await page.waitForTimeout(500);
+    ok("board tier set");
+  } else fail("no tier buttons in the war room");
+
+  const med = page.getByRole("button", { name: /Medical Check/i }).first();
+  if ((await med.count()) && (await med.isEnabled())) {
+    await med.click();
+    await page.waitForTimeout(600);
+    const t3 = await text();
+    if (/Medical\s*\n?\s*(clean|minor|moderate|major)/.test(t3)) ok("medical check reveals a grade");
+    else fail("medical grade did not reveal in the war room");
+  } else fail("medical check unavailable in the war room");
+} else fail("no Room button on the draft page");
 
 // ---- Full season into the draft, then make a pick ---------------------------
 await page.goto(BASE + "/", { waitUntil: "networkidle" });

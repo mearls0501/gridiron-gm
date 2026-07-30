@@ -228,10 +228,16 @@ export interface Player {
   prospect: boolean;
   draftClassSeason: number | null;
   scouted: number;         // 0..100 scouting effort invested
-  scoutedOvrLow: number | null;   // what the user is shown
+  scoutedOvrLow: number | null;   // legacy shared band — superseded by state.scouting
   scoutedOvrHigh: number | null;
   draftedRound: number | null;
   draftedPick: number | null;
+  /**
+   * Who this man is off the rating sheet: school, measurements, testing
+   * numbers, and the risk grades a club only learns by doing the work.
+   * Optional so every save written before 2026-07-30 still loads.
+   */
+  profile?: ProspectProfile;
 
   // Health
   injuryWeeks: number;     // 0 = healthy
@@ -538,6 +544,86 @@ export interface DraftState {
   picks: DraftPick[];
   onClock: number;       // index into picks
   complete: boolean;
+  /** Set once the post-draft priority-UDFA chase has been resolved. */
+  udfaDone?: boolean;
+  /** Trades struck ON the clock this draft, for the room's ticker and the cap. */
+  clockTrades?: number;
+  /** Live trade-down offers for the user's current slot. Cleared on advance. */
+  clockOffers?: TradeOffer[];
+}
+
+// ---------------------------------------------------------------------------
+// Scouting — the fog of war over a draft class
+// ---------------------------------------------------------------------------
+
+/**
+ * Testing numbers. Real scales: forty in seconds, bench in reps, vertical in
+ * inches, broad in inches, cones in seconds.
+ */
+export type CombineMetric =
+  | "forty" | "tenSplit" | "bench" | "vertical" | "broad" | "threeCone" | "shortShuttle";
+
+export type RiskGrade = "clean" | "minor" | "moderate" | "major";
+
+/**
+ * The public identity of a draft prospect. Measurements and testing numbers
+ * are public — every club and the user read the same sheet. The risk grades
+ * and coachability are PRIVATE truth: a club learns them only by spending
+ * scouting work (medical checks, interviews), and the user's revealed copy
+ * lives in `state.scouting`, never here.
+ */
+export interface ProspectProfile {
+  college: string;
+  classYear: "SO" | "JR" | "SR" | "RS_SR";
+  heightIn: number;
+  weightLb: number;
+  /** Public testing sheet. Sparse — not every man runs every drill. */
+  combine: Partial<Record<CombineMetric, number>>;
+  /** Hidden truth, revealed per-club by scouting work. */
+  medicalRisk: RiskGrade;
+  characterRisk: RiskGrade;
+  /** 0..100. How well he takes coaching; visible through interviews. */
+  coachability: number;
+}
+
+export type ScoutingMethod =
+  | "film" | "proDay" | "privateWorkout" | "medical" | "interview";
+
+/**
+ * What the USER'S department believes about one prospect. Both bands are
+ * centred on genuinely wrong estimates that tighten as work is done — the
+ * midpoint being unknowably off is the entire game.
+ */
+export interface UserIntel {
+  effort: number;                                  // 0..100 total work invested
+  methods: Partial<Record<ScoutingMethod, number>>; // times each method was run
+  ovrLow: number;
+  ovrHigh: number;
+  potLow: number;
+  potHigh: number;
+  medical: RiskGrade | null;    // null = not yet examined
+  character: RiskGrade | null;
+}
+
+/** The user's war-room board entry for one prospect. All fields optional. */
+export interface BoardNote {
+  tier?: 1 | 2 | 3 | 4 | 5;
+  watch?: boolean;
+  avoid?: boolean;
+  note?: string;
+}
+
+/**
+ * Everything the user's scouting department knows about the CURRENT class.
+ * Pruned at the rollover — intel on a spent class is dead weight. CPU clubs
+ * hold no rows here: their beliefs are derived deterministically from a stable
+ * hash (see `lib/core/scouting.ts`), which gives every club a durable, different
+ * opinion at zero save cost.
+ */
+export interface ScoutingState {
+  season: number;
+  intel: Record<number, UserIntel>;
+  board: Record<number, BoardNote>;
 }
 
 export interface FaBid {
@@ -675,6 +761,8 @@ export interface GameState {
   draft: DraftState | null;
   fa: FaState | null;
 
+  /** The user's scouting intel + war-room board for the current class. */
+  scouting?: ScoutingState;
   /** Future draft pick ownership. Optional so older saves still load. */
   pickOwners?: PickOwnership[];
   /** Offers currently sitting in front of the user. */

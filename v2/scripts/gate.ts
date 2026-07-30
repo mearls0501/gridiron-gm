@@ -60,6 +60,10 @@ const FAST: Step[] = [
   { name: "calibrate",   cmd: "npx", args: ["tsx", "scripts/calibrate.ts", "300"], exitGates: false },
   { name: "statcheck",   cmd: "npx", args: ["tsx", "scripts/statcheck.ts"],        exitGates: false },
   { name: "leverage",    cmd: "npx", args: ["tsx", "scripts/leverage.ts", "150"],  exitGates: false },
+  // Cheap (one generated league + one headless draft) and it guards the four
+  // claims the scouting system makes — including that no rendered surface can
+  // reconstruct a prospect's true rating.
+  { name: "scout",       cmd: "npx", args: ["tsx", "scripts/scoutcheck.ts"],       exitGates: true },
 ];
 
 const FULL: Step[] = [
@@ -89,6 +93,7 @@ const FULL: Step[] = [
   // Cheap next to `careers` — it plays two short leagues rather than one long
   // one — and it guards the one invariant the whole staff design rests on.
   { name: "staff",       cmd: "npx", args: ["tsx", "scripts/staffcheck.ts", "8"],  exitGates: true },
+  { name: "scout",       cmd: "npx", args: ["tsx", "scripts/scoutcheck.ts"],       exitGates: true },
 ];
 
 const BASELINES = "docs/baselines.json";

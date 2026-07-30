@@ -86,7 +86,9 @@ function findPick(state: GameState, a: Extract<TradeAsset, { kind: "pick" }>): P
  * more than a good team's second, which is the whole reason a rebuild trades
  * for other clubs' futures rather than its own.
  */
-export function pickValue(state: GameState, teamId: number, pick: PickOwnership): number {
+export function pickValue(
+  state: GameState, teamId: number, pick: PickOwnership, slotIndex?: number
+): number {
   const fo = frontOffice(state, teamId);
 
   // Round value, steeply convex — the top of a draft is not four seconds.
@@ -99,10 +101,11 @@ export function pickValue(state: GameState, teamId: number, pick: PickOwnership)
   const ROUND_BASE = [0, 90, 40, 22, 13, 8, 5, 3];
   let value = ROUND_BASE[pick.round] ?? 3;
 
-  // Where in the round it is likely to fall, from the original club's last
-  // finish. `draftOrder` is worst-first, so a low index is an early pick.
+  // Where in the round it falls. During the draft itself the slot is KNOWN —
+  // callers on the clock pass it — otherwise it is estimated from the original
+  // club's last finish. `draftOrder` is worst-first, so a low index is early.
   const order = draftOrder(state, state.season - 1);
-  const slot = order.indexOf(pick.originalTeamId);
+  const slot = slotIndex ?? order.indexOf(pick.originalTeamId);
   if (slot >= 0) {
     // +25% at the very top of a round, -25% at the bottom.
     value *= 1.25 - (slot / Math.max(1, order.length - 1)) * 0.5;

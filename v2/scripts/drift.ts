@@ -100,7 +100,13 @@ function runOne(seed: number): Snapshot[] {
     while (isOffseason(st.phase) && o++ < 12) {
       const before = st.phase;
       advanceOffseason(st);
-      if (before === "offseason-fa" && st.draft) pick1Ok = bottom6.has(st.draft.picks[0].teamId);
+      // The claim is that the SLOT assignment tracks the standings — that is
+      // the regression this guard was built to catch (a season-wipe bug once
+      // handed pick 1 to team id 31 forever). Measured on `originalTeamId`
+      // because the HOLDER may legitimately differ now that clubs trade up on
+      // the clock and future firsts move as sweeteners; conflating the two
+      // made a working trade market read as a broken draft order.
+      if (before === "offseason-fa" && st.draft) pick1Ok = bottom6.has(st.draft.picks[0].originalTeamId);
     }
 
     out.push({

@@ -8,6 +8,7 @@ import {
   ATTR_KEYS, ATTR_LABEL, AttrKey, Player, Position, SeasonStatLine,
 } from "@/lib/core/types";
 import { POSITION_WEIGHTS, ovrTier, relevantAttrs } from "@/lib/core/ratings";
+import { attrBand } from "@/lib/core/scouting";
 import { capHit, deadMoney, formatMoney } from "@/lib/core/select";
 import { careerTotals, cmpPct, fgPct, passerRating, ypc, ypr } from "@/lib/core/season/stats";
 import { askingPrice } from "@/lib/core/offseason/contracts";
@@ -129,14 +130,24 @@ function attrTone(v: number): "good" | "accent" | "warn" | "bad" {
   return "bad";
 }
 
-function AttrRow({ k, v }: { k: AttrKey; v: number }) {
+/**
+ * One attribute line. For a prospect, `band` is the department's scouted RANGE
+ * — centred on a stable wrong estimate, never on the truth. Rendering the true
+ * number here was the leak that made every other scouting mechanic cosmetic:
+ * true OVR is exactly recoverable from the attribute panel via position
+ * weights, so the panel must never hold it for an undrafted man.
+ */
+function AttrRow({ k, v, band }: { k: AttrKey; v: number; band?: { low: number; high: number } }) {
+  const mid = band ? Math.round((band.low + band.high) / 2) : v;
   return (
     <div className="space-y-1">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-xs text-[var(--color-muted)] truncate">{ATTR_LABEL[k]}</span>
-        <span className="text-xs font-semibold tnum">{v}</span>
+        <span className="text-xs font-semibold tnum">
+          {band ? `${band.low}–${band.high}` : v}
+        </span>
       </div>
-      <Bar value={v} tone={attrTone(v)} />
+      <Bar value={mid} tone={band ? "accent" : attrTone(v)} />
     </div>
   );
 }
@@ -392,7 +403,11 @@ export default function PlayerPage() {
 
         <Card
           title={`Key Attributes — ${p.pos}`}
-          subtitle="Weighted heaviest for this position"
+          subtitle={
+            p.prospect
+              ? "Scouted ranges — your department's read, not the truth"
+              : "Weighted heaviest for this position"
+          }
           className="lg:col-span-2"
           actions={
             <Button size="sm" variant="ghost" onClick={() => setShowAllAttrs(!showAllAttrs)}>
@@ -400,12 +415,35 @@ export default function PlayerPage() {
             </Button>
           }
         >
+          {p.prospect && p.profile && (
+            <div className="mb-4 pb-3 border-b border-[var(--color-line-soft)] flex flex-wrap gap-x-6 gap-y-1 text-xs text-[var(--color-muted)]">
+              <span>{p.profile.college}</span>
+              <span>{p.profile.classYear.replace("RS_", "RS ")}</span>
+              <span className="tnum">
+                {Math.floor(p.profile.heightIn / 12)}&apos;{p.profile.heightIn % 12}&quot; · {p.profile.weightLb} lb
+              </span>
+              {p.profile.combine.forty != null && (
+                <span className="tnum">40yd {p.profile.combine.forty.toFixed(2)}s</span>
+              )}
+              {p.profile.combine.vertical != null && (
+                <span className="tnum">Vert {p.profile.combine.vertical}&quot;</span>
+              )}
+              {p.profile.combine.bench != null && (
+                <span className="tnum">Bench {p.profile.combine.bench}</span>
+              )}
+            </div>
+          )}
           {key.length === 0 ? (
             <Empty title="No weighted attributes for this position." />
           ) : (
             <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
               {key.map((k) => (
-                <AttrRow key={k} k={k} v={p.attrs[k]} />
+                <AttrRow
+                  key={k}
+                  k={k}
+                  v={p.attrs[k]}
+                  band={p.prospect ? attrBand(state, p, k) : undefined}
+                />
               ))}
             </div>
           )}
@@ -419,14 +457,19 @@ export default function PlayerPage() {
                 <Empty title="Every attribute matters at this position." />
               ) : (
                 <div className="grid gap-x-6 gap-y-2.5 sm:grid-cols-3 lg:grid-cols-4">
-                  {rest.map((k) => (
-                    <div key={k} className="flex items-baseline justify-between gap-2">
-                      <span className="text-xs text-[var(--color-faint)] truncate">
-                        {ATTR_LABEL[k]}
-                      </span>
-                      <span className="text-xs tnum text-[var(--color-muted)]">{p.attrs[k]}</span>
-                    </div>
-                  ))}
+                  {rest.map((k) => {
+                    const band = p.prospect ? attrBand(state, p, k) : null;
+                    return (
+                      <div key={k} className="flex items-baseline justify-between gap-2">
+                        <span className="text-xs text-[var(--color-faint)] truncate">
+                          {ATTR_LABEL[k]}
+                        </span>
+                        <span className="text-xs tnum text-[var(--color-muted)]">
+                          {band ? `${band.low}–${band.high}` : p.attrs[k]}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

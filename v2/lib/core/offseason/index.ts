@@ -5,7 +5,8 @@ import { GameState, Phase } from "../types";
 import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
 import { cpuResign, expireContracts, reconcileRoster, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, runCpuFaRound } from "./freeAgency";
-import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, generateDraftClass, initialScoutingPass } from "./draft";
+import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
+import { pruneScouting } from "../scouting";
 import { ensurePickInventory, generateUserOffers, prunePickInventory, runCpuTrades, runDraftDayTrades } from "../trades";
 import { runHousekeeping } from "../housekeeping";
 import { refreshCpuStaff, scoutingPointsFor } from "../staff";
@@ -199,6 +200,8 @@ export function finalizeOffseason(state: GameState): void {
   state.playoffs = null;
   state.draft = null;
   state.fa = null;
+  // Intel and board notes on the class that was just drafted are dead weight.
+  pruneScouting(state);
   // CPU clubs re-allocate their staff for the new year, then everyone's
   // scouting budget follows from what they funded. The user's own split is
   // left alone — it is theirs until they change it.
@@ -242,10 +245,17 @@ export function advanceOffseason(state: GameState): string {
       enterDraft(state);
       return "Free agency closed — the draft is on the clock";
 
-    case "offseason-draft":
+    case "offseason-draft": {
       simEntireDraft(state);
+      // The chase after the last pick. Interactive signings happen in the
+      // draft room before this runs; it signs for CPU clubs only and is
+      // idempotent, so the phase count harnesses loop on is unchanged.
+      const rng = new Rng(state.rngState);
+      runUdfaChase(state, rng);
+      state.rngState = rng.state;
       state.phase = "offseason-final";
       return "Draft complete";
+    }
 
     case "offseason-final":
       finalizeOffseason(state);

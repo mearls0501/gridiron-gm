@@ -5,20 +5,32 @@ import { useGame } from "@/lib/store/game";
 import { Rng } from "@/lib/core/rng";
 import { displayedOvr, playerName, POSITION_VALUE } from "@/lib/core/ratings";
 import {
-  SCOUT_COST,
+  UDFA_SIGNINGS_MAX,
+  acceptClockOffer,
+  acceptMoveUp,
   availableProspects,
-  canScout,
   draftBoard,
   isUserOnClock,
   makePick,
   positionsOfNeed,
+  quoteMoveUp,
   rookieContract,
-  spendScouting,
+  runUdfaChase,
+  signUdfa,
   userPicks,
 } from "@/lib/core/offseason/draft";
+import {
+  METHOD_COST,
+  METHOD_LABEL,
+  boardNote,
+  getIntel,
+  runScoutingMethod,
+  setBoardNote,
+} from "@/lib/core/scouting";
+import { describeAsset } from "@/lib/core/trades";
 import { enterDraft, simEntireDraft, simToUserPick } from "@/lib/core/offseason";
 import { capHit, formatMoney, playerMap, rosterCount } from "@/lib/core/select";
-import { POSITIONS, Player, Position, ROSTER_LIMIT } from "@/lib/core/types";
+import { POSITIONS, Player, Position, ROSTER_LIMIT, ScoutingMethod } from "@/lib/core/types";
 import {
   Bar,
   Button,
@@ -82,6 +94,9 @@ export default function DraftPage() {
   const [sortKey, setSortKey] = useState<SortKey>("board");
   const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [focusId, setFocusId] = useState<number | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [moveUpQuote, setMoveUpQuote] = useState<string | null>(null);
 
   // Board source: the live draft pool when a draft exists, otherwise the class
   // that is currently being scouted ahead of the offseason.
@@ -163,18 +178,85 @@ export default function DraftPage() {
 
   const visible = showAll ? rows : rows.slice(0, 60);
 
-  function scout(p: Player) {
+  function scout(p: Player, method: ScoutingMethod = "film") {
     const name = playerName(p);
     apply((s) => {
       const rng = new Rng(s.rngState);
-      const ok = spendScouting(s, s.userTeamId, p.id, rng);
+      const ok = runScoutingMethod(s, p.id, method, rng);
       s.rngState = rng.state;
       if (!ok) {
-        return `Not enough scouting points — ${SCOUT_COST} required.`;
+        return `Not enough scouting points — ${METHOD_COST[method]} required for a ${METHOD_LABEL[method].toLowerCase()}.`;
       }
       const updated = s.players.find((x) => x.id === p.id);
       const band = updated ? displayedOvr(updated) : "?";
-      return `Scouted ${name} — now projected ${band} · ${s.teams[s.userTeamId].scoutingPoints} points left`;
+      return `${METHOD_LABEL[method]}: ${name} — projected ${band} · ${s.teams[s.userTeamId].scoutingPoints} points left`;
+    });
+  }
+
+  function setNote(p: Player, patch: Parameters<typeof setBoardNote>[2]) {
+    apply((s) => {
+      setBoardNote(s, p.id, patch);
+      return null as unknown as string;
+    });
+  }
+
+  function acceptOffer(offerId: number) {
+    apply((s) => {
+      const rng = new Rng(s.rngState);
+      const ok = acceptClockOffer(s, offerId, rng);
+      s.rngState = rng.state;
+      if (!ok) return "That offer fell through.";
+      const live = s.draft;
+      if (live && !live.complete && live.picks[live.onClock]?.teamId === s.userTeamId) {
+        return "Trade done — you are still on the clock at your new slot.";
+      }
+      return "Trade done — you moved down. The room rolls on to your next pick.";
+    });
+  }
+
+  function declineOffers() {
+    apply((s) => {
+      if (s.draft) s.draft.clockOffers = [];
+      return "Offers declined. Your pick.";
+    });
+  }
+
+  function getMoveUpQuote() {
+    if (!state) return;
+    const bundle = quoteMoveUp(state);
+    if (!bundle) {
+      setMoveUpQuote("NO_DEAL");
+      return;
+    }
+    setMoveUpQuote(bundle.map((a) => describeAsset(state, a)).join(" + "));
+  }
+
+  function doMoveUp() {
+    setMoveUpQuote(null);
+    apply((s) => {
+      const ok = acceptMoveUp(s);
+      if (!ok) return "The club on the clock walked away.";
+      const slot = s.draft ? s.draft.picks[s.draft.onClock] : null;
+      return `You are on the clock at pick ${slot?.pick ?? "?"}.`;
+    });
+  }
+
+  function signPriority(p: Player) {
+    const name = playerName(p);
+    apply((s) => {
+      const rng = new Rng(s.rngState);
+      const ok = signUdfa(s, s.userTeamId, p.id, rng);
+      s.rngState = rng.state;
+      return ok ? `${name} signed as a priority free agent.` : `${name} is off the market.`;
+    });
+  }
+
+  function finishUdfa() {
+    apply((s) => {
+      const rng = new Rng(s.rngState);
+      const n = runUdfaChase(s, rng);
+      s.rngState = rng.state;
+      return `The league chases the rest — ${n} priority free agents signed around the league.`;
     });
   }
 
@@ -237,6 +319,7 @@ export default function DraftPage() {
     "Pos",
     "Age",
     "Proj. OVR",
+    "Ceiling",
     "Scouting",
     "",
   ];
@@ -275,8 +358,8 @@ export default function DraftPage() {
             <Stat
               label="Scouting Points"
               value={team.scoutingPoints}
-              sub={`${SCOUT_COST} per look · ${Math.floor(team.scoutingPoints / SCOUT_COST)} left`}
-              tone={team.scoutingPoints < SCOUT_COST ? "warn" : undefined}
+              sub={`film ${METHOD_COST.film} · workout ${METHOD_COST.privateWorkout} · checks ${METHOD_COST.medical}`}
+              tone={team.scoutingPoints < METHOD_COST.medical ? "warn" : undefined}
             />
           </>
         ) : (
@@ -285,8 +368,8 @@ export default function DraftPage() {
             <Stat
               label="Scouting Points"
               value={team.scoutingPoints}
-              sub={`${SCOUT_COST} per look · ${Math.floor(team.scoutingPoints / SCOUT_COST)} left`}
-              tone={team.scoutingPoints < SCOUT_COST ? "warn" : undefined}
+              sub={`film ${METHOD_COST.film} · workout ${METHOD_COST.privateWorkout} · checks ${METHOD_COST.medical}`}
+              tone={team.scoutingPoints < METHOD_COST.medical ? "warn" : undefined}
             />
             <Stat
               label="Roster"
@@ -443,6 +526,264 @@ export default function DraftPage() {
         </Card>
       )}
 
+      {d && !d.complete && myTurn && (d.clockOffers?.length ?? 0) > 0 && (
+        <Card
+          title="The phones are ringing"
+          subtitle="Clubs below you want this pick. Accepting moves you down and hands them the slot."
+          actions={
+            <Button size="sm" variant="ghost" onClick={declineOffers}>
+              Decline all
+            </Button>
+          }
+        >
+          <div className="space-y-2">
+            {(d.clockOffers ?? []).map((o) => (
+              <div
+                key={o.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--color-line-soft)] px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-medium flex items-center gap-2">
+                    <TeamMark team={state.teams[o.fromTeamId]} size={20} />
+                    {state.teams[o.fromTeamId].city} {state.teams[o.fromTeamId].name}
+                  </div>
+                  <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                    They send: {o.give.map((a) => describeAsset(state, a)).join(" + ")} · for
+                    your pick #{onClock?.pick}
+                  </div>
+                  <div className="text-[10px] text-[var(--color-faint)] mt-0.5">{o.rationale}</div>
+                </div>
+                <Button size="sm" variant="primary" onClick={() => acceptOffer(o.id)}>
+                  Accept and move down
+                </Button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {d && !d.complete && !myTurn && myUpcoming.length > 0 && (
+        <Card
+          title="Work the phones"
+          subtitle={`${onClockTeam?.abbr ?? ""} are on the clock at #${onClock?.pick ?? ""}. You can call about moving up.`}
+        >
+          {moveUpQuote === null ? (
+            <Button size="sm" onClick={getMoveUpQuote}>
+              Ask their price
+            </Button>
+          ) : moveUpQuote === "NO_DEAL" ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-[var(--color-muted)]">
+                No deal — you cannot cover their price for this slot.
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => setMoveUpQuote(null)}>
+                OK
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm">
+                They want: <span className="font-medium">{moveUpQuote}</span>
+              </span>
+              <Button size="sm" variant="primary" onClick={doMoveUp}>
+                Do it — move up to #{onClock?.pick}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setMoveUpQuote(null)}>
+                Walk away
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {d && d.complete && !d.udfaDone && (
+        <Card
+          title="Priority free agency"
+          subtitle={`The draft is over. ${remaining} undrafted men are taking calls — sign up to ${UDFA_SIGNINGS_MAX} before the league picks the pool clean.`}
+          actions={
+            <Button size="sm" variant="primary" onClick={finishUdfa}>
+              Finish — let the league chase the rest
+            </Button>
+          }
+        >
+          <p className="text-xs text-[var(--color-faint)] mb-1">
+            Three-year league-minimum deals. Your board notes and scouting reads apply below —
+            sign from the big board, then finish the chase.
+          </p>
+        </Card>
+      )}
+
+      {(() => {
+        const focus = focusId !== null ? byId.get(focusId) : undefined;
+        if (!focus || !focus.prospect || !focus.profile) return null;
+        const intel = getIntel(state, focus);
+        const note = boardNote(state, focus.id);
+        const pr = focus.profile;
+        const ft = (n: number) => `${Math.floor(n / 12)}'${n % 12}"`;
+        const c = pr.combine;
+        const measurables: [string, string][] = [
+          ["Ht / Wt", `${ft(pr.heightIn)} · ${pr.weightLb} lb`],
+          ["40-yard", c.forty != null ? `${c.forty.toFixed(2)}s` : "—"],
+          ["10-yd split", c.tenSplit != null ? `${c.tenSplit.toFixed(2)}s` : "—"],
+          ["Vertical", c.vertical != null ? `${c.vertical}"` : "—"],
+          ["Broad", c.broad != null ? ft(Math.round(c.broad)) : "—"],
+          ["3-cone", c.threeCone != null ? `${c.threeCone.toFixed(2)}s` : "—"],
+          ["Shuttle", c.shortShuttle != null ? `${c.shortShuttle.toFixed(2)}s` : "—"],
+          ["Bench", c.bench != null ? `${c.bench} reps` : "—"],
+        ];
+        const methods: ScoutingMethod[] = ["film", "proDay", "privateWorkout", "medical", "interview"];
+        return (
+          <Card
+            title={`War Room — ${playerName(focus)}`}
+            subtitle={`${focus.pos} · ${pr.college} · ${pr.classYear.replace("RS_", "RS ")} · age ${focus.age}`}
+            actions={
+              <Button size="sm" variant="ghost" onClick={() => setFocusId(null)}>
+                Close
+              </Button>
+            }
+          >
+            <div className="grid gap-5 lg:grid-cols-4 sm:grid-cols-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+                  Testing — public
+                </div>
+                <div className="space-y-1">
+                  {measurables.map(([k, v]) => (
+                    <div key={k} className="flex justify-between text-xs">
+                      <span className="text-[var(--color-faint)]">{k}</span>
+                      <span className="tnum">{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+                  Your department&apos;s read
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-[var(--color-faint)]">Projected OVR</span>
+                    <span className="tnum font-medium">{intel.ovrLow}–{intel.ovrHigh}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--color-faint)]">Projected ceiling</span>
+                    <span className="tnum font-medium">{intel.potLow}–{intel.potHigh}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--color-faint)]">Work invested</span>
+                    <span className="tnum">{intel.effort}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--color-faint)]">Medical</span>
+                    <span className={intel.medical && intel.medical !== "clean" ? "text-[var(--color-warn)]" : ""}>
+                      {intel.medical ?? "unknown"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--color-faint)]">Character</span>
+                    <span className={intel.character && intel.character !== "clean" ? "text-[var(--color-warn)]" : ""}>
+                      {intel.character ?? "unknown"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--color-faint)]">Coachability</span>
+                    <span className="tnum">
+                      {(intel.methods.proDay ?? 0) > 0 ? pr.coachability : "unknown"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+                  Send the department
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {methods.map((m) => {
+                    const done = intel.methods[m] ?? 0;
+                    const revealed =
+                      (m === "medical" && intel.medical !== null) ||
+                      (m === "interview" && intel.character !== null);
+                    return (
+                      <Button
+                        key={m}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => scout(focus, m)}
+                        disabled={team.scoutingPoints < METHOD_COST[m] || revealed}
+                        title={
+                          revealed
+                            ? "Already on file"
+                            : `${METHOD_LABEL[m]} — ${METHOD_COST[m]} points`
+                        }
+                      >
+                        {METHOD_LABEL[m]} · {METHOD_COST[m]}
+                        {done > 0 && !revealed ? ` (×${done})` : ""}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+                  Board call
+                </div>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {([1, 2, 3, 4, 5] as const).map((t) => (
+                    <Button
+                      key={t}
+                      size="sm"
+                      variant={note.tier === t ? "primary" : "ghost"}
+                      onClick={() => setNote(focus, { tier: note.tier === t ? undefined : t })}
+                    >
+                      T{t}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  <Button
+                    size="sm"
+                    variant={note.watch ? "primary" : "ghost"}
+                    onClick={() => setNote(focus, { watch: !note.watch })}
+                  >
+                    {note.watch ? "★ Watching" : "☆ Watch"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={note.avoid ? "primary" : "ghost"}
+                    onClick={() => setNote(focus, { avoid: !note.avoid })}
+                  >
+                    {note.avoid ? "✕ Do not draft" : "Do not draft"}
+                  </Button>
+                </div>
+                <div className="flex gap-1.5">
+                  <input
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    placeholder={note.note ?? "Scout's note…"}
+                    className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-lg px-2 py-1 text-xs placeholder:text-[var(--color-faint)] outline-none focus:border-[var(--color-accent)] w-full"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setNote(focus, { note: noteDraft || undefined });
+                      setNoteDraft("");
+                    }}
+                  >
+                    Save
+                  </Button>
+                </div>
+                {note.note && (
+                  <div className="text-xs text-[var(--color-muted)] mt-2 italic">“{note.note}”</div>
+                )}
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
+
       <Card
         title={d ? "Big board" : `${state.season} draft class`}
         subtitle={`${rows.length} of ${pool.length} prospects · projections are scouting estimates, not ratings`}
@@ -496,11 +837,22 @@ export default function DraftPage() {
           <Table head={boardHead}>
             {visible.map((p) => {
               const width = bandWidth(p);
-              const affordable = canScout(state, teamId);
+              const affordable = team.scoutingPoints >= METHOD_COST.film;
+              const note = boardNote(state, p.id);
+              const intel = getIntel(state, p);
               return (
                 <Row key={p.id} highlight={myTurn && needs.includes(p.pos)}>
                   <Cell align="left">
-                    <PlayerLink p={p} className="font-medium" />
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <PlayerLink p={p} className="font-medium" />
+                      {note.tier && <Pill tone="accent">T{note.tier}</Pill>}
+                      {note.watch && <span title="Watchlist">★</span>}
+                      {note.avoid && (
+                        <span className="text-[var(--color-warn)]" title="Do not draft">
+                          ✕
+                        </span>
+                      )}
+                    </span>
                   </Cell>
                   <Cell>
                     <PosBadge pos={p.pos} />
@@ -524,6 +876,11 @@ export default function DraftPage() {
                     </div>
                   </Cell>
                   <Cell>
+                    <span className="text-xs tnum text-[var(--color-muted)]">
+                      {intel.potLow}–{intel.potHigh}
+                    </span>
+                  </Cell>
+                  <Cell>
                     <div className="flex items-center justify-end gap-2">
                       <span className="text-[var(--color-muted)] text-xs">{p.scouted}%</span>
                       <span className="w-12 shrink-0">
@@ -542,13 +899,24 @@ export default function DraftPage() {
                           p.scouted >= 100
                             ? "Fully scouted"
                             : affordable
-                              ? `Spend ${SCOUT_COST} scouting points on a sharper read`
-                              : `Not enough scouting points (${SCOUT_COST} needed)`
+                              ? `Film study — ${METHOD_COST.film} points. Open the war room for the full toolkit.`
+                              : `Not enough scouting points (${METHOD_COST.film} needed)`
                         }
                       >
                         Scout
                       </Button>
-                      {d && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setFocusId(p.id);
+                          setNoteDraft("");
+                        }}
+                        title="Open the war room on this prospect"
+                      >
+                        Room
+                      </Button>
+                      {d && !d.complete && (
                         <Button
                           size="sm"
                           variant="primary"
@@ -557,12 +925,20 @@ export default function DraftPage() {
                           title={
                             myTurn
                               ? `Select ${playerName(p)} at pick ${onClock?.pick ?? ""}`
-                              : d.complete
-                                ? "The draft is complete"
-                                : "You are not on the clock"
+                              : "You are not on the clock"
                           }
                         >
                           Draft
+                        </Button>
+                      )}
+                      {d && d.complete && !d.udfaDone && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => signPriority(p)}
+                          title={`Sign ${playerName(p)} to a three-year minimum deal`}
+                        >
+                          Sign
                         </Button>
                       )}
                     </div>

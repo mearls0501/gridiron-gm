@@ -203,6 +203,7 @@ change is actually risking, and what to look at when it goes red.
 | `lib/core/offseason/*`, `frontOffice.ts`, `trades.ts` | `drift`, `verify`, `sweep`, **`careers`** |
 | `lib/core/generate.ts`, `ratings.ts` | everything — generation feeds every harness |
 | `lib/core/outcomes.ts`, `offseason/draft.ts`, `progression.ts` | **`careers` first**, then `drift` |
+| `lib/core/scouting.ts` | **`scout` first**, then `careers` — CPU boards read `cpuProspectView`, so intel error shapes every draft |
 | `lib/core/staff.ts` | **`staff` first**, then `calibrate` and `statcheck` — the scheme lean reaches the play engine |
 | `lib/core/rng.ts` | `determinism` first, then everything |
 | `app/*`, `components/*` | `node scripts/e2e.mjs` and `node scripts/e2e-interact.mjs` |
@@ -274,10 +275,22 @@ Anything not on this list that goes red is a regression you caused.
 
 Also unguarded, and worth knowing before you touch the surrounding code: free
 agency has no live CPU bidding (`FaState`/`FaBid` are declared and always
-null); scouting covers 2 prospects a year out of ~230 and a prospect's true
-rating leaks through the attribute panel on the player page; ROY is not
-restricted to rookies; `history[].standings` exists but no page reads it; there
-is no garbage-time QB rotation; kickers and punters cannot be hurt in-game.
+null); ROY is not restricted to rookies; `history[].standings` exists but no
+page reads it; there is no garbage-time QB rotation; kickers and punters
+cannot be hurt in-game.
+
+**The scouting system** (`lib/core/scouting.ts`, war room on `/draft`, guarded
+by `scout`): the user holds stored per-method intel (`state.scouting`) with OVR
+AND potential bands centred on wrong estimates; every CPU club's belief is
+DERIVED — truth plus stable hash noise keyed (seed, season, club, player) — so
+opinions are durable, private, and cost no save bytes. `cpuProspectView` is the
+only window a club gets; nothing may read true `pot` or the user's bands in
+draft logic, and the player-page attribute panel shows scouted RANGES for
+prospects (the old panel handed back true OVR via position weights). Hidden
+`ceiling` is never scoutable by anyone, ever. Draft weekend trades on the
+clock (`tryCpuClockTrade`, capped per draft) and closes with a priority-UDFA
+chase (`runUdfaChase`, user's club interactive-only by the same convention as
+`cpuResign`).
 
 **The staff budget** (`lib/core/staff.ts`, screen at `/front-office`) is the
 strategy layer: one pool of 100 points a season across development, scouting,
@@ -287,10 +300,12 @@ between a player's `ceiling` and his `pot` and never touches `pot` itself. CPU
 clubs allocate from their existing archetype via `refreshCpuStaff`.
 
 **Structurally missing in the trade model**, per `docs/nfl-reference.md` §1:
-there is no draft-weekend trade window (~38% of all real trade activity) and no
-cutdown window (~17%); `proposeTrade` only ever builds one shape, a veteran for
-picks, which is 32% of real deals, and never a pick-for-pick move, which is the
-largest single category at 37%.
+the cutdown window (~17% of real activity) still does not exist, and in-season
+deadline volume is thin. Draft weekend now has both halves — a pre-draft burst
+(`runDraftDayTrades`) and an on-the-clock market (`tryCpuClockTrade` /
+`generateClockOffers` / `quoteMoveUp` in `offseason/draft.ts`) where a club
+whose board tier collapsed pays a premium to move up, which is the mechanism
+the funnel analysis said was missing.
 
 ---
 
