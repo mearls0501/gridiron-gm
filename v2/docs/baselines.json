@@ -342,8 +342,8 @@
    "note": "outliers must have reasons, not just frequency"
   },
   "coherence.eliteCbShadowDrop": {
-   "min": 0.4,
-   "note": "Yards per TARGET a shutdown corner costs a WR1 by shadowing him, against a defence with no shutdown corner. Was gated on yards per GAME, which stacked three larger sources of variance on top of the effect and read +8.3/-9.6/+3.5 across three seeds against a min of 4 -- it passed or failed at random. Per target reads 1.25/1.46/0.78 on the same seeds: sd 0.35, positive every time. See docs/HANDOFF.md."
+   "min": 0.2,
+   "note": "Yards per TARGET a shutdown corner costs a WR1 by shadowing him, against a defence with no shutdown corner. Was gated on yards per GAME, which read +8.3/-9.6/+3.5 across three seeds against a min of 4 -- it passed or failed at random. FLOOR IS DIRECTIONAL ONLY, NOT MAGNITUDE. Four seeds now: 0.56 / 0.78 / 1.25 / 1.46. The 0.4 floor was set from three of those and seed 5 came in at 0.56, leaving 0.16 of margin -- the same too-few-samples mistake this file exists to prevent, made one commit after writing it up. 0.2 tests the SIGN, which is the claim. A magnitude floor needs the 5-seed re-lock in docs/HANDOFF.md item 1."
   },
   "drift.saveGrowthMbPerSeason": {
    "max": 0.45,
