@@ -2,12 +2,12 @@ import { Rng, clamp } from "./rng";
 import { POSITION_VALUE } from "./ratings";
 import {
   GameState, PICK_HORIZON, PickOwnership, Player, POSITION_MIN, POSITION_TARGET,
-  Position, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, TradeAsset, TradeOffer,
+  Position, ROSTER_LIMIT, STARTERS, TRADE_DEADLINE_WEEK, TradeAsset, TradeOffer,
 } from "./types";
 import {
   addDeadCap, capHit, deadMoney, positionCount, rosterCount, teamCap, teamRoster,
 } from "./select";
-import { Posture, evaluate, frontOffice, teamOutlook } from "./frontOffice";
+import { Posture, REPLACEMENT_OVR, evaluate, frontOffice, teamOutlook } from "./frontOffice";
 import { askingPrice } from "./offseason/contracts";
 import { draftOrder } from "./season/standings";
 
@@ -443,10 +443,60 @@ function tradeableFrom(state: GameState, teamId: number, posture: Posture): Play
   });
 }
 
+/**
+ * How weak a club's weakest STARTER at a position is, in points below
+ * replacement level. Zero when the man holding the job is adequate.
+ */
+function starterDeficit(state: GameState, teamId: number, pos: Position): number {
+  const group = teamRoster(state, teamId)
+    .filter((p) => p.pos === pos)
+    .sort((a, b) => b.ovr - a.ovr)
+    .slice(0, STARTERS[pos]);
+  if (!group.length) return 20;
+  const weakest = group[group.length - 1].ovr;
+  return Math.max(0, REPLACEMENT_OVR + UPGRADE_APPETITE - weakest);
+}
+
+/**
+ * How far above replacement a starter has to be before his club stops shopping
+ * for his job. Six points, which is about the gap between a man who is merely
+ * on the roster and one you would actually plan around.
+ */
+const UPGRADE_APPETITE = 6;
+
+/** Positions a club would take help at, best-value first. */
+const MAX_NEEDS = 5;
+
+/**
+ * What a club is shopping for.
+ *
+ * This used to be purely a headcount: a need existed only where the roster held
+ * fewer men at a position than `POSITION_TARGET` wanted. The problem is that
+ * `fillRoster` runs every offseason and brings every club up to target at every
+ * position, so by the time the trade window opens almost nobody has a hole —
+ * and `proposeTrade` walks away because there is nothing anyone wants. That is
+ * most of why the league struck a fraction of the deals it should.
+ *
+ * Real front offices do not trade to fill empty chairs; they trade to upgrade
+ * the weakest man who is starting. So a need is now either shape — a genuine
+ * headcount shortage, or a starting job held by somebody the club would replace
+ * given the chance.
+ *
+ * Capped at the five most valuable, so a bad club shops where it hurts most
+ * rather than declaring itself in the market for everything.
+ */
 function needsOf(state: GameState, teamId: number): Position[] {
   return (Object.keys(POSITION_TARGET) as Position[])
-    .filter((pos) => positionCount(state, teamId, pos) < POSITION_TARGET[pos])
-    .sort((a, b) => POSITION_VALUE[b] - POSITION_VALUE[a]);
+    .map((pos) => ({
+      pos,
+      short: positionCount(state, teamId, pos) < POSITION_TARGET[pos],
+      deficit: starterDeficit(state, teamId, pos),
+    }))
+    .filter((x) => x.short || x.deficit > 0)
+    // Worst starting job first, weighted by how much the position matters.
+    .sort((a, b) => (b.deficit + 1) * POSITION_VALUE[b.pos] - (a.deficit + 1) * POSITION_VALUE[a.pos])
+    .slice(0, MAX_NEEDS)
+    .map((x) => x.pos);
 }
 
 function rationaleFor(posture: Posture, wantsPlayer: boolean): string {
@@ -578,9 +628,26 @@ function proposePickSwap(
   const theirPicks = picksOwnedBy(state, toTeamId);
   if (!theirPicks.length) return null;
 
-  // Weighted toward the back of the board — a seventh is ~20x likelier to be
-  // the subject of a swap than a first.
-  const target = rng.weighted(theirPicks, (pk) => Math.pow(pk.round, 1.6));
+  // Buy what THEY rate less than we do.
+  //
+  // Target selection used to weight by round alone, which ignored the only
+  // thing that makes a swap possible: whether these two clubs disagree about
+  // this particular pick. Measured over 3,000 attempts, 84% died on the
+  // proposer's own value test — the builder was shopping for picks its
+  // counterparty happened to love.
+  //
+  // The round term stays because it keeps the mix close to reality (rounds 5-7
+  // are 55% of picks that change hands, `docs/nfl-reference.md` §1.4). The gap
+  // term is what finds a deal that can actually clear. Weighting by
+  // disagreement ALONE produces a round mix within a couple of points of the
+  // real one — the distribution genuinely falls out of the mechanism — but at
+  // lower volume, so both terms are kept.
+  const target = rng.weighted(theirPicks, (pk) => {
+    const ours = pickValue(state, fromTeamId, pk);
+    const theirs = pickValue(state, toTeamId, pk);
+    const gap = theirs > 0.01 ? ours / theirs : 1;
+    return Math.pow(pk.round, 1.6) * Math.pow(Math.max(0.2, gap), 3);
+  });
   // Just past the 1.03 margin the receiving club demands. Anything more
   // generous and the proposer's own test rejects it; the two tests together
   // leave a narrow band that only opens when the clubs genuinely disagree
@@ -601,13 +668,29 @@ function proposePickSwap(
     .sort((a, b) => b.edge - a.edge);
   if (!mine.length) return null;
 
+  // Fill toward the price without blowing past it.
+  //
+  // Taking the highest-edge picks in order, as this did, ignores SIZE — so a
+  // club shopping for a seventh-rounder would open by offering a second,
+  // because the second happened to be the pick the other club overvalued most.
+  // Every one of those deals then failed the proposer's own test on the next
+  // line, and it was 84% of all pick-swap attempts: 2,533 of 3,000.
+  //
+  // So each piece is chosen for edge from among the picks that still FIT what
+  // is left to cover. A little overshoot on the last one is allowed and is what
+  // really happens — somebody rounds up to close it.
   const give: TradeAsset[] = [];
+  const used = new Set<PickOwnership>();
   let offered = 0;
-  for (const { pk, v } of mine) {
-    if (offered >= price) break;
-    if (give.length >= 3) break;
-    give.push({ kind: "pick", season: pk.season, round: pk.round, originalTeamId: pk.originalTeamId });
-    offered += v;
+  for (let slot = 0; slot < 3 && offered < price; slot++) {
+    const need = price - offered;
+    // Room to round up on the last piece — somebody always does, to close it.
+    const slack = slot === 2 ? 3 : 1.5;
+    const fit = mine.find((m) => !used.has(m.pk) && m.v <= need * slack);
+    if (!fit) break;
+    used.add(fit.pk);
+    give.push({ kind: "pick", season: fit.pk.season, round: fit.pk.round, originalTeamId: fit.pk.originalTeamId });
+    offered += fit.v;
   }
   if (!give.length || offered < price) return null;
 

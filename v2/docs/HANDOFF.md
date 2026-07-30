@@ -80,7 +80,6 @@ The full gate at one seed exits clean on all 13 harnesses. Five metrics fail.
 
 | metric | reading | status |
 |---|---|---|
-| `coherence.eliteCbShadowDrop` | −2.9 (want ≥4) | **Pre-existing open that I made worse.** Diagnosed below. |
 | `drift.passRecordSeasons` | 12 of 20 (want ≤3) | **My regression.** Fixing `cutWorstSurplus` keeps high-potential young players alive, more reach their ceiling, and the 5,477-yard record falls more often. Baseline was 10. |
 | `conditions.coldPointsDelta` | −0.5 (want −2.4) | **Unconfirmed.** New this session, but single-seed on a 6-season sample and never checked against a matched-seed baseline. Do that before assuming it is real. |
 | `tails.milestonesOff` | 14 (want ≤12) | Panel artifact. Locked across 5 seeds; a single seed read **18 at the baseline commit** and 14 now, so this is better, not worse. |
@@ -99,20 +98,66 @@ and tuning against one is how this repo got into trouble in the first place.
 Run `npm run gate:full -- --seeds 5` on a machine with more than two cores and
 re-lock. **This is the prerequisite for everything below.**
 
-**2. Fix the receiver/corner asymmetry.** `coherence.eliteCbShadowDrop` is
-negative because **every offensive identity emphasises receivers and only three
-of the four defensive ones emphasise corners**, so league-wide receivers get
-sharpened more often than the men covering them. The emphasis tables in
-`staff.ts` need to balance across the ball. Exempting a position's defining
-attribute from the drag already recovered −10.3 → −2.9; this is the rest.
+**2. ~~The shadow metric~~ — RESOLVED. See the section below for what it cost
+and what it taught.**
 
-**3. Trades are still 12x short of reality.** ~7.8 a season against a real ~90
-(`nfl-reference.md` §1.1). Two structural gaps: `needsOf` is count-based, so
-once `reconcileRoster` fills every roster to target almost no club has a "need"
-and the player-for-pick shape rarely fires; and draft-day trades are one burst
-before the draft opens rather than between picks, so no club can move up for a
-specific player it has fallen for. Volume and round distribution are right;
-motivation is not.
+**3. Trades — the funnel is measured now, and the answer is a feature, not
+tuning.** ~15 a season against a real ~90. Three fixes landed (below), but the
+remaining gap will not close by adjusting constants. Read the funnel first.
+
+Over 4,000 instrumented attempts on a four-season-old league:
+
+| stage | pick-for-pick | player-for-pick |
+|---|---|---|
+| attempts | 2,218 | 1,782 |
+| an offer got built | 39 (1.8%) | 256 (14%) |
+| offer accepted | **39 (100% of built)** | 94 (37%) |
+
+**When a pick swap gets built it clears every single time.** The bottleneck is
+entirely the builder, and drilling into its four exit paths over 3,000 attempts:
+
+| exit | count |
+|---|---|
+| the proposer would be worse off | **2,533 (84%)** |
+| could not reach the price in 3 picks | 418 |
+| built | 49 |
+
+Three real causes found and fixed:
+
+- **Target selection ignored disagreement.** It weighted purely by round, so a
+  club shopped for picks its counterparty happened to love. Now weighted by the
+  ratio of what the two clubs pay for that pick. Worth knowing: weighting by
+  disagreement ALONE produces a round mix within a couple of points of the real
+  one (R1 11% / R2 11% / R3 13% / R4 21% / R5 16% / R6 19% / R7 10% against a
+  real 8/10/12/14/17/20/18) — the realistic distribution genuinely falls out of
+  the mechanism rather than needing to be imposed.
+- **The bundle builder ignored size.** It took the highest-edge picks in order,
+  so a club shopping for a seventh would open by offering a second. Now each
+  piece is chosen for edge from among the picks that fit what is left to cover,
+  with room to round up on the last one.
+- **`needsOf` was a headcount.** `fillRoster` brings every club to
+  `POSITION_TARGET` every offseason, so by the time the window opened almost
+  nobody had a hole and the player-for-pick shape had nothing to chase. A need
+  is now either a headcount shortage OR a starting job held by somebody the club
+  would replace.
+
+Net 7.8 → 15.3 a season, matched 12-season runs.
+
+**Why constants will not finish this.** The valuation model has plenty of
+disagreement available — across club pairs, the same pick prices over a 2.28x
+range. But WITHIN one pair the ratio is driven almost entirely by round and
+years-out, so the spread a single negotiation can exploit is much narrower, and
+the double-sided margin test (receiver wants +3%, proposer wants to come out
+ahead) leaves a thin band. Raising attempt counts buys volume at a linear cost
+in CPU and does not make the market smarter.
+
+**The actual fix is on-the-clock draft trading.** Draft weekend is ~35 trades
+and 38% of all annual volume (§1.5), and right now it is one burst before the
+first pick rather than trades between picks. A club on the clock that has fallen
+for a specific player has a concrete, large, legible valuation for moving up —
+which is a deal that clears easily and for the right reason. That is where the
+missing 70 trades a year live, and it is a feature with its own design, not a
+constant to nudge.
 
 **4. Draft outcomes.** `careers.survivalMae` 8.8 — rounds 3-6 still wash out
 11-16 points too fast. `careers.careerLenMae` 1.0 — a 6th or 7th rounder's
@@ -123,6 +168,68 @@ the drafting club run 3-5x too high at every round (R7 at ~15% against a real
 **5. The passing record.** `drift.passRecordSeasons` was already open before my
 churn fix pushed it from 10 to 12. It needs the elite-QB tail looked at
 directly rather than another constant.
+
+---
+
+## The shadow metric — RESOLVED, and worth reading anyway
+
+`coherence.eliteCbShadowDrop` was gated on yards per GAME at `min: 4`. It now
+gates yards per TARGET at `min: 0.4` and reads **1.25 / 1.46 / 0.78** across
+three seeds — positive every time, sd 0.35. The engine was fine. The guard was
+the bug, and it took four attempts at "fixing the engine" before anyone
+measured the guard.
+
+**The metric's noise exceeds its own guard.** Three seeds on identical code read
+**+8.3, −9.6, +3.5** — a standard deviation around nine against a threshold of
+four. It passes or fails at random. This is the `leverage` failure in a new
+costume: a guard whose tolerance is narrower than its own variance manufactures
+confidence rather than providing it.
+
+**Three genuine harness defects were found and fixed along the way.** All three
+are worth keeping regardless of what happens to the guard:
+
+1. The test pinned the *corner* at a given `cov` and let the **receiver float**,
+   so every seed measured a different WR1 against a different supporting cast.
+   Both sides are now pinned and the result is averaged over four offences.
+2. It mutated `attrs.cov` and never called `refreshOvr`, so the manipulation was
+   invisible to everything reading `p.ovr` — including the depth-chart sort that
+   decides who CB1 is and therefore who does the shadowing. Both the 45 and 95
+   trials read `ovr 71`.
+3. The baseline set CB1 to `cov 45` while leaving the backups at 55. Sides mode
+   **shuffles** the corners (`game.ts assignCoverage`), so the baseline handed
+   the receiver a *worse* average matchup than the elite trial did — which is
+   why an elite corner playing sides appeared to help the receiver. The baseline
+   is now a uniform secondary, so the trials differ in one variable.
+
+**The mechanism does work when it fires.** On seed 2 after the fixes, shadowing
+takes the WR1 from 27.0 to 11.5 yards a game. That is a real, large effect.
+
+**What is still unexplained**, and where the next person should start:
+`coherence.eliteCbSidesDrop` reads negative on both seeds tested — adding a
+shutdown corner who plays *sides* does not reliably help the defence, and on
+seed 1 appears to hurt it by nine yards. Since sides mode is `rng.shuffle` over
+three starting corners, WR1 draws the elite man only a third of the time; that
+dilutes the effect but should not invert it. Look at target selection —
+specifically whether the passer avoids the covered receiver, because if he does
+not, an elite corner attracts targets rather than deterring them.
+
+**What fixed it.** Yards per game stacked three larger sources of variance on
+top of the effect: how often the offence throws, how the game script moves that
+around, and how the passer distributes targets. The coverage matchup was the
+smallest term in it. Yards per target divides the volume back out and leaves
+the thing the design actually claims — when this receiver IS thrown at, does a
+corner glued to him make it go worse.
+
+**And it explained the anomaly.** On seed 1 the elite-sides trial gave WR1
+25.9 yards on 2.6 targets against 17.2 on 1.8 for the baseline. His efficiency
+barely moved; he simply got thrown at more. Adding a shutdown corner *somewhere*
+in the secondary pushes targets TOWARD whoever he is not covering, and with the
+sides shuffle that is often WR1. The per-game metric read a sensible engine
+behaviour as a bug for four rounds of investigation.
+
+`eliteCbSidesDrop` is now report-only with a wide band. It reads about zero
+(-0.42 / -0.10 / 0.00), which is correct rather than broken: the shuffle means
+WR1 draws the elite corner only a third of the time.
 
 ---
 
