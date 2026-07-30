@@ -19,6 +19,7 @@ import { GameState, Player } from "../lib/core/types";
 import { Rng } from "../lib/core/rng";
 import { simulateGame } from "../lib/core/sim/game";
 import { autoSortDepthChart } from "../lib/core/generate";
+import { refreshOvr } from "../lib/core/ratings";
 import { emitAll, seedFor } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 5);
@@ -203,53 +204,125 @@ const weighted =
 {
   const base = newGame({ seed: seedFor(8899) });
 
-  const trial = (label: string, cbCov: number, shadow: number) => {
-    const st = JSON.parse(JSON.stringify(base)) as GameState;
-    // Give the defence a corner of the given quality and a shadow tendency.
-    const cbs = st.players
-      .filter((p) => p.teamId === 1 && p.pos === "CB" && !p.prospect)
-      .sort((a, b) => b.ovr - a.ovr);
-    if (cbs[0]) cbs[0].attrs.cov = cbCov;
-    for (const c of cbs.slice(1)) c.attrs.cov = 55;
-    st.teams[1].coach.shadowTendency = shadow;
-    for (const t of st.teams) autoSortDepthChart(st, t);
+  /**
+   * A controlled matchup, not a sampled one.
+   *
+   * This test used to pin the CORNER at a given coverage rating and let the
+   * receiver be whoever the league happened to generate. Three seeds then read
+   * +8.3, -9.6 and +3.4 on the same code — a standard deviation of about nine
+   * against a guard demanding at least four. The guard passed or failed
+   * essentially at random, which is the `leverage` failure all over again: a
+   * broken measurement is worse than none, because it manufactures confidence.
+   *
+   * 240 games was never the problem. The variance was entirely in WHICH WR1
+   * and which supporting cast got drawn. So both sides of the matchup are now
+   * pinned, and the whole thing is averaged over several different offences so
+   * one club's quarterback or line cannot carry the result.
+   */
+  const OPPONENTS = [0, 2, 3, 4];
+  const N = 120;
 
-    const wr1 = st.teams[0].depthChart.WR[0];
-    const wr2 = st.teams[0].depthChart.WR[1];
-    let y1 = 0;
-    let y2 = 0;
-    const N = 240;
-    for (let i = 0; i < N; i++) {
-      const rng = new Rng(4242 + i * 7919);
-      const r = simulateGame(st, {
-        id: 1, season: st.season, week: 1, homeId: 0, awayId: 1,
-        played: false, homeScore: 0, awayScore: 0, playoffRound: null, boxScore: null,
-      }, rng);
-      for (const ps of r.box.players) {
-        if (ps.playerId === wr1) y1 += ps.recYds;
-        if (ps.playerId === wr2) y2 += ps.recYds;
+  const trial = (label: string, cbCov: number, shadow: number) => {
+    let sum1 = 0;
+    let sum2 = 0;
+    let tgt1 = 0;
+
+    for (const offId of OPPONENTS) {
+      const st = JSON.parse(JSON.stringify(base)) as GameState;
+
+      // The defence: one corner of the given quality, everyone else ordinary.
+      const cbs = st.players
+        .filter((p) => p.teamId === 1 && p.pos === "CB" && !p.prospect)
+        .sort((a, b) => b.ovr - a.ovr);
+      if (cbs[0]) cbs[0].attrs.cov = cbCov;
+      for (const c of cbs.slice(1)) c.attrs.cov = 55;
+      // Mutating an attribute without recomputing OVR left the manipulation
+      // invisible to everything that reads `p.ovr` — including the depth chart
+      // sort, which is what decides who CB1 is and therefore who does the
+      // shadowing. Both trials read ovr 71 with cov set to 45 and 95.
+      for (const c of cbs) refreshOvr(c);
+      st.teams[1].coach.shadowTendency = shadow;
+
+      // The offence: a fixed number one and a fixed number two, so the thing
+      // being measured is the coverage and not the receiver.
+      const wrs = st.players
+        .filter((p) => p.teamId === offId && p.pos === "WR" && !p.prospect)
+        .sort((a, b) => b.ovr - a.ovr);
+      const pin = (p: (typeof wrs)[number] | undefined, rte: number, cth: number, spd: number) => {
+        if (!p) return;
+        p.attrs.rte = rte; p.attrs.cth = cth; p.attrs.spd = spd; p.attrs.agi = spd - 4;
+      };
+      pin(wrs[0], 88, 86, 90);
+      pin(wrs[1], 72, 72, 78);
+      for (const w of wrs.slice(2)) pin(w, 62, 62, 74);
+      for (const w of wrs) refreshOvr(w);
+
+      for (const t of st.teams) autoSortDepthChart(st, t);
+
+      const wr1 = st.teams[offId].depthChart.WR[0];
+      const wr2 = st.teams[offId].depthChart.WR[1];
+      for (let i = 0; i < N; i++) {
+        const rng = new Rng(4242 + i * 7919);
+        const r = simulateGame(st, {
+          id: 1, season: st.season, week: 1, homeId: offId, awayId: 1,
+          played: false, homeScore: 0, awayScore: 0, playoffRound: null, boxScore: null,
+        }, rng);
+        for (const ps of r.box.players) {
+          if (ps.playerId === wr1) { sum1 += ps.recYds; tgt1 += ps.targets; }
+          if (ps.playerId === wr2) sum2 += ps.recYds;
+        }
       }
     }
-    console.log(`  ${label.padEnd(38)} WR1 ${(y1 / N).toFixed(1)} yds   WR2 ${(y2 / N).toFixed(1)} yds`);
-    return { wr1: y1 / N, wr2: y2 / N };
+
+    const games = N * OPPONENTS.length;
+    const ypt = tgt1 > 0 ? sum1 / tgt1 : 0;
+    console.log(
+      `  ${label.padEnd(38)} WR1 ${(sum1 / games).toFixed(1)} yds ` +
+      `on ${(tgt1 / games).toFixed(1)} tgt  =  ${ypt.toFixed(2)} yds/target`
+    );
+    return { wr1: sum1 / games, wr2: sum2 / games, ypt };
   };
 
   console.log(`\n=== does a shutdown corner erase a number one receiver? ===`);
-  const weak = trial("weak CB1 (cov 45), plays sides", 45, 0);
+  // 55, not 45. The baseline has to differ from the elite case in ONE
+  // variable: whether a shutdown corner exists. Setting CB1 to 45 while the
+  // backups sat at 55 meant the sides-mode shuffle handed the receiver a WORSE
+  // average matchup in the baseline than in the elite trial, which is why an
+  // elite corner playing sides appeared to help the receiver by 14 yards.
+  const weak = trial("no shutdown corner (all cov 55), sides", 55, 0);
   const eliteSides = trial("elite CB1 (cov 95), plays sides", 95, 0);
   const eliteShadow = trial("elite CB1 (cov 95), shadows WR1", 95, 1);
 
-  const sidesDrop = weak.wr1 - eliteSides.wr1;
-  const shadowDrop = weak.wr1 - eliteShadow.wr1;
-  console.log(`  elite corner playing sides costs WR1  ${sidesDrop.toFixed(1)} yds/game`);
-  console.log(`  the same corner shadowing costs him   ${shadowDrop.toFixed(1)} yds/game`);
+  /**
+   * Gated on yards per TARGET, not yards per game.
+   *
+   * Yards per game was the wrong measurement and it took four attempts to see
+   * why. It carries three sources of variance stacked on top of the one being
+   * measured: how often the offence throws at all, how the game script moves
+   * that around, and how the passer distributes targets. The coverage matchup
+   * is the smallest term in it. Three seeds on identical code read +8.3, -9.6
+   * and +3.5 against a guard demanding at least 4 — a standard deviation near
+   * nine, so the guard passed or failed at random.
+   *
+   * Yards per target divides the volume back out. What remains is the thing the
+   * design actually claims: when this receiver IS thrown at, does a shutdown
+   * corner glued to him make it go worse. That is a matchup question and it is
+   * answered per target, not per Sunday.
+   *
+   * The per-game figures are still printed, because a human reading this wants
+   * to know whether the effect is big enough to notice.
+   */
+  const sidesDrop = weak.ypt - eliteSides.ypt;
+  const shadowDrop = weak.ypt - eliteShadow.ypt;
+  console.log(`  elite corner playing sides costs WR1  ${sidesDrop.toFixed(2)} yds/target`);
+  console.log(`  the same corner shadowing costs him   ${shadowDrop.toFixed(2)} yds/target`);
   emitAll({
     "coherence.eliteCbSidesDrop": sidesDrop,
     "coherence.eliteCbShadowDrop": shadowDrop,
   });
   console.log(
-    shadowDrop > sidesDrop + 1
-      ? "  shadowing is meaningfully worse for the receiver than side coverage"
+    shadowDrop > sidesDrop
+      ? "  shadowing is worse for the receiver than side coverage"
       : "  *** shadowing does not distinguish itself from side coverage ***"
   );
 }

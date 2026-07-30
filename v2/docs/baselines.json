@@ -342,8 +342,8 @@
    "note": "outliers must have reasons, not just frequency"
   },
   "coherence.eliteCbShadowDrop": {
-   "min": 4,
-   "note": "a shadowing shutdown corner must cost WR1 real yards"
+   "min": 0.4,
+   "note": "Yards per TARGET a shutdown corner costs a WR1 by shadowing him, against a defence with no shutdown corner. Was gated on yards per GAME, which stacked three larger sources of variance on top of the effect and read +8.3/-9.6/+3.5 across three seeds against a min of 4 -- it passed or failed at random. Per target reads 1.25/1.46/0.78 on the same seeds: sd 0.35, positive every time. See docs/HANDOFF.md."
   },
   "drift.saveGrowthMbPerSeason": {
    "max": 0.45,
@@ -451,6 +451,11 @@
    "max": 1.5,
    "nfl": 0,
    "note": "League scoring with schemes fully funded minus schemes at the floor. The lean redistributes attributes within a player, but the play engine does not weight them the way the rating formula does, so zero-sum on the attribute list is not automatically zero-sum on the scoreboard. today 0.56 pts/team/game."
+  },
+  "coherence.eliteCbSidesDrop": {
+   "target": 0,
+   "tol": 1.2,
+   "note": "REPORT-ONLY, wide by design. An elite corner who plays sides instead of shadowing costs the WR1 nothing per target (-0.42/-0.10/0.00), which is correct: the shuffle means WR1 draws him only a third of the time. Tracked so an unexpected move gets noticed."
   }
  },
  "lockedSeeds": 5

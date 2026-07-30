@@ -167,6 +167,28 @@ model stayed 60x off reality without a single red line.
 Editing `scripts/` and `docs/baselines.json` is a **lead** decision, not a
 worker one. If you are running as a worker on a task, report and stop.
 
+### When a guard is the thing that is wrong
+
+There is one legitimate reason to change a guard, and it is not "my code does
+something else now". It is that the guard's own noise exceeds its tolerance, so
+it reports at random and can neither catch a regression nor confirm a fix.
+
+Establish it before acting on it: run the metric across three or more seeds on
+**unchanged** code and show the spread. `coherence.eliteCbShadowDrop` read
++8.3 / -9.6 / +3.5 on identical code against a threshold of 4 — a standard
+deviation near nine. Four separate attempts were made to "fix the engine"
+before anyone measured the guard itself, and one of them was written up as a
+regression that had never happened.
+
+The repair is almost never a wider tolerance, which just makes a useless guard
+quieter. It is a better-conditioned measurement of the same claim. That metric
+now reads yards per TARGET instead of yards per game — dividing out volume,
+game script and target distribution, none of which the claim was ever about —
+and reads 1.25 / 1.46 / 0.78 on the same three seeds.
+
+Changing WHAT a guard measures is a design decision. Diagnose it, write it up,
+and take it to Matt.
+
 ---
 
 ## Which harnesses your change must re-run
@@ -243,7 +265,6 @@ their baselines are set to today's value so they cannot get *worse*:
 | second contracts with the drafting club run 3-5x too high at every round | R7 at 15% | R7 at 1.5% |
 | `leverage.noEffect` — LB awareness is 16% of OVR and the engine never reads it | 1 | 0 |
 | **`drift.passRecordSeasons` — REGRESSION, caused 2026-07-29.** Fixing `cutWorstSurplus` keeps high-potential young players alive, more of them reach their ceiling, and the 5,477-yard record now falls more often. Matched-seed: 10 → 13 of 20. Left red rather than widened. | 13 of 20 | ≤ 3 of 20 |
-| **`coherence.eliteCbShadowDrop` — REGRESSION on top of a pre-existing open.** A shadowing shutdown corner has never cost a WR1 much (1.0 against a target of ≥4). The scheme lean made it worse: **every offensive identity emphasises receivers, but only three of the four defensive ones emphasise corners**, so league-wide receivers get sharpened more often than the men covering them. Exempting a position's defining attribute from the drag recovered most of it (−10.3 → −2.9). The asymmetry in the emphasis tables is the remaining cause and the next thing to fix. | −2.9 | ≥ 4 |
 | `conditions.coldPointsDelta` — cold games barely suppress scoring (−0.5 against a real −2.4). Single-seed reading on a 6-season sample; not yet confirmed against a matched-seed baseline. | −0.5 | −2.4 |
 | `tails.milestonesOff` — milestone frequencies against NFL history | 12 | 0 |
 | `conditions.byeWinPct` — a bye currently *hurts* | 48.8% | 53-58% |

@@ -43,4 +43,6 @@ next-env.d.ts
 # local snapshots and archives, not part of the source tree
 /_to_delete/
 /v2-backup-before-lead/
-/v2-resync.tgz
+
+# Cowork sync artifacts
+*.tgz
