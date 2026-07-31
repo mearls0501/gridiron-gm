@@ -359,3 +359,68 @@ nobody's sample. That path has to be designed rather than calibrated, and the
 staff budget is the mechanism: environment moves the box score today
 (`sim/game.ts` pressure from the line), and development focus moves the rating
 permanently, bounded by `pot`.
+
+---
+
+## `milestonesOff` quantization — the guard cannot reach its own target
+
+Measured during the 2026-07-31 panel re-lock. No code or baseline changed; this
+records why `tails.milestonesOff` has a floor it cannot go below at 16 seasons.
+
+`milestonesOff` counts how many of **49 threshold categories** (29 single-game,
+20 full-season) have a per-season rate outside their NFL band. Seven of those
+categories carry an NFL rate at or below 0.05, and `verdict()` (tails.ts:90-93)
+passes them only at a rate ≤ 0.06. At 16 seasons the finest non-zero rate the
+harness can express is 1/16 = **0.0625**, already over that line — so a single
+occurrence in the entire run flips the category to TOO COMMON. There is no
+representable value between "never happened" and "fails".
+
+**A correctly calibrated sim therefore fails several of them by construction.**
+For the four categories at 0.02/season, λ = 0.32 over 16 seasons and
+P(≥1) = 1 − e^−0.32 = 27%. For the three at 0.05, λ = 0.8 and P(≥1) = 55%.
+Expected failures from the seven alone: 4(0.274) + 3(0.551) = **2.75 per seed
+from correct behaviour**. The target of 0 is unreachable at this season count,
+and part of the panel-locked 12 is the guard's arithmetic rather than the sim's.
+
+Panel evidence (seeds 1-5, 16 seasons each, 80 pooled seasons). Counts are
+per-seed occurrences; pooling gives 1/80 = 0.0125 resolution, which separates
+what a single 16-season run cannot:
+
+| category | NFL/szn | counts by seed | pooled/szn | × NFL | trips | P(≥obs \| NFL) |
+|---|---|---|---|---|---|---|
+| 550+ pass yds (G) | 0.02 | 1,0,1,1,0 | 0.0375 | 1.88 | 3 | 0.217 |
+| 300+ rush yds (G) | 0.02 | 1,0,0,0,2 | 0.0375 | 1.88 | 2 | 0.217 |
+| 300+ rec yds (G) | 0.05 | 1,0,0,0,2 | 0.0375 | **0.75** | 2 | 0.762 |
+| 5,500+ pass yds (S) | 0.02 | 0,0,0,0,1 | 0.0125 | **0.62** | 1 | 0.798 |
+| 50+ pass TD (S) | 0.05 | 0,0,0,0,0 | 0.0000 | 0.00 | 0 | 1.000 |
+| 1,900+ rec yds (S) | 0.05 | 2,4,1,0,2 | 0.1125 | 2.25 | 4 | **0.021** |
+| 23+ sacks (S) | 0.02 | 1,0,1,1,2 | 0.0625 | 3.12 | 4 | **0.024** |
+
+16 tripwire failures across 5 seeds (3.2/seed, against 2.75 expected under
+perfect calibration). **Ten of the 16 fired on exactly one occurrence** — the
+resolution limit, carrying no information about the sim. Only two categories
+are genuinely elevated once pooled: 1,900+ receiving yards (2.25×, p = 0.021)
+and 23+ sacks (3.12×, p = 0.024). Two others — 300+ receiving yards and 5,500+
+passing yards — **fail in some seeds while the sim produces them LESS often
+than the NFL does** (0.75× and 0.62×), which is the clearest statement of the
+problem available.
+
+Panel: 17 / 14 / 17 / 10 / 14, mean 14.40, sd 2.88, SEM 1.29. Against the
+5-seed lock of 12 that is z ≈ 1.3 — consistent with no change since the
+2026-07-29 lock, i.e. the metric did not regress; it is simply noisy at a level
+the max cannot resolve.
+
+**Two candidate repairs, both design decisions for Matt. Neither was done.**
+
+1. **More seasons.** 32 seasons makes 1/32 = 0.031 representable and 48 makes
+   1/48 = 0.021, so one freak game no longer trips a category. Cost is linear
+   in runtime — `tails` was 146s for the 5-seed panel, so this is the cheap
+   option. It shrinks the artefact but does not remove it.
+2. **A count-based verdict.** Fail only when the observed COUNT falls outside a
+   Poisson interval for λ = rate × seasons, instead of comparing a quantized
+   rate against a ratio band. This removes the floor rather than shrinking it,
+   and is the honest version of the claim the thresholds are making. It changes
+   WHAT the guard measures, so per AGENTS.md it is a design decision.
+
+Until one of them lands, read `milestonesOff` as roughly "2.7 of arithmetic
+plus whatever the sim is actually doing", and do not tune against it.

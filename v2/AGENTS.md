@@ -261,14 +261,14 @@ their baselines are set to today's value so they cannot get *worse*:
 | `drift.tradesPerSeason` — real league-wide volume is ~90 a year | 7.8 of ~90 | 60-120 |
 | `careers.survivalMae` — rounds 3-6 still wash out 11-16 points too fast | 8.8 | < 4 |
 | `careers.careerLenMae` — a 6th or 7th rounder's median career is 1 and 0 seasons against a real 4 and 2 | 1.0 | < 0.5 |
-| `careers.r1QbSharePct` — quarterbacks are 10.3% of round 1 in reality | 14-18% | 10.3% |
+| **`careers.r1QbSharePct` — REGRESSION, caused 2026-07-30.** CPU clubs now draft under genuine potential uncertainty, and quarterback is the highest-variance, highest-upside position on the board, so the winner's curse overvalues QB upside at the top. Panel-to-panel 15.9 → 19.6 (5 seeds each, sd 1.34, z ≈ 4.4) — a real move, not a stream shift. **Baseline deliberately left at 15.9 ±3.2, so this reads FAIL in the full tier.** | 19.6 | 10.3% |
 | `careers.r1BustPct` — a first rounder who never starts half a season in four years | 28% | ~15% |
 | second contracts with the drafting club run 3-5x too high at every round | R7 at 15% | R7 at 1.5% |
 | `leverage.noEffect` — LB awareness is 16% of OVR and the engine never reads it | 1 | 0 |
 | **`drift.passRecordSeasons` — REGRESSION, caused 2026-07-29.** Fixing `cutWorstSurplus` keeps high-potential young players alive, more of them reach their ceiling, and the 5,477-yard record now falls more often. Matched-seed: 10 → 13 of 20. Left red rather than widened. | 13 of 20 | ≤ 3 of 20 |
 | `conditions.coldPointsDelta` — cold games barely suppress scoring (−0.5 against a real −2.4). Single-seed reading on a 6-season sample; not yet confirmed against a matched-seed baseline. | −0.5 | −2.4 |
 | `tails.milestonesOff` — milestone frequencies against NFL history | 12 | 0 |
-| `conditions.byeWinPct` — a bye currently *hurts* | 48.8% | 53-58% |
+| ~~`conditions.byeWinPct` — a bye currently *hurts*~~ **RESOLVED 2026-07-31.** 5-seed panel reads 53.4% (806 bye games), inside the 53-58 band; baseline re-locked 51.732 → 53.37. Caveat: `tol` is ±9, wide enough that the old broken 48.8% still sits inside the band, so this guard cannot yet catch the bye going backwards again. | 53.4% | 53-58% |
 | `drift.saveGrowthMbPerSeason` — mostly fixed by the save codec and housekeeping | +0.32 MB | < 0.3 MB |
 
 Anything not on this list that goes red is a regression you caused.

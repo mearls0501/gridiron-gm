@@ -305,7 +305,7 @@
       "nfl": 2
     },
     "conditions.byeWinPct": {
-      "target": 51.732,
+      "target": 53.37,
       "tol": 9,
       "nfl": 55,
       "note": "BACKWARDS today at 48.8% \u2014 task P2.3 target 53-58%"
