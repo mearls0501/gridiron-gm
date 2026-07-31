@@ -10,7 +10,7 @@ import { draftOrder } from "../season/standings";
 import { Posture, REPLACEMENT_OVR, frontOffice, teamOutlook } from "../frontOffice";
 import { ensurePickInventory, executeTrade, pickValue, picksOwnedBy } from "../trades";
 import { TradeAsset, TradeOffer } from "../types";
-import { consensusScore, cpuProspectView, generateProspectProfile, riskDiscount } from "../scouting";
+import { consensusScore, cpuExpectedView, cpuProspectView, generateProspectProfile, riskDiscount } from "../scouting";
 
 /**
  * Draft class generation, scouting and the draft itself.
@@ -267,7 +267,7 @@ function cpuBoardValue(
   // all 31 rival boards, and on the dimension that decides a draft (potential)
   // the CPU read the answer key while the user had no estimate at all. The
   // per-call jitter is gone too — a war room holds an opinion.
-  const view = cpuProspectView(state, teamId, p);
+  const view = cpuExpectedView(state, teamId, p);
   const room = Math.max(0, view.pot - view.ovr);
   const perceived = view.ovr + (fo.risk - 0.5) * room * 0.35;
   const upside = room * (0.18 + fo.risk * 0.30);

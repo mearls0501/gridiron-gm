@@ -67,8 +67,18 @@ function stableNormal(a: number, b: number, c: number, d: number): number {
  */
 export function consensusScore(state: GameState, p: Player): number {
   const n = stableNormal(state.seed, p.draftClassSeason ?? 0, 0x0c0de, p.id);
-  return clamp(p.ovr + n * 6, 35, 99);
+  return clamp(p.ovr + n * CONSENSUS_SD, 35, 99);
 }
+
+/**
+ * The error structure of a belief, in one place, because the correction that
+ * prices it (`cpuExpectedView`) has to be derived from the same numbers.
+ */
+const CONSENSUS_SD = 6;
+const COMMON_OVR_SD = 7;
+const OWN_OVR_SD = 4.5;
+const COMMON_POT_SD = 3.5;
+const OWN_POT_SD = 4;
 
 // ---------------------------------------------------------------------------
 // CPU beliefs
@@ -106,11 +116,61 @@ export function cpuProspectView(
   const ownOvr = stableNormal(state.seed, season, teamId + 1, p.id);
   const ownPot = stableNormal(state.seed, season, teamId + 1, p.id ^ 0x7a11);
 
-  const ovr = clamp(p.ovr + common * 7 + ownOvr * 4.5 * q, 30, 99);
-  const pot = clamp(p.pot + common * 3.5 + ownPot * 4 * q, ovr, 99);
+  const ovr = clamp(p.ovr + common * COMMON_OVR_SD + ownOvr * OWN_OVR_SD * q, 30, 99);
+  const pot = clamp(p.pot + common * COMMON_POT_SD + ownPot * OWN_POT_SD * q, ovr, 99);
   const out = { ovr, pot };
   viewCache.set(key, out);
   return out;
+}
+
+/**
+ * The same belief, priced as an expectation instead of as truth.
+ *
+ * A club does not draft a random prospect: it drafts the one it likes most,
+ * and it only wins him when its read is the optimistic one in the room. So the
+ * error on a SELECTED man is not the error on an average man — it is the error
+ * conditional on having been the high bidder, which is positive by
+ * construction. Measured over 384 round-one picks, the drafting club's read ran
+ * +10.4 OVR above truth while the league's mean read of the same men ran +5.5:
+ * roughly five points of that is the buyer's own optimism, not shared
+ * groupthink.
+ *
+ * The correction is ordinary shrinkage. A club's deviation from the public
+ * consensus is, by construction, almost entirely its own private error — the
+ * common component is shared with the consensus board and cancels out of the
+ * difference — so that deviation is regressed toward the market by the share of
+ * it the market's own uncertainty can account for. A club that reads a man the
+ * way everyone else does barely moves; a club that has him five points clear of
+ * the field keeps only part of that gap. Perceived headroom is shrunk the same
+ * way and for the same reason, which is where most of the optimism lives: `pot`
+ * is floored at `ovr`, so noise on the gap can only push it up.
+ *
+ * Deliberately uniform across positions. The QB share of round one is inflated
+ * not because clubs are more wrong about quarterbacks — the selection premium
+ * is flat across the board, ~5 points at QB and ~5 at EDGE and CB — but because
+ * `POSITION_VALUE` multiplies whatever error survives, so the same optimism buys
+ * 3.4x the board movement at QB that it buys at safety. Correcting the estimate
+ * therefore bites hardest exactly where it is amplified, with nothing in here
+ * that knows what a quarterback is.
+ *
+ * Pure: hashes only, no RNG draws, so the draft consumes the same stream it did
+ * before.
+ */
+export function cpuExpectedView(
+  state: GameState, teamId: number, p: Player
+): { ovr: number; pot: number } {
+  const view = cpuProspectView(state, teamId, p);
+  const q = scoutQuality(state, teamId);
+
+  // Reliability: how much of a private deviation to believe, given how noisy
+  // this club's own read is against how uncertain the market itself is.
+  const keepOvr = CONSENSUS_SD ** 2 / (CONSENSUS_SD ** 2 + (OWN_OVR_SD * q) ** 2);
+  const keepRoom = COMMON_POT_SD ** 2 / (COMMON_POT_SD ** 2 + (OWN_POT_SD * q) ** 2);
+
+  const anchor = consensusScore(state, p);
+  const ovr = anchor + (view.ovr - anchor) * keepOvr;
+  const room = Math.max(0, view.pot - view.ovr) * keepRoom;
+  return { ovr, pot: ovr + room };
 }
 
 /** <1 = sees the class better than the league, 1.0 exactly at an even split. */
