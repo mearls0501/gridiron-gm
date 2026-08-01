@@ -7,6 +7,7 @@ import { Button, Card, TeamMark } from "@/components/ui";
 import { PHASE_LABEL } from "@/components/Shell";
 import { exportSave } from "@/lib/store/save";
 import { encodeSave } from "@/lib/store/codec";
+import { defaultSettings } from "@/lib/core/types";
 
 /**
  * Franchise settings. Everything here operates on the loaded save — the
@@ -34,6 +35,7 @@ export default function SettingsPage() {
   if (!state) return null;
   const team = state.teams[state.userTeamId];
   const dirty = name.trim() !== state.name && name.trim().length > 0;
+  const settings = state.settings ?? defaultSettings();
 
   return (
     <div className="space-y-4 max-w-3xl">
@@ -94,6 +96,59 @@ export default function SettingsPage() {
               <span className="tnum text-xs">{value}</span>
             </div>
           ))}
+        </div>
+      </Card>
+
+      <Card
+        title="Gameplay"
+        subtitle="Settings gate what the game does about events — never whether they happen. The sim is identical either way."
+      >
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings.firingEnabled}
+              onChange={(e) => {
+                const on = e.target.checked;
+                apply((s) => {
+                  s.settings = { ...(s.settings ?? defaultSettings()), firingEnabled: on };
+                  return on ? "The seat is hot" : "Job security: guaranteed";
+                });
+              }}
+              className="accent-[var(--color-accent)]"
+            />
+            <span className="text-sm">The owner can fire you</span>
+          </label>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+              Pause Sim-ahead when…
+            </div>
+            <div className="space-y-1.5">
+              {(
+                [
+                  ["tradeOffer", "A club calls with a trade offer"],
+                  ["injuredStarter", "One of your starters goes down"],
+                  ["milestone", "A league milestone falls"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.pauseOn[key]}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      apply((s) => {
+                        const cur = s.settings ?? defaultSettings();
+                        s.settings = { ...cur, pauseOn: { ...cur.pauseOn, [key]: on } };
+                      });
+                    }}
+                    className="accent-[var(--color-accent)]"
+                  />
+                  <span className="text-sm">{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
       </Card>
 

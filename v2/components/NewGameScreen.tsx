@@ -19,6 +19,7 @@ export function NewGameScreen({ onDone }: { onDone?: () => void } = {}) {
   const [importing, setImporting] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [seedText, setSeedText] = useState("");
+  const [firing, setFiring] = useState(true);
 
   // Blank means "surprise me". Anything numeric is used verbatim, so a friend
   // entering the same seed gets the identical league, draft classes and all.
@@ -116,6 +117,20 @@ export function NewGameScreen({ onDone }: { onDone?: () => void } = {}) {
             ))}
           </div>
 
+          <div className="mt-4 pt-3 border-t border-[var(--color-line-soft)]">
+            <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">Game options</div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={firing}
+                onChange={(e) => setFiring(e.target.checked)}
+                className="accent-[var(--color-accent)]"
+              />
+              <span className="text-sm">The owner can fire you</span>
+              <span className="text-xs text-[var(--color-faint)]">— fail for long enough and you're job hunting</span>
+            </label>
+          </div>
+
           <div className="mt-4">
             <button
               onClick={() => setAdvanced(!advanced)}
@@ -152,7 +167,12 @@ export function NewGameScreen({ onDone }: { onDone?: () => void } = {}) {
               variant="primary"
               size="lg"
               disabled={busy || seedInvalid}
-              onClick={() => void startNew({ userTeamId: teamId, name, seed: parsedSeed }).then(onDone)}
+              onClick={() =>
+                void startNew({
+                  userTeamId: teamId, name, seed: parsedSeed,
+                  settings: { firingEnabled: firing },
+                }).then(onDone)
+              }
             >
               {busy ? "Building the league…" : "Start Franchise"}
             </Button>

@@ -1,4 +1,4 @@
-import { GameState, STATE_VERSION } from "../core/types";
+import { GameState, STATE_VERSION, defaultSettings } from "../core/types";
 import { blankRecordBook } from "../core/season/records";
 import { SCHEMES, evenBudget } from "../core/staff";
 import { decodeSave, encodeSave, EncodedSave } from "./codec";
@@ -108,6 +108,9 @@ function migrate(state: GameState): GameState {
   if (!state.pickOwners) state.pickOwners = [];
   if (!state.tradeOffers) state.tradeOffers = [];
   if (typeof state.nextTradeId !== "number") state.nextTradeId = 1;
+  // Settings arrived with the weekly-loop work. An existing franchise
+  // migrates with firing OFF — nobody gets retroactively fired by an update.
+  if (!state.settings) state.settings = { ...defaultSettings(), firingEnabled: false };
   // `ceiling` arrived with the development failure model. An older save has
   // players without it, and undefined would poison every growth calculation.
   // Backfilling to `pot` preserves those careers exactly as they were.

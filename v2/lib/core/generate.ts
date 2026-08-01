@@ -12,9 +12,9 @@ import { computeOvr, relevantAttrs, POSITION_VALUE } from "./ratings";
 import { blankRecordBook } from "./season/records";
 import { assignFrontOffices } from "./frontOffice";
 import {
-  Attributes, ATTR_KEYS, Coach, Contract, GameState, LEAGUE_MINIMUM, Player,
+  Attributes, ATTR_KEYS, Coach, Contract, GameSettings, GameState, LEAGUE_MINIMUM, Player,
   POSITION_TARGET, Position, POSITIONS, ROSTER_LIMIT, STATE_VERSION, Team,
-  salaryCap,
+  salaryCap, defaultSettings,
   MAX_CONTRACT_SHARE,
 } from "./types";
 
@@ -430,6 +430,8 @@ export interface NewGameOptions {
   userTeamId?: number;
   startSeason?: number;
   name?: string;
+  /** Gameplay options chosen at creation; defaults apply when omitted. */
+  settings?: Partial<GameSettings>;
 }
 
 export function createNewGame(opts: NewGameOptions = {}): GameState {
@@ -457,6 +459,7 @@ export function createNewGame(opts: NewGameOptions = {}): GameState {
     playoffs: null,
     draft: null,
     fa: null,
+    settings: { ...defaultSettings(), ...opts.settings },
     history: [],
     records: blankRecordBook(),
     log: [],

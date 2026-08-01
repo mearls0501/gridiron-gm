@@ -468,6 +468,34 @@ export type Phase =
   | "offseason-draft"   // scouting + draft
   | "offseason-final";  // roster cleanup before rollover
 
+// ---------------------------------------------------------------------------
+// Game settings
+// ---------------------------------------------------------------------------
+
+/** Events that can interrupt a bulk sim. More arrive with the owner/media systems. */
+export type PauseEvent = "tradeOffer" | "injuredStarter" | "milestone";
+
+/**
+ * Player-chosen gameplay options. None of these may alter the simulation
+ * itself — a paused-and-resumed sim must produce the identical league to an
+ * uninterrupted one, and a franchise with firing off simulates exactly like
+ * one with it on. Settings gate what the game DOES ABOUT events, never
+ * whether they happen.
+ */
+export interface GameSettings {
+  /** The owner can fire you (bites once the owner model lands). */
+  firingEnabled: boolean;
+  /** Which events stop a Sim-ahead early. */
+  pauseOn: Record<PauseEvent, boolean>;
+}
+
+export function defaultSettings(): GameSettings {
+  return {
+    firingEnabled: true,
+    pauseOn: { tradeOffer: true, injuredStarter: true, milestone: false },
+  };
+}
+
 export interface PlayoffSeed {
   teamId: number;
   seed: number;
@@ -772,6 +800,9 @@ export interface GameState {
   history: SeasonHistory[];
   records: RecordBook;
   log: LogEntry[];
+
+  /** Player-chosen gameplay options. Older saves are backfilled by migrate(). */
+  settings?: GameSettings;
 }
 
 /**
