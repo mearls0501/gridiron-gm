@@ -100,7 +100,10 @@ export function simulateWeek(state: GameState): void {
     const tradeRng = new Rng(rng.int(1, 0x7ffffffe));
     const d = TRADE_DEADLINE_WEEK - state.week; // weeks until the deadline
     const weight = TRADE_WEEK_WEIGHTS[Math.min(d, TRADE_WEEK_WEIGHTS.length - 1)];
-    runCpuTrades(state, tradeRng, Math.max(4, Math.round(360 * weight)));
+    // 185 total weekly attempts across the window lands on the real ~16
+    // in-season trades a year now that every in-season proposal is a player
+    // deal (player deals clear ~2x as often per attempt as pick swaps did).
+    runCpuTrades(state, tradeRng, Math.max(3, Math.round(185 * weight)));
     // A GM's phone follows the same calendar: an offer most weeks was noise.
     if (tradeRng.next() < Math.min(1, 3.6 * weight)) {
       generateUserOffers(state, tradeRng, 1);

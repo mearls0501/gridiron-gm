@@ -172,6 +172,17 @@ specialists barely move.
 p10 23.9, p90 31.2. Median **4 seasons** of experience, modal bucket **year 3**
 (23.9%) — the season before the fourth-year option decision.
 
+### 1.4b In-season composition — source T, confidence HIGH
+
+Of the 128 distinct in-season trades 2018–2025 (the §1.3b set), **128
+involved at least one player and 0 were pure pick-for-pick swaps.**
+Computed by grouping `trades.csv` rows by `trade_id` and checking for any
+row with a `pfr_id`. Pick-for-pick trading is a draft-window phenomenon;
+an in-season trade is a veteran moving for picks (or, rarely, players).
+`runCpuTrades` sets its pick-swap proposal share to zero during the
+regular season on this basis. Independent cross-check available against
+Spotrac's dated trade ledger (2011–present).
+
 ### 1.5 Draft-day pick trading — source T, confidence HIGH
 
 | draft | trades | picks moved | R1 trades | clubs involved |

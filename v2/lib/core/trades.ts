@@ -733,10 +733,16 @@ export function runCpuTrades(state: GameState, rng: Rng, attempts = 120): number
   let done = 0;
   const ids = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);
 
+  // Pick-for-pick is a draft-window phenomenon. In 128 in-season trades
+  // across 2018-2025, ZERO were pure pick swaps — every one moved a player
+  // (docs/nfl-reference.md §1.4b). In-season proposals therefore always
+  // start from a player; the offseason keeps the year-round mix.
+  const pickSwapShare = state.phase === "regular" ? 0 : 0.55;
+
   for (let i = 0; i < attempts; i++) {
     const from = rng.pick(ids);
     const to = rng.pick(ids.filter((id) => id !== from));
-    const offer = rng.next() < 0.55
+    const offer = rng.next() < pickSwapShare
       ? proposePickSwap(state, from, to, rng)
       : proposeTrade(state, from, to, rng);
     if (!offer) continue;
