@@ -107,6 +107,26 @@ Day 3 of the draft is consistently the busiest single day.
 2010–2017 mean **4.9**; 2018–2025 mean **16.0**. A 3.3x regime change. The
 deadline also moved from after week 8 to **after week 9 effective 2024**.
 
+### 1.3b Within-season timing — source T, confidence HIGH
+
+Distinct in-season trades by NFL week, pooled 2018–2025 (n=128). Computed
+from `trades.csv`: distinct `trade_id`s dated between each season's opener
+(first Thursday after Labor Day) and the end of November, week =
+`(trade_date − opener) // 7 + 1`.
+
+| week | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|---|---|
+| trades | 4 | 5 | 5 | 5 | 8 | 13 | 20 | 49 | 19 |
+| share | 3.1% | 3.9% | 3.9% | 3.9% | 6.2% | 10.2% | 15.6% | 38.3% | 14.8% |
+
+The week-8 spike is the deadline week for 2018–2023; the deadline moved to
+after week 9 in 2024, so the pooled weeks 8–9 together (53%) are "deadline
+week plus the week before." Expressed as distance from the deadline:
+**~40% in the deadline week, ~18% the week before, ~10% two weeks out, and
+a September floor of ~3–4% per week.** A real week 1 sees about half a
+trade league-wide. `TRADE_WEEK_WEIGHTS` in `lib/core/season/engine.ts`
+encodes this shape.
+
 ### 1.4 What actually moves — source T, confidence HIGH
 
 Trade composition, 2018–2025 (n=722):

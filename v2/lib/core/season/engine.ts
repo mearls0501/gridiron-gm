@@ -10,6 +10,14 @@ import { applyGameWear, healWeek, healthySet, rollWeeklyInjuries } from "./injur
 import { generateUserOffers, runCpuTrades } from "../trades";
 
 /**
+ * Share of in-season trade activity by distance from the deadline, derived
+ * from nflverse trades.csv 2018-2025 (docs/nfl-reference.md §1.3b, n=128):
+ * deadline week ~40%, the week before ~18%, then a fast falloff into a
+ * September floor of ~3-4% per week. Index = weeks until the deadline.
+ */
+const TRADE_WEEK_WEIGHTS = [0.40, 0.18, 0.11, 0.07, 0.06, 0.05, 0.045, 0.04, 0.035];
+
+/**
  * Week-by-week engine.
  *
  * One entry point — `advance(state)` — moves the franchise forward by exactly
@@ -79,12 +87,24 @@ export function simulateWeek(state: GameState): void {
   healWeek(state);
   rollWeeklyInjuries(state, games, rng);
 
-  // The phones stay on until the deadline. Fewer attempts than the offseason —
-  // in-season deals are rare, and a club that has just lost a starter is
-  // exactly who goes looking.
+  // The phones stay on until the deadline, but September is quiet and the
+  // deadline week is a frenzy: real in-season trades put ~3-4% of the year's
+  // activity in each of weeks 1-4 and ~40% in the deadline week itself
+  // (docs/nfl-reference.md §1.3b, nflverse trades.csv 2018-2025, n=128).
+  // Attempt volume follows that shape; total in-season volume is unchanged.
+  //
+  // The whole trade block runs on a CHILD stream from one parent draw, so the
+  // week's attempt count can never move the season's RNG stream — same
+  // pattern as generateDraftClass, for the same reason.
   if (state.week <= TRADE_DEADLINE_WEEK) {
-    runCpuTrades(state, rng, 40);
-    generateUserOffers(state, rng, 1);
+    const tradeRng = new Rng(rng.int(1, 0x7ffffffe));
+    const d = TRADE_DEADLINE_WEEK - state.week; // weeks until the deadline
+    const weight = TRADE_WEEK_WEIGHTS[Math.min(d, TRADE_WEEK_WEIGHTS.length - 1)];
+    runCpuTrades(state, tradeRng, Math.max(4, Math.round(360 * weight)));
+    // A GM's phone follows the same calendar: an offer most weeks was noise.
+    if (tradeRng.next() < Math.min(1, 3.6 * weight)) {
+      generateUserOffers(state, tradeRng, 1);
+    }
   } else if (state.week === TRADE_DEADLINE_WEEK + 1) {
     state.tradeOffers = [];
     state.log.push({
