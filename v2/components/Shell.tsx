@@ -19,6 +19,7 @@ import { NewGameScreen } from "./NewGameScreen";
 
 const NAV = [
   { href: "/", label: "Hub" },
+  { href: "/week", label: "This Week" },
   { href: "/roster", label: "Roster" },
   { href: "/depth-chart", label: "Depth Chart" },
   { href: "/schedule", label: "Schedule" },
