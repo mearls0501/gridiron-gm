@@ -1,3 +1,7 @@
 import type { NextConfig } from "next";
-const nextConfig: NextConfig = { reactStrictMode: true };
+
+// outputFileTracingRoot pins the workspace root to v2 — the repo also holds
+// the v1 build (and its lockfile) at the top level, and without this Next
+// guesses the repo root and warns about it on every dev start.
+const nextConfig: NextConfig = { reactStrictMode: true, outputFileTracingRoot: __dirname };
 export default nextConfig;

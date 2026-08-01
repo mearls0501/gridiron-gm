@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { GameState } from "../core/types";
+import { GameState, TRADE_DEADLINE_WEEK } from "../core/types";
 import { newGame, NewGameOptions } from "../core/newGame";
 import { advance as advanceSeason } from "../core/season/engine";
 import { advanceOffseason } from "../core/offseason";
@@ -15,6 +15,8 @@ import { saveGame, loadGame, listSaves, lastSaveId, deleteSave } from "./save";
  * Because the entire save is one document, a write is atomic — there is no way
  * to end up with a roster that saved but a schedule that didn't.
  */
+
+export type SimTarget = "deadline" | "seasonEnd" | "champion";
 
 interface Store {
   state: GameState | null;
@@ -32,6 +34,7 @@ interface Store {
 
   apply: (fn: (s: GameState) => string | void) => void;
   advance: () => void;
+  simTo: (target: SimTarget) => void;
   setToast: (t: string | null) => void;
   setError: (e: string | null) => void;
 }
@@ -119,6 +122,35 @@ export const useGame = create<Store>((set, get) => ({
     get().apply((s) => {
       if (s.phase.startsWith("offseason")) return advanceOffseason(s);
       return advanceSeason(s);
+    });
+  },
+
+  simTo(target) {
+    get().apply((s) => {
+      // Multi-step simulation inside ONE apply: the save writes once at the
+      // end instead of once per week. Never crosses into the offseason —
+      // those stages want the user's decisions.
+      const reached = (): boolean => {
+        if (s.phase.startsWith("offseason")) return true;
+        switch (target) {
+          case "deadline":
+            return s.phase !== "regular" || s.week >= TRADE_DEADLINE_WEEK;
+          case "seasonEnd":
+            return s.phase !== "regular";
+          case "champion":
+            return false; // runs until the playoffs hand off to the offseason
+        }
+      };
+      let last = "";
+      let guard = 0;
+      while (!reached() && guard++ < 40) last = advanceSeason(s);
+      switch (target) {
+        case "deadline":
+          return s.phase === "regular" ? `Simmed to Week ${s.week} — the trade deadline` : last;
+        case "seasonEnd":
+        case "champion":
+          return last;
+      }
     });
   },
 

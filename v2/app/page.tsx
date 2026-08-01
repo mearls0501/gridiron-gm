@@ -16,7 +16,20 @@ import { currentLine } from "@/lib/core/season/stats";
 import { OFFSEASON_STEPS, reconcileRoster } from "@/lib/core/offseason";
 import { Rng } from "@/lib/core/rng";
 import { describeAsset } from "@/lib/core/trades";
-import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, isHarsh, weatherLabel } from "@/lib/core/types";
+import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weatherLabel } from "@/lib/core/types";
+
+/** One row in the Sim dropdown. */
+function SimOption({ label, hint, onClick }: { label: string; hint: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
+    >
+      <span className="block text-xs font-medium">{label}</span>
+      <span className="block text-[11px] text-[var(--color-muted)] mt-0.5">{hint}</span>
+    </button>
+  );
+}
 
 /**
  * The hub.
@@ -29,8 +42,22 @@ export default function Hub() {
   const state = useGame((s) => s.state);
   const advance = useGame((s) => s.advance);
   const apply = useGame((s) => s.apply);
+  const simTo = useGame((s) => s.simTo);
   const busy = useGame((s) => s.busy);
   const [confirming, setConfirming] = useState(false);
+  const [simMenu, setSimMenu] = useState(false);
+  const [simming, setSimming] = useState(false);
+
+  // The sim runs synchronously in one store apply; the timeout lets the
+  // "Simming…" label paint before the main thread goes heads-down.
+  const runSim = (target: Parameters<typeof simTo>[0]) => {
+    setSimMenu(false);
+    setSimming(true);
+    setTimeout(() => {
+      simTo(target);
+      setSimming(false);
+    }, 30);
+  };
 
   const derived = useMemo(() => {
     if (!state) return null;
@@ -120,14 +147,50 @@ export default function Hub() {
                 <Button variant="ghost" size="lg" onClick={() => setConfirming(false)}>Cancel</Button>
               </>
             ) : (
-              <Button
-                variant="primary"
-                size="lg"
-                disabled={busy || !canAdvance}
-                onClick={() => (isOffseason || state.phase === "preseason" ? setConfirming(true) : doAdvance())}
-              >
-                {primaryLabel}
-              </Button>
+              <>
+                {(state.phase === "regular" || state.phase === "playoffs") && (
+                  <div className="relative">
+                    <Button
+                      size="lg"
+                      disabled={busy || simming}
+                      onClick={() => setSimMenu(!simMenu)}
+                    >
+                      {simming ? "Simming…" : "Sim ▾"}
+                    </Button>
+                    {simMenu && (
+                      <div className="absolute right-0 top-full mt-1 z-30 w-60 bg-[var(--color-surface-3)] border border-[var(--color-line)] rounded-lg shadow-xl overflow-hidden">
+                        {state.phase === "regular" && state.week < TRADE_DEADLINE_WEEK && (
+                          <SimOption
+                            label={`To the Trade Deadline (Wk ${TRADE_DEADLINE_WEEK})`}
+                            hint="Stops while you can still make moves"
+                            onClick={() => runSim("deadline")}
+                          />
+                        )}
+                        {state.phase === "regular" && (
+                          <SimOption
+                            label="To End of Regular Season"
+                            hint="Lands on the seeded playoff field"
+                            onClick={() => runSim("seasonEnd")}
+                          />
+                        )}
+                        <SimOption
+                          label="Through the Playoffs"
+                          hint="Crowns a champion, stops at the offseason"
+                          onClick={() => runSim("champion")}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+                <Button
+                  variant="primary"
+                  size="lg"
+                  disabled={busy || simming || !canAdvance}
+                  onClick={() => (isOffseason || state.phase === "preseason" ? setConfirming(true) : doAdvance())}
+                >
+                  {primaryLabel}
+                </Button>
+              </>
             )}
           </div>
         </div>
