@@ -107,6 +107,12 @@ export function Shell({ children }: { children: ReactNode }) {
               >
                 Saves
               </Link>
+              <Link
+                href="/settings"
+                className="text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+              >
+                Settings
+              </Link>
             </div>
           </div>
 

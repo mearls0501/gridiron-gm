@@ -11,12 +11,21 @@ import { importSave } from "@/lib/store/save";
  * First-run screen. A new franchise is created entirely in the browser — there
  * is no database to seed and no account to create, so "New Game" always works.
  */
-export function NewGameScreen() {
+export function NewGameScreen({ onDone }: { onDone?: () => void } = {}) {
   const { startNew, load, saves, busy, error } = useGame();
   const [teamId, setTeamId] = useState(0);
   const [name, setName] = useState("My Franchise");
   const [existing, setExisting] = useState<GameState[]>([]);
   const [importing, setImporting] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
+  const [seedText, setSeedText] = useState("");
+
+  // Blank means "surprise me". Anything numeric is used verbatim, so a friend
+  // entering the same seed gets the identical league, draft classes and all.
+  const parsedSeed = /^\d{1,10}$/.test(seedText.trim())
+    ? Math.min(Number(seedText.trim()), 2147483646)
+    : undefined;
+  const seedInvalid = seedText.trim().length > 0 && parsedSeed === undefined;
 
   useEffect(() => {
     void saves().then(setExisting);
@@ -38,7 +47,7 @@ export function NewGameScreen() {
               {existing.slice(0, 4).map((s) => (
                 <button
                   key={s.id}
-                  onClick={() => void load(s.id)}
+                  onClick={() => void load(s.id).then(onDone)}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] transition-colors text-left cursor-pointer"
                 >
                   <span
@@ -107,12 +116,43 @@ export function NewGameScreen() {
             ))}
           </div>
 
+          <div className="mt-4">
+            <button
+              onClick={() => setAdvanced(!advanced)}
+              className="text-xs text-[var(--color-faint)] hover:text-[var(--color-muted)] cursor-pointer"
+            >
+              {advanced ? "▾" : "▸"} Advanced
+            </button>
+            {advanced && (
+              <label className="block mt-2">
+                <span className="block text-xs text-[var(--color-muted)]">
+                  League seed (optional) — the same seed always builds the identical league
+                </span>
+                <input
+                  value={seedText}
+                  onChange={(e) => setSeedText(e.target.value)}
+                  placeholder="Leave blank for a random league"
+                  inputMode="numeric"
+                  className={cx(
+                    "mt-1 w-full sm:w-72 bg-[var(--color-surface-2)] border rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]",
+                    seedInvalid ? "border-[var(--color-bad)]" : "border-[var(--color-line)]"
+                  )}
+                />
+                {seedInvalid && (
+                  <span className="block text-[11px] text-[var(--color-bad)] mt-1">
+                    Seeds are plain numbers, up to 10 digits.
+                  </span>
+                )}
+              </label>
+            )}
+          </div>
+
           <div className="flex items-center gap-2 mt-5">
             <Button
               variant="primary"
               size="lg"
-              disabled={busy}
-              onClick={() => void startNew({ userTeamId: teamId, name })}
+              disabled={busy || seedInvalid}
+              onClick={() => void startNew({ userTeamId: teamId, name, seed: parsedSeed }).then(onDone)}
             >
               {busy ? "Building the league…" : "Start Franchise"}
             </Button>
@@ -130,6 +170,7 @@ export function NewGameScreen() {
                   try {
                     const s = await importSave(f);
                     await load(s.id);
+                    onDone?.();
                   } catch (err) {
                     useGame.getState().setError(
                       err instanceof Error ? err.message : "That file could not be imported."

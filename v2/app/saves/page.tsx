@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useGame } from "@/lib/store/game";
 import { Button, Card, Empty, Pill, TeamMark } from "@/components/ui";
 import { PHASE_LABEL } from "@/components/Shell";
@@ -13,7 +14,8 @@ import { exportSave, importSave } from "@/lib/store/save";
  * browser profile — clearing site data shouldn't cost someone ten seasons.
  */
 export default function SavesPage() {
-  const { state, saves, load, remove, startNew, setError } = useGame();
+  const router = useRouter();
+  const { state, saves, load, remove, setError } = useGame();
   const [list, setList] = useState<GameState[]>([]);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -108,9 +110,7 @@ export default function SavesPage() {
       </Card>
 
       <Card title="Start Over" subtitle="Create a second franchise. Your existing saves are kept.">
-        <Button onClick={() => void startNew({ name: `Franchise ${list.length + 1}` })}>
-          New Franchise
-        </Button>
+        <Button onClick={() => router.push("/new")}>New Franchise</Button>
       </Card>
     </div>
   );
