@@ -131,22 +131,25 @@ export default function DraftPage() {
       return true;
     });
     if (sortKey === "board") return filtered;
+    // "Your Grade" sorts by YOUR board's opinion (grade slot), not the
+    // public band — that's the whole point of doing the work.
+    const slot = (p: Player) => boardGrade(state!, p, ctx).slot;
     return filtered.slice().sort((a, b) => {
       switch (sortKey) {
         case "band":
-          return bandMid(b) - bandMid(a) || a.id - b.id;
+          return slot(a) - slot(b) || a.id - b.id;
         case "age":
-          return a.age - b.age || bandMid(b) - bandMid(a);
+          return a.age - b.age || slot(a) - slot(b);
         case "scouted":
-          return b.scouted - a.scouted || bandMid(b) - bandMid(a);
+          return b.scouted - a.scouted || slot(a) - slot(b);
         case "pos":
           return (
             POSITIONS.indexOf(a.pos) - POSITIONS.indexOf(b.pos) ||
-            bandMid(b) - bandMid(a)
+            slot(a) - slot(b)
           );
       }
     });
-  }, [pool, pos, sortKey, query]);
+  }, [pool, pos, sortKey, query, state, ctx, rev]);
 
   const byId = useMemo(
     () => (state ? playerMap(state) : new Map<number, Player>()),

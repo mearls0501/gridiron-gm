@@ -400,11 +400,12 @@ export function runScoutingMethod(
   if (method === "medical") intel.medical = p.profile.medicalRisk;
   if (method === "interview") intel.character = p.profile.characterRisk;
 
-  // Keep the legacy fields mirrored so `displayedOvr` and old saves agree
-  // with the war room. The CPU no longer reads these — that was the leak.
+  // Effort mirrors to the legacy field for display and sorting. The BAND
+  // does not: `p.scoutedOvr*` is the pristine public baseline the whole
+  // market grades from, and mirroring the user's private band onto it made
+  // the consensus follow the user's homework around — you could never
+  // disagree with a market that was copying you (found by Matt, 2026-08-01).
   p.scouted = intel.effort;
-  p.scoutedOvrLow = intel.ovrLow;
-  p.scoutedOvrHigh = intel.ovrHigh;
   return true;
 }
 
