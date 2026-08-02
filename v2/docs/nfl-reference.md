@@ -631,3 +631,60 @@ The middle of the league is what should come down. The top must not deflate:
 If a fit lands `passRecordSeasons` at 0 across the panel, it has overcorrected.
 Report that and reduce the availability change — do not compensate by inflating
 production elsewhere, which would trade a measured error for an unmeasured one.
+
+### 6.5 Established-starter availability — the fit targets
+
+Computed from nflverse **snap_counts** 2018-2024, REG only
+(<https://github.com/nflverse/nflverse-data/releases/download/snap_counts/>).
+An established starter is a player taking >= 50% of his club's offensive or
+defensive snaps in at least 8 appearances in that season; games missed is the
+club's REG games minus his appearances. Note that `offense_pct` / `defense_pct`
+in that file are FRACTIONS on 0-1, not percentages — reading them as percents
+silently selects nobody.
+
+This is the source §6.3 said was needed, and it closes the gap §6.1 left open.
+
+**Method validation.** Run against the skill groups it reproduces §6.1's
+quarterback row exactly (14.1 mean games, 45% at 16+, 34% under 14) and the
+running-back row within 0.2 games.
+
+**Why WR and TE read higher here than in §6.1, and which table to fit.** §6.1
+measures the single statistical LEADER at each position — the one man who
+accumulated the most targets, and therefore the one who was available to
+accumulate them, which is a survivorship-selected population. §6.5 measures
+every established starter. The injury model applies to all of them, so **§6.5 is
+the fit target and §6.1's leader rows are the validation anchors.** Fitting to
+§6.1 would over-injure, because it would treat a survivor's availability as the
+average starter's.
+
+| group | n | mean games | 17 (17-game era) | 16+ | 14+ | under 14 |
+|---|---|---|---|---|---|---|
+| QB | 227 | 14.1 | 34% | 45% | 66% | 34% |
+| RB | 190 | 14.9 | 36% | 50% | 79% | 21% |
+| WR | 629 | 14.8 | 40% | 54% | 76% | 24% |
+| TE | 264 | 15.1 | 43% | 57% | 81% | 19% |
+| OL | 1146 | 14.8 | 42% | 54% | 77% | 23% |
+| DL | 711 | 15.3 | 49% | 63% | 86% | 14% |
+| LB | 657 | 15.1 | 45% | 61% | 82% | 18% |
+| DB | 1141 | 14.7 | 35% | 48% | 76% | 24% |
+
+Quarterback is the worst group in the league on both moments — lowest mean
+games and the largest share missing four or more — while taking the fewest hits.
+That is the shape the joint fit has to reproduce: **hurt rarely, out long.**
+Raising QB incidence alone would hit the mean through the wrong mechanism and
+would show up as too many one-week absences and too few multi-week ones, so the
+duration mix in `WEEKLY_TABLE` is the lever that has to carry the quarterback
+row.
+
+**League totals.** 709 established starters a season, 22.2 per club — a starting
+lineup. Those starters lose **1,184 player-weeks a season**.
+
+**Do not compare 1,184 against `drift.playerWeeksLost` (~2,200).** That metric
+counts the entire rotation; 1,184 counts established starters only. The
+comparable sim measurement is weeks missed by week-1 starters alone, and it has
+to be measured that way before the two numbers mean anything next to each other.
+This is the same class of mistake §6.3 caught with the injury-report floor, and
+it points the same direction: it would read as the sim being roughly twice as
+harsh as reality when it is in fact far too lenient (§6.2 — about 73% of
+starting quarterbacks finish a season having missed nothing, against a real 34%
+missing four games or more).
