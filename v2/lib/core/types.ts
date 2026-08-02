@@ -64,7 +64,7 @@ export const STARTERS: Record<Position, number> = {
  * the ball to. Backfields and receiver rooms rotate; the trenches don't.
  */
 export const ROTATION: Record<Position, number> = {
-  QB: 1, RB: 3, WR: 4, TE: 2, OT: 2, OG: 2, C: 1,
+  QB: 2, RB: 3, WR: 4, TE: 2, OT: 2, OG: 2, C: 1,
   EDGE: 4, DT: 4, LB: 4, CB: 4, S: 3, K: 1, P: 1,
 };
 

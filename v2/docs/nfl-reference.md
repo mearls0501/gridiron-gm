@@ -438,3 +438,71 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
 - Lifetime UDFA start rate (§2.8).
 
 These stay ungated. A guard on a number nobody knows is worse than no guard.
+
+---
+
+## 5. Individual season volume — the shape of the top of each leaderboard
+
+Added 2026-08-02 for `task/304-stat-tails`. The league MEANS were already
+calibrated (`calibrate.passYds` +4%); what was ungated was the *distribution*
+of individual seasons, and it was fat at the top and thin in the middle.
+
+**Dataset.** nflverse `player_stats_YYYY.csv.gz`, 2018-2024, from
+<https://github.com/nflverse/nflverse-data/releases/download/player_stats/>.
+Weekly rows filtered to `season_type == "REG"`, summed per `player_id` per
+season, then ranked. n = 7 seasons, 224 team-seasons.
+
+**Validation.** The pipeline was checked against independently computed figures
+for 2019 / 2021 / 2023 before use and reproduced every one exactly: passing #1
+5109 / 5316 / 4624, #10 4031 / 4115 / 4016, #20 3271 / 3245 / 2877; rushing #1
+1540 / 1811 / 1459; 1700+ rushers 0 / 1 / 0; receiving #1 1725 / 1947 / 1799.
+
+**Caveat.** 2018-2020 are 16-game seasons, 2021-2024 are 17. The sim plays 17.
+The 17-game subset was computed separately and agrees within 2-3% at every rank
+(e.g. passing #1 5027 vs 5024 pooled, #10 3924 vs 4028), so the pooled figure is
+used and the era mix is not load-bearing.
+
+### 5.1 Rank table, per season (mean +/- sd across the 7 seasons)
+
+| rank | passing yds | rushing yds | receiving yds | pass attempts | carries |
+|---|---|---|---|---|---|
+| #1 | 5024 +/- 247 | 1704 +/- 248 | 1743 +/- 128 | 663 +/- 48 | 327 +/- 34 |
+| #5 | 4497 +/- 176 | 1191 +/- 125 | 1365 +/- 96 | — | — |
+| #10 | 4028 +/- 198 | — | 1208 +/- 65 | 547 +/- 10 | 230 +/- 18 |
+| #20 | 3046 +/- 190 | — | — | — | — |
+
+### 5.2 Threshold counts, per season
+
+| threshold | mean per season | range |
+|---|---|---|
+| rushers >= 1500 yds | 1.43 | 0-3 |
+| rushers >= 1700 yds | 0.57 | 0-2 |
+| passers >= 4500 yds | 4.29 | 3-6 |
+| passers >= 4800 yds | 1.86 | 0-5 |
+| passers >= 5000 yds | 0.86 | 0-2 |
+
+### 5.3 Workload concentration — why the tail is fat
+
+The rank table alone does not say WHERE excess individual volume comes from.
+These are the same 224 team-seasons, aggregated by `recent_team`:
+
+| measure | mean | p10 | median | p90 | max |
+|---|---|---|---|---|---|
+| leading passer's share of team pass attempts | **82.3%** | 52.0% | 89.4% | 99.6% | 100% |
+| team pass attempts | 564 | 494 | 570 | 635 | 751 |
+| leading rusher's share of team carries | **47.4%** | 30.9% | 46.7% | 63.1% | 79.4% |
+| team carries | 442 | 380 | 439 | 521 | 621 |
+
+Two figures carry the whole explanation, and both are about AVAILABILITY rather
+than in-game usage:
+
+- Only **45%** of leading passers appear in 16 or more games.
+- **53%** of team-seasons have their leading passer taking under 90% of the
+  team's attempts.
+
+A real NFL starting quarterback misses time — injury, benching, a lost job —
+often enough that the average one throws 82% of his club's passes, not ~100%.
+That is the mechanism behind the real #10 and #20 passing figures being far
+below what a full-season starter accumulates, and it is what a simulation whose
+starters never miss a snap cannot reproduce. See `docs/HANDOFF.md` for the
+measured sim comparison.

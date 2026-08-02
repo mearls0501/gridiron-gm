@@ -473,6 +473,46 @@
       "min": 15,
       "max": 400,
       "note": "STRUCTURAL: the priority-UDFA chase after pick 224 signs a real number of men without cornering the pool. 160 at lock; real clubs sign 10-15 UDFAs each into 90-man camps, v2 has no 90-man so CPU appetite is thresholded on each club's own board."
+    },
+    "statcheck.qb5PassYds": {
+      "target": 4497,
+      "tol": 360,
+      "nfl": 4497,
+      "note": "NEW 2026-08-02. 5th-best passing season, real mean 4497 +/- 176 across 2018-2024 (nfl-reference.md S5.1). tol ~8%."
+    },
+    "statcheck.qb10PassYds": {
+      "target": 4028,
+      "tol": 322,
+      "nfl": 4028,
+      "note": "NEW 2026-08-02. 10th-best passing season, real mean 4028 +/- 198 (nfl-reference.md S5.1). tol ~8%. This is the rank a leader-only guard cannot see."
+    },
+    "statcheck.qb20PassYds": {
+      "target": 3046,
+      "tol": 244,
+      "nfl": 3046,
+      "note": "NEW 2026-08-02. 20th-best passing season, real mean 3046 +/- 190 (nfl-reference.md S5.1). tol ~8%. The thin middle: sim reads ~1.26x here."
+    },
+    "statcheck.rb5RushYds": {
+      "target": 1191,
+      "tol": 95,
+      "nfl": 1191,
+      "note": "NEW 2026-08-02. 5th-best rushing season, real mean 1191 +/- 125 (nfl-reference.md S5.1). tol ~8%."
+    },
+    "statcheck.wr10RecYds": {
+      "target": 1208,
+      "tol": 97,
+      "nfl": 1208,
+      "note": "NEW 2026-08-02. 10th-best receiving season, real mean 1208 +/- 65 (nfl-reference.md S5.1). tol ~8%. Receiving was already close; this locks it so a passing fix cannot break it."
+    },
+    "statcheck.rushers1700": {
+      "max": 2,
+      "nfl": 0.57,
+      "note": "NEW 2026-08-02. Rushers over 1700 yds in a season: real mean 0.57, per-season range 0-2 across 2018-2024 (nfl-reference.md S5.2). Integer band at the observed maximum."
+    },
+    "statcheck.passers4800": {
+      "max": 5,
+      "nfl": 1.86,
+      "note": "NEW 2026-08-02. Passers over 4800 yds in a season: real mean 1.86, per-season range 0-5 (nfl-reference.md S5.2). Integer band at the observed maximum."
     }
   },
   "lockedSeeds": 5

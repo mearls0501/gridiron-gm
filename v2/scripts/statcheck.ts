@@ -94,6 +94,24 @@ console.log(`\n[team scores] n=${scores.length} mean ${mean.toFixed(1)} [NFL ~22
 console.log(`  min ${scores[0]} | p25 ${scores[Math.floor(scores.length*0.25)]} | median ${scores[Math.floor(scores.length*0.5)]} | p75 ${scores[Math.floor(scores.length*0.75)]} | max ${scores[scores.length-1]}`);
 console.log(`  shutouts: ${scores.filter(s => s === 0).length} | 40+ point games: ${scores.filter(s => s >= 40).length}`);
 
+// ---- 5. The shape of the leaderboard, not just its top ----------------------
+// A leader-only guard cannot see a distribution that is fat at the top and thin
+// in the middle: the league mean stays green while the #10 and #20 seasons run
+// hundreds of yards hot. Ranks and threshold counts from nfl-reference.md S5
+// (nflverse 2018-2024, REG only, n=7 seasons).
+const rankAt = (k: string, n: number) => {
+  const t = top(k, n);
+  return t.length >= n ? ((line(t[n - 1]) as unknown as Record<string, number>)[k] ?? 0) : 0;
+};
+const countOver = (k: string, t: number) =>
+  withStats.filter((p) => ((line(p) as unknown as Record<string, number>)[k] ?? 0) >= t).length;
+
+console.log(`\n[leaderboard shape]  (real per-season mean in brackets, nfl-reference S5)`);
+console.log(`  passing  #5 ${rankAt("passYds", 5)} [4497] · #10 ${rankAt("passYds", 10)} [4028] · #20 ${rankAt("passYds", 20)} [3046]`);
+console.log(`  rushing  #5 ${rankAt("rushYds", 5)} [1191]`);
+console.log(`  receiving #10 ${rankAt("recYds", 10)} [1208]`);
+console.log(`  1700+ rushers ${countOver("rushYds", 1700)} [0.57] · 4800+ passers ${countOver("passYds", 4800)} [1.86]`);
+
 // --- machine-readable summary (see scripts/metrics.ts) -----------------------
 const gateLead = (k: string) => {
   const t = top(k, 1)[0];
@@ -109,4 +127,11 @@ emitAll({
   "statcheck.leadTackles": gateLead("tackles"), "statcheck.meanTeamScore": mean,
   "statcheck.shutouts": scores.filter((s) => s === 0).length,
   "statcheck.fortyPlusGames": scores.filter((s) => s >= 40).length,
+  "statcheck.qb5PassYds": rankAt("passYds", 5),
+  "statcheck.qb10PassYds": rankAt("passYds", 10),
+  "statcheck.qb20PassYds": rankAt("passYds", 20),
+  "statcheck.rb5RushYds": rankAt("rushYds", 5),
+  "statcheck.wr10RecYds": rankAt("recYds", 10),
+  "statcheck.rushers1700": countOver("rushYds", 1700),
+  "statcheck.passers4800": countOver("passYds", 4800),
 });
