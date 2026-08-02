@@ -436,6 +436,14 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
 - Salary dumps as a share of trades (§1.6).
 - Contract status of traded players (§1.6).
 - Lifetime UDFA start rate (§2.8).
+- **Specialist in-game injury frequency.** Added 2026-08-02 with the K/P path
+  (`kickExposure`, `sim/game.ts`). Nothing here measures how often a kicker or
+  punter is hurt on a kick; the snap-count and injury-report sources of §6 both
+  drop specialists (§6.3's ST row is 17 players at 1.53 mean weeks, which is the
+  report artefact, not the absence). The exposure weights are sized to be rare —
+  about three league-wide in-game events a season, over half costing no time —
+  rather than tuned toward a figure. The MECHANISM was the gap worth closing;
+  the rate is a guess and is labelled one.
 
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 
@@ -688,3 +696,106 @@ it points the same direction: it would read as the sim being roughly twice as
 harsh as reality when it is in fact far too lenient (§6.2 — about 73% of
 starting quarterbacks finish a season having missed nothing, against a real 34%
 missing four games or more).
+
+### 6.6 The 17-game equivalent — §6.5's table cannot be compared to the sim as printed
+
+Added 2026-08-02. Nothing new was fetched for this; it is arithmetic on §6.5's
+own figures, and it needed doing because the first fit against §6.5 aimed at the
+wrong number and over-injured every starter by about a fifth of a game.
+
+§6.5 spans 2018-2024. **2018, 2019 and 2020 were 16-game seasons.** Its "mean
+games" column is therefore an average over clubs that played 16 games and clubs
+that played 17, and the sim plays 17. Comparing the two directly asks the sim to
+reproduce an attendance figure that a 17-game league structurally cannot.
+
+The mix does not have to be assumed — §6.5 pins it twice over, from two figures
+already in the table:
+
+    n-weighted mean games, eight groups   = 14.88
+    league total 1,184 weeks / 709 starters = 1.67 games missed per starter
+    => mean club REG games = 14.88 + 1.67  = 16.55
+
+which is what a 3-to-4 split of 16- and 17-game seasons gives ((3x16+4x17)/7 =
+16.57). The two agree to within a rounding step, so the era mix is confirmed,
+not inferred.
+
+The era-invariant quantity is the **missed-game RATE**, not the game count:
+
+    rate_g   = (16.55 - meanGames_g) / 16.55
+    games17_g = 17 x (1 - rate_g)
+
+| group | §6.5 mean | missed rate | **17-game target** |
+|---|---|---|---|
+| QB | 14.1 | 14.80% | **14.48** |
+| RB | 14.9 |  9.97% | **15.31** |
+| WR | 14.8 | 10.57% | **15.20** |
+| TE | 15.1 |  8.76% | **15.51** |
+| OL | 14.8 | 10.57% | **15.20** |
+| DL | 15.3 |  7.55% | **15.72** |
+| LB | 15.1 |  8.76% | **15.51** |
+| DB | 14.7 | 11.18% | **15.10** |
+
+n-weighted, that is 15.28 games and 1.72 missed per starter against the printed
+14.88 and 1.67 — the sim has to be **0.4 games a season more available** than
+§6.5's column reads, per starter, or it is over-injuring.
+
+The same conversion carries the league total:
+
+    1,184 x 17 / 16.55 = **1,216 established-starter weeks lost a season**
+
+That figure is the fit target for the sim's week-1 starter population, scaled by
+that population's size (the sim fields ~21 offensive and defensive starters a
+club against §6.5's 22.2, so ~1,170 at the sim's own headcount).
+
+**The 16+ column is NOT convertible and must not be era-corrected.** "16 or more
+of 16" is perfect attendance; "16 or more of 17" allows one absence. A 17-game
+sim reproducing the real missed-game rate will read HIGH on that column by
+construction, and it does — roughly +8 points. It stays in the table as a shape
+check on the often-and-brief against rare-and-long split, not as a target.
+
+**What this does not fix.** `drift.playerWeeksLost` is a different population
+and a different question; see §6.7.
+
+### 6.7 `drift.playerWeeksLost` is about half roster churn, not absence
+
+Added 2026-08-02, measured while fitting §6.5. Recorded because the metric reads
+as an injury guard and is not one, and anyone tuning availability against it
+will be misled the way this task was.
+
+The metric is, verbatim: for every player with more than 100 snaps in the
+season, `17 - games`, summed. But a player earns a box-score row only when he is
+credited a snap at his depth-chart slot, and `SNAP_SHARE` credits roughly the
+top four at each position. So a fifth receiver who covers five weeks of injuries
+finishes with ~190 snaps, five games, and **twelve "weeks lost" without ever
+having been hurt.** A late signing and a mid-season cut read the same way.
+
+Measured over 20 league-seasons (5 seeds x 4 seasons), splitting the total into
+`min(weeks lost, weeks actually carrying an injury)` and the remainder:
+
+| | injury-explained | roster churn | total |
+|---|---|---|---|
+| before the availability pass | 1,205 | 1,355 | 2,560 |
+| after | 1,466 | 1,402 | 2,868 |
+
+Churn is **~49% of the metric**, and it scales with starter absence at roughly
+1.2 churn-weeks per extra starter-week, because every starter who goes down
+promotes a fringe player into the >100-snap population carrying his own bench
+weeks with him. The metric therefore amplifies a real availability change by
+about 2.2x.
+
+Two consequences:
+
+- The baseline (2,158 ±700) is self-consistent as a **regression guard** — it
+  was measured with the same overcount — and it is not a statement about real
+  football. The real-league comparison in its `nfl` field (~2,200) is not
+  measuring the same thing and should not be treated as a target.
+- A correct §6.5 fit sits near the top of that band, not in the middle. There is
+  no setting of the injury model that puts starter availability at §6.5 and this
+  metric at 2,158; the arithmetic floor with backups made perfectly injury-proof
+  is about 2,890.
+
+The honest repair, when someone takes it on, is to credit a box-score row to
+every dressed player rather than only to those who take a scrimmage snap — which
+is a change to what `games` MEANS across `statcheck`, `careers` and the player
+pages, so it is a design pass, not a tuning step. Until then the metric is a
+churn-plus-absence composite and should be read as one.

@@ -1,7 +1,88 @@
-# HANDOFF — 2026-07-30
+# HANDOFF — 2026-08-02
 
 Where the build stands, what is still wrong, and what to do next. Read this
 first, then `AGENTS.md`, then `docs/nfl-reference.md`.
+
+---
+
+## 2026-08-02 — starter availability, session six (branch `task/305-availability`, NOT merged)
+
+**Panel: `gate:full --seeds 5`, FAIL, 3 problems.** Three strikes reached; this
+is a stop-and-report, not a hand-off-and-continue.
+
+**What the correction did.** Session five hit every §6.5 starter target by
+raising `POSITION_RISK` ~2x across the board, and blew `drift.playerWeeksLost`
+to 3,698 against 2,158 ±700 — because a flat multiplier raises a fourth
+cornerback's hazard as much as a left tackle's. This session routed the
+increase through EXPOSURE instead: `WORKLOAD_EXP = 2.8` raises the clamped snap
+ratio to a power, so the roster-wide curve runs 0.013 → 3.7 instead of
+0.25 → 1.6. A 63-snap starter's exposure barely moves (1.15 → 1.48); a 20-snap
+reserve's falls about three quarters. That bought a large walk-back of
+`POSITION_RISK` — QB 1.90 → 0.98, RB 2.80 → 1.58, CB 2.04 → 1.29, LB 1.40 →
+1.03 (now below its ORIGINAL 1.10). `POSITION_DURATION`, the 0.0205 base and
+the [0.0008, 0.09] clamp were not touched.
+
+**Both constraints now hold.** 20 league-seasons, 5 seeds:
+
+| | sim | target |
+|---|---|---|
+| week-1 starters, weeks lost | **1,160** | 1,216 (band 1,100-1,250) |
+| `drift.playerWeeksLost` | **2,792.8** (sd 37) | 2,158 ±700 -> [1,458, 2,858] |
+| population-weighted §6.5 residual | **-0.01 games** | 0 |
+
+Session five's fit, measured the same way, was **-0.59 games** per starter —
+it over-injured everyone by more than half a game a season.
+
+**Two measurement errors found and written up (`nfl-reference.md` §6.6, §6.7).**
+
+- §6.5's "mean games" column spans three 16-game seasons. Its own two figures
+  pin club REG games at 16.55, so the 17-game-equivalent target is **0.4 games
+  higher per starter** than printed, and the league total is 1,216 not 1,184.
+  The first fit aimed at the uncorrected column and over-injured accordingly.
+- `drift.playerWeeksLost` is **~49% roster churn, not absence**. A player earns
+  a box-score row only when credited a snap, so a fifth receiver covering five
+  weeks of injuries books twelve "weeks lost" while perfectly healthy. Churn
+  scales at ~1.2 per extra starter-week, so the metric amplifies any real
+  availability change ~2.2x. It is a valid regression guard and NOT a
+  statement about real football.
+
+**The three reds, and what they actually are.**
+
+- `statcheck.rb5RushYds` 1,455 (band tops at 1,286). **Not an availability
+  problem.** The post-availability `CARRY_SHARE` re-measurement that AGENTS.md
+  asked for: the sim's team leading rusher takes **58.1%** of his club's RB
+  carries over a season against a real **47.4%**. `CARRY_SHARE[0]` is 0.60 and
+  `script.leadBackShare` averages 0.645 — both above the real SEASON share,
+  which is backwards. Next lever, and it is a backfield-distribution change.
+- `statcheck.qb20PassYds` 3,413 (band tops at 3,290). Availability is half of
+  it: 3,706 -> 3,413 is -293 of the -660 needed. The rest is reachable only by
+  injuring starters harder than §6.5 says is real, which is what session five
+  did to get it green at 3,204. Next lever is QB1 attempt share inside the
+  games he plays (§5.3) and garbage-time rotation.
+- `tails.milestonesOff` 17.2 (baseline 12). **Partly pre-existing**: the branch
+  read 14.4 on a 5-seed panel at `6d77561`, before any availability engine
+  change. Availability took it 14.4 -> 20.0 (session five) -> 17.2. Not
+  diagnosed further.
+
+**Two rows retire, and not for the reason anyone expected.**
+`statcheck.wr10RecYds` and `statcheck.implausibleLines` were **already green on
+a 5-seed panel before any availability work** (1,141 and 0). They were fast-tier
+single-seed artifacts, never depletion side-effects. `drift.p0Failures` is 0
+before and after.
+
+**Also shipped:** the in-game K/P injury path (`kickExposure` in `sim/game.ts`)
+— a kicker or punter is exposed on a return and in the pile, ~2.5 logged a
+league-season. No primary source exists for specialist injury rates, so the
+axis is deliberately ungated (`nfl-reference.md` §4).
+
+**Panel deltas, reported not tuned.** `drift.passRecordSeasons` 8.6 of 20
+(guard max 10; §6.4's warning that availability could thin the tail did not
+materialise). `tails.bestSeasonPassYds` 5,147 (5,392 ±500). `statcheck.qb5PassYds`
+4,355 (4,497 ±360). `calibrate` 28/28 green, `scoreMismatches` 0.
+`careers`: survivalMae 4.53, careerLenMae 1.14, r1BustPct 17.7, r1QbSharePct
+16.04, draftSignal 4.67 — all inside their guards.
+`drift.saveGrowthMbPerSeason` 0.39 against a max of 0.45, up from the 0.32
+recorded in AGENTS.md; worth a look, not diagnosed here.
 
 ---
 

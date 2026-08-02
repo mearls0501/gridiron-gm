@@ -478,6 +478,31 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     { desc: ["Torn ACL", "Achilles rupture", "Broken leg"], min: 13, max: 40 },
   ];
 
+  /**
+   * A kick is the one snap a specialist is on the field for, and until now it
+   * could not hurt him: `contact` is built inside the scrimmage play, so a
+   * kicker or punter was the only man in the game who could not go down.
+   *
+   * The exposure is real and it is small, and it is almost entirely on returns
+   * — a punter is the last man between a returner and the end zone, and the
+   * kicker is the same on a kickoff. A field goal carries only the pile.
+   *
+   * No rate here traces to a primary source: nothing in `nfl-reference.md`
+   * measures specialist injury frequency, and per the seventh invariant these
+   * are therefore sized to be RARE (about three league-wide in-game events a
+   * season, over half of which cost no time at all) rather than tuned toward a
+   * number. The axis stays ungated. What matters is that the path exists —
+   * `removeFromUnits` already promotes an emergency kicker off the roster.
+   */
+  const kickExposure = (p: Player | undefined, ctx: Ctx, risk: number) => {
+    if (!p) return;
+    const held = contact;
+    contact = [];
+    hit(p, ctx, risk);
+    rollInGameInjury();
+    contact = held;
+  };
+
   const rollInGameInjury = () => {
     if (contact.length === 0) return;
 
@@ -692,6 +717,9 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
       if (td) st.krTd++;
     }
 
+    const kicking = receivingIsHome ? ctxAway : ctxHome;
+    kickExposure(kicking.starters.K[0], kicking, 0.25);
+
     if (td) {
       award(receiving.team.id, 6, `${returner ? returner.lastName : "Returner"} ${ret} yd kickoff return TD`);
       attemptPat(receiving);
@@ -730,7 +758,11 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     );
 
     burn(rng.int(5, 10));
-    if (rng.chance(p)) {
+    const good = rng.chance(p);
+    // Rolled before the kick resolves, so the make branch is exposed too: it
+    // hands off to kickoff(), which never returns to this frame.
+    kickExposure(k, ctx, 0.10);
+    if (good) {
       st.fgm++;
       st.longFg = Math.max(st.longFg, distance);
       award(ctx.team.id, 3, `${k.lastName} ${distance} yd field goal is GOOD`);
@@ -781,6 +813,8 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
         st.prLong = Math.max(st.prLong, ret);
         if (td) st.prTd++;
       }
+
+      kickExposure(p, ctx, 0.30);
 
       if (td) {
         award(receiving.team.id, 6, `${returner ? returner.lastName : "Returner"} ${ret} yd punt return TD`);

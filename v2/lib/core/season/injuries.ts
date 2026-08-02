@@ -54,13 +54,44 @@ const WEEKLY_TABLE: InjuryEntry[] = [
 /**
  * How exposed each position is over a week of practice and play. Backs and
  * receivers pull soft tissue; the trenches grind; specialists barely feature.
+ *
+ * These are a per-position PROPENSITY, not the availability dial. The first
+ * attempt at the S6.5 fit raised every entry here by roughly 2x, which lands
+ * the starter moments but also doubles the hazard carried by a fourth
+ * cornerback who takes twenty snaps a week — and a real backup does not miss
+ * time in proportion to a starter. `WORKLOAD_EXP` below carries the increase
+ * instead, and these sit most of the way back toward their original values.
  */
 const POSITION_RISK: Record<Position, number> = {
-  QB: 1.90, RB: 2.80, WR: 1.60, TE: 2.50,
-  OT: 1.95, OG: 1.95, C: 1.75,
-  EDGE: 1.93, DT: 1.85, LB: 1.40, CB: 2.04, S: 1.70,
+  QB: 0.98, RB: 1.58, WR: 1.18, TE: 1.36,
+  OT: 1.05, OG: 1.05, C: 0.93,
+  EDGE: 1.19, DT: 1.14, LB: 1.03, CB: 1.29, S: 1.09,
   K: 0.15, P: 0.15,
 };
+
+/**
+ * How sharply a week's exposure scales with how much a man actually played.
+ *
+ * Availability is a function of EXPOSURE first. The flat multiplier above
+ * cannot express that, because it moves a starter and his backup together, and
+ * the difference between the two is the whole subject: a full-time starter
+ * takes sixty-odd snaps a week, a rotational reserve takes twenty, and the
+ * reserve's real injury rate is not a third of the starter's — it is far less
+ * than that, because most of the risk is in the volume of contact.
+ *
+ * The clamped snap ratio is raised to this power, so the same curve that used
+ * to run 0.25 -> 1.6 across the roster now runs 0.013 -> 3.7. A starter's own
+ * exposure barely moves (a 63-snap week goes 1.15 -> 1.48); a twenty-snap
+ * reserve's falls by three quarters. That is where the availability increase
+ * comes from, and it is why `POSITION_RISK` could be walked back.
+ *
+ * Two consequences worth knowing. The upper clamp (0.09/week) now binds for an
+ * old, fragile player at a near-full snap load, where before it only grazed
+ * him. And the non-participant floor is now INERT: 0.18 raised to this power
+ * puts a healthy scratch under the lower clamp, so he sits at the model's
+ * floor of 0.0008 a week whatever that constant says.
+ */
+const WORKLOAD_EXP = 2.8;
 
 /**
  * How long a week's injury keeps each position out, relative to the table.
@@ -143,7 +174,7 @@ export function rollWeeklyInjuries(
     const played = snaps.get(p.id) ?? 0;
     // Someone who took no snaps can still pull something in practice, but the
     // exposure is a fraction of a starter's.
-    const workload = played > 0 ? clamp(played / 55, 0.25, 1.6) : 0.18;
+    const workload = Math.pow(played > 0 ? clamp(played / 55, 0.25, 1.6) : 0.18, WORKLOAD_EXP);
 
     const durability = 1 + (70 - p.durability) / 90;
     const age = 1 + Math.max(0, p.age - 27) * 0.075;
