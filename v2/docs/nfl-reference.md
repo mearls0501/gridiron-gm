@@ -506,3 +506,65 @@ That is the mechanism behind the real #10 and #20 passing figures being far
 below what a full-season starter accumulates, and it is what a simulation whose
 starters never miss a snap cannot reproduce. See `docs/HANDOFF.md` for the
 measured sim comparison.
+
+---
+
+## 6. Starter availability — how much time a real starter misses
+
+Added 2026-08-02 for `task/305-availability`. **PARTIAL: skill positions only.**
+The OL and defensive cross-check from the nflverse injuries dataset is not yet
+computed; those rows must be filled before any per-position rate outside
+QB/RB/WR/TE is changed.
+
+**Dataset.** nflverse `player_stats_YYYY.csv.gz`, 2018-2024, REG only
+(<https://github.com/nflverse/nflverse-data/releases/download/player_stats/>).
+The primary starter for a team-season is the leader in attempts (QB), carries
+(RB) or targets (WR, TE); games appeared is the count of weeks with a stat row
+for that player. n = 224 team-seasons per group.
+
+**Validation.** Leading passers appearing in 16+ games reproduces at **45%**,
+matching the independently computed anchor, as does the QB1 attempt-share
+median of 89.4% in §5.3.
+
+### 6.1 Games appeared, primary starter
+
+| group | mean games | played 17 | 16+ | 14+ | under 14 |
+|---|---|---|---|---|---|
+| QB | 14.1 | 18% | 45% | 66% | 34% |
+| RB | 14.7 | 19% | 43% | 75% | 25% |
+| WR | 15.4 | 28% | 62% | 87% | 13% |
+| TE | 14.2 | 13% | 35% | 69% | 31% |
+
+**Caveat.** 2018-2020 are 16-game seasons, so the "played 17" column is
+structurally impossible for three of the seven years and understates the true
+17-game rate. The 16+ and 14+ columns and the mean are the load-bearing
+figures; the 17 column is indicative only.
+
+The headline is that a real primary starter misses roughly **three games a
+season** — and a third of quarterbacks and tight ends miss four or more. This is
+the mechanism behind §5's fat middle: a simulation whose starters play every
+snap of every week hands ranks #5 through #20 a full season's volume that their
+real counterparts never accumulate.
+
+### 6.2 What the sim does instead
+
+`rollWeeklyInjuries` (`lib/core/season/injuries.ts`) prices a week of exposure
+as `0.0205 x workload x POSITION_RISK[pos] x durability x age x staff`, clamped
+to [0.0008, 0.09]. For a healthy 25-year-old starting quarterback at typical
+snap load that is about **0.018 per week**, so over a 17-week season the
+expected number of injuries is ~0.31 and roughly **73% of starting quarterbacks
+finish the season having missed nothing** — against a real 18%.
+
+`POSITION_RISK` is the legitimate per-position lever and already exists:
+
+    QB 0.75  RB 1.35  WR 1.20  TE 1.05  OT/OG 1.00  C 0.90
+    EDGE 1.15  DT 1.10  LB 1.10  CB 1.20  S 1.00  K/P 0.15
+
+Quarterback is the LOWEST-risk non-specialist entry in that table, which is
+correct for in-play contact exposure and wrong for availability: the real QB
+availability distribution (mean 14.1, the worst of the four groups measured) is
+driven by the severity and knock-on cost of the injuries quarterbacks do get,
+not by how often they are touched. Whether the repair belongs in incidence, in
+duration (`WEEKLY_TABLE` ranges), or in both is the open design question, and it
+must be settled against §6.1 rather than by moving one multiplier until a stat
+line looks right.
