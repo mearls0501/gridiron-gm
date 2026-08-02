@@ -56,10 +56,35 @@ const WEEKLY_TABLE: InjuryEntry[] = [
  * receivers pull soft tissue; the trenches grind; specialists barely feature.
  */
 const POSITION_RISK: Record<Position, number> = {
-  QB: 0.75, RB: 1.35, WR: 1.20, TE: 1.05,
-  OT: 1.00, OG: 1.00, C: 0.90,
-  EDGE: 1.15, DT: 1.10, LB: 1.10, CB: 1.20, S: 1.00,
+  QB: 1.90, RB: 2.80, WR: 1.60, TE: 2.50,
+  OT: 1.95, OG: 1.95, C: 1.75,
+  EDGE: 1.93, DT: 1.85, LB: 1.40, CB: 2.04, S: 1.70,
   K: 0.15, P: 0.15,
+};
+
+/**
+ * How long a week's injury keeps each position out, relative to the table.
+ *
+ * Incidence alone cannot describe availability. A real quarterback is hit less
+ * often than anyone else on the field and is still the LEAST available starter
+ * in football (nfl-reference.md S6.5: 14.1 games, 34% missing four or more) —
+ * he is hurt rarely and out long, and when he does go down the backup tends to
+ * keep the job. Fitting the mean games missed by raising incidence alone would
+ * land the right total through the wrong mechanism: too many one-week absences
+ * and too few long ones.
+ *
+ * So incidence and duration are fitted JOINTLY, per group, against the two
+ * moments S6.5 provides — mean games missed pins the total, share available for
+ * 16+ games pins the split between often-and-brief and rare-and-long.
+ *
+ * This scales a draw that already happened; it adds no RNG draw and does not
+ * touch the stream.
+ */
+const POSITION_DURATION: Record<Position, number> = {
+  QB: 2.0, RB: 1.6, WR: 1.8, TE: 1.2,
+  OT: 1.4, OG: 1.4, C: 1.4,
+  EDGE: 1.4, DT: 1.4, LB: 2.0, CB: 1.6, S: 1.6,
+  K: 1.0, P: 1.0,
 };
 
 /** Injuries of at least this many weeks leave a mark on a career. */
@@ -133,7 +158,11 @@ export function rollWeeklyInjuries(
     const entry = rng.weighted(WEEKLY_TABLE, (e) => e.weight);
     p.injuryWeeks = Math.max(
       1,
-      Math.round(rng.int(entry.min, entry.max) * recoveryMultiplier(state.teams[p.teamId]))
+      Math.round(
+        rng.int(entry.min, entry.max) *
+        POSITION_DURATION[p.pos] *
+        recoveryMultiplier(state.teams[p.teamId])
+      )
     );
     p.injuryDesc = entry.desc;
     if (p.injuryWeeks >= SERIOUS_WEEKS) applyWear(p, rng);
