@@ -109,9 +109,16 @@ if (await room.count()) {
   await page.waitForTimeout(500);
   const t = await text();
   // Case-insensitive: the section headers render through text-transform.
-  if (/war room —/i.test(t) && /board call/i.test(t) && /projected ceiling/i.test(t)) {
-    ok("war room opens with bands, testing sheet and board call");
+  // The 2026-08-01 scouting redesign: the war room speaks in grades and
+  // written reports, never numeric estimates.
+  if (/war room —/i.test(t) && /board call/i.test(t) && /board grade/i.test(t) && /the file/i.test(t)) {
+    ok("war room opens with grades, the file and board call");
   } else fail("war room card missing or incomplete");
+  // Leak check: an estimate band ("72–88") rendering anywhere on the draft
+  // page would put numbers back in the scouting game. En-dash pairs are the
+  // signature of the old band display; measurables and records never use it.
+  if (/\d{2}–\d{2}/.test(t)) fail("numeric estimate band leaked into the war room");
+  else ok("no numeric estimate bands on the draft page");
 
   const t2btn = page.getByRole("button", { name: /^T2$/ }).first();
   if (await t2btn.count()) {

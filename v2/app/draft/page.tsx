@@ -28,6 +28,7 @@ import {
   setBoardNote,
 } from "@/lib/core/scouting";
 import { describeAsset } from "@/lib/core/trades";
+import { boardGrade, consensusGrade, gradeContext, prospectReports, prospectTraits } from "@/lib/core/scouting-reports";
 import { enterDraft, simEntireDraft, simToUserPick } from "@/lib/core/offseason";
 import { capHit, formatMoney, playerMap, rosterCount } from "@/lib/core/select";
 import { POSITIONS, Player, Position, ROSTER_LIMIT, ScoutingMethod } from "@/lib/core/types";
@@ -63,7 +64,7 @@ type SortKey = "board" | "band" | "age" | "scouted" | "pos";
 
 const SORTS: { value: SortKey; label: string }[] = [
   { value: "board", label: "Board" },
-  { value: "band", label: "Proj. OVR" },
+  { value: "band", label: "Your Grade" },
   { value: "age", label: "Age" },
   { value: "scouted", label: "Scouting" },
   { value: "pos", label: "Position" },
@@ -117,6 +118,10 @@ export default function DraftPage() {
       );
     // rev changes on every mutation; the state object itself is mutated in place.
   }, [state, rev]);
+
+  // Grade context ranks every estimate against the whole class's consensus —
+  // built from the unfiltered pool so filters never move anyone's grade.
+  const ctx = useMemo(() => gradeContext(state!, pool), [state, pool, rev]);
 
   const rows = useMemo<Player[]>(() => {
     const q = query.trim().toLowerCase();
@@ -188,8 +193,8 @@ export default function DraftPage() {
         return `Not enough scouting points — ${METHOD_COST[method]} required for a ${METHOD_LABEL[method].toLowerCase()}.`;
       }
       const updated = s.players.find((x) => x.id === p.id);
-      const band = updated ? displayedOvr(updated) : "?";
-      return `${METHOD_LABEL[method]}: ${name} — projected ${band} · ${s.teams[s.userTeamId].scoutingPoints} points left`;
+      const grade = updated ? boardGrade(s, updated, gradeContext(s, pool)).label : "?";
+      return `${METHOD_LABEL[method]}: ${name} — board grade ${grade} · ${s.teams[s.userTeamId].scoutingPoints} points left`;
     });
   }
 
@@ -318,8 +323,8 @@ export default function DraftPage() {
     "Prospect",
     "Pos",
     "Age",
-    "Proj. OVR",
-    "Ceiling",
+    "Your Board",
+    "Consensus",
     "Scouting",
     "",
   ];
@@ -399,9 +404,10 @@ export default function DraftPage() {
         >
           <p className="text-sm text-[var(--color-muted)]">
             The draft runs during the offseason, after free agency closes. Until then this
-            is a scouting board: spend points to sharpen your read on a prospect, because
-            the only thing you will ever see is a projected range — and at low scouting
-            that range is centred on the wrong number.
+            is a scouting board. You will never see a rating — only your department&apos;s
+            round grade, its conviction, and what your people wrote. An unworked prospect
+            grades wherever the market has him; the work is what earns you a different
+            opinion, and the market is sometimes wrong.
           </p>
           <p className="text-xs text-[var(--color-faint)] mt-2">
             Scouting points reset each offseason, so anything you do not spend is wasted.
@@ -661,38 +667,66 @@ export default function DraftPage() {
                 <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
                   Your department&apos;s read
                 </div>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-[var(--color-faint)]">Projected OVR</span>
-                    <span className="tnum font-medium">{intel.ovrLow}–{intel.ovrHigh}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--color-faint)]">Projected ceiling</span>
-                    <span className="tnum font-medium">{intel.potLow}–{intel.potHigh}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--color-faint)]">Work invested</span>
-                    <span className="tnum">{intel.effort}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--color-faint)]">Medical</span>
-                    <span className={intel.medical && intel.medical !== "clean" ? "text-[var(--color-warn)]" : ""}>
-                      {intel.medical ?? "unknown"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--color-faint)]">Character</span>
-                    <span className={intel.character && intel.character !== "clean" ? "text-[var(--color-warn)]" : ""}>
-                      {intel.character ?? "unknown"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--color-faint)]">Coachability</span>
-                    <span className="tnum">
-                      {(intel.methods.proDay ?? 0) > 0 ? pr.coachability : "unknown"}
-                    </span>
-                  </div>
-                </div>
+                {(() => {
+                  const g = boardGrade(state, focus, ctx);
+                  const m = consensusGrade(state, focus, ctx);
+                  return (
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-[var(--color-faint)]">Board grade</span>
+                        <span className="font-medium">{g.label}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[var(--color-faint)]">Conviction</span>
+                        <span
+                          className={
+                            g.conviction === "high"
+                              ? "text-[var(--color-good)]"
+                              : g.conviction === "medium"
+                                ? "text-[var(--color-warn)]"
+                                : "text-[var(--color-faint)]"
+                          }
+                        >
+                          {g.conviction}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[var(--color-faint)]">Consensus</span>
+                        <span className="text-[var(--color-muted)]">{m.label}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[var(--color-faint)]">Work invested</span>
+                        <span className="tnum">{intel.effort}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[var(--color-faint)]">Medical</span>
+                        <span className={intel.medical && intel.medical !== "clean" ? "text-[var(--color-warn)]" : ""}>
+                          {intel.medical ?? "unknown"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[var(--color-faint)]">Character</span>
+                        <span className={intel.character && intel.character !== "clean" ? "text-[var(--color-warn)]" : ""}>
+                          {intel.character ?? "unknown"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[var(--color-faint)]">Coachability</span>
+                        <span>
+                          {(intel.methods.proDay ?? 0) > 0
+                            ? pr.coachability >= 80
+                              ? "sponge"
+                              : pr.coachability >= 60
+                                ? "receptive"
+                                : pr.coachability >= 40
+                                  ? "his own way"
+                                  : "uncoachable"
+                            : "unknown"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div>
@@ -780,13 +814,49 @@ export default function DraftPage() {
                 )}
               </div>
             </div>
+
+            {/* ---- The file: what your people wrote ------------------------- */}
+            <div className="mt-5 pt-4 border-t border-[var(--color-line-soft)]">
+              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+                The File
+              </div>
+              <div className="space-y-2.5">
+                {prospectReports(state, focus, ctx).map((r, i) => (
+                  <div key={i} className="text-sm">
+                    <p>{r.text}</p>
+                    <p className="text-xs text-[var(--color-faint)] mt-0.5">
+                      — {r.source.name}, {r.source.role}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1">
+                {prospectTraits(state, focus).map((t) => (
+                  <span key={t.key} className="text-xs whitespace-nowrap">
+                    <span className="text-[var(--color-faint)]">{t.label}:</span>{" "}
+                    <span
+                      className={cx(
+                        t.verdict === "elite"
+                          ? "text-[var(--color-good)] font-medium"
+                          : t.verdict === "limited"
+                            ? "text-[var(--color-warn)]"
+                            : ""
+                      )}
+                    >
+                      {t.verdict}
+                      {!t.certain && "?"}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </div>
           </Card>
         );
       })()}
 
       <Card
         title={d ? "Big board" : `${state.season} draft class`}
-        subtitle={`${rows.length} of ${pool.length} prospects · projections are scouting estimates, not ratings`}
+        subtitle={`${rows.length} of ${pool.length} prospects · grades are your department's opinion, not the truth`}
         padded={false}
       >
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-[var(--color-line-soft)]">
@@ -816,7 +886,7 @@ export default function DraftPage() {
         {pool.length === 0 ? (
           <Empty
             title="No prospects to scout"
-            hint={`Next year's class is generated when the season rolls over. Once it exists, every player here shows a projected range instead of a rating.`}
+            hint={`Next year's class is generated when the season rolls over. Once it exists, every player here carries a round grade and a file instead of a rating.`}
           />
         ) : rows.length === 0 ? (
           <Empty
@@ -859,25 +929,29 @@ export default function DraftPage() {
                   </Cell>
                   <Cell>{p.age}</Cell>
                   <Cell>
-                    <div className="flex items-center justify-end gap-2">
-                      <OvrBadge ovr={displayedOvr(p)} size="sm" />
-                      <span
-                        className={cx(
-                          "text-[10px] w-14 text-left",
-                          width <= 4
-                            ? "text-[var(--color-good)]"
-                            : width <= 10
-                              ? "text-[var(--color-warn)]"
-                              : "text-[var(--color-faint)]"
-                        )}
-                      >
-                        {width <= 4 ? "tight read" : width <= 10 ? "rough read" : "wild guess"}
-                      </span>
-                    </div>
+                    {(() => {
+                      const g = boardGrade(state, p, ctx);
+                      return (
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                          <span
+                            className={cx(
+                              "w-1.5 h-1.5 rounded-full shrink-0",
+                              g.conviction === "high"
+                                ? "bg-[var(--color-good)]"
+                                : g.conviction === "medium"
+                                  ? "bg-[var(--color-warn)]"
+                                  : "bg-[var(--color-faint)]"
+                            )}
+                            title={`${g.conviction} conviction`}
+                          />
+                          <span className="text-xs font-medium">{g.label}</span>
+                        </div>
+                      );
+                    })()}
                   </Cell>
                   <Cell>
-                    <span className="text-xs tnum text-[var(--color-muted)]">
-                      {intel.potLow}–{intel.potHigh}
+                    <span className="text-xs text-[var(--color-muted)] whitespace-nowrap">
+                      {consensusGrade(state, p, ctx).label}
                     </span>
                   </Cell>
                   <Cell>

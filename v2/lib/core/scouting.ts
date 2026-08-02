@@ -314,6 +314,16 @@ export function getIntel(state: GameState, p: Player): UserIntel {
   return defaultIntel(state, p);
 }
 
+/**
+ * The market's view of a prospect — the intel everyone starts from before a
+ * club does its own work. Exported so grades can rank a user's private read
+ * against the same public scale (a board grade and a consensus grade must be
+ * measured in the same currency or the comparison is meaningless).
+ */
+export function publicIntel(state: GameState, p: Player): UserIntel {
+  return defaultIntel(state, p);
+}
+
 function defaultIntel(state: GameState, p: Player): UserIntel {
   const season = p.draftClassSeason ?? 0;
   const ovrLow = p.scoutedOvrLow ?? Math.max(30, Math.round(consensusScore(state, p)) - 6);

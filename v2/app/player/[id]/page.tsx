@@ -5,10 +5,11 @@ import { useParams } from "next/navigation";
 import { ReactNode, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import {
-  ATTR_KEYS, ATTR_LABEL, AttrKey, Player, Position, SeasonStatLine,
+  ATTR_KEYS, ATTR_LABEL, AttrKey, GameState, Player, Position, SeasonStatLine,
 } from "@/lib/core/types";
 import { POSITION_WEIGHTS, ovrTier, relevantAttrs } from "@/lib/core/ratings";
 import { attrBand } from "@/lib/core/scouting";
+import { boardGrade, gradeContext, verdictFor } from "@/lib/core/scouting-reports";
 import { capHit, deadMoney, formatMoney } from "@/lib/core/select";
 import { careerTotals, cmpPct, fgPct, passerRating, ypc, ypr } from "@/lib/core/season/stats";
 import { askingPrice } from "@/lib/core/offseason/contracts";
@@ -138,24 +139,48 @@ function attrTone(v: number): "good" | "accent" | "warn" | "bad" {
  * weights, so the panel must never hold it for an undrafted man.
  */
 function AttrRow({ k, v, band }: { k: AttrKey; v: number; band?: { low: number; high: number } }) {
-  const mid = band ? Math.round((band.low + band.high) / 2) : v;
+  if (band) {
+    // Prospect: the department's read in scout-speak. No numbers, no bars —
+    // a bar at the estimate midpoint is a numeric leak with extra steps.
+    const mid = (band.low + band.high) / 2;
+    const verdict = verdictFor(mid);
+    const uncertain = band.high - band.low > 6;
+    return (
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-xs text-[var(--color-muted)] truncate">{ATTR_LABEL[k]}</span>
+        <span
+          className={cx(
+            "text-xs font-medium",
+            verdict === "elite"
+              ? "text-[var(--color-good)]"
+              : verdict === "limited"
+                ? "text-[var(--color-warn)]"
+                : ""
+          )}
+        >
+          {verdict}
+          {uncertain && <span className="text-[var(--color-faint)]">?</span>}
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="space-y-1">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-xs text-[var(--color-muted)] truncate">{ATTR_LABEL[k]}</span>
-        <span className="text-xs font-semibold tnum">
-          {band ? `${band.low}–${band.high}` : v}
-        </span>
+        <span className="text-xs font-semibold tnum">{v}</span>
       </div>
-      <Bar value={mid} tone={band ? "accent" : attrTone(v)} />
+      <Bar value={v} tone={attrTone(v)} />
     </div>
   );
 }
 
-function scoutedBand(p: Player): string {
-  if (p.scoutedOvrLow == null || p.scoutedOvrHigh == null) return "Unscouted";
-  if (p.scoutedOvrLow === p.scoutedOvrHigh) return String(p.scoutedOvrLow);
-  return `${p.scoutedOvrLow}–${p.scoutedOvrHigh}`;
+/** A prospect's grade in draft-room language — never a number. */
+function prospectGrade(state: GameState, p: Player): string {
+  const pool = state.players.filter(
+    (q) => q.prospect && q.draftClassSeason === p.draftClassSeason && q.teamId === null && !q.retired
+  );
+  return boardGrade(state, p, gradeContext(state, pool)).label;
 }
 
 export default function PlayerPage() {
@@ -259,7 +284,7 @@ export default function PlayerPage() {
                 <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
                   Scouted Grade
                 </div>
-                <div className="text-lg font-semibold tnum">{scoutedBand(p)}</div>
+                <div className="text-lg font-semibold">{prospectGrade(state, p)}</div>
               </div>
             ) : (
               <>
@@ -288,7 +313,7 @@ export default function PlayerPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {p.prospect ? (
           <>
-            <Stat label="Scouted Grade" value={scoutedBand(p)} sub="Band narrows with scouting" />
+            <Stat label="Board Grade" value={prospectGrade(state, p)} sub="Your department's call" />
             <Stat label="Scouting" value={`${Math.round(p.scouted)}%`} sub="Effort invested" />
             <Stat label="Age" value={p.age} />
             <Stat
@@ -465,7 +490,7 @@ export default function PlayerPage() {
                           {ATTR_LABEL[k]}
                         </span>
                         <span className="text-xs tnum text-[var(--color-muted)]">
-                          {band ? `${band.low}–${band.high}` : p.attrs[k]}
+                          {band ? verdictFor((band.low + band.high) / 2) : p.attrs[k]}
                         </span>
                       </div>
                     );
