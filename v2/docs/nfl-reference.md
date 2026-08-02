@@ -568,3 +568,66 @@ not by how often they are touched. Whether the repair belongs in incidence, in
 duration (`WEEKLY_TABLE` ranges), or in both is the open design question, and it
 must be settled against §6.1 rather than by moving one multiplier until a stat
 line looks right.
+
+### 6.3 OL and defence — attempted, and why the rows are still empty
+
+The nflverse **injuries** dataset (weekly injury reports,
+<https://github.com/nflverse/nflverse-data/releases/download/injuries/>) was
+fetched for 2023 and 2024 (2021 and 2022 returned empty from the release
+endpoint) and aggregated by counting weeks where `report_status == "Out"`,
+grouped by position:
+
+| group | players ever Out | mean weeks Out | median | 4+ weeks |
+|---|---|---|---|---|
+| QB | 27 | 1.81 | 1 | 7% |
+| RB | 92 | 1.65 | 1 | 3% |
+| WR | 147 | 1.73 | 1 | 7% |
+| TE | 76 | 1.87 | 2 | 9% |
+| OL | 195 | 1.86 | 2 | 7% |
+| DL | 151 | 1.75 | 1 | 8% |
+| LB | 159 | 1.78 | 1 | 8% |
+| DB | 291 | 1.85 | 1 | 11% |
+| ST | 17 | 1.53 | 1 | 0% |
+
+**These figures must not be used as availability targets.** Every group lands
+between 1.53 and 1.87 mean weeks out, which is not a plausible description of
+real football: §6.1 measures genuine spread across positions (QB 14.1 games
+against WR 15.4, 34% of QBs under 14 games against 13% of WRs). A source that
+reports all nine groups within a third of a week of each other is measuring the
+REPORT, not the ABSENCE.
+
+The cause is structural. A weekly injury report lists players ruled out for
+*that week's game*. A player placed on injured reserve generally stops appearing
+on it, so exactly the long absences that drive the §6.1 distribution are the
+ones this dataset drops. The league-wide total it yields — about 1,036
+player-weeks a season — is therefore a FLOOR, not the real figure, and must not
+be compared against `drift.playerWeeksLost` (~2,200) as though the sim were
+twice as harsh as reality.
+
+So the OL and defensive rows of §6.1 remain **unmeasured**, and the rule stated
+when §6 was opened still stands: no per-position availability rate outside
+QB/RB/WR/TE moves until it is measured. A correct source needs either snap
+counts (nflverse `snap_counts`, games with zero snaps for an established
+starter) or a transactions/IR feed. That is the next piece of work, and it is
+cheap — it is one dataset and one aggregation, not a design question.
+
+### 6.4 The tail floor — do not overcorrect
+
+Recorded here so it outlives the task that found it. Availability has more
+leverage on the record tail than its size suggests: in `task/304`, garbage-time
+quarterback rotation moved only ~1.5% of pass attempts yet moved
+`drift.passRecordSeasons` from 12.6 to 9.4 of 20 seasons. A full availability
+pass targets roughly ten times that share of attempts, so it can plausibly
+overshoot and make the tail too THIN.
+
+The middle of the league is what should come down. The top must not deflate:
+
+- `drift.passRecordSeasons` lands in **1-3 of 20 seasons, never 0.** Zero means
+  the 5,477-yard record has become unreachable, which is as wrong as it falling
+  every other year.
+- `tails.bestSeasonPassYds` stays inside its existing band (5392 ±500).
+- `statcheck.qb5PassYds` stays inside 4497 ±360 (§5.1).
+
+If a fit lands `passRecordSeasons` at 0 across the panel, it has overcorrected.
+Report that and reduce the availability change — do not compensate by inflating
+production elsewhere, which would trade a measured error for an unmeasured one.
