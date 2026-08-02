@@ -5,6 +5,154 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-02 — QB pass volume, session seven (branch `task/307-qb-volume`)
+
+**One engine change shipped, one candidate tested and reverted, three findings
+recorded.** The residual on `statcheck.qb20PassYds` (3,413 against 3,046 ±244)
+was instrumented against all three candidates before anything was edited.
+
+**Measurement method.** A throwaway harness ran 3 seeds × 4 seasons (12 league
+seasons, REGULAR SEASON ONLY) and dumped team-season and per-game passer
+structure; the real side is `nfl-reference.md` §5.4/§5.4b, computed the same
+day from nflverse and validated by reproducing §5.3 exactly before use. Effect
+sizes were then measured with `statcheck` swept over **60 seeds** (5 seconds a
+sweep — it is one season) because the 5-seed panel's SEM on `qb20PassYds` is
+about ±85 and cannot resolve a 100-yard change.
+
+**Measure the regular season.** Playoff games write into the same season stat
+line (`applyGameStats` is called from `playoffs.ts`), so a harness that advances
+to `offseason-recap` before reading `p.stats` is reading REG + POST. On the same
+12 seasons the best passing season reads **5,316 including the playoffs and
+4,735 without**. `statcheck` stops at the end of the regular season and is
+correct; `drift` does not — see the finding below.
+
+**The verdict on the three candidates.**
+
+- **(c) per-attempt yardage — EXONERATED.** Ranks 11-20 average **7.11** yards
+  an attempt against a real 7.23, and ranks 1-10 read 7.44 against 7.69. The
+  sim's mid-table passers are, if anything, slightly inefficient. Every yard of
+  the residual is attempts.
+- **(a) team attempt distribution — real defect, WRONG CAUSE, reverted.** Team
+  pass attempts read mean 585 sd 36 against a real 17-game-era **570 / 60**, so
+  the spread is 60% of reality. But the LEVEL is not a passing decision at all:
+  the sim's dropback share of scrimmage plays is **57.3% against a real 57.2%**,
+  and the whole +15 comes from running **64.3 scrimmage plays per team-game
+  against a real 62.9** (+2.2%). Widening `coach.passBias` from sd 0.125/±0.30
+  to sd 0.40/±1 fitted the attempt distribution well (581 / 54) and **did not
+  move `qb20PassYds` beyond noise** (60 seeds: 3,278 without it, 3,285 with),
+  because rank 20 sits close to the median where a symmetric widening cancels.
+  It also cost real ground elsewhere — `rushers1700` 0.8 → **1.4** against a
+  real 0.57 and a guard max of 2, `rb5RushYds` 1,401 → 1,450, `leadPassYds`
+  4,815 → 4,974. **Reverted.** The reason it cannot work: team carries already
+  carry 90% of their real spread (46 against 51) and the mix lever moves carries
+  about 1:1 with attempts, while reality needs attempts to gain roughly four
+  times the variance carries do. That is a different mechanism and a later
+  packet.
+- **(b) within-game QB split — CONVICTED, and the engine had the sign
+  backwards.** In games he played, the sim's leading passer took **98.8%** of
+  his club's attempts against a real **97.0%** (17-game era), and only 8.1% of
+  team-games had a second passer against a real 21.4%. The engine rested only
+  the side that was AHEAD. Real clubs go to the backup MORE readily when they
+  are being beaten — 91.1% share in a 25-point loss against 95.6% in a
+  25-point win — and the trailing side carries 72% of all the attempts the league's starters
+  do not take, 86% of everything above the one-score-win floor (§5.4b).
+
+**The change.** `onField` in `sim/game.ts` now steps down the depth chart for
+whichever side the game is decided FOR, not for the scoreboard. The winning
+side keeps `garbageTime`'s margins (22 late / 29); the trailing side is
+20 / 27; "late" tightened from 10 minutes to 7 for both because a real relief
+appearance is SHALLOW — the 10th percentile of the leader's within-game share
+is 93.1%, two or three attempts, not half a game. Fitted to the measured
+target, not to the metric: within-game leader share **96.6% against a real
+97.0%**, multi-passer games 19.6% against 21.4%, leader attempts 33.2 against
+33.1.
+
+**Movement, matched seeds.**
+
+| | main | after | note |
+|---|---|---|---|
+| `statcheck.qb20PassYds`, 60 seeds | 3,431 ±26 | **3,278 ±22** | −153, paired SEM 34 |
+| `statcheck.qb20PassYds`, gate 5-seed panel | 3,413 | **3,358** | band tops at 3,290 — still red |
+| `statcheck.qb5PassYds`, 60 seeds | 4,335 | 4,277 | the top does not deflate (§6.4) |
+| `statcheck.leadPassYds`, 60 seeds | 4,788 | 4,815 | unchanged |
+| `drift.passRecordSeasons`, per seed | 7 / 11 / 7 / 8 / 10 = **8.6** | 4 / 10 / 5 / 7 / 9 = **7.0** | guard max 10; §6.4 floor holds, min 4 |
+| `drift.playerWeeksLost` | 2,792.8 | 2,774.5 | availability untouched |
+| `statcheck.rb5RushYds`, 60 seeds | 1,430 | 1,401 | |
+| `statcheck.wr10RecYds`, 60 seeds | 1,123 | 1,118 | |
+
+The 5-seed panel reads a −55 move where 60 seeds read −153; the paired per-seed
+differences are +85 / −206 / +195 / −42 / −308, sd 194. **The guard cannot
+resolve its own fix at five seeds**, which is worth knowing before anyone reads
+a future panel as evidence of anything at this rank. The change also tightens
+the metric considerably: per-seed range 3,145-3,610 before, 3,302-3,444 after.
+
+**Verification: `gate:full --seeds 5`, 14 cores, ~55 minutes. All 14 harnesses
+exit 0. Three metric failures, all pre-existing known-open rows, two of them
+improved:**
+
+```
+FAIL  tails.milestonesOff     16.40    expected <= 12    (was 17.2)
+FAIL  statcheck.qb20PassYds   3357.80  expected 3046 +/-244  (was 3413)
+FAIL  statcheck.rb5RushYds    1431.60  expected 1191 +/-95   (was 1455)
+```
+
+Nothing else went red. `leverage` passes on the panel at 0.6 — the
+`noEffect 2` the FAST tier reports is one knife-edge probe (`OT.sta` against
+sacks taken, reading −0.0) at the single default seed; on GG_SEED 1-6 main and
+this branch are byte-identical on that harness, and main's own spread there is
+0-1. `milestonesOff` moved 17.2 → 16.4 against a documented sd of 2.88, which
+is noise in the direction of better and should not be read as anything else.
+
+**Deltas reported, not tuned** (5-seed panel, against the values this file
+recorded for the same panel on main):
+
+| | main | after |
+|---|---|---|
+| `careers.survivalMae` | 4.53 | 4.77 |
+| `careers.careerLenMae` | 1.14 | 1.03 |
+| `careers.r1BustPct` | 17.7 | 19.43 |
+| `careers.r1QbSharePct` | 16.04 | 17.71 |
+| `careers.draftSignal` | 4.67 | 4.61 |
+| `calibrate.passYds` | 240.29 (locked) | 239.00 |
+| `calibrate.passAtt` | 34.77 (locked) | 34.62 |
+| `calibrate.rushYds` | 119.79 (locked) | 120.07 |
+| `calibrate.plays` | 63.89 (locked) | 63.93 |
+| `calibrate.scoreMismatches` | 0 | 0 |
+
+All nine `careers` metrics and all 28 `calibrate` metrics are inside their
+guards. `passAtt` barely moves, which is the point: the attempts change hands
+from the starter to the backup, they do not leave the league.
+
+**Three findings for Matt, none acted on.**
+
+1. **`drift.passRecordSeasons` compares REG + POST yards against a regular
+   season record.** `drift` advances to `offseason-recap` before reading the
+   stat line, and playoff yardage is in it — worth about +580 at rank 1. The
+   guard's claim ("the passing record is not broken every year") is fine; the
+   measurement is confounded, the same shape as the `eliteCbShadowDrop` and
+   pick-1 `originalTeamId` reconditionings. Changing what it measures is a
+   design decision. Until then, note that 8.6 → 7.0 of 20 is a comparison
+   against an inflated number on both sides.
+2. **The era mix flatters the sim on QB1 share, and it is §6.6's error in
+   reverse.** §5.3's pooled QB1 attempt-share median of 89.4% mixes 16- and
+   17-game seasons; the 17-game-era figure is **85.8%**, and the mean is 80.4%
+   against a pooled 82.3%. The sim reads 86.3% mean, which looks correct against
+   the pooled median and is ~6 points high against the era it actually plays.
+   Underneath it, the sim's QB1 plays **15.0 of 17 games against a real 14.23**.
+   That residual is worth roughly −180 at `qb20PassYds` — the largest single
+   piece left — and it is availability, which this packet was told not to touch
+   and did not. §6.5's own fit (weighted residual −0.01 games) is satisfied on
+   its own terms; §6.5's QB row is the one to re-examine, not `POSITION_RISK`.
+3. **The league runs ~2.2% too many scrimmage plays** (64.3 against 62.9 per
+   team-game, §5.4). It inflates every volume stat proportionally — worth about
+   −75 at `qb20PassYds` and a matching amount on the rushing side — and it is
+   the same signature as the `calibrate.punts` note ("drives run long, punts run
+   light"). Fixing it is a drive/clock packet that would move a dozen calibrate
+   baselines toward their `nfl` values, all of which sit 2-4% below what the sim
+   does today. Not attempted here.
+
+---
+
 ## 2026-08-02 — starter availability, session six (branch `task/305-availability`, NOT merged)
 
 **Panel: `gate:full --seeds 5`, FAIL, 3 problems.** Three strikes reached; this

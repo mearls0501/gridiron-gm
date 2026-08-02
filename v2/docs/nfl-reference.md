@@ -515,6 +515,118 @@ below what a full-season starter accumulates, and it is what a simulation whose
 starters never miss a snap cannot reproduce. See `docs/HANDOFF.md` for the
 measured sim comparison.
 
+### 5.4 Where a passing season's attempts come from — task/307, 2026-08-02
+
+Added for `task/307-qb-volume`, to aim the residual on
+`statcheck.qb20PassYds` (3,413 against 3,046 ±244) at a mechanism rather than
+at a multiplier. §5.1 and §5.3 say WHAT the leaderboard looks like; this block
+says which of the three factors behind an individual season — team volume, the
+starter's share of it, and yards per attempt — is the one that is wrong.
+
+**Dataset.** As §5.3: nflverse `player_stats_YYYY.csv.gz` 2018-2024, REG only.
+Joined for the margin table to nflverse/nfldata
+[`games.csv`](https://github.com/nflverse/nfldata) for final scores (32 of
+3,709 team-games unmatched on relocation aliases and dropped).
+
+**Validation.** The pipeline reproduces §5.3 exactly on the pooled years —
+team attempts mean 564, p10 494, median 570, p90 635, max 751; QB1 season
+attempt share mean 82.3%, median 89.4%, p10 52.0% — before any of the figures
+below were taken from it.
+
+**The era split matters here, and it did not in §5.1.** §5.1 records that the
+17-game subset agrees with the pooled rank table within 2-3%, so the era mix
+was declared not load-bearing. That holds for RANKS. It does not hold for
+anything per-season or per-share: a 17-game season is 6% more attempts and one
+more week in which the starter can be unavailable. **The sim plays 17 games, so
+the 17-game column is the one to fit.** Recording both, and the direction of
+the error if the wrong one is used:
+
+| measure | 16-game 2018-20 | **17-game 2021-24** | pooled |
+|---|---|---|---|
+| team pass attempts, mean | 558 | **570** | 564 |
+| team pass attempts, sd | 59 | **60** | 60 |
+| p10 / median / p90 / max | 479 / 563 / 630 / 689 | **495 / 571 / 647 / 751** | 494 / 570 / 635 / 751 |
+| team carries, mean / sd | — | **457 / 51** | 442 / 54 |
+| corr(team attempts, team carries) | — | **−0.64** | −0.53 |
+| scrimmage plays per team-game | 63.59 | **62.89** | 63.19 |
+| dropback share of scrimmage plays | 58.6% | **57.2%** | 57.8% |
+| QB1 season attempt share, mean | 84.8% | **80.4%** | 82.3% |
+| QB1 season attempt share, median | 92.6% | **85.8%** | 89.4% |
+| QB1 season attempt share, sd | — | **18.5pp** | — |
+| QB1 games with an attempt | — | **14.23 of 17 (83.7%)** | 14.2 of 16.6 |
+| #20 passing season | 3,145 | **2,971** | 3,046 |
+| #20 by ATTEMPTS | 447 | **418** | 431 |
+
+The pooled QB1 share median of 89.4% is 3.6 points ABOVE the 17-game figure,
+and the pooled mean is 1.9 above. **A share checked against the pooled column
+is being graded generously**: measured against the 17-game era the sim's 86.3%
+mean share is 5.9 points high, and its QB1 plays 15.0 of 17 games against a
+real 14.23. This is §6.6's error in the other direction — it flatters the sim
+rather than over-injuring it, which is the harder version to notice. Any
+availability work must be graded against the 17-game column.
+
+Scrimmage plays are attempts + carries + sacks, all three from the same rows;
+`carries` in this dataset includes scrambles and kneels, matching what the sim
+counts as a rush attempt.
+
+**Yards per attempt by rank** — the efficiency axis, pooled (ranks are stable
+across the era split):
+
+| rank | 1 | 5 | 10 | 15 | 20 | 25 | ranks 11-20 |
+|---|---|---|---|---|---|---|---|
+| yards | 5024 | 4497 | 4028 | 3687 | 3046 | 2559 | 3591 |
+| attempts | 632 | 578 | 520 | 516 | 439 | 380 | 499 |
+| **YPA** | 7.99 | 7.86 | 7.79 | 7.19 | 7.04 | 6.79 | **7.23** |
+
+A mid-table passing season is a volume season, not an efficient one: ranks
+11-20 average 7.23 yards an attempt against 7.69 for the top ten. **Any
+simulation whose ranks 11-20 read near 7.2 is not producing those yards through
+efficiency**, and the lever is attempts.
+
+### 5.4b Within-game relief — when a real starter stops throwing
+
+The share in §5.3 is a SEASON share, and it folds together two different
+things: the games the starter missed entirely, and the attempts he did not take
+in the games he played. Split, over the same rows:
+
+| | pooled | 17-game era |
+|---|---|---|
+| team-games with more than one passer | 20.8% | 21.4% |
+| the game leader's share of that game's attempts | **97.2%** | **97.0%** |
+| the season primary passer's share in games he appeared | 96.0% | 95.6% |
+
+So a real season share of 80.4% is roughly 83.7% availability × 95.6%
+within-game, not availability alone. Neither factor is small.
+
+**And the within-game half runs the opposite way to the obvious model.** By
+final margin, the leading passer's share of his club's attempts that day:
+
+| final margin | n | leader's share | games under 95% | team attempts |
+|---|---|---|---|---|
+| win by 25+ | 184 | 95.6% | 31.0% | 29.3 |
+| win by 17-24 | 283 | 98.5% | 8.1% | 30.1 |
+| win by 9-16 | 399 | 98.4% | 7.3% | 30.5 |
+| win by 1-8 | 970 | 98.9% | 3.9% | 33.2 |
+| lose by 1-8 | 989 | 97.3% | 8.4% | 36.4 |
+| lose by 9-16 | 396 | 96.1% | 12.1% | 37.7 |
+| lose by 17-24 | 276 | **93.9%** | 22.5% | 36.3 |
+| lose by 25+ | 180 | **91.1%** | 37.8% | 33.9 |
+| all | 3,677 | 97.2% | 11.1% | — |
+
+**A real club goes to its backup more readily when it is being beaten than when
+it is winning** — 91.1% in a 25-point loss against 95.6% in a 25-point win.
+Weighted by how often each bucket occurs, the trailing side carries **72%** of
+all the attempts the league's starters do not take, and **86%** of everything
+above the one-score-win floor of 1.1%. "Garbage time" as a rule that rests the
+side which is AHEAD therefore describes the smaller half of the effect. The
+one-score buckets (98.9% winning, 97.3% losing) are the floor this mechanism
+cannot go below: injuries, a wildcat snap, a trick play, one series to a
+backup — and a sim with in-game injuries and nothing else should land there.
+
+Team attempts by margin also confirm the game-script direction that is already
+in the engine: a club losing by 9-16 throws 37.7 times, one winning by 25+
+throws 29.3.
+
 ---
 
 ## 6. Starter availability — how much time a real starter misses

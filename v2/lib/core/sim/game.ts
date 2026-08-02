@@ -613,16 +613,40 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
   };
 
   /**
+   * A decided game, from the point of view of one side rather than of the
+   * scoreboard — which is not the same thing for both clubs.
+   *
+   * `garbageTime` rests whoever is ahead. Real clubs go to the backup
+   * quarterback MORE readily when they are being beaten: 2018-2024, the leading
+   * passer takes 91.1% of his club's attempts in a 25-point loss and 93.9% in a
+   * 17-24 point loss, against 95.6% in a 25-point win and 98.9% in a one-score
+   * win (nfl-reference.md §5.4b). The trailing side is about 86% of all the
+   * attempts the league's starters do not take, and it was the half of the
+   * effect the engine did not have. The winning side keeps `garbageTime`'s
+   * margins; the trailing side comes off sooner.
+   *
+   * Fitted to §5.4b's within-game share, not to a leaderboard rank: the sim's
+   * leading passer now takes 96.6% of his club's attempts in the games he
+   * plays against a real 97.0%, in 19.6% of team-games against a real 21.4%.
+   */
+  const decided = (isWinning: boolean, lead: number): boolean => {
+    if (quarter < 4) return quarter === 3 && lead >= 31;
+    // Seven minutes, not ten: a relief appearance is SHALLOW in the real data
+    // — the 10th percentile of the leader's within-game share is 93.1%, i.e.
+    // two or three attempts, not half a game.
+    const late = clock < 420;
+    return isWinning ? lead >= (late ? 22 : 29) : lead >= (late ? 20 : 27);
+  };
+
+  /**
    * The player at `slot` for this position, stepped down the depth chart when
-   * the game is decided.
+   * the game is decided for his side. Called for the quarterback.
    */
   const onField = (ctx: Ctx, pos: Position, slot = 0): Player | undefined => {
     const unit = ctx.starters[pos] ?? [];
-    if (!garbageTime()) return unit[slot];
-    const isWinning = scoreDiffFor(ctx.team.id === home.id) > 0;
-    // The team that is ahead rests people; the team behind keeps playing.
-    const step = isWinning ? 1 : 0;
-    return unit[Math.min(slot + step, unit.length - 1)] ?? unit[slot];
+    const diff = scoreDiffFor(ctx.team.id === home.id);
+    if (!decided(diff > 0, Math.abs(diff))) return unit[slot];
+    return unit[Math.min(slot + 1, unit.length - 1)] ?? unit[slot];
   };
 
   // -------------------------------------------------------------------------
