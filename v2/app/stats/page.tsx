@@ -53,14 +53,6 @@ function derive(
   return rows.slice(0, opts.limit ?? 10);
 }
 
-function fromLeaders(state: GameState, key: LeaderKey): StatRow[] {
-  return leaders(state, key, state.season, 10).map((r) => ({
-    player: r.player,
-    line: r.line,
-    value: r.value,
-  }));
-}
-
 function L(label: string) {
   return <span className="block text-left">{label}</span>;
 }
@@ -221,6 +213,10 @@ export default function StatsPage() {
   const [mine, setMine] = useState(false);
   const [sortKey, setSortKey] = useState("pf");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [teamFilter, setTeamFilter] = useState<number | "ALL">("ALL");
+  const [limit, setLimit] = useState<number>(10);
+  const [pSort, setPSort] = useState<number | null>(null); // column index into COLS
+  const [pDir, setPDir] = useState<SortDir>("desc");
 
   if (!state) return null;
   void rev; // re-render on every mutation; GameState is mutated in place
@@ -228,14 +224,6 @@ export default function StatsPage() {
   const userTeam = state.teams[state.userTeamId];
   const playerTab: PlayerTab | null = tab === "team" ? null : tab;
   const cat = playerTab ? CATEGORY[playerTab] : null;
-
-  // `leaders()` covers the unfiltered, key-backed categories exactly.
-  const rows: StatRow[] =
-    cat === null
-      ? []
-      : !mine && cat.key !== null
-        ? fromLeaders(state, cat.key)
-        : derive(state, cat.sortBy, mine ? { teamId: state.userTeamId } : {});
 
   function nameCell(p: Player, line: SeasonStatLine) {
     const teamId = line.teamId ?? p.teamId;
@@ -249,14 +237,78 @@ export default function StatsPage() {
     );
   }
 
-  const head: Record<PlayerTab, string[]> = {
-    passing: ["Cmp/Att", "Pct", "Yds", "TD", "INT", "Lng", "Rating"],
-    rushing: ["Att", "Yds", "YPC", "TD", "Lng"],
-    receiving: ["Tgt", "Rec", "Yds", "YPR", "TD", "Lng"],
-    defense: ["Tkl", "TFL", "Sacks", "INT", "PD", "FF"],
-    kicking: ["FGM/FGA", "Pct", "Long", "XPM/XPA"],
-    returns: ["KR", "KR Yds", "KR Avg", "KR Lng", "KR TD", "PR", "PR Yds", "PR Avg", "PR Lng", "PR TD"],
+  // Every column carries its own accessor so any header can sort the table.
+  const COLS: Record<PlayerTab, { label: string; get: (l: SeasonStatLine) => number }[]> = {
+    passing: [
+      { label: "Cmp/Att", get: (l) => l.passCmp },
+      { label: "Pct", get: cmpPct },
+      { label: "Yds", get: (l) => l.passYds },
+      { label: "TD", get: (l) => l.passTd },
+      { label: "INT", get: (l) => l.passInt },
+      { label: "Lng", get: (l) => l.passLong },
+      { label: "Rating", get: passerRating },
+    ],
+    rushing: [
+      { label: "Att", get: (l) => l.rushAtt },
+      { label: "Yds", get: (l) => l.rushYds },
+      { label: "YPC", get: ypc },
+      { label: "TD", get: (l) => l.rushTd },
+      { label: "Lng", get: (l) => l.rushLong },
+    ],
+    receiving: [
+      { label: "Tgt", get: (l) => l.targets },
+      { label: "Rec", get: (l) => l.rec },
+      { label: "Yds", get: (l) => l.recYds },
+      { label: "YPR", get: ypr },
+      { label: "TD", get: (l) => l.recTd },
+      { label: "Lng", get: (l) => l.recLong },
+    ],
+    defense: [
+      { label: "Tkl", get: (l) => l.tackles },
+      { label: "TFL", get: (l) => l.tfl },
+      { label: "Sacks", get: (l) => l.sacks },
+      { label: "INT", get: (l) => l.ints },
+      { label: "PD", get: (l) => l.passDef },
+      { label: "FF", get: (l) => l.ff },
+    ],
+    kicking: [
+      { label: "FGM/FGA", get: (l) => l.fgm },
+      { label: "Pct", get: fgPct },
+      { label: "Long", get: (l) => l.longFg },
+      { label: "XPM/XPA", get: (l) => l.xpm },
+    ],
+    returns: [
+      { label: "KR", get: (l) => l.kr },
+      { label: "KR Yds", get: (l) => l.krYds },
+      { label: "KR Avg", get: krAverage },
+      { label: "KR Lng", get: (l) => l.krLong },
+      { label: "KR TD", get: (l) => l.krTd },
+      { label: "PR", get: (l) => l.pr },
+      { label: "PR Yds", get: (l) => l.prYds },
+      { label: "PR Avg", get: prAverage },
+      { label: "PR Lng", get: (l) => l.prLong },
+      { label: "PR TD", get: (l) => l.prTd },
+    ],
   };
+
+  // Full-league rows: qualify by the category's own stat, then let any
+  // column re-sort, any team filter, any depth. `derive` handles all of it.
+  const rows: StatRow[] = (() => {
+    if (cat === null) return [];
+    const base = derive(state, cat.sortBy, {
+      teamId: mine ? state.userTeamId : teamFilter === "ALL" ? undefined : teamFilter,
+      limit: 100000,
+    });
+    const sortCols = COLS[playerTab!];
+    const sorted =
+      pSort !== null && sortCols[pSort]
+        ? base.slice().sort((a, b) => {
+            const d = sortCols[pSort].get(b.line) - sortCols[pSort].get(a.line);
+            return (pDir === "desc" ? d : -d) || a.player.id - b.player.id;
+          })
+        : base;
+    return limit > 0 ? sorted.slice(0, limit) : sorted;
+  })();
 
   function statCells(l: SeasonStatLine, t: PlayerTab) {
     switch (t) {
@@ -415,21 +467,54 @@ export default function StatsPage() {
         <div className="flex items-center gap-2">
           <Tabs<Tab>
             value={tab}
-            onChange={setTab}
+            onChange={(t) => {
+              setTab(t);
+              setPSort(null); // a new category sorts by its own headline stat
+            }}
             options={[
               ...PLAYER_TABS.map((k) => ({ value: k as Tab, label: CATEGORY[k].label })),
               { value: "team" as Tab, label: "Team" },
             ]}
           />
           {tab !== "team" && (
-            <Button
-              variant={mine ? "primary" : "default"}
-              size="sm"
-              onClick={() => setMine(!mine)}
-              title="Show only players on your roster"
-            >
-              My Team
-            </Button>
+            <>
+              <Button
+                variant={mine ? "primary" : "default"}
+                size="sm"
+                onClick={() => {
+                  setMine(!mine);
+                  setTeamFilter("ALL");
+                }}
+                title="Show only players on your roster"
+              >
+                My Team
+              </Button>
+              <select
+                value={teamFilter === "ALL" ? "ALL" : String(teamFilter)}
+                onChange={(e) => {
+                  setMine(false);
+                  setTeamFilter(e.target.value === "ALL" ? "ALL" : Number(e.target.value));
+                }}
+                className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[var(--color-accent)] cursor-pointer"
+                title="Filter by team"
+              >
+                <option value="ALL">All teams</option>
+                {state.teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.city} {t.name}
+                  </option>
+                ))}
+              </select>
+              <Tabs
+                value={String(limit)}
+                onChange={(v) => setLimit(Number(v))}
+                options={[
+                  { value: "10", label: "Top 10" },
+                  { value: "50", label: "Top 50" },
+                  { value: "0", label: "All" },
+                ]}
+              />
+            </>
           )}
         </div>
       </div>
@@ -510,7 +595,33 @@ export default function StatsPage() {
                 }
               />
             ) : (
-              <Table head={["Rk", L("Player"), "GP", ...head[playerTab!]]}>
+              <Table
+                head={[
+                  "Rk",
+                  L("Player"),
+                  "GP",
+                  ...COLS[playerTab!].map((c, ci) => (
+                    <button
+                      key={c.label}
+                      onClick={() => {
+                        if (pSort === ci) setPDir(pDir === "desc" ? "asc" : "desc");
+                        else {
+                          setPSort(ci);
+                          setPDir("desc");
+                        }
+                      }}
+                      className={cx(
+                        "uppercase tracking-wider cursor-pointer hover:text-[var(--color-text)]",
+                        pSort === ci ? "text-[var(--color-accent)]" : ""
+                      )}
+                      title={`Sort by ${c.label}`}
+                    >
+                      {c.label}
+                      {pSort === ci ? (pDir === "desc" ? " ↓" : " ↑") : ""}
+                    </button>
+                  )),
+                ]}
+              >
                 {rows.map((r, i) => (
                   <Row key={r.player.id} highlight={r.player.teamId === state.userTeamId}>
                     <Cell align="left" className="text-[var(--color-faint)]">{i + 1}</Cell>
