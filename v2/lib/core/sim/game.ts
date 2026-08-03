@@ -209,6 +209,24 @@ export const SNAP_SHARE: Record<Position, number[]> = {
   P:    [],
 };
 
+/**
+ * Share of designed non-quarterback runs that go to a receiver rather than a
+ * back — the jet sweep and the end-around.
+ *
+ * Real clubs run 0.94 of them a game (WR 0.83, TE 0.11) out of 22.7 non-QB
+ * carries, which is 4.1% (nfl-reference.md §5.6/§5.5). Sized against the sim's
+ * post-fix non-QB run count rather than its old one.
+ */
+const RECEIVER_CARRY_RATE = 0.039;
+
+/**
+ * Victory formation. Real quarterbacks kneel 0.761 times a team-game for a
+ * mean of -1.09 yards (nfl-reference.md §5.6, nflverse pbp `qb_kneel`), and the
+ * engine had no such play — which cost the quarterback about a fifth of his
+ * real carries and left every one of them with a back instead.
+ */
+const KNEEL_CLOCK_SECONDS = 112;
+
 /** The eleven-man units that take a scrimmage snap. */
 const OFFENSE_UNITS: Position[] = ["QB", "RB", "WR", "TE", "OT", "OG", "C"];
 const DEFENSE_UNITS: Position[] = ["EDGE", "DT", "LB", "CB", "S"];
@@ -274,6 +292,15 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
 
   const ctxHome = mkCtx(home);
   const ctxAway = mkCtx(away);
+
+  /**
+   * A child stream for the play-economy mechanics — receiver carries and
+   * kneel-downs. One parent draw seeds it, so however many decisions those
+   * mechanics take in a given game, the parent stream advances by exactly one
+   * value and everything downstream of it keeps its place. Same pattern as the
+   * weekly trade block in `season/engine.ts`, for the same reason.
+   */
+  const econRng = new Rng(rng.int(1, 0x7ffffffe));
 
   /**
    * Match the offence's pass catchers against the defenders who will cover
@@ -896,7 +923,23 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     let carrier: Player | undefined;
     if (qbKeeper) {
       carrier = o.starters.QB[0];
-    } else {
+    } else if (econRng.chance(RECEIVER_CARRY_RATE)) {
+      // Jet sweep or end-around. Real clubs hand the ball to a receiver 0.83
+      // times a game and to a tight end 0.11 (nfl-reference.md §5.6); the
+      // engine had no path for it at all, which is most of why its running
+      // backs took 87.4% of team carries against a real 80.7%.
+      //
+      // Who runs it comes off the depth chart the club already set — weighted
+      // by speed among the receivers on the field, the same way the kick
+      // returner is chosen. Nothing here sorts on overall rating.
+      const wr = o.starters.WR;
+      const te = o.starters.TE;
+      const pool = econRng.chance(0.88) ? wr : te.length ? te : wr;
+      carrier = pool.length
+        ? econRng.weighted(pool, (p) => Math.pow(Math.max(1, sc(p, "spd") - 55), 2))
+        : undefined;
+    }
+    if (!carrier && !qbKeeper) {
       const backs = o.starters.RB;
       // Today's committee split. The lead back's share is drawn per game, so a
       // hot hand can carry 25 times and a cold one can sit at 8.
@@ -989,7 +1032,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
           }
         }
         return {
-          yards: Math.max(0, Math.min(yards, 3)), timeUsed: rng.int(23, 38),
+          yards: Math.max(0, Math.min(yards, 3)), timeUsed: rng.int(25, 40),
           turnover: true, touchdown: false, scored: false,
           passerId: null, scorerId: null, isPass: false,
         };
@@ -1020,7 +1063,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     hit(tackler, d, 0.55);
 
     return {
-      yards, timeUsed: rng.int(23, 38), turnover: false,
+      yards, timeUsed: rng.int(25, 40), turnover: false,
       touchdown: yardLine + yards >= 100, scored: false,
       passerId: null, scorerId: carrier.id, isPass: false,
     };
@@ -1100,14 +1143,14 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
           const rec = rng.pick(rushers);
           if (rec) statFor(rec, d).fr++;
           return {
-            yards: -loss, timeUsed: rng.int(29, 39), turnover: true, touchdown: false,
+            yards: -loss, timeUsed: rng.int(31, 45), turnover: true, touchdown: false,
             scored: false, passerId: qb.id, scorerId: null, isPass: true,
           };
         }
       }
 
       return {
-        yards: -loss, timeUsed: rng.int(29, 39), turnover: false, touchdown: false,
+        yards: -loss, timeUsed: rng.int(31, 45), turnover: false, touchdown: false,
         scored: false, passerId: qb.id, scorerId: null, isPass: true,
       };
     }
@@ -1223,7 +1266,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
           }
         }
         return {
-          yards: 0, timeUsed: rng.int(5, 9), turnover: false, touchdown: false,
+          yards: 0, timeUsed: rng.int(3, 7), turnover: false, touchdown: false,
           scored: false, passerId: qb.id, scorerId: null, isPass: true,
         };
       }
@@ -1272,7 +1315,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     if (!rng.chance(completionP)) {
       if (defender && rng.chance(0.30)) statFor(defender, d).passDef++;
       return {
-        yards: 0, timeUsed: rng.int(5, 9), turnover: false, touchdown: false,
+        yards: 0, timeUsed: rng.int(3, 7), turnover: false, touchdown: false,
         scored: false, passerId: qb.id, scorerId: null, isPass: true,
       };
     }
@@ -1444,6 +1487,36 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     if (yardLine >= 80 && !off().inRedZoneThisDrive) {
       off().inRedZoneThisDrive = true;
       off().stats.redZoneAtt++;
+    }
+
+    // Victory formation, before anything else a club might do with the ball.
+    // A lead, the ball, and less time on the clock than three kneels will burn
+    // — so the game is already over and nobody risks a snap. Credited as a
+    // quarterback rush for real negative yardage, which is what makes it show
+    // up in his line the way it does in a real one.
+    if (
+      quarter >= 4 && !overtime && down <= 3 &&
+      clock <= KNEEL_CLOCK_SECONDS && scoreDiffFor(offenseIsHome) > 0
+    ) {
+      const o = off();
+      const qb = o.starters.QB[0];
+      if (qb) {
+        const st = statFor(qb, o);
+        const loss = econRng.int(-2, 0);
+        st.rushAtt++;
+        st.rushYds += loss;
+        o.stats.rushYards += loss;
+        o.stats.totalYards += loss;
+        o.stats.plays++;
+        creditSnaps(o, def());
+        yardLine = clamp(yardLine + loss, 1, 99);
+        toGo -= loss;
+        down++;
+        // Measured snap-to-snap on a real kneel: 31.9 seconds (§5.6).
+        burn(econRng.int(26, 38));
+        if (down > 4) changePossession(clamp(100 - yardLine, 1, 99));
+        continue;
+      }
     }
 
     if (down === 4) {

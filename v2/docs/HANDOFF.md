@@ -5,6 +5,162 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-03 — the play economy (branch `task/309-play-economy`, NOT merged, NOTHING re-locked)
+
+**Both §5.4/§5.5 defects are fixed and hit their targets. The cost is that
+cutting 2.2% of the league's plays deflates every individual leaderboard, and
+three locked floors now fail. That is the re-lock decision this branch exists to
+inform — it is Matt's, and nothing here was re-locked.**
+
+Branched off `task/306-carry-share`: **`task/308-qb-close` does not exist**,
+locally or on the remote, so the tip of the 307→306 lineage was used instead.
+
+### What was built
+
+All three mechanics are measured against `nfl-reference.md` **§5.6**, written
+first from nflverse play-by-play 2021-2024 and validated against the completely
+separate weekly file used by §5.3-§5.5 — the two reconcile exactly (62.90
+plays/team-game against 62.89; 26.17 rushes + 0.761 kneels = 26.93 carries
+against 26.93; 33.41 passes + 0.126 spikes = 33.54 against 33.54).
+
+- **Receiver carries.** Jet sweeps and end-arounds, 3.9% of designed non-QB
+  runs, the ball-carrier drawn by SPEED from the receivers the depth chart
+  already has on the field (invariant 3 — nothing sorts on overall).
+- **Kneel-downs.** Victory formation: a lead, the ball, fourth quarter, and 112
+  seconds or less. Credited as a QB rush for −2..0 yards, which is what puts it
+  in his line the way a real one is.
+- **Clock.** The incompletion and sack runoffs were transplanted exactly from
+  the measured values (5-9 → 3-7, real mean 5.0; 29-39 → 31-45, real 38.1). The
+  run runoff is the free parameter fitted to the aggregate — 23-38 → 25-40 —
+  and §5.6 records why it cannot simply be set to the measured 35.7: the engine
+  charges nothing for the 21.4-second gap before a punt snap and models no
+  clock stoppages, so transplanting every row lands the sim at 60.0 plays.
+
+**Stream discipline.** All new draws come off a per-game child stream
+(`econRng`, seeded by one parent draw in `simulateGame`), so the number of
+decisions these mechanics make can never move the parent stream.
+
+### The play economy, before and after (3 seeds × 3 seasons, n=4,896 team-games)
+
+| | before | after | real (§5.6) |
+|---|---|---|---|
+| scrimmage plays / team-game | 64.30 | **62.92** | **62.90** |
+| seconds / play | 28.0 | **28.6** | **28.6** |
+| drives / team-game | 10.99 | 10.76 | 10.87 |
+| plays / drive | 5.85 | 5.85 | 5.79 |
+| RB carries (share) | 24.00 (87.4%) | **22.2 (81.7%)** | 21.74 (80.7%) |
+| QB carries (share) | 3.15 (11.5%) | **3.91 (14.4%)** | 4.24 (15.7%) |
+| WR carries (share) | 0.05 (0.2%) | **0.79 (2.9%)** | 0.83 (3.1%) |
+| TE carries (share) | 0.03 (0.1%) | **0.13 (0.5%)** | 0.11 (0.4%) |
+
+Two residuals, both reported not chased: the sim's jet sweep gains **4.2 yards
+against a real 5.86** — the engine's run model is an interior-run model and
+gives the perimeter nothing — and non-kneel QB carries are 2.9 against a real
+3.48.
+
+### Every calibrate metric — 24 seeds, before → after
+
+**No calibrate metric left its band, and almost all moved TOWARD their `nfl`
+note.** This is the opposite of what the packet expected, and it means the
+calibrate re-lock the task anticipated is NOT required.
+
+| metric | target ±tol | nfl | before | after |
+|---|---|---|---|---|
+| plays | 63.89 ±3 | 63 | 63.93 | **62.58** |
+| passYds | 240.29 ±12 | 230 | 240.22 | **234.05** |
+| rushYds | 119.79 ±10 | 115 | 119.97 | **114.99** |
+| passAtt | 34.77 ±2.5 | 34 | 34.77 | **33.87** |
+| rushAtt | 26.86 ±2.5 | 26 | 26.86 | 26.48 |
+| ypc | 4.46 ±0.35 | 4.3 | 4.47 | **4.34** |
+| pts | 23.14 ±1.6 | 22.5 | 23.37 | **22.73** |
+| sacks | 2.26 ±0.45 | 2.4 | 2.30 | 2.23 |
+| cmpPct | 66.72 ±2.5 | 65 | 66.57 | 66.46 |
+| passTd / int | 1.60 / 0.77 | 1.5 / 0.8 | 1.63 / 0.78 | 1.56 / 0.76 |
+| rushTd | 0.94 ±0.2 | 0.9 | 0.96 | 0.93 |
+| firstDowns | 19.59 ±2 | 20.5 | 19.52 | 18.94 |
+| punts | 3.35 ±0.9 | 4.2 | 3.38 | 3.35 |
+| thirdDownPct | 37.94 ±3 | 39 | 38.10 | 38.27 |
+| turnovers | 1.36 ±0.28 | 1.3 | 1.36 | 1.33 |
+| fumbles | 1.21 ±0.3 | 1.3 | 1.20 | 1.17 |
+| penalties | 6.53 ±1 | 6.2 | 6.47 | 6.23 |
+| fgPct | 86.03 ±4 | 85 | 85.68 | 85.14 |
+| fourthDownAtt | 1.66 ±0.5 | 1.9 | 1.70 | 1.65 |
+| redZoneTdPct | 60.04 ±7 | 55 | 61.46 | 60.93 |
+| topMinutes | 30.17 ±0.6 | 30 | 30.16 | 30.17 |
+| **qbRushYds** | 17.21 ±8 | **13 (wrong)** | 16.91 | **15.68** |
+| seasonPfg | 22.32 ±1.6 | 22.5 | 22.16 | 21.52 |
+| seasonYdsPerGame | 350.38 ±22 | 340 | 348.00 | **336.81** |
+| seasonPfgSpread | 19.38 ±7 | 15 | 19.55 | 19.13 |
+| scoreMismatches | 0 | — | 0 | **0** |
+
+`qbRushYds` moved from 16.91 to 15.68 against a **real 18.7** (§5.5) — away from
+reality, toward the `nfl: 13` note that §5.5 already showed to be wrong. Kneels
+subtract, as the packet predicted. The baseline is untouched; the note is the
+thing that is wrong.
+
+### Where it costs — 5-seed panel, `gate:full --seeds 5`
+
+13 of 14 harnesses exit 0. `drift` exits 1. Eight metric failures:
+
+```
+FAIL  drift.p0Failures        0.20   save growth +0.4002 vs drift.ts's internal < 0.4
+FAIL  leverage.wrongSign      0.20   OT.sta -> sacksTaken, measured effect +0.0
+FAIL  tails.milestonesOff       25   was 16.4
+FAIL  statcheck.qb5PassYds  4062.4   floor 4137
+FAIL  statcheck.qb10PassYds 3697.4   floor 3706
+FAIL  statcheck.rb5RushYds  1320.4   ceiling 1286   (was 1455 -> 1432 -> 1320)
+FAIL  statcheck.wr10RecYds  1065.2   floor 1111
+```
+
+**`rb5RushYds` went 1,455 → 1,320** (24-seed sweep: 1,398 → 1,307), against the
+~1,290 the packet predicted. Still 34 over its ceiling, not forced.
+`drift.passRecordSeasons` improved 7.0 → **5** of 20 and `playerWeeksLost` 2,775
+→ 2,641.
+
+**Two of the failures are not what they look like:**
+
+- **`leverage.wrongSign` is the knife-edge probe task/307 already flagged.**
+  `OT.sta` against sacks taken reads **2.4 vs 2.4, +0.0** — the effect is zero
+  at the harness's resolution, and it is being classified as WRONG SIGN on one
+  seed where the parent branch classified the same probe as NO EFFECT on three.
+  Matched seeds 1-5, wrongSign before 0/0/0/0/0 and after 0/0/0/0/1, while
+  noEffect goes 0/0/1/1/1 → 0/1/0/0/0. Same probe trading categories. This is
+  the "guard whose noise exceeds its tolerance" pattern; re-conditioning it is
+  a design decision.
+- **`drift.p0Failures` is save growth crossing a threshold the baseline itself
+  puts elsewhere.** Growth went 0.3963 → **0.4002** MB/season (+0.9%) — one of
+  five seeds over `drift.ts`'s internal `< 0.4`, while `baselines.json` gates
+  the same quantity at `max: 0.45` and the known-open row says to act only if
+  it crosses 0.45. The cause is mine and is legible: receiver carries give WR
+  and TE rows non-zero rushing fields the save codec must now store.
+
+**The other four are one finding, not four.** Cutting 2.2% of plays takes 3-4%
+off the top of every individual leaderboard, and three floors were close enough
+to catch it: qb5 4,284 → 4,144 on 24 seeds (4,062 on the panel's five), qb10
+3,978 → 3,860 (3,697), wr10 1,104 → 1,080 (1,065). Note `wr10RecYds` was
+**already below its floor before this change** on a 24-seed sweep (1,104 against
+1,111) — the row AGENTS.md retired as "green on a 5-seed panel" is seed-lucky,
+and a wider sweep does not support the retirement. `tails.milestonesOff` 16.4 →
+25 is the same arithmetic from the other side: with fewer plays, categories that
+were TOO COMMON become TOO RARE, and the guard counts both.
+
+**None of this was chased and no baseline was touched.** Compensating for a
+measured, primary-sourced 2.2% volume cut by inflating per-play production would
+trade a measured error for an unmeasured one.
+
+### What the re-lock decision has to weigh
+
+The engine now matches the real play economy on every structural figure §5.6
+pins. The locked leaderboard bands were set when the league ran 2.2% hot, so
+three of them now sit just above where the sim can reach. Either the bands move
+with the level (they are all `target`/`tol` regression bands, not primary-source
+claims — the `nfl` values sit INSIDE the new readings for qb5 and qb10), or the
+volume cut is judged not worth the leaderboard cost and this branch is dropped.
+`statcheck.qb20PassYds` did NOT tick down as the packet expected (3,298 → 3,293
+on 24 seeds), which is worth understanding before deciding.
+
+---
+
 ## 2026-08-03 — the backfield split: measured, NOT changed (branch `task/306-carry-share`)
 
 **No engine change. The dials this packet was opened to cut are already

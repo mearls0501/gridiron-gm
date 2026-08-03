@@ -677,6 +677,77 @@ Note also that a real quarterback rushes for **18.7 yards a game** here, against
 the `nfl: 13` recorded on `calibrate.qbRushYds`. That baseline's informational
 figure looks low against this dataset; it is lead-owned and untouched.
 
+### 5.6 The play economy — how many plays, and the clock that produces them
+
+Added 2026-08-03 for `task/309-play-economy`, to aim the two defects §5.4 and
+§5.5 left open: the league ran 2.2% too many scrimmage plays, and its carry mix
+was wrong because the engine had no receiver carries and no kneel-downs.
+
+**Dataset.** nflverse **play-by-play** 2021-2024, REG only, from
+<https://github.com/nflverse/nflverse-data/releases/download/pbp/>. A scrimmage
+play is `rush_attempt | pass_attempt | sack | qb_kneel | qb_spike`, excluding
+two-point plays — the same set the sim counts in `stats.plays`.
+
+**Validation, and it is a strong one.** This is a completely different file from
+the weekly `player_stats` used in §5.3-§5.5, and the two reconcile exactly:
+
+| | pbp | weekly (§5.5) |
+|---|---|---|
+| scrimmage plays / team-game | **62.90** | 62.89 |
+| rushes + kneels | 26.17 + 0.761 = **26.93** | 26.93 |
+| passes + spikes | 33.41 + 0.126 = **33.54** | 33.54 |
+| sacks | 2.42 | 2.42 |
+
+n = 1,087 games, 2,174 team-games, 136,738 scrimmage plays.
+
+**The structural figures.**
+
+| measure | real |
+|---|---|
+| scrimmage plays / team-game | **62.90** |
+| drives / team-game | **10.87** |
+| plays / drive | **5.79** |
+| QB kneels / team-game | **0.761**, mean **−1.09** yards |
+| QB spikes / team-game | 0.126 |
+| QB carries excluding kneels | 3.48 (of 4.24 total, §5.5) |
+| non-kneel rush YPC | 4.51 |
+
+**Clock runoff by play type** — seconds from one snap to the next, measured on
+consecutive plays inside the same drive and quarter, which is exactly what the
+engine's `timeUsed` models:
+
+| play type | n | mean | median | p10 | p90 | engine before | engine after |
+|---|---|---|---|---|---|---|---|
+| run | 51,440 | **35.7** | 38 | 23 | 44 | 23-38 (30.5) | 25-40 (32.5) |
+| pass, complete | 43,574 | **31.7** | 36 | 7 | 44 | 25-39 (32.0) | unchanged |
+| pass, incomplete | 22,094 | **5.0** | 5 | 3 | 7 | 5-9 (7.0) | **3-7 (5.0)** |
+| sack | 4,164 | **38.1** | 41 | 25 | 46 | 29-39 (34.0) | **31-45 (38.0)** |
+| kneel | 1,185 | **31.9** | 35 | 17 | 42 | — | **26-38 (32.0)** |
+| spike | 220 | 1.0 | 1 | 1 | 1 | — | not modelled |
+
+Two transition gaps the engine does not separate out at all:
+
+| gap | n | mean | median |
+|---|---|---|---|
+| last snap of a drive → the punt snap | 8,473 | 21.4 | 9 |
+| last snap of a drive → the FG snap | 4,232 | 19.2 | 7 |
+| punt/FG snap → next drive's first snap | 12,687 | 9.2 | 8 |
+
+**Why the completed-pass and run rows are not simply transplanted.** The engine
+charges one bundled number per play and nothing for the gap before a punt or
+field goal, and it models no clock stoppage for going out of bounds, for the
+two-minute warning, or for a timeout. Applying the measured in-drive runoffs to
+every play — including the drive-ending ones, whose real successor gap is the
+21.4-second row above rather than another 35.7-second snap — overshoots badly:
+it lands the sim at 60.0 plays a game against the 62.90 target. The
+incompletion and sack rows ARE transplanted exactly, because both are
+unambiguous and neither is a common drive-ender. **The run row is the free
+parameter, fitted to the aggregate:** 25-40 (mean 32.5) lands scrimmage plays on
+62.9, and it sits 3.2 seconds below the measured in-drive 35.7 because the
+engine is not charging the pre-punt play clock. That residual is a known
+structural difference, written here so the next reader does not "fix" the run
+row to 35.7 and lose three plays a game.
+
 ---
 
 ## 6. Starter availability — how much time a real starter misses
