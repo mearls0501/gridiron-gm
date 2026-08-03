@@ -827,6 +827,81 @@ and neither is the receiver:
    required for `qb5PassYds` specifically — efficiency alone cannot reach a
    −10% gap at that rank.
 
+### 5.8 Do run-heavy clubs spread their carries? No — and that closes a door
+
+Added 2026-08-03 for `task/310b-top-finish`. task/309 showed that widening
+`coach.passBias` to give the league a realistic spread of team PASS volume also
+widens the spread of team RUSH volume through the same mix lever, and inflated
+`rushers1700` 0.8 -> 1.4 against a real 0.57. The proposed escape was that real
+run-heavy clubs might SPREAD the extra carries across their backfield, so the
+marginal carries on a run-heavy team would not all land on its lead back.
+
+**They do not.** nflverse weekly `player_stats`, 17-game era 2021-2024, REG
+only, n = 128 team-seasons, quintiles by team carries:
+
+| quintile | team carries | lead RB's share of RB carries | RB carries | team pass att |
+|---|---|---|---|---|
+| Q1 (fewest runs) | 391 | 57.8% | 330 | 620 |
+| Q2 | 425 | 59.4% | 348 | 597 |
+| Q3 | 450 | 58.1% | 371 | 567 |
+| Q4 | 481 | 60.2% | 386 | 548 |
+| Q5 (most runs) | 531 | **56.3%** | 406 | 522 |
+
+**corr(team carries, lead-back share) = −0.015**, slope **−0.36 points per +100
+team carries.** The curve is flat: a club that runs 140 more times a year gives
+its lead back the same ~58% of the carries, he simply gets more of them.
+
+**Consequence, and it is a closing door.** There is no measured coupling to
+implement, so the run-share inflation that follows a pass-volume widening
+cannot be decoupled by redistributing the marginal carries — reality does not
+redistribute them either. Widening team pass spread toward its real sd of 60
+through the pass/run mix therefore costs a rushing tail the sim cannot afford,
+and the honest position is to leave team pass-volume spread short (sd 34-39
+against a real 60) and accept that the very top of the passing leaderboard
+under-produces on VOLUME. `statcheck.qb5PassYds` is the metric that pays for
+it: its passers throw 538-562 against a real 578-596.
+
+A mechanism that widens pass volume WITHOUT touching the mix — schedule-driven
+pace, or a pass-rate identity that is not the same dial as the run-rate
+identity — would reopen this. None is implemented and none is measured.
+
+### 5.9 The passer gradient, steepened — the fix that cleared the floors
+
+Added 2026-08-03 for `task/310b-top-finish`, completing §5.7's component 1.
+
+`armQuality` was `0.865 + q/520` with `q = (tha + thp)/2` — a span of about
+**5% across the entire quarterback population**, so a 90-rated arm threw for 5%
+more air yards than a 60-rated one. Real yards per attempt spans **9.3%** from
+the top five passers to ranks 11-20 (§5.7); the sim spanned 4.0%.
+
+It now carries an extra slope centred on the middle of the starting population:
+
+    armQuality = 0.865 + q/520 + (q - 70) * 0.0040
+
+Centring is what makes it a redistribution — an elite arm gains what a
+replacement arm sheds — and it is the same discipline `sepEdge` uses. Measured
+at 60 seeds, with `sepEdge` already in place:
+
+| metric | before §5.7's fix | + `sepEdge` | + gradient | band |
+|---|---|---|---|---|
+| `qb5PassYds` | 4,057 | 4,037 | **4,156** | floor 4,137 ✓ |
+| `qb10PassYds` | 3,678 | 3,683 | **3,754** | floor 3,706 ✓ |
+| `wr10RecYds` | 1,081 | 1,103 | **1,115** | floor 1,111 ✓ |
+| `qb20PassYds` | 3,040 | 3,089 | **3,076** | real 3,046 ✓ |
+| `leadPassYds` | 4,604 | 4,609 | **4,742** | real 5,024 |
+| `rushers1700` | 0.2 | 0.45 | **0.28** | real 0.57 ✓ |
+
+**One honest deviation.** The brief asked for a steepening under which
+`calibrate.passYds` does not move; it moved **234.59 -> 237.98** (+1.4%). The
+cause is attempt-weighting: a gradient centred on the unweighted mean arm is
+still net-positive across the league, because better quarterbacks take more of
+the attempts. Holding the league mean exactly would require centring on the
+ATTEMPT-weighted mean, about 72.5, and that costs roughly 1.4% off every rank —
+which puts `qb5PassYds` back under its floor. The value sits comfortably inside
+its lock (240.29 ±12) and is in fact CLOSER to the locked target than the 234.59
+it replaced, though further from the `nfl: 230` note. Recorded rather than
+hidden, because the next person tuning this will meet the same trade-off.
+
 ## 6. Starter availability — how much time a real starter misses
 
 Added 2026-08-02 for `task/305-availability`. **PARTIAL: skill positions only.**

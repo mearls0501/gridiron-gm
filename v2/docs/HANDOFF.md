@@ -5,6 +5,86 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-03 — top-end spread FINISHED (branch `task/310b-top-finish`, NOT merged)
+
+**Every leaderboard floor is green, at 60 seeds and on the 5-seed panel.** One
+of the two remaining components was fixed; the other was measured and found to
+be a closed door, exactly as the brief's off-ramp anticipated.
+
+### Component 2 first, because it decided the shape of the packet
+
+The escape from task/309's run-share coupling was that real run-heavy clubs
+might SPREAD their extra carries. **They do not.** 17-game era, n=128
+team-seasons, quintiles by team carries: lead-back share runs 57.8 / 59.4 /
+58.1 / 60.2 / **56.3**, **corr −0.015**, slope −0.36 points per +100 carries
+(§5.8). There is no curve to implement — a club that runs 140 more times gives
+its lead back the same ~58%, he just gets more. So the coupling cannot be
+decoupled honestly, team pass spread stays short (sd 34-39 against a real 60),
+and the top-5 volume gap (538-562 attempts against a real 578-596) is accepted
+as the brief allowed.
+
+### Component 1 — the passer gradient (§5.9)
+
+`armQuality` was `0.865 + q/520`: a **5% span across the entire QB
+population**. It now carries an extra slope centred on the middle of the
+starting population, `+ (q - 70) * 0.0040`, so an elite arm gains what a
+replacement arm sheds.
+
+| metric (60 seeds) | task/308 | + `sepEdge` | **+ gradient** | band |
+|---|---|---|---|---|
+| `qb5PassYds` | 4,057 | 4,037 | **4,156** | floor 4,137 ✓ |
+| `qb10PassYds` | 3,678 | 3,683 | **3,754** | floor 3,706 ✓ |
+| `wr10RecYds` | 1,081 | 1,103 | **1,115** | floor 1,111 ✓ |
+| `qb20PassYds` | 3,040 | 3,089 | **3,076** | real 3,046 ✓ |
+| `leadPassYds` | 4,604 | 4,609 | **4,742** | real 5,024, in lock ✓ |
+| `rushers1700` | 0.2 | 0.45 | **0.28** | real 0.57 ✓ |
+| `rb5RushYds` | 1,312 | 1,334 | **1,329** (panel 1,304) | still high |
+
+**One honest deviation from the brief:** it asked for a steepening under which
+`calibrate.passYds` does not move, and it moved **234.59 → 237.98** (+1.4%).
+Attempt-weighting is why — a gradient centred on the unweighted mean arm is
+still net-positive because better quarterbacks take more of the attempts.
+Centring on the attempt-weighted mean (~72.5) would hold the league exactly and
+costs ~1.4% off every rank, which puts `qb5PassYds` back under its floor. The
+value is well inside its lock and is closer to the locked target than what it
+replaced, though further from the `nfl: 230` note. Written up in §5.9 rather
+than hidden.
+
+### Verification — `gate:full --seeds 5`
+
+13 of 14 harnesses exit 0, including **`calibrate` 28/28**, `statcheck`
+(no leaderboard failures at panel precision), `tails` (so
+`bestSeasonPassYds` is inside 5,392 ±500), `careers`, `staff`, `leverage`,
+`conditions`, `coherence`, `verify`, `determinism`, `sweep`, `scout`.
+
+```
+FAIL  drift.p0Failures     0.60   save growth vs drift.ts's internal < 0.4
+FAIL  tails.milestonesOff  20.80  reported for the verdict-redesign session
+FAIL  statcheck.rb5RushYds  1304  reported, not chased
+```
+
+`drift.p0Failures` is the inherited threshold conflict, unchanged in nature:
+`baselines.json` gates save growth at `max: 0.45` and `drift.ts` at `< 0.4`
+internally. Still a lead call, still untouched.
+
+### The record tail — `min: 1` NOT added
+
+With the top restored, the reconditioned `drift.passRecordSeasons` **still
+reads 0 of 20**. Per the brief that is report-only, and the authorized
+addition was withheld. The single-season leader averages 4,742 against a
+record of 5,477 — about 700 short — and what would close it is the top-5
+volume that §5.8 just showed cannot be bought honestly. §6.4's floor remains
+unmet and the guard still passes for the wrong reason.
+
+### Gap in this report
+
+`careers` passed all 9 metrics on the panel but the gate prints per-metric
+values only for FAILING steps, and a standalone `careers 24` across 5 seeds is
+~35 minutes I did not have. Deltas not extracted — the pass/fail is verified,
+the numbers are not in hand.
+
+---
+
 ## 2026-08-03 — top-end spread: DECOMPOSED, one mechanism fixed, NOT closed (branch `task/310-top-spread`, NOT merged)
 
 **Stopped cleanly at a verified boundary, short of the packet's acceptance

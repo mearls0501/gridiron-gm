@@ -220,6 +220,14 @@ export const SNAP_SHARE: Record<Position, number[]> = {
 const RECEIVER_CARRY_RATE = 0.039;
 
 /**
+ * The middle of the starting-quarterback population, and how hard arm quality
+ * is levered around it. See `armQuality` in `passPlay` — centring here is what
+ * keeps the steepening mean-preserving.
+ */
+const QB_CENTRE = 70;
+const QB_SPREAD = 0.0040;
+
+/**
  * Victory formation. Real quarterbacks kneel 0.761 times a team-game for a
  * mean of -1.09 yards (nfl-reference.md §5.6, nflverse pbp `qb_kneel`), and the
  * engine had no such play — which cost the quarterback about a fifth of his
@@ -1325,7 +1333,23 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
       (0.0115 + (att(qb, "thp") - 60) * 0.00035 + (sc(target, "spd") - 60) * 0.0003)
       * wx.deepPass * clamp(1 - safetyHelp, 0.45, 1.6);
     const deepP = bombP + (0.115 + (att(qb, "thp") - 60) * 0.0015) * wx.deepPass * clamp(1 - safetyHelp * 0.5, 0.6, 1.4);
-    const armQuality = 0.865 + (att(qb, "tha") * 0.5 + att(qb, "thp") * 0.5) / 520;
+    /**
+     * What the passer's arm is worth on this throw.
+     *
+     * The old form, 0.865 + q/520, spanned about 5% across the ENTIRE
+     * quarterback population — a 90-rated arm threw for 5% more air than a
+     * 60-rated one — which is why the sim's passing leaderboard was flat at
+     * the top while its middle and its attempt counts were already exact
+     * (nfl-reference.md §5.7). Real yards per attempt spans 9.3% from the top
+     * five passers to ranks 11-20; the sim spanned 4.0%.
+     *
+     * The extra slope is centred on QB_CENTRE, the middle of the starting
+     * population, so it is a REDISTRIBUTION and not a raise: an elite arm
+     * gains what a replacement one sheds and the league mean is untouched
+     * (`calibrate.passYds`). Same discipline as `sepEdge` below.
+     */
+    const armQ = att(qb, "tha") * 0.5 + att(qb, "thp") * 0.5;
+    const armQuality = 0.865 + armQ / 520 + (armQ - QB_CENTRE) * QB_SPREAD;
     /**
      * How far down the field this receiver gets thrown to, relative to the
      * defender across from him.
