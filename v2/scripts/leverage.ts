@@ -186,7 +186,12 @@ for (const probe of PROBES) {
   // real effect shows up. Treat sub-1% relative movement as no effect.
   const rel = Math.abs(swing) / Math.max(0.5, Math.abs(loV));
   let verdict: string;
-  if (rel < 0.01) { verdict = "NO EFFECT"; dead++; }
+  // A swing that rounds to 0.0 at the precision this harness REPORTS has no
+  // measurable sign, so it cannot be evidence of a backwards one. `OT.sta`
+  // against sacks taken sat exactly here and oscillated between NO EFFECT and
+  // WRONG SIGN across seeds on unchanged code, which is a guard reporting at
+  // random rather than an attribute working backwards.
+  if (rel < 0.01 || Math.abs(swing) < 0.05) { verdict = "NO EFFECT"; dead++; }
   else if (Math.sign(swing) !== probe.sign) { verdict = "WRONG SIGN"; wrongSign++; }
   else if (rel < 0.04) verdict = "weak";
   else verdict = "ok";

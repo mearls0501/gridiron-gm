@@ -244,7 +244,10 @@ guard(injuryLoad > 1500 && injuryLoad < 4000, "injuries cost a realistic amount 
   `${injuryLoad.toFixed(0)} rotation player-weeks lost league-wide per season`);
 
 const growth = mean(all.map((s) => (s[s.length - 1].saveMB - s[0].saveMB) / (SEASONS - 1)));
-guard(growth < 0.4, "save growth is bounded",
+// 0.45, matching the panel-locked `drift.saveGrowthMbPerSeason` baseline, which
+// is the authority. This guard carried 0.4 while the baseline carried 0.45, so
+// a reading between the two counted a P0 that the locked number said was fine.
+guard(growth < 0.45, "save growth is bounded",
   `+${growth.toFixed(2)} MB per season, ending at ${mean(last.map((r) => r.saveMB)).toFixed(1)} MB`);
 
 // A franchise that has to be abandoned because the browser refuses to store it
