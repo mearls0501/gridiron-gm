@@ -5,6 +5,75 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-03 — the backfield split: measured, NOT changed (branch `task/306-carry-share`)
+
+**No engine change. The dials this packet was opened to cut are already
+right, and cutting them would have introduced an eleven-point error.**
+
+The packet was to bring the sim's lead-back share from 58.1% down to §5.3's
+47.4% and take `statcheck.rb5RushYds` green with it. Before touching a dial I
+checked the target, per AGENTS.md, and the two numbers are not measuring the
+same thing.
+
+**§5.3's 47.4% is a share of TEAM carries. `CARRY_SHARE` and
+`script.leadBackShare` divide RB carries.** Real clubs give RBs only 80.7% of
+their carries — quarterbacks take 15.7% and receivers 3.1% (§5.5, computed this
+session from the same nflverse rows, pipeline validated by reproducing §5.3's
+rushing row exactly first).
+
+Measured three ways, all on 3 seeds × 4 seasons, REG only, n = 384 team-seasons:
+
+| | sim | real 17-game era | verdict |
+|---|---|---|---|
+| lead RB share **within one game** — what the dials set | **68.4%** | **70.4%** | sim slightly LOW |
+| lead RB **season** share of RB carries — like-for-like | **59.7%** | **58.3%** | +1.4pp, ~1 SEM |
+| lead rusher season share of TEAM carries — §5.3's row | **52.2%** | **47.3%** | +4.9pp |
+| RB carries as a share of team carries | **87.5%** | **80.7%** | **the whole gap** |
+
+The shares compose exactly on both sides — 0.597 × 0.875 = 52.2% for the sim,
+0.583 × 0.807 = 47.2% for the real league — so the entire §5.3-basis gap is the
+RB share of team carries, not the backfield split. **Cutting the dials to hit
+47.4% on the RB denominator would have driven the per-game share to roughly 55%
+against a real 70.4%, and the season share to 47% against a real 58.3%.**
+
+**Where `rb5RushYds` actually comes from.** The sim's leading back takes 13.5%
+more carries than his real counterpart, and it decomposes multiplicatively:
+
+| factor | ratio | share of the excess |
+|---|---|---|
+| RB share of team carries (87.5% against 80.7%) | 1.084 | **62%** |
+| league scrimmage play count (§5.4, +2.2%) | 1.022 | 16% |
+| backfield concentration (59.7% against 58.3%) | 1.024 | 18% |
+
+The RB rushing leaderboard is high all the way down and worse in the middle —
+#1 1,774 against a real 1,732, #3 1,442 against 1,332, #5 1,332 against 1,222,
+#10 1,176 against 1,032 — which is the same fat-middle shape §5 describes for
+passing, and it is not a concentration problem.
+
+**What the next packet is.** Non-RB carries: the sim gives 12.5% of team
+carries to somebody other than a running back against a real 19.3%, and every
+one of them is the quarterback — there are no receiver carries in the engine at
+all (real 0.83 a game at 5.86 a carry) and no kneel-downs. Note the sim's QBs
+already out-rush real ones per game, so this is a carry-count question rather
+than a yardage one: real QB rushing is 4.24 carries at 4.42 ypc, the sim's is
+about 3.4 at 5.1. That is a play-mix change with its own design, not a dial.
+
+**Not done, deliberately:** `statcheck.rb5RushYds` stays red at ~1,432 on the
+5-seed panel. Nothing in the two dials this packet owns can fix it honestly.
+**The `statcheck.rb5RushYds` row in AGENTS.md still says the sim's 58.1%
+sits against a real 47.4% and that `CARRY_SHARE` is safely tunable — that
+sentence is wrong on the denominator and should be corrected, but retiring or
+rewriting a known-open row is a lead edit, so it is left as-is and flagged
+here.**
+
+**Verification.** No source file changed, so the branch behaves exactly as
+`task/307-qb-volume`: `npm run gate` (fast) reproduces the same three failures
+it inherits (`leverage.noEffect` 2, `rb5RushYds`, `wr10RecYds` — the latter two
+single-seed artifacts of the fast tier), `drift 20` and `statcheck` were swept
+across 3 seeds and match the parent branch.
+
+---
+
 ## 2026-08-02 — QB pass volume, session seven (branch `task/307-qb-volume`)
 
 **One engine change shipped, one candidate tested and reverted, three findings

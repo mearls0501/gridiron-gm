@@ -508,6 +508,11 @@ than in-game usage:
 - **53%** of team-seasons have their leading passer taking under 90% of the
   team's attempts.
 
+**§5.3's rushing row is a share of TEAM carries, and team carries are not RB
+carries.** Read the denominator before comparing anything to the 47.4%: see
+§5.5, added 2026-08-03, which measures the same quantity on the denominator the
+engine's backfield dials actually control and gets 58.3%.
+
 A real NFL starting quarterback misses time — injury, benching, a lost job —
 often enough that the average one throws 82% of his club's passes, not ~100%.
 That is the mechanism behind the real #10 and #20 passing figures being far
@@ -626,6 +631,51 @@ backup — and a sim with in-game injuries and nothing else should land there.
 Team attempts by margin also confirm the game-script direction that is already
 in the engine: a club losing by 9-16 throws 37.7 times, one winning by 25+
 throws 29.3.
+
+### 5.5 The backfield split, on the denominator the engine actually sets
+
+Added 2026-08-03 for `task/306-carry-share`, which was opened to cut the sim's
+lead-back share from 58.1% to §5.3's 47.4%. **It should not be cut.** §5.3's
+47.4% is the leading rusher's share of TEAM carries; `CARRY_SHARE` and
+`script.leadBackShare` divide RB carries among the backs, and RBs take only
+about four fifths of a real club's carries.
+
+**Dataset.** As §5.3/§5.4: nflverse `player_stats_YYYY.csv.gz`, REG only,
+grouped by `recent_team`. `position in (RB, FB, HB)` is the RB group.
+
+**Validation.** The pipeline reproduces §5.3's rushing row exactly on the pooled
+years — leading rusher 47.4% mean, 46.7% median, 30.9% p10, 63.1% p90 — before
+the RB-only figures below were taken from it.
+
+| denominator | mean | median | p10 | p90 |
+|---|---|---|---|---|
+| leading rusher / TEAM carries, pooled (**this is §5.3's row**) | 47.4% | 46.7% | 30.9% | 63.1% |
+| leading rusher / TEAM carries, 17-game era | 47.3% | 46.8% | 34.7% | 61.0% |
+| **leading RB / RB-ONLY carries, pooled** | **57.9%** | 57.2% | 40.3% | 77.4% |
+| **leading RB / RB-ONLY carries, 17-game era** | **58.3%** | 58.5% | 43.1% | 75.6% |
+| **lead RB / RB carries, WITHIN ONE GAME, 17-game era** | **70.4%** | 69.6% | 50.0% | 92.3% |
+
+The last row is the one the dials set, because they are per-play weights: over
+2,163 team-games with at least 8 RB carries, the lead back takes **70.4%** of
+them, and one back takes every RB carry in only 4.0% of games.
+
+**Who takes the other carries** — 17-game era, per team-game (n = 2,174):
+
+| group | carries | share | ypc | yards |
+|---|---|---|---|---|
+| RB | 21.74 | **80.7%** | 4.29 | 93.2 |
+| QB | 4.24 | **15.7%** | 4.42 | 18.7 |
+| WR | 0.83 | 3.1% | 5.86 | 4.8 |
+| TE | 0.11 | 0.4% | 4.15 | 0.4 |
+
+So the season share on the two denominators composes exactly:
+0.583 × 0.807 = **47.2%**, which is §5.3's 47.3%. Any comparison that puts a
+sim RB-only share next to §5.3's 47.4% is off by the RB share of team carries,
+about eleven points.
+
+Note also that a real quarterback rushes for **18.7 yards a game** here, against
+the `nfl: 13` recorded on `calibrate.qbRushYds`. That baseline's informational
+figure looks low against this dataset; it is lead-owned and untouched.
 
 ---
 
