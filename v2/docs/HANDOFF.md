@@ -5,6 +5,95 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-03 — top-end spread: DECOMPOSED, one mechanism fixed, NOT closed (branch `task/310-top-spread`, NOT merged)
+
+**Stopped cleanly at a verified boundary, short of the packet's acceptance
+criteria.** Step 1 is complete and decisive. Step 2 is partial: one of the
+three components is found and fixed, the other two are measured and specified.
+Steps 3 and 4 were NOT reached — no `min: 1` was added to the record guard, and
+no 5-seed panel was run, because the state does not warrant the 55 minutes.
+
+### Step 1 — the decomposition (complete, `nfl-reference.md` §5.7)
+
+**Volume is exonerated; this is entirely per-play production.** Sim against
+real, 3 seeds × 3 seasons:
+
+| | sim | real |
+|---|---|---|
+| passing #10 attempts | 520 | **520** |
+| passing #20 attempts / YPA | 440 / 7.02 | **439 / 7.04** |
+| receiving #5 / #10 targets | 144 / 136 | **145 / 137** |
+| passing #10 YPA | 7.29 | 7.79 |
+| receiving #1 yds/target | 8.43 | 9.82 |
+
+Attempts and targets are exact at every rank the guards touch. The shortfall
+grows with rank — receiving is −8.6% at #10 and −14.2% at #1 — which is a
+gradient too flat, not a level too low:
+
+| gradient | sim | real |
+|---|---|---|
+| passing YPA span, 1-5 → 11-20 | 4.0% | **9.3%** |
+| passing #5 / #20 | 1.326 | **1.476** |
+| receiving #1 / #10 | 1.357 | **1.443** |
+
+### Step 2 — one component fixed, mean-preserving
+
+**Air yards depended on the passer's arm and on nothing about the receiver.** A
+man who beat his corner all afternoon was thrown the same route as one who
+could not get open; his only edges were catch rate and run-after. `sepEdge` in
+`passPlay` now scales air yards by his separation against the coverage he
+faces, centred on a neutral matchup — so it widens the elite-to-replacement gap
+without moving a league mean (`calibrate.passYds` 234.05 → 234.59).
+
+**Honest effect at 60 seeds**, which is the only precision that can see these
+(§6.8C):
+
+| metric | task/308 | task/310 | band |
+|---|---|---|---|
+| `wr10RecYds` | 1,081 | **1,103** | floor 1,111 — still LOW |
+| `qb5PassYds` | 4,057 | 4,037 | floor 4,137 — still LOW |
+| `qb10PassYds` | 3,678 | 3,683 | floor 3,706 — still LOW |
+| `qb20PassYds` | 3,040 | 3,089 | OK |
+| `leadPassYds` | 4,604 | 4,609 | OK |
+| `rb5RushYds` | 1,312 | 1,334 | HIGH (reported, not chased) |
+| `rushers1700` | 0.2 | 0.45 | max 2, OK |
+
+The receiving gradient moved 1.357 → **1.413** against a real 1.443, so the
+mechanism is real. It is also clearly not sufficient. **A 4-season instrument
+run overstated it badly** (it showed pooled 1-5 YPA 7.49 → 7.84); the 60-seed
+sweep is what should be believed, and the lesson is the one §6.8C already
+records for `qb20PassYds` — do not read these ranks off small samples.
+
+### What the finishing packet must do, both components measured
+
+1. **The passer's own gradient.** `armQuality` is `0.865 + q/520` — about **5%
+   across the whole QB population**. That is why a receiver-side fix moved
+   receiving and left `qb5`/`qb10` untouched. Steepen it, re-centred on the
+   population mean exactly as `sepEdge` was, or league passing yards move.
+2. **Team pass volume at the very top.** Sim top-5 passers throw 538-562
+   against a real 578-596, because team pass-attempt sd is 34-39 against a real
+   60. This is the spread task/309 tested and correctly reverted — widening
+   `coach.passBias` widens the run share through the same mix lever and took
+   `rushers1700` 0.8 → 1.4. **A mechanism that widens PASS volume without
+   widening run concentration has not been found, and `qb5PassYds` cannot be
+   closed without it**: it is a −10% gap at that rank and efficiency alone does
+   not reach it.
+
+### Not done
+
+- **Step 3 not reached.** `drift.passRecordSeasons` was not re-measured and no
+  `min: 1` was added. The record needs the top restored first, and it is not.
+- **Step 4 partial.** Fast gate run (5 single-seed reds, all inherited floors
+  plus noise); 60-seed sweep done and reported above; **no 5-seed panel, no
+  `careers` deltas, no `milestonesOff` reading.** Running a 55-minute panel to
+  document a state that misses its acceptance criteria is not a good use of it.
+
+The `sepEdge` change is kept rather than reverted: it is mechanism-honest, it
+is mean-preserving by construction, and it moves the receiving gradient
+measurably toward reality. It is one third of a fix, labelled as such.
+
+---
+
 ## 2026-08-03 — record guard reconditioned + QB availability closed (branch `task/308-qb-close`, NOT merged)
 
 Two approved fixes, both landed. **`statcheck.qb20PassYds` is green for the

@@ -1326,6 +1326,24 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
       * wx.deepPass * clamp(1 - safetyHelp, 0.45, 1.6);
     const deepP = bombP + (0.115 + (att(qb, "thp") - 60) * 0.0015) * wx.deepPass * clamp(1 - safetyHelp * 0.5, 0.6, 1.4);
     const armQuality = 0.865 + (att(qb, "tha") * 0.5 + att(qb, "thp") * 0.5) / 520;
+    /**
+     * How far down the field this receiver gets thrown to, relative to the
+     * defender across from him.
+     *
+     * Air yards depended on the passer's arm and on nothing about the man
+     * catching it, so a receiver who beat his corner all afternoon was thrown
+     * the same route as one who could not get open — the only edge he carried
+     * was catch rate and run-after. That is why the sim's top receivers came in
+     * at 8.4 yards a target against a real 9.8 while their TARGET counts were
+     * already exact (nfl-reference.md §5.7), and why the passing leaderboard
+     * was flat at the top with correct volume underneath it.
+     *
+     * Centred on a neutral matchup, so a league where separation and coverage
+     * are balanced throws for exactly what it threw for before: this widens the
+     * gap between an elite pass catcher and a replacement one without moving
+     * any league mean.
+     */
+    const sepEdge = clamp(1 + (separation - coverage) / 180, 0.85, 1.22);
     const air = (
       roll < bombP ? Math.abs(rng.normal(34, 14))     // shot down the field
       : roll < deepP ? Math.abs(rng.normal(16.2, 7.5))  // intermediate
@@ -1334,7 +1352,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
       // biggest reason a sim under-converts third down is throwing four-yard
       // routes on third-and-seven.
       : Math.abs(rng.normal(down >= 3 ? Math.min(9.8, Math.max(4.14, toGo * 0.63)) : 4.14, 3.7))
-    ) * armQuality;
+    ) * armQuality * sepEdge;
     // A defender who is where he should be takes the run-after away.
     const tackleLeverage = defender
       ? att(defender, "awr") * 0.36 + sc(defender, "tkl") * 0.34 + att(defender, "spd") * 0.30

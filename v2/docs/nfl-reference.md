@@ -750,6 +750,83 @@ row to 35.7 and lose three plays a game.
 
 ---
 
+### 5.7 The top of the leaderboard is an EFFICIENCY problem, not a volume one
+
+Added 2026-08-03 for `task/310-top-spread`. Once real play volume landed
+(§5.6), the individual leaderboards came in flat at the top: `qb5PassYds`
+4,057 against a floor of 4,137, `qb10PassYds` 3,678 against 3,706,
+`wr10RecYds` 1,081 against 1,111. This block decomposes that shortfall.
+
+**Dataset.** nflverse weekly `player_stats` 2018-2024, REG only, ranked per
+season. Receiving targets and yards-per-target are new here; the passing rank
+table is §5.4's.
+
+**Real receiving by season yards rank** (mean over 7 seasons):
+
+| rank | yards | targets | yds/target | rec | yds/rec |
+|---|---|---|---|---|---|
+| 1 | 1,743 | 177 | **9.82** | 130 | 13.52 |
+| 3 | 1,447 | 152 | **9.62** | 102 | 14.39 |
+| 5 | 1,365 | 145 | **9.47** | 101 | 13.96 |
+| 10 | 1,208 | 137 | **8.93** | 90 | 13.71 |
+| pooled 1-5 | — | — | **9.72** | — | — |
+| pooled 6-10 | — | — | **9.20** | — | — |
+
+**The decomposition, sim against real** (3 seeds x 3 seasons, REG only):
+
+| | sim | real | verdict |
+|---|---|---|---|
+| passing #10 attempts | 520 | 520 | **exact** |
+| passing #10 YPA | 7.29 | 7.79 | −6.4% |
+| passing #20 attempts / YPA | 440 / 7.02 | 439 / 7.04 | **exact** |
+| passing #5 attempts | 562 | 578 | −2.8% |
+| passing #5 YPA | 7.26 | 7.86 | −7.6% |
+| receiving #1 targets | 179 | 177 | **exact** |
+| receiving #1 yds/target | 8.43 | 9.82 | −14.2% |
+| receiving #5 / #10 targets | 144 / 136 | 145 / 137 | **exact** |
+| receiving #5 / #10 yds/target | 8.38 / 8.16 | 9.47 / 8.93 | −11.5% / −8.6% |
+
+**Volume is exonerated at every rank the guards care about, for both
+positions.** Attempts and targets are exact at ranks 5, 10 and 20; the middle
+of each board is exact in yards as well. The entire shortfall is per-play
+production, and it grows with rank — receiving is −8.6% at #10 and −14.2% at
+#1 — which is the signature of a gradient that is too flat rather than a level
+that is too low.
+
+| gradient | sim | real |
+|---|---|---|
+| passing YPA, pooled 1-5 → 11-20 | 7.49 → 7.20 (4.0% span) | 7.90 → 7.23 (**9.3% span**) |
+| passing #5 / #20 yards | 1.326 | **1.476** |
+| receiving #1 / #10 yards | 1.357 | **1.443** |
+
+**One mechanism found and fixed, and it is not the whole of it.** Air yards
+depended on the passer's arm and on nothing whatever about the man catching the
+ball, so a receiver who beat his corner all day was thrown the same route as
+one who could not get open. `sepEdge` in `passPlay` now scales air yards by the
+receiver's separation against the coverage he faces, centred on a neutral
+matchup so no league mean moves (`calibrate.passYds` 234.05 → 234.59 across 24
+and 6 seeds respectively). Measured at 60 seeds it is worth **+22 on
+`wr10RecYds`** and moves the receiving gradient 1.357 → 1.413 against a real
+1.443 — real, and far short of closing the gap.
+
+**What is left, measured, for the packet that finishes this.** Two components,
+and neither is the receiver:
+
+1. **The passer's own gradient.** `armQuality` spans 0.865 + q/520, which is
+   about **5% across the entire QB population** — a 90-rated arm throws for 5%
+   more air than a 60-rated one. That is why `sepEdge` moved receiving and left
+   `qb5PassYds` and `qb10PassYds` where they were (4,057 → 4,037 and 3,678 →
+   3,683 at 60 seeds). Steepening it must be re-centred on the population mean,
+   the same way `sepEdge` was, or league passing yards move with it.
+2. **Team pass volume at the very top.** The sim's top-5 passers throw 538-562
+   times against a real 578-596, because team pass attempts have sd 34-39
+   against a real 60 (§5.4). This is the spread task/309 tested and correctly
+   reverted: widening `coach.passBias` widens run concentration through the
+   same mix lever and inflated `rushers1700` 0.8 → 1.4. A mechanism that widens
+   PASS volume without widening the run share has not been found, and it is
+   required for `qb5PassYds` specifically — efficiency alone cannot reach a
+   −10% gap at that rank.
+
 ## 6. Starter availability — how much time a real starter misses
 
 Added 2026-08-02 for `task/305-availability`. **PARTIAL: skill positions only.**
