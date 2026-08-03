@@ -354,8 +354,8 @@
       "note": "20 seasons; was 22.9 MB before the codec. RAISED 10 -> 10.5 on 2026-07-30 (LEAD DECISION, needs Matt's sign-off): the priority-UDFA chase adds ~100 real played careers a season and the record book keeps played careers forever by design, which is +0.2 MB of genuine history at season 20. Growth guard unchanged (0.45 here, 0.40 internal) and reads +0.39."
     },
     "drift.passRecordSeasons": {
-      "max": 10,
-      "note": "P1 today; task P2.2 target is <= 3 of 20"
+      "max": 3,
+      "note": "RECONDITIONED 2026-08-03 (task/308): the harness read this AFTER playoffs.ts wrote into the season line, so it counted REG+POST yards against a REG-only 5,477 record (5,316 with playoffs vs 4,735 without on matched seasons). Now snapshotted at the end of the regular season. Max set from nfl-reference S6.4/S6.8 discipline (<=3 of 20), NOT from the sim's reading. WARNING: the sim currently reads 0 of 20, which BREACHES S6.4's floor -- the record is unreachable because elite per-play production is too flat (top-to-mid 1.23x vs a real 1.48x), the same defect under qb5PassYds/qb10PassYds. A min:1 belongs here the moment that lands; until then this guard passes for the wrong reason."
     },
     "drift.tradesPerSeason": {
       "min": 5,

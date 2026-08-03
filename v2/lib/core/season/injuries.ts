@@ -63,7 +63,7 @@ const WEEKLY_TABLE: InjuryEntry[] = [
  * instead, and these sit most of the way back toward their original values.
  */
 const POSITION_RISK: Record<Position, number> = {
-  QB: 0.98, RB: 1.58, WR: 1.18, TE: 1.36,
+  QB: 1.62, RB: 1.58, WR: 1.18, TE: 1.36,
   OT: 1.05, OG: 1.05, C: 0.93,
   EDGE: 1.19, DT: 1.14, LB: 1.03, CB: 1.29, S: 1.09,
   K: 0.15, P: 0.15,
@@ -112,7 +112,7 @@ const WORKLOAD_EXP = 2.8;
  * touch the stream.
  */
 const POSITION_DURATION: Record<Position, number> = {
-  QB: 2.0, RB: 1.6, WR: 1.8, TE: 1.2,
+  QB: 1.78, RB: 1.6, WR: 1.8, TE: 1.2,
   OT: 1.4, OG: 1.4, C: 1.4,
   EDGE: 1.4, DT: 1.4, LB: 2.0, CB: 1.6, S: 1.6,
   K: 1.0, P: 1.0,

@@ -62,6 +62,29 @@ function runOne(seed: number): Snapshot[] {
   for (let s = 0; s < SEASONS; s++) {
     const season = st.season;
     let g = 0;
+
+    // Single-season marks are REGULAR-SEASON records, so they have to be read
+    // before the playoffs write into the same stat line. `applyGameStats` is
+    // called from `playoffs.ts` too, and a quarterback who plays four playoff
+    // games adds about 1,000 yards to the row this used to measure: on twelve
+    // matched sim seasons the best passing season read 5,316 with the playoffs
+    // in it and 4,735 without, against a 5,477 record that is REG-only.
+    //
+    // Everything else in the snapshot is still taken at `offseason-recap`,
+    // where it has always been taken — in particular `playerWeeksLost`, whose
+    // band was locked against that reading.
+    while (st.phase !== "regular" && g++ < 12) advance(st);
+    while (st.phase === "regular" && g++ < 40) advance(st);
+    const regLine = (p: Player) => p.stats.find((x) => x.season === season);
+    const regLead = (k: string) =>
+      Math.max(0, ...st.players.map((p) => {
+        const l = regLine(p) as unknown as Record<string, number> | undefined;
+        return l?.[k] ?? 0;
+      }));
+    const regPassLead = regLead("passYds");
+    const regRushLead = regLead("rushYds");
+    const regRecLead = regLead("recYds");
+
     while (st.phase !== "offseason-recap" && g++ < 40) advance(st);
 
     const A = active(st);
@@ -69,11 +92,6 @@ function runOne(seed: number): Snapshot[] {
     for (const p of A) peak.set(p.id, Math.max(peak.get(p.id) ?? 0, p.ovr));
     const fade = A.filter((p) => p.age >= 33 && peak.has(p.id)).map((p) => p.ovr - peak.get(p.id)!);
     const line = (p: Player) => p.stats.find((x) => x.season === season);
-    const lead = (k: string) =>
-      Math.max(0, ...st.players.map((p) => {
-        const l = line(p) as unknown as Record<string, number> | undefined;
-        return l?.[k] ?? 0;
-      }));
     const ovrAtAge = (a: number) => mean(A.filter((p) => p.age === a).map((p) => p.ovr));
 
     // Games a rostered player was unavailable for: 17 minus what he played,
@@ -115,7 +133,7 @@ function runOne(seed: number): Snapshot[] {
       n90: ovrs.filter((v) => v >= 90).length,
       ageMean: mean(A.map((p) => p.age)),
       ovrAt27: ovrAtAge(27), ovrAt34: ovrAtAge(34), fade,
-      passLead: lead("passYds"), rushLead: lead("rushYds"), recLead: lead("recYds"),
+      passLead: regPassLead, rushLead: regRushLead, recLead: regRecLead,
       players: st.players.length,
       // What actually lands in IndexedDB, not the in-memory object: the save
       // codec drops the zero fields out of stat rows on the way to disk, and

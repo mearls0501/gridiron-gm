@@ -5,6 +5,109 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-03 — record guard reconditioned + QB availability closed (branch `task/308-qb-close`, NOT merged)
+
+Two approved fixes, both landed. **`statcheck.qb20PassYds` is green for the
+first time in this lineage.** The reconditioned record guard, meanwhile,
+uncovered something worse than the bug it fixed.
+
+### 1. `drift.passRecordSeasons` — reconditioned, and it reads ZERO
+
+The guard read each season's stat line at `offseason-recap`, after
+`playoffs.ts` had written into it, so it compared REG + POST passing yards
+against Manning's REG-only 5,477 (5,316 with playoffs against 4,735 without, on
+matched seasons). `drift.ts` now snapshots the three single-season marks at the
+end of the regular season; everything else, `playerWeeksLost` included, is
+still read exactly where it was, so no other metric's basis moved.
+
+| | inflated | reconditioned |
+|---|---|---|
+| 5-seed panel, 20 seasons each | 5.0 of 20 | **0.0 of 20** (every seed) |
+
+**§6.4 says zero is as wrong as the record falling every other year, and it
+means the 5,477-yard season is unreachable. It is.** The sim's best REG passing
+year is ~4,600-4,700, about four sd short. This is the flat-elite-production
+defect that also has `qb5PassYds` and `qb10PassYds` under their floors —
+top-to-mid ratio 1.23x against a real 1.48x — and it is NOT an availability
+problem. It already has its own packet.
+
+`max` moved 10 → **3**, taken from §6.4's discipline rather than from the
+sim's reading, computation in `nfl-reference.md` §6.8A. **A `min: 1` was
+deliberately NOT added**: it would red-gate a defect that belongs to another
+packet. Until that packet lands, this guard passes for the wrong reason, and
+that is written into the baseline's own note so nobody reads the green line as
+a healthy tail.
+
+### 2. QB availability, era-matched — one group refitted
+
+§6.6 established that §6.5's blended column understates a 17-game target.
+Against the era-matched real figure (nflverse weekly 2021-2024, QB1 = his
+club's attempts leader, n=128):
+
+| | real 17-game | before | after |
+|---|---|---|---|
+| mean games of 17 | **14.23** | 15.11 | **14.27** |
+| games missed | 2.77 | 1.89 | **2.73** |
+| played all 17 | 32% | 50% | **36%** |
+| 16+ | 46% | 59% | 41% |
+| under 14 | 35% | 27% | 42% |
+
+`POSITION_RISK.QB` 0.98 → **1.62**, `POSITION_DURATION.QB` 2.0 → **1.78**,
+fitted jointly on §6.5's two moments, QB only — no other group touched. The
+mean and the all-17 share land; the 16+ share comes in 5 points light because
+`WEEKLY_TABLE` is shared across positions and only scales, so "hurt rarely, out
+long" cannot be expressed without a per-position table. Recorded, not tuned
+around (§6.8B).
+
+**Both required guards hold:** week-1 starters' weeks lost **1,120** (band
+1,100-1,250), `drift.playerWeeksLost` **2,745.9** (max 2,858). The third
+required guard — the reconditioned record guard at ≥1 of 20 — was **already 0
+before this refit** and is unaffected by it; it cannot be satisfied by
+availability work in either direction.
+
+### 3. `statcheck.qb20PassYds`, both precisions
+
+| | 5-seed panel | 60 seeds |
+|---|---|---|
+| task/309 (inherited) | 3,293 | 3,293 |
+| **task/308 (here)** | **2,953** | **3,040** |
+| real | — | **3,046 ±244** |
+
+Green at both precisions. The panel and the 60-seed sweep differ by 87 yards on
+identical code, which is the point: 60-seed sd is 154, paired sd across a
+change is 194, so the panel's SEM is ±70. Recorded in §6.8C. Per-seed panel
+values: 2,684 / 3,018 / 3,111 / 3,083 / 2,871.
+
+Three packets closed this: within-game rotation (task/307), real play volume
+(task/309), era-matched availability (here). Row retired in AGENTS.md.
+
+### 4. Everything else, reported not chased
+
+Fast gate: 12 of 14 green — `calibrate` 28/28, `verify`, `determinism`,
+`sweep`, `leverage`, `scout` all clean. Two reds, both inherited and both
+expected per the packet brief:
+
+```
+FAIL  statcheck.rb5RushYds  1338 (60-seed 1,312)   ceiling 1286
+FAIL  statcheck.wr10RecYds  1009 (60-seed 1,081)   floor 1111
+```
+
+The known unmasked defect, at 60 seeds: `qb5PassYds` **4,057** (floor 4,137),
+`qb10PassYds` **3,678** (floor 3,706), `wr10RecYds` **1,081** (floor 1,111).
+The QB refit pushed these down as the brief said it would; that is the
+elite-production packet's to fix.
+
+**One thing got worse and needs a lead call.** `drift.saveGrowthMbPerSeason` is
+**0.402**, against a locked `max: 0.45` (fine) but `drift.ts`'s own internal
+`growth < 0.4` (not fine) — so 4 of 5 seeds count a P0 and `drift` exits 1,
+where task/309 had 1 of 5. The cause is legible and is the mechanism the row
+always predicted: task/309's receiver carries gave WR/TE rows non-zero rushing
+fields, and this packet's QB refit logs more absences. The two thresholds
+disagree with each other by 0.05 MB and one of them should move. Untouched
+here — it is neither of my two scoped items.
+
+---
+
 ## 2026-08-03 — the play economy (branch `task/309-play-economy`, NOT merged, NOTHING re-locked)
 
 **Both §5.4/§5.5 defects are fixed and hit their targets. The cost is that

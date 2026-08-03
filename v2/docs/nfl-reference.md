@@ -1032,3 +1032,71 @@ every dressed player rather than only to those who take a scrimmage snap — whi
 is a change to what `games` MEANS across `statcheck`, `careers` and the player
 pages, so it is a design pass, not a tuning step. Until then the metric is a
 churn-plus-absence composite and should be read as one.
+### 6.8 The record guard, reconditioned — and the era-matched QB refit
+
+Added 2026-08-03 for `task/308-qb-close`. Two numbers, both computed here
+before either was acted on.
+
+**A. `drift.passRecordSeasons` was counting the wrong yards.** The harness read
+each season's stat line after advancing to `offseason-recap`, and `playoffs.ts`
+calls `applyGameStats` into that same row — so it compared REG + POST passing
+yards against Manning's 5,477, which is a REGULAR-SEASON record. Measured on
+twelve matched sim seasons, the best passing season reads **5,316 with the
+playoffs in it and 4,735 without**: the guard was inflated by roughly 580 yards
+at rank 1. The harness now snapshots the three single-season marks at the end of
+the regular season and takes everything else, `playerWeeksLost` included, where
+it always took it.
+
+**The reading, and it is the finding.** 5 seeds x 20 seasons, reconditioned:
+**0 of 20 on every seed**, before and after the QB refit below.
+
+| | inflated (REG+POST) | reconditioned (REG only) |
+|---|---|---|
+| `drift.passRecordSeasons`, 5-seed panel | 5.0 of 20 | **0.0 of 20** |
+
+§6.4 requires 1-3 of 20 and says explicitly that **zero is as wrong as the
+record falling every other year** — it means the 5,477-yard season has become
+unreachable. It has. The sim's best REGULAR-SEASON passing year runs about
+4,600-4,700, roughly four standard deviations short of the record, and that is
+the same defect that has `statcheck.qb5PassYds` and `qb10PassYds` under their
+floors: elite per-play production is too flat, top-to-mid ratio 1.23x against a
+real 1.48x. It is assigned to its own packet and is NOT an availability
+problem.
+
+**The guard's max is therefore set from §6.4's discipline, not from today's
+reading**: `max: 3` of 20, down from the 10 that was locked against the
+inflated measurement. The floor (`min: 1`) is deliberately NOT added yet,
+because it would red-gate a defect that already has an owner; it should be
+added the moment elite production is fixed, and until then this guard passes
+for the wrong reason. That is written down here so the next reader does not
+mistake a green line for a healthy tail.
+
+**B. The QB availability refit, era-matched.** §6.6 established that §6.5's
+blended column understates a 17-game target. Computed directly on the 17-game
+era (nflverse weekly, 2021-2024, QB1 = his club's leader in attempts, n = 128
+team-seasons):
+
+| | real 17-game era | sim before | sim after |
+|---|---|---|---|
+| mean games of 17 | **14.23** | 15.11 | **14.27** |
+| games missed | **2.77** | 1.89 | **2.73** |
+| played all 17 | **32%** | 50% | **36%** |
+| 16+ games | 46% | 59% | 41% |
+| under 14 games | 35% | 27% | 42% |
+
+Fitted jointly on the two moments §6.5 prescribes, QB group only:
+`POSITION_RISK.QB` 0.98 -> **1.62** (incidence, which is what moves the
+played-all-17 share) and `POSITION_DURATION.QB` 2.0 -> **1.78** (duration,
+trimmed so the mean lands with the extra incidence). The mean and the all-17
+share both land; the 16+ share comes in 5 points light and under-14 7 points
+heavy, because `WEEKLY_TABLE` is shared across positions and only scales, so a
+QB-specific bimodality — hurt rarely, out long — cannot be expressed without a
+per-position table. That residual is recorded, not tuned around.
+
+**C. `statcheck.qb20PassYds` cannot be resolved by a 5-seed panel.** Its
+per-seed spread is large: 60-seed sd **154**, paired sd across a code change
+**194**, so the panel's standard error is about +/-70 and two panels of the same
+code can differ by 150 yards. Read it at 60 seeds — `statcheck` simulates one
+season and a 60-seed sweep costs about fifteen seconds — and treat any panel
+movement smaller than ~170 as noise.
+
