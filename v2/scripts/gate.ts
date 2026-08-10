@@ -50,6 +50,20 @@ interface Step {
   args: string[];
   /** false for steps that only report (their metrics still gate). */
   exitGates: boolean;
+  /**
+   * Minimum seed panel for this step, even on the fast tier.
+   *
+   * A step whose headline metrics are ORDER STATISTICS — the nth-best season in
+   * one league — rather than means over many events cannot be read from a single
+   * seed. statcheck's leaderboard rows carry a single-sample sd of up to 73% of
+   * their own tolerance (docs/statcheck-noise-2026-08-06.md), so at n=1 they fire
+   * red on unchanged code and cost a review cycle every time.
+   *
+   * This is cheap where it matters: seeds run sequentially inside a step, but
+   * steps run in PARALLEL with each other, and statcheck is ~5% of verify's
+   * runtime. A 5-seed statcheck hides entirely behind the critical path.
+   */
+  minPanel?: number;
 }
 
 const FAST: Step[] = [
@@ -58,7 +72,7 @@ const FAST: Step[] = [
   { name: "verify",      cmd: "npx", args: ["tsx", "scripts/verify.ts", "3"],      exitGates: true },
   { name: "sweep",       cmd: "npx", args: ["tsx", "scripts/sweep.ts", "5", "2"],  exitGates: true },
   { name: "calibrate",   cmd: "npx", args: ["tsx", "scripts/calibrate.ts", "300"], exitGates: false },
-  { name: "statcheck",   cmd: "npx", args: ["tsx", "scripts/statcheck.ts"],        exitGates: false },
+  { name: "statcheck",   cmd: "npx", args: ["tsx", "scripts/statcheck.ts"],        exitGates: false, minPanel: 5 },
   { name: "leverage",    cmd: "npx", args: ["tsx", "scripts/leverage.ts", "150"],  exitGates: false },
   // Cheap (one generated league + one headless draft) and it guards the four
   // claims the scouting system makes — including that no rendered surface can
@@ -107,6 +121,11 @@ const steps = mode === "full" ? FULL : FAST;
  * Fast tier stays single-seed: it is a smoke test run after every edit and has
  * to stay quick. The full tier sweeps a panel so its numbers mean something.
  * `--seeds N` overrides; `--seeds 1` restores the old single-sample behaviour.
+ *
+ * EXCEPT where a step sets `minPanel` (see Step). Such a step always runs at
+ * least that many seeds, on every tier, including under `--seeds 1` — its
+ * metrics are order statistics and a single sample of one is not a measurement
+ * of anything. This is a floor, never a cap: `--seeds 10` still gives it ten.
  */
 const seedArg = process.argv.findIndex((a) => a === "--seeds");
 const PANEL = seedArg >= 0 ? Number(process.argv[seedArg + 1]) : mode === "full" ? 5 : 1;
@@ -163,7 +182,11 @@ function once(step: Step, seed: number): Promise<{ code: number; metrics: Record
 function run(step: Step): Promise<Result> {
   return new Promise(async (resolve) => {
     const started = Date.now();
-    const panel = seeds.length ? seeds : [0];
+    // A step may demand a bigger panel than the tier default (Step.minPanel).
+    const want = Math.max(step.minPanel ?? 1, seeds.length);
+    const panel = want > seeds.length
+      ? Array.from({ length: want }, (_, i) => 1 + i)
+      : (seeds.length ? seeds : [0]);
     const runs: Record<string, number>[] = [];
     let worstCode = 0;
     let tail = "";
@@ -217,6 +240,8 @@ function checkBound(name: string, value: number, b: Bound): string | null {
   const failures: string[] = [];
   const seen: Record<string, number> = {};
   const noise: Record<string, number> = {};
+  /** How many seeds the step behind each metric actually ran. */
+  const seedsFor: Record<string, number> = {};
 
   for (const r of results) {
     const secs = (r.ms / 1000).toFixed(0).padStart(3);
@@ -232,6 +257,7 @@ function checkBound(name: string, value: number, b: Bound): string | null {
     }
     Object.assign(seen, r.metrics);
     Object.assign(noise, r.spread);
+    for (const k of Object.keys(r.metrics)) seedsFor[k] = r.seeds;
   }
 
   if (lock) {
@@ -275,9 +301,12 @@ function checkBound(name: string, value: number, b: Bound): string | null {
   // Getting this wrong over-flags: a metric with a wide per-run spread can
   // still have a perfectly stable mean once it is averaged.
   const fragile: string[] = [];
-  const panelN = seeds.length > 1 ? seeds.length : 1;
   for (const [name, b] of Object.entries(baselines.metrics)) {
     const sd = noise[name];
+    // Judge each metric against the panel ITS OWN step ran, not the tier
+    // default. Keying this off the global panel meant the check never ran on
+    // the fast tier — the tier where a single-sample metric is most dangerous.
+    const panelN = seedsFor[name] ?? 1;
     if (b.tol === undefined || sd === undefined || sd === 0 || panelN < 2) continue;
     const sem = sd / Math.sqrt(panelN);
     if (b.tol < 2 * sem) {

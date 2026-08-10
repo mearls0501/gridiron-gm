@@ -1,6 +1,6 @@
 import {
   GameState, Player, Position, Team, TeamRecord, Contract,
-  ROSTER_LIMIT, salaryCap,
+  ROSTER_LIMIT, POSITION_MIN, STARTERS, salaryCap,
 } from "./types";
 
 /**
@@ -241,6 +241,34 @@ export function rosterIssues(state: GameState, teamId: number): RosterIssue[] {
       message: `Roster under the limit: ${n}/${ROSTER_LIMIT}`,
       detail: `Sign ${ROSTER_LIMIT - n} more player${ROSTER_LIMIT - n === 1 ? "" : "s"}.`,
     });
+  }
+
+  // A 53-man roster can be fully legal on COUNT and still be unable to field a
+  // legal lineup — nothing here checked position groups, so a team with zero
+  // quarterbacks passed every check and the failure only surfaced when the sim
+  // fell back to a wrong-position body in buildStarters.
+  //
+  // The threshold is POSITION_MIN, not STARTERS. POSITION_MIN is already the
+  // league's definition of a legal 53 (types.ts:37) and is what verify.ts
+  // asserts against headlessly (verify.ts:171-179) — using STARTERS here would
+  // have created a SECOND, looser definition of the same rule, so the UI would
+  // call a roster legal that the harness fails. One authority per rule.
+  const have: Partial<Record<Position, number>> = {};
+  for (const p of teamRoster(state, teamId)) {
+    have[p.pos] = (have[p.pos] ?? 0) + 1;
+  }
+  for (const pos of Object.keys(POSITION_MIN) as Position[]) {
+    const need = POSITION_MIN[pos];
+    const got = have[pos] ?? 0;
+    if (got < need) {
+      issues.push({
+        kind: "positionShort",
+        message: `Not enough ${pos}: ${got}/${need}`,
+        detail: got < STARTERS[pos]
+          ? `Below the ${STARTERS[pos]} needed on the field — the depth chart cannot be filled.`
+          : `Sign or promote ${need - got} more ${pos}.`,
+      });
+    }
   }
 
   const cap = teamCap(state, teamId);

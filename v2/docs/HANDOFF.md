@@ -5,6 +5,138 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-06 — STOP CHASING THE STATCHECK LEADERBOARD REDS ON THE FAST GATE
+
+Full working: `docs/statcheck-noise-2026-08-06.md`. The short version, because
+this has now cost one full multi-reviewer cycle:
+
+**`scripts/statcheck.ts:12` hardcodes one seed** and reads the 5th/10th/20th-best
+individual season off that single league-year. That is an order statistic from a
+sample of one, and the hardcoded seed sits **−1.3 to −1.6 sd below the panel mean
+on every passing axis at once**. Measured over 8 seeds at `190cbd0`:
+
+| metric | fast gate | 8-seed mean | sd | tol | verdict at n=8 |
+|---|---|---|---|---|---|
+| `statcheck.qb5PassYds`  | 3943 | 4290 | 262 | ±360 | green |
+| `statcheck.qb10PassYds` | 3558 | 3859 | 211 | ±322 | green |
+| `statcheck.wr10RecYds`  | 1063 | 1112 |  77 | ±97  | green |
+| `statcheck.rb5RushYds`  | 1340 | 1315 |  65 | ±95  | **RED** |
+
+`qb5PassYds` carries a single-sample sd of 262 against a ±360 tolerance — noise
+is **73% of the band**. It fires red on unchanged code. AGENTS.md already says a
+silently-degrading harness is worse than no harness; one that fires *falsely* is
+the same disease.
+
+**Triage rule: a red on `qb5/qb10/qb20/wr10/rb5` from the fast gate carries no
+information.** Re-read at n≥8 before spending a cycle. `rb5RushYds` (+10.4%) is
+the only one that survives the panel — red at 1, 5 and 8 seeds. It is the one
+real row, and it is already known-open. See also `statcheck.rushers1700`, which
+reads 2 against `max 2` on the default seed and 0–1 on most panel seeds.
+
+### FIXED 2026-08-06 — `Step.minPanel` (`scripts/gate.ts`, authorised by Matt)
+
+**Two repairs that look right and are not.** Recording both, because each was
+proposed and each would have made things worse:
+
+1. *"Stop emitting these at n=1."* `gate.ts` treats a missing metric as a hard
+   FAIL, deliberately — that is how a silently-degrading harness gets caught.
+   Suppressing emission trades a false red for a worse one.
+2. *"Add `panelOnly: true` and skip the comparison at n=1."* This suppresses
+   `rb5RushYds` too — **the one red on this list that is a real defect.** A fix
+   that hides the true positive along with the false ones is not a fix.
+
+**What shipped instead: give the step a bigger panel rather than taking the
+guard away.** `Step.minPanel` is a per-step seed floor honoured on every tier.
+`statcheck` is set to `minPanel: 5`.
+
+This costs nothing. Seeds run sequentially *inside* a step but steps run in
+**parallel** with each other, and statcheck is ~5% of the critical path
+(measured on the fast tier: statcheck 5 seeds = 80s; sweep, the long pole =
+346s). The panel hides entirely behind it.
+
+Measured before/after on the fast tier:
+
+```
+before:  4 reds — qb5PassYds 3943, qb10PassYds 3558, rb5RushYds 1340, wr10RecYds 1063
+after:   1 red  — statcheck.rb5RushYds 1304
+```
+
+1304 is exactly the number `190cbd0`'s own `--seeds 5` run reported. **Every
+guard is still live and still comparing** — the three false reds are gone and
+the one true red survives. That is the acceptance test: if `rb5RushYds` ever goes
+green here, the panel change has been taken too far.
+
+Same commit, second bug: the NOISE detector (`fragile` block) was keyed off the
+*global* panel size, so it never ran on the fast tier — the tier where a
+single-sample metric is most dangerous. It now uses the panel each metric's own
+step actually ran (`seedsFor`).
+
+**No `target`, `tol`, `max` or `min` was touched. `gate:lock` was not run.**
+
+**Before believing any red, run this first:**
+
+```
+git diff --name-only <last-green> HEAD -- v2/lib     # 0 files => cannot be a regression
+```
+
+At `190cbd0` this is **0 files** — the commit touched only `AGENTS.md`,
+`HANDOFF.md`, `drift.ts`, `leverage.ts`. Three reviewers ran full gates before
+anyone ran that one command.
+
+**There is no pass/rush mix problem.** Ruled out with `calibrate 300`: pass share
+55.73% vs 56.42% baseline, `passYds` −1.5%, `rushYds` −2.8%, `passAtt` −3.7%,
+`rushAtt` −0.9%, `plays` −2.5%. All in band.
+
+### §5.8 was challenged and the challenge was WRONG — it stands
+
+An earlier pass here flagged `7ea95c2`'s team-volume numbers as possibly stale.
+**They are correct.** The challenge came from summing team attempts off players'
+SEASON lines: a player traded mid-year carries both clubs' attempts on one line
+and lands entirely on his final club, inflating the measured spread.
+
+Re-measured with per-game attribution from the box score, 160 team-seasons:
+team pass attempts **sd 35.5** (cited 34-39 ✓), rank-5 individual passer
+attempts **545** (cited 538-562 ✓). §5.8 stands, the accepted limitation stands,
+do not re-scope against it. Detail in `docs/statcheck-noise-2026-08-06.md` §6.
+
+New and unguarded, from the same measurement: `corr(team attempts, team carries)`
+is **−0.43** against a real **−0.64** (§5.3). Real clubs polarise into pass-heavy
+and run-heavy harder than the sim's do — the narrow attempt spread seen from a
+second angle.
+
+### `rb5RushYds` diagnosed: efficiency, not volume
+
+The one true red. #5 rushing season is 255 carries × **5.29 ypc** = 1347. Real #1
+takes 327 ±34 carries at 5.21 ypc (§5.1); the sim's #1 takes 296 at **5.65**. Top
+backs are short on carries and long on yards per carry.
+
+Every mean is correct — league ypc 4.276 vs real 4.3, qualified-RB ypc 4.498 vs
+§5.6's 4.51. The **spread** is wrong: RB ypc sd 0.666, and
+`corr(carries, ypc) = +0.275`. The sim gives its best backs more carries AND more
+yards per carry, compounding on the same players. Real football runs the other
+way. Same defect as passing, inverted: volume under-spread, efficiency
+over-spread.
+
+**Blocked on a number:** the real `corr(carries, ypc)` for qualified backs is not
+in `nfl-reference.md`. Per AGENTS.md nothing gets tuned against a figure with no
+primary-source computation — derive it into §5 first.
+
+### `positionShort` now fires (`lib/core/select.ts`)
+
+Threshold is `POSITION_MIN` (types.ts:37), **not** `STARTERS` — POSITION_MIN is
+already the legal-53 definition and is what `verify.ts:171-179` asserts. A
+STARTERS-derived minimum would have made the UI call a roster legal that the
+harness fails. Control-tested (1 QB → `Not enough QB: 1/2`); `verify 5` is
+537/537, so no CPU roster ever trips it. A guard against a hole, not a live bug.
+
+**Trap for any multi-season harness:** `advance()` alone never rolls the season
+over — it parks in `offseason-recap` forever. You must also drive
+`advanceOffseason()` while `isOffseason(st.phase)`, as `verify.ts:595-601` does.
+A loop that only calls `advance()` silently measures one season and reports it as
+many.
+
+---
+
 ## 2026-08-03 — FINALE: measurement repairs, panel, merge (branch `task/311-finale`)
 
 **`gate:full --seeds 5`: all 14 harnesses exit 0.** Two metric reds, both
