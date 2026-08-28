@@ -233,11 +233,18 @@ export function cpuResign(state: GameState, teamId: number, candidates: Player[]
     // so the better a player was the more certainly he stayed — which is the
     // opposite of what happens. A man with a real market tests it, because
     // somebody out there will pay more than the club that already has him.
-    // Reality: about 44% of first-round picks re-sign with the club that
-    // drafted them and about half sign somewhere else. Loyalty buys some of
-    // that back, which is the other half of what the dial is for.
     const marketPull = clamp((p.ovr - 70) / 22, 0, 1) * 0.55 * (1 - fo.loyalty * 0.4);
-    const chance = clamp(want * (1 - marketPull), 0.02, 0.95);
+    let chance = clamp(want * (1 - marketPull), 0.02, 0.95);
+
+    // A second contract is earned. The continuity terms above (base / youth /
+    // loyalty / floor-pull) were keeping replacement-level late-rounders at
+    // ~50% — R7 re-signed with the drafter at 11.5% of a class against ~1.5%
+    // (nfl-reference.md §2.3). Veterans still use that formula; a rookie-deal
+    // backup walks, and a first-rounder who became a starter still clears it.
+    if (p.draftedRound !== null && p.yearsPro <= 4) {
+      const earned = clamp((p.ovr - 70) / 12, 0, 1);
+      chance = clamp(earned * (0.80 + fo.loyalty * 0.12) * (1 - marketPull), 0, 0.90);
+    }
     if (!rng.chance(chance)) continue;
 
     p.teamId = teamId;
