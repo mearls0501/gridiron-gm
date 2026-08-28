@@ -4,7 +4,7 @@ import { clearDeadCap } from "../select";
 import { GameState, Phase } from "../types";
 import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
 import { cpuResign, expireContracts, reconcileRoster, spendToFloor, upgradeRoster } from "./contracts";
-import { FA_ROUNDS, runCpuFaRound } from "./freeAgency";
+import { FA_ROUNDS, ensureFaState, openCpuBidding, runCpuFaRound } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
 import { pruneScouting } from "../scouting";
 import { ensurePickInventory, generateUserOffers, prunePickInventory, runCpuTrades, runDraftDayTrades } from "../trades";
@@ -105,6 +105,14 @@ export function runFreeAgencyOpen(state: GameState): void {
     cpuResign(state, teamId, players, rng);
   }
 
+  ensureFaState(state);
+  state.rngState = rng.state;
+}
+
+/** CPU clubs place the opening wave of bids. User club is not auto-bid for. */
+export function openFaBidding(state: GameState): void {
+  const rng = new Rng(state.rngState);
+  openCpuBidding(state, rng);
   state.rngState = rng.state;
 }
 
@@ -117,7 +125,10 @@ export function runFaWave(state: GameState, round: number) {
 
 /** Skip ahead: run every remaining CPU wave at once. */
 export function runAllFaWaves(state: GameState): void {
-  for (let r = 1; r <= FA_ROUNDS; r++) runFaWave(state, r);
+  for (let r = 1; r <= FA_ROUNDS; r++) {
+    if (state.fa?.complete) break;
+    runFaWave(state, r);
+  }
 }
 
 /** Clubs work the phones. Returns how many deals were struck. */
@@ -237,6 +248,7 @@ export function advanceOffseason(state: GameState): string {
       runRecap(state);
       runFreeAgencyOpen(state);
       runOffseasonTrades(state);
+      openFaBidding(state);
       return "Season review complete — free agency is open";
 
     case "offseason-fa":
