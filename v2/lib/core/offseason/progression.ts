@@ -206,7 +206,7 @@ export interface OffseasonReport {
 export function unsignedAttrition(p: Player): number {
   if (p.teamId !== null || p.retired || p.prospect) return 0;
   const old = clamp((p.age - 26) / 8, 0, 1);
-  if (p.stats.length === 0) {
+  if (p.draftedRound === null) {
     const belowReplacement = clamp((REPLACEMENT_OVR + 4 - p.ovr) / 12, 0, 1);
     return clamp(0.18 + belowReplacement * 0.45 + old * 0.35, 0, 0.9);
   }
