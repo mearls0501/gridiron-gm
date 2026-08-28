@@ -30,6 +30,17 @@ yds, 3+ sacks (~31 vs 22, too common), 15+ tackles, 60+ yd FG (~3.2 vs 1.5,
 too common), 4,500+ pass yds, 1,400+ rec yds, 150+ tackles. Do not tune the
 play engine against 16.0.
 
+**`gate:full --seeds 5` on 4 cores (72 min).** All 14 harnesses exit 0.
+`tails.milestonesOff` is inside the new max of 16 (not in the FAIL list).
+One metric red, the inherited known-open row:
+
+```
+FAIL  statcheck.rb5RushYds  1304  expected 1191 +/-95  (NFL ~1191)
+```
+
+Fast gate (single seed) still has the four inherited leaderboard reds
+(`qb5` / `qb10` / `rb5` / `wr10`). None of those are this change.
+
 ---
 
 ## 2026-08-03 — FINALE: measurement repairs, panel, merge (branch `task/311-finale`)
