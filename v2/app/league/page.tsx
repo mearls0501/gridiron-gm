@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useGame } from "@/lib/store/game";
 import { GameState, LogEntry } from "@/lib/core/types";
 import { computeRecords, recordString } from "@/lib/core/select";
@@ -151,6 +152,7 @@ export default function LeaguePage() {
                 <span key="champ" className="block text-left">Champion</span>,
                 <span key="run" className="block text-left">Runner-Up</span>,
                 <span key="mvp" className="block text-left">MVP</span>,
+                <span key="roy" className="block text-left">ROY</span>,
               ]}
             >
               {history.map((h) => {
@@ -160,9 +162,20 @@ export default function LeaguePage() {
                   h.awards.mvp !== null
                     ? state.players.find((p) => p.id === h.awards.mvp)
                     : undefined;
+                const roy =
+                  h.awards.roy !== null
+                    ? state.players.find((p) => p.id === h.awards.roy)
+                    : undefined;
                 return (
                   <Row key={h.season} highlight={h.championId === state.userTeamId}>
-                    <Cell align="left">{h.season}</Cell>
+                    <Cell align="left">
+                      <Link
+                        href={`/standings?season=${h.season}`}
+                        className="hover:text-[var(--color-accent)] transition-colors"
+                      >
+                        {h.season}
+                      </Link>
+                    </Cell>
                     <Cell align="left">
                       <span className="flex items-center gap-2">
                         {champ && <TeamMark team={champ} size={20} />}
@@ -182,6 +195,13 @@ export default function LeaguePage() {
                     <Cell align="left">
                       {mvp ? (
                         <PlayerLink p={mvp} />
+                      ) : (
+                        <span className="text-[var(--color-faint)]">—</span>
+                      )}
+                    </Cell>
+                    <Cell align="left">
+                      {roy ? (
+                        <PlayerLink p={roy} />
                       ) : (
                         <span className="text-[var(--color-faint)]">—</span>
                       )}

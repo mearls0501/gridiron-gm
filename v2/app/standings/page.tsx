@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useGame } from "@/lib/store/game";
 import { Conference, TeamRecord } from "@/lib/core/types";
 import { recordString, winPct } from "@/lib/core/select";
@@ -36,15 +37,34 @@ function subRecord(w: number, l: number, t: number): string {
 }
 
 export default function StandingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <StandingsBody />
+    </Suspense>
+  );
+}
+
+function StandingsBody() {
   const state = useGame((s) => s.state);
   const rev = useGame((s) => s.rev);
   const [tab, setTab] = useState<Tab>("division");
+  const router = useRouter();
+  const params = useSearchParams();
 
   if (!state) return null;
   void rev; // re-render on every mutation; GameState is mutated in place
 
+  const pastSeasons = state.history
+    .map((h) => h.season)
+    .filter((s) => s !== state.season)
+    .sort((a, b) => b - a);
+  const requested = Number(params.get("season"));
+  const viewingSeason =
+    pastSeasons.includes(requested) ? requested : state.season;
+  const archived = viewingSeason !== state.season;
+
   const userId = state.userTeamId;
-  const seeds = new Map(computeSeeds(state).map((s) => [s.teamId, s.seed]));
+  const seeds = new Map(computeSeeds(state, viewingSeason).map((s) => [s.teamId, s.seed]));
 
   const fullHead = [
     L("Team"), "W", "L", "T", "PCT", "PF", "PA", "DIFF", "DIV", "CONF",
@@ -91,18 +111,39 @@ export default function StandingsPage() {
         <div>
           <h1 className="text-lg font-semibold">Standings</h1>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">
-            {state.season} · through week {state.week}
+            {archived
+              ? `${viewingSeason} · final`
+              : `${state.season} · through week ${state.week}`}
           </p>
         </div>
-        <Tabs<Tab>
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: "division", label: "Division" },
-            { value: "conference", label: "Conference" },
-            { value: "league", label: "League" },
-          ]}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {pastSeasons.length > 0 && (
+            <select
+              value={viewingSeason}
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                router.replace(next === state.season ? "/standings" : `/standings?season=${next}`);
+              }}
+              className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[var(--color-accent)] cursor-pointer"
+              title="Season"
+              aria-label="Season"
+            >
+              <option value={state.season}>{state.season}</option>
+              {pastSeasons.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          )}
+          <Tabs<Tab>
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: "division", label: "Division" },
+              { value: "conference", label: "Conference" },
+              { value: "league", label: "League" },
+            ]}
+          />
+        </div>
       </div>
 
       {tab === "division" && (
@@ -110,7 +151,7 @@ export default function StandingsPage() {
           {DIVISIONS.map((d) => (
             <Card key={d} title={d} padded={false}>
               <Table head={fullHead}>
-                {divisionStandings(state, d).map((r) => fullRow(r))}
+                {divisionStandings(state, d, viewingSeason).map((r) => fullRow(r))}
               </Table>
             </Card>
           ))}
@@ -120,7 +161,7 @@ export default function StandingsPage() {
       {tab === "conference" && (
         <div className="grid gap-4 xl:grid-cols-2">
           {(["AFC", "NFC"] as Conference[]).map((conf) => {
-            const rows = conferenceStandings(state, conf);
+            const rows = conferenceStandings(state, conf, viewingSeason);
             return (
               <Card key={conf} title={conf} subtitle="Top seven seeds make the playoffs" padded={false}>
                 <Table head={[L("Team"), "Rec", "PCT", "PF", "PA", "DIFF", "CONF"]}>
@@ -171,7 +212,7 @@ export default function StandingsPage() {
       {tab === "league" && (
         <Card title="League" subtitle="All 32 teams by record" padded={false}>
           <Table head={[L("Team"), "Seed", "W", "L", "T", "PCT", "PF", "PA", "DIFF", "DIV", "CONF"]}>
-            {leagueStandings(state).map((r, i) => {
+            {leagueStandings(state, viewingSeason).map((r, i) => {
               const seed = seeds.get(r.teamId);
               return (
                 <Row key={r.teamId} highlight={r.teamId === userId}>

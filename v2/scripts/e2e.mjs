@@ -193,6 +193,24 @@ async function main() {
   if (!/Preseason/i.test(body)) fail("did not roll into the next preseason");
   else console.log("  ok    rolled into the next season");
 
+  // ---- Prior-season standings from history --------------------------------
+  await page.goto(BASE + "/league", { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await checkPage("[history] /league");
+  const leagueText = await page.evaluate(() => document.body.innerText);
+  if (!/\bROY\b/.test(leagueText)) fail("league history has no ROY column");
+  const seasonLink = page.locator('a[href^="/standings?season="]').first();
+  if (!(await seasonLink.count())) {
+    fail("league history has no standings link for a prior season");
+  } else {
+    await seasonLink.click();
+    await page.waitForTimeout(500);
+    await checkPage("[history] /standings?season=");
+    const standingsText = await page.evaluate(() => document.body.innerText);
+    if (!/final/i.test(standingsText)) fail("archived standings did not label a prior season as final");
+    else console.log("  ok    prior-season standings open from history");
+  }
+
   // ---- Reload persistence ---------------------------------------------------
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(1200);

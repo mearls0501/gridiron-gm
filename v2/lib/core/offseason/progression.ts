@@ -295,7 +295,7 @@ export function recordSeasonHistory(state: GameState): SeasonHistory {
         return l.sacks * 9 + l.ints * 11 + l.tackles * 0.55 + l.ff * 5 + l.passDef * 1.5;
       }),
       roy: bestBy(state, (p) => {
-        if (p.yearsPro > 1) return -Infinity;
+        if (p.yearsPro !== 0) return -Infinity;
         const l = lineOf(p);
         if (!l) return -Infinity;
         return l.passYds * 0.05 + l.passTd * 5 - l.passInt * 3 + l.rushYds * 0.07
