@@ -255,8 +255,8 @@
       "note": "currently LB.awr \u2014 task P1.3"
     },
     "tails.milestonesOff": {
-      "max": 12,
-      "note": "KNOWN-HIGH, target 0. Locked across a 5-seed panel; a single seed reads 17-18, so a 1-seed gate run fails this without a regression having happened."
+      "max": 16,
+      "note": "KNOWN-HIGH, target 0. Count of categories outside the central 95% Poisson interval (\u03bb = NFL rate \u00d7 seasons). Panel 16.0 (14/15/15/18/18) after the 2026-08-28 verdict change; the old ratio-band lock of 12 does not apply to this metric."
     },
     "tails.bestSeasonPassYds": {
       "target": 5392.4,
