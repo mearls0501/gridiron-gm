@@ -917,7 +917,11 @@ export function runCutdownTrades(state: GameState, rng: Rng, attempts = 120): nu
   const ids = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);
   if (ids.length < 2) return 0;
 
-  for (let i = 0; i < attempts; i++) {
+  // §1.2: final cutdowns are ~16 trades a year. The one-pick dump
+  // clears easily, and uncapped it spent the Day-3 pool in two seasons
+  // (23 then 39) and the window went to zero.
+  const cap = 16;
+  for (let i = 0; i < attempts && done < cap; i++) {
     const seller = rng.pick(ids);
     const buyer = rng.pick(ids.filter((id) => id !== seller));
     const offer = proposeCutdownDump(state, seller, buyer, rng);
