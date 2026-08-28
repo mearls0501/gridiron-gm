@@ -780,12 +780,19 @@ export function runCpuTrades(state: GameState, rng: Rng, attempts = 120): number
     if (executeTrade(state, offer).ok) done++;
   }
 
-  // In-season volume is thin against §1.3's ~16 (measured ~9), and almost
-  // all of the shortfall sits in the deadline fortnight (§1.3b: ~58% of
-  // in-season trades land in weeks 8-9). A second, seller-initiated pass
-  // pairs clubs that want out with clubs that want in.
+  // Same builder, more search: weeks 8-9 are 53% of in-season volume
+  // (docs/nfl-reference.md §1.3b) and were measuring ~5 against ~9.
   if (state.phase === "regular" && state.week >= TRADE_DEADLINE_WEEK - 1) {
-    done += runDeadlineDumps(state, rng, state.week === TRADE_DEADLINE_WEEK ? 90 : 40);
+    const extra = state.week === TRADE_DEADLINE_WEEK ? 80 : 35;
+    for (let i = 0; i < extra; i++) {
+      const from = rng.pick(ids);
+      const to = rng.pick(ids.filter((id) => id !== from));
+      const offer = proposeTrade(state, from, to, rng);
+      if (!offer) continue;
+      if (!evaluateOffer(state, offer).accept) continue;
+      state.nextTradeId = (state.nextTradeId ?? 1) + 1;
+      if (executeTrade(state, offer).ok) done++;
+    }
   }
   return done;
 }
@@ -842,28 +849,19 @@ function pickDepthChip(
   return rng.weighted(pool, (x) => x.depth).p;
 }
 
-function proposeDump(
-  state: GameState,
-  sellerId: number,
-  buyerId: number,
-  rng: Rng,
-  latePicksOnly: boolean,
+function proposeCutdownDump(
+  state: GameState, sellerId: number, buyerId: number, rng: Rng
 ): TradeOffer | null {
   if (sellerId === buyerId) return null;
-  const { posture: sellerP } = teamOutlook(state, sellerId);
   const { posture: buyerP } = teamOutlook(state, buyerId);
-
   const wants = new Set(needsOf(state, buyerId));
-  const chips = (latePicksOnly
-    ? teamRoster(state, sellerId).filter((p) => {
-        if (!p.contract) return false;
-        if (positionCount(state, sellerId, p.pos) <= POSITION_MIN[p.pos]) return false;
-        const chart = state.teams[sellerId].depthChart[p.pos] ?? [];
-        const idx = chart.indexOf(p.id);
-        return idx < 0 || idx >= STARTERS[p.pos];
-      })
-    : tradeableFrom(state, sellerId, sellerP)
-  ).filter((p) => wants.has(p.pos));
+  const chips = teamRoster(state, sellerId).filter((p) => {
+    if (!p.contract || !wants.has(p.pos)) return false;
+    if (positionCount(state, sellerId, p.pos) <= POSITION_MIN[p.pos]) return false;
+    const chart = state.teams[sellerId].depthChart[p.pos] ?? [];
+    const idx = chart.indexOf(p.id);
+    return idx < 0 || idx >= STARTERS[p.pos];
+  });
   if (!chips.length) return null;
 
   const target = rng.weighted(chips, (p) => {
@@ -872,32 +870,21 @@ function proposeDump(
     return idx < 0 ? 8 : Math.max(0.5, idx);
   });
 
-  const price = playerTradeValue(state, sellerId, target, sellerP) * 1.12;
-  if (price <= 0) return null;
+  // One Day-3 pick. The seller is about to cut this man for nothing
+  // (§1.4: 70% of veterans fetch a fifth or worse). Bundling three
+  // late picks, as the regular builder does, emptied the pool that
+  // in-season deals also spend.
+  const buyerVal = playerTradeValue(state, buyerId, target, buyerP);
+  const pick = picksOwnedBy(state, buyerId)
+    .filter((pk) => pk.round >= 5)
+    .map((pk) => ({ pk, cost: pickValue(state, buyerId, pk) }))
+    .filter((x) => x.cost > 0 && x.cost < buyerVal)
+    .sort((a, b) => a.cost - b.cost)[0];
+  if (!pick) return null;
 
-  const give: TradeAsset[] = [];
-  let offered = 0;
-  const mine = picksOwnedBy(state, buyerId)
-    .filter((pk) => !latePicksOnly || pk.round >= 4)
-    .map((pk) => ({ pk, v: pickValue(state, sellerId, pk) }))
-    .sort((a, b) => a.v - b.v);
-  for (const { pk, v } of mine) {
-    if (offered >= price) break;
-    if (give.length >= 3) break;
-    give.push({ kind: "pick", season: pk.season, round: pk.round, originalTeamId: pk.originalTeamId });
-    offered += v;
-  }
-  if (!give.length || offered < price * 0.85) return null;
-
-  if (
-    rosterCount(state, buyerId) + 1 > ROSTER_LIMIT
-    && !state.phase.startsWith("offseason")
-  ) {
-    const chip = pickDepthChip(state, buyerId, rng, new Set());
-    if (!chip) return null;
-    give.push({ kind: "player", playerId: chip.id });
-  }
-
+  const give: TradeAsset[] = [
+    { kind: "pick", season: pick.pk.season, round: pick.pk.round, originalTeamId: pick.pk.originalTeamId },
+  ];
   const get: TradeAsset[] = [{ kind: "player", playerId: target.id }];
   if (packageValue(state, buyerId, get, buyerP) <= packageValue(state, buyerId, give, buyerP)) {
     return null;
@@ -917,10 +904,14 @@ function proposeDump(
 
 /**
  * Late-August cutdown. docs/nfl-reference.md §1.2: ~17% of the year, ~16
- * trades. Clubs move depth-chart bubble bodies for Day 3 picks rather than
- * cut them for nothing. Hooked from prunePickInventory during offseason-final.
+ * trades. Clubs move depth-chart bubble bodies for a single Day-3 pick
+ * rather than cut them for nothing. Hooked from prunePickInventory
+ * during offseason-final.
+ *
+ * The seller does not run evaluateOffer's 1.03 margin: the alternative
+ * is a release, so any pick is a win.
  */
-export function runCutdownTrades(state: GameState, rng: Rng, attempts = 220): number {
+export function runCutdownTrades(state: GameState, rng: Rng, attempts = 120): number {
   ensurePickInventory(state);
   let done = 0;
   const ids = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);
@@ -929,35 +920,9 @@ export function runCutdownTrades(state: GameState, rng: Rng, attempts = 220): nu
   for (let i = 0; i < attempts; i++) {
     const seller = rng.pick(ids);
     const buyer = rng.pick(ids.filter((id) => id !== seller));
-    const offer = proposeDump(state, seller, buyer, rng, true);
+    const offer = proposeCutdownDump(state, seller, buyer, rng);
     if (!offer) continue;
-    if (!evaluateOffer(state, offer).accept) continue;
-    state.nextTradeId = (state.nextTradeId ?? 1) + 1;
-    if (executeTrade(state, offer).ok) done++;
-  }
-  return done;
-}
-
-/**
- * Seller-initiated deadline deals: a club that is out moves a veteran to a
- * club that is in. docs/nfl-reference.md §1.3 / §1.3b.
- */
-function runDeadlineDumps(state: GameState, rng: Rng, attempts: number): number {
-  let done = 0;
-  const ids = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);
-  if (ids.length < 2) return 0;
-  const sellers = ids.filter((id) => teamOutlook(state, id).posture !== "contend");
-  const buyers = ids.filter((id) => teamOutlook(state, id).posture !== "rebuild");
-  if (!sellers.length || !buyers.length) return 0;
-
-  for (let i = 0; i < attempts; i++) {
-    const seller = rng.pick(sellers);
-    const buyerPool = buyers.filter((id) => id !== seller);
-    if (!buyerPool.length) continue;
-    const buyer = rng.pick(buyerPool);
-    const offer = proposeDump(state, seller, buyer, rng, false);
-    if (!offer) continue;
-    if (!evaluateOffer(state, offer).accept) continue;
+    if (!checkTrade(state, offer).ok) continue;
     state.nextTradeId = (state.nextTradeId ?? 1) + 1;
     if (executeTrade(state, offer).ok) done++;
   }
