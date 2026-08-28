@@ -86,27 +86,60 @@ const SEASON_THRESHOLDS: Threshold[] = [
   { label: "180+ tackles",    nfl: 0.3,  note: "~1 every 3 years",       test: (l) => l.tackles >= 180 },
 ];
 
-function verdict(actual: number, expected: number): string {
-  if (expected <= 0.05) {
-    // "Should essentially never happen" — anything above ~1 per 20 seasons is wrong.
-    return actual <= 0.06 ? "ok" : "TOO COMMON";
+/**
+ * Central 95% equal-tailed interval for Poisson(λ). A category PASSES when
+ * the observed count sits inside [lo, hi]. This is the prescribed replacement
+ * for the ratio-band verdict: at 16 seasons the finest rate is 1/16 = 0.0625,
+ * which already failed the old ≤0.06 line for seven rare categories.
+ */
+function poissonCentralInterval(lambda: number): { lo: number; hi: number } {
+  if (lambda <= 0) return { lo: 0, hi: 0 };
+  const loTail = 0.025;
+  const hiTail = 0.975;
+  const p0 = Math.exp(-lambda);
+  if (p0 === 0) {
+    const z = 1.959963984540054;
+    const sd = Math.sqrt(lambda);
+    return {
+      lo: Math.max(0, Math.ceil(lambda - z * sd - 0.5)),
+      hi: Math.floor(lambda + z * sd + 0.5),
+    };
   }
-  const ratio = actual / expected;
-  if (ratio > 2.5) return "TOO COMMON";
-  if (ratio < 0.4) return "TOO RARE";
-  if (ratio > 1.6 || ratio < 0.62) return "off";
+  let term = p0;
+  let cdf = term;
+  let k = 0;
+  let lo = -1;
+  let hi = -1;
+  const kMax = Math.ceil(lambda + 12 * Math.sqrt(lambda) + 40);
+  while (k <= kMax && (lo < 0 || hi < 0)) {
+    if (lo < 0 && cdf >= loTail) lo = k;
+    if (hi < 0 && cdf >= hiTail) hi = k;
+    k++;
+    term *= lambda / k;
+    cdf += term;
+    if (cdf > 1) cdf = 1;
+  }
+  return { lo: lo < 0 ? 0 : lo, hi: hi < 0 ? k : hi };
+}
+
+function verdict(count: number, lambda: number): string {
+  const { lo, hi } = poissonCentralInterval(lambda);
+  if (count < lo) return "TOO RARE";
+  if (count > hi) return "TOO COMMON";
   return "ok";
 }
 
 function report(title: string, rows: { t: Threshold; count: number }[], seasons: number): number {
-  console.log(`\n${title}   (per season, ${seasons} simulated)`);
+  console.log(`\n${title}   (per season, ${seasons} simulated; verdict is count vs Poisson 95% for λ = NFL × seasons)`);
   console.log(`  ${"milestone".padEnd(17)} ${"sim".padStart(7)} ${"NFL".padStart(7)}   verdict`);
   let problems = 0;
   for (const { t, count } of rows) {
     const per = count / seasons;
-    const v = verdict(per, t.nfl);
+    const lambda = t.nfl * seasons;
+    const { lo, hi } = poissonCentralInterval(lambda);
+    const v = verdict(count, lambda);
     if (v !== "ok") problems++;
-    const flag = v === "ok" ? "" : `  <- ${v}`;
+    const flag = v === "ok" ? "" : `  <- ${v} (count ${count}, λ ${lambda.toFixed(2)}, 95% [${lo},${hi}])`;
     console.log(
       `  ${t.label.padEnd(17)} ${per.toFixed(2).padStart(7)} ${t.nfl.toFixed(2).padStart(7)}   ${t.note}${flag}`
     );
