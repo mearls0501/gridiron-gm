@@ -79,6 +79,11 @@ const COMMON_OVR_SD = 7;
 const OWN_OVR_SD = 4.5;
 const COMMON_POT_SD = 3.5;
 const OWN_POT_SD = 4;
+// Share of the consensus miss that independent work recovers. Zero leaves
+// (view − consensus) anti-correlated with (truth − consensus), because
+// COMMON_OVR_SD > CONSENSUS_SD on the same hash; the leftover common term
+// amplifies groupthink and POSITION_VALUE multiplies that leftover error.
+const PRIVATE_SIGNAL = 0.45;
 
 // ---------------------------------------------------------------------------
 // CPU beliefs
@@ -116,8 +121,14 @@ export function cpuProspectView(
   const ownOvr = stableNormal(state.seed, season, teamId + 1, p.id);
   const ownPot = stableNormal(state.seed, season, teamId + 1, p.id ^ 0x7a11);
 
-  const ovr = clamp(p.ovr + common * COMMON_OVR_SD + ownOvr * OWN_OVR_SD * q, 30, 99);
-  const pot = clamp(p.pot + common * COMMON_POT_SD + ownPot * OWN_POT_SD * q, ovr, 99);
+  const ovr = clamp(
+    p.ovr + common * COMMON_OVR_SD * (1 - PRIVATE_SIGNAL) + ownOvr * OWN_OVR_SD * q,
+    30, 99
+  );
+  const pot = clamp(
+    p.pot + common * COMMON_POT_SD * (1 - PRIVATE_SIGNAL) + ownPot * OWN_POT_SD * q,
+    ovr, 99
+  );
   const out = { ovr, pot };
   viewCache.set(key, out);
   return out;
