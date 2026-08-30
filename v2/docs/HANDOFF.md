@@ -5,6 +5,51 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-30 — POSITION_VALUE on the CPU board (branch `cursor/position-value-r1-qb-c9f5`)
+
+PR #9 was right: the leftover R1 QB gap is not `scouting.ts`. A true-BPA top 32
+scored `(ovr − replacement) × POSITION_VALUE` is **21.3% QB** (40 classes, 5
+seeds) against a real 10.3% (`nfl-reference.md` §2.4). No-PV true-OVR is 4.4%
+QB, matching that finding. Actual CPU drafts sat near 15% only because need /
+`startsHere` already suppress below the salary product.
+
+`cpuBoardValue` now multiplies surplus by `√POSITION_VALUE` (QB ≈ 1.84× a
+safety). The raw 3.4× salary table is unchanged — contracts, trades, FA,
+generation, and the user board were not touched. Square root is the geometric
+mean of the same table, not a fitted constant.
+
+**Careers 30 seasons, seed 12345, n=576 mature R1** (same instrument as #7/#9):
+
+| group | real §2.4 | main (#9) | after |
+|---|---:|---:|---:|
+| QB | 10.3% | 15.1% | **11.6%** |
+| DB | 16.7% | 21.0% | 19.8% |
+| DL | 24.5% | 24.3% | 20.0% |
+| OL | 20.3% | 17.9% | **20.3%** |
+| WR | 13.4% | 13.7% | 16.7% |
+| LB | 7.7% | 3.8% | 4.9% |
+| RB | 4.2% | 1.0% | 2.4% |
+| TE | 2.7% | 3.1% | 3.6% |
+
+`r1QbSharePct` 15.10 → **11.63**. `r1ShareMae` **2.22**. `r1BustPct` 6.94
+(max 34). `draftSignal` 6.24 (min 2). R1 true OVR 72.4 (was 71.9).
+
+DL is the cost — it was the one group sitting on the real rate and dropped
+4.3pp. WR overshot by about the same amount. Net composition mae improved.
+RB / LB / OL / DB all moved toward §2.4.
+
+**Lead call, baseline not moved.** The locked band is 15.9 ±3.2, built to
+catch a relapse to 19.6. 11.6 fails the *floor* while moving toward the `nfl`
+note. The honest shape is a `max`. `starterRateMae` read 8.30 against `max` 8
+on this one seed — early-round 4+yr starter rates were already hot after
+#5/#8; fewer R1 QBs (the bustiest cell) pushes that MAE up a sliver. Not
+chased.
+
+File cluster: `v2/lib/core/offseason/draft.ts` (`cpuBoardValue` only), plus
+the known-open row in `AGENTS.md` and this note.
+
+---
+
 ## 2026-08-28 — Poisson-interval verdict for `milestonesOff` (branch `task/312-poisson-milestones`)
 
 The prescribed count-based verdict is in. `scripts/tails.ts` no longer compares
