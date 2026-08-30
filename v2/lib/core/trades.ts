@@ -61,6 +61,14 @@ export function ensurePickInventory(state: GameState): void {
 export function prunePickInventory(state: GameState, throughSeason: number): void {
   if (!state.pickOwners) return;
   state.pickOwners = state.pickOwners.filter((p) => p.season > throughSeason);
+  // finalizeOffseason calls this after convertUndrafted and before the
+  // 53-man reconcile — the real cutdown, and the only hook this file owns
+  // on that spine. Child stream, not the parent: finalize holds its own
+  // Rng copy and would overwrite a write-back of state.rngState.
+  if (state.phase === "offseason-final") {
+    const cutRng = new Rng((state.rngState ^ Math.imul(state.season, 0x9e3779b9) ^ 0x0c47d001) >>> 0);
+    runCutdownTrades(state, cutRng);
+  }
 }
 
 export function picksOwnedBy(state: GameState, teamId: number, season?: number): PickOwnership[] {
@@ -261,7 +269,11 @@ export function checkTrade(state: GameState, offer: TradeOffer): TradeCheck {
     const leaving = out.filter((a) => a.kind === "player").length;
     const arriving = incoming.filter((a) => a.kind === "player").length;
     const after = rosterCount(state, teamId) - leaving + arriving;
-    if (after > ROSTER_LIMIT) {
+    // Offseason rosters sit over 53 after the draft and the UDFA chase;
+    // finalize's cutdown brings them back. Blocking those deals is why the
+    // late-August window in docs/nfl-reference.md §1.2 (~16 trades, ~17% of
+    // the year) produced nothing.
+    if (after > ROSTER_LIMIT && !state.phase.startsWith("offseason")) {
       return { ok: false, reason: `${state.teams[teamId].abbr} would be at ${after} players.` };
     }
 
@@ -579,6 +591,20 @@ export function proposeTrade(
 
   if (give.length === 0 || offered < price * 0.85) return null;
 
+  // A 53-man club taking a player and sending only picks goes to 54.
+  const except = new Set<number>([
+    target.id,
+    ...give.filter((a): a is Extract<TradeAsset, { kind: "player" }> => a.kind === "player").map((a) => a.playerId),
+  ]);
+  if (
+    rosterCount(state, fromTeamId) - give.filter((a) => a.kind === "player").length + 1 > ROSTER_LIMIT
+    && !state.phase.startsWith("offseason")
+  ) {
+    const chip = pickDepthChip(state, fromTeamId, rng, except);
+    if (!chip) return null;
+    give.push({ kind: "player", playerId: chip.id });
+  }
+
   // And the proposing club has to want it too.
   //
   // Without this, `proposeTrade` only ever asked "is this enough for them to
@@ -753,6 +779,21 @@ export function runCpuTrades(state: GameState, rng: Rng, attempts = 120): number
     state.nextTradeId = (state.nextTradeId ?? 1) + 1;
     if (executeTrade(state, offer).ok) done++;
   }
+
+  // Same builder, more search: weeks 8-9 are 53% of in-season volume
+  // (docs/nfl-reference.md §1.3b) and were measuring ~5 against ~9.
+  if (state.phase === "regular" && state.week >= TRADE_DEADLINE_WEEK - 1) {
+    const extra = state.week === TRADE_DEADLINE_WEEK ? 80 : 35;
+    for (let i = 0; i < extra; i++) {
+      const from = rng.pick(ids);
+      const to = rng.pick(ids.filter((id) => id !== from));
+      const offer = proposeTrade(state, from, to, rng);
+      if (!offer) continue;
+      if (!evaluateOffer(state, offer).accept) continue;
+      state.nextTradeId = (state.nextTradeId ?? 1) + 1;
+      if (executeTrade(state, offer).ok) done++;
+    }
+  }
   return done;
 }
 
@@ -781,6 +822,111 @@ export function runDraftDayTrades(state: GameState, rng: Rng, attempts = 260): n
     const offer = proposePickSwap(state, from, to, rng);
     if (!offer) continue;
     if (!evaluateOffer(state, offer).accept) continue;
+    state.nextTradeId = (state.nextTradeId ?? 1) + 1;
+    if (executeTrade(state, offer).ok) done++;
+  }
+  return done;
+}
+
+/**
+ * A man the depth chart does not start. Cutdown chips and roster-balancing
+ * bodies come from here — never from an overall sort.
+ */
+function pickDepthChip(
+  state: GameState, teamId: number, rng: Rng, except: Set<number>
+): Player | null {
+  const team = state.teams[teamId];
+  const pool: { p: Player; depth: number }[] = [];
+  for (const p of teamRoster(state, teamId)) {
+    if (!p.contract || except.has(p.id)) continue;
+    if (positionCount(state, teamId, p.pos) <= POSITION_MIN[p.pos]) continue;
+    const chart = team.depthChart[p.pos] ?? [];
+    const idx = chart.indexOf(p.id);
+    if (idx >= 0 && idx < STARTERS[p.pos]) continue;
+    pool.push({ p, depth: idx < 0 ? STARTERS[p.pos] + 4 : idx });
+  }
+  if (!pool.length) return null;
+  return rng.weighted(pool, (x) => x.depth).p;
+}
+
+function proposeCutdownDump(
+  state: GameState, sellerId: number, buyerId: number, rng: Rng
+): TradeOffer | null {
+  if (sellerId === buyerId) return null;
+  const { posture: buyerP } = teamOutlook(state, buyerId);
+  const wants = new Set(needsOf(state, buyerId));
+  const chips = teamRoster(state, sellerId).filter((p) => {
+    if (!p.contract || !wants.has(p.pos)) return false;
+    if (positionCount(state, sellerId, p.pos) <= POSITION_MIN[p.pos]) return false;
+    const chart = state.teams[sellerId].depthChart[p.pos] ?? [];
+    const idx = chart.indexOf(p.id);
+    return idx < 0 || idx >= STARTERS[p.pos];
+  });
+  if (!chips.length) return null;
+
+  const target = rng.weighted(chips, (p) => {
+    const chart = state.teams[sellerId].depthChart[p.pos] ?? [];
+    const idx = chart.indexOf(p.id);
+    return idx < 0 ? 8 : Math.max(0.5, idx);
+  });
+
+  // One Day-3 pick. The seller is about to cut this man for nothing
+  // (§1.4: 70% of veterans fetch a fifth or worse). Bundling three
+  // late picks, as the regular builder does, emptied the pool that
+  // in-season deals also spend.
+  const buyerVal = playerTradeValue(state, buyerId, target, buyerP);
+  const pick = picksOwnedBy(state, buyerId)
+    .filter((pk) => pk.round >= 5)
+    .map((pk) => ({ pk, cost: pickValue(state, buyerId, pk) }))
+    .filter((x) => x.cost > 0 && x.cost < buyerVal)
+    .sort((a, b) => a.cost - b.cost)[0];
+  if (!pick) return null;
+
+  const give: TradeAsset[] = [
+    { kind: "pick", season: pick.pk.season, round: pick.pk.round, originalTeamId: pick.pk.originalTeamId },
+  ];
+  const get: TradeAsset[] = [{ kind: "player", playerId: target.id }];
+  if (packageValue(state, buyerId, get, buyerP) <= packageValue(state, buyerId, give, buyerP)) {
+    return null;
+  }
+
+  return {
+    id: state.nextTradeId ?? 1,
+    fromTeamId: buyerId,
+    toTeamId: sellerId,
+    give,
+    get,
+    season: state.season,
+    week: state.week,
+    rationale: rationaleFor(buyerP, true),
+  };
+}
+
+/**
+ * Late-August cutdown. docs/nfl-reference.md §1.2: ~17% of the year, ~16
+ * trades. Clubs move depth-chart bubble bodies for a single Day-3 pick
+ * rather than cut them for nothing. Hooked from prunePickInventory
+ * during offseason-final.
+ *
+ * The seller does not run evaluateOffer's 1.03 margin: the alternative
+ * is a release, so any pick is a win.
+ */
+export function runCutdownTrades(state: GameState, rng: Rng, attempts = 120): number {
+  ensurePickInventory(state);
+  let done = 0;
+  const ids = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);
+  if (ids.length < 2) return 0;
+
+  // §1.2: final cutdowns are ~16 trades a year. The one-pick dump
+  // clears easily, and uncapped it spent the Day-3 pool in two seasons
+  // (23 then 39) and the window went to zero.
+  const cap = 16;
+  for (let i = 0; i < attempts && done < cap; i++) {
+    const seller = rng.pick(ids);
+    const buyer = rng.pick(ids.filter((id) => id !== seller));
+    const offer = proposeCutdownDump(state, seller, buyer, rng);
+    if (!offer) continue;
+    if (!checkTrade(state, offer).ok) continue;
     state.nextTradeId = (state.nextTradeId ?? 1) + 1;
     if (executeTrade(state, offer).ok) done++;
   }
