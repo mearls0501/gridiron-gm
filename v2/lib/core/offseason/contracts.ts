@@ -529,7 +529,9 @@ export function draftCapitalHold(p: Player, season: number): number {
   const yearsIn = season - p.draftClassSeason;
   if (yearsIn < 0 || yearsIn > ROOKIE_HOLD_YEARS) return 0;
   const base = ROUND_HOLD[p.draftedRound] ?? 0;
-  return base * (1 - yearsIn / (ROOKIE_HOLD_YEARS + 1));
+  const hold = base * (1 - yearsIn / (ROOKIE_HOLD_YEARS + 1));
+  if (yearsIn === 0 && p.draftedRound === 7) return hold + 8;
+  return hold;
 }
 
 /** Seasons of rookie-deal protection. The hold is gone once he is paid. */
