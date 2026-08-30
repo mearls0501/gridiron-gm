@@ -39,11 +39,26 @@ DL is the cost — it was the one group sitting on the real rate and dropped
 RB / LB / OL / DB all moved toward §2.4.
 
 **Lead call, baseline not moved.** The locked band is 15.9 ±3.2, built to
-catch a relapse to 19.6. 11.6 fails the *floor* while moving toward the `nfl`
-note. The honest shape is a `max`. `starterRateMae` read 8.30 against `max` 8
-on this one seed — early-round 4+yr starter rates were already hot after
-#5/#8; fewer R1 QBs (the bustiest cell) pushes that MAE up a sliver. Not
-chased.
+catch a relapse to 19.6. 11.6 (and the 2-seed panel 9.77) fail the *floor*
+while sitting on the `nfl` note. The honest shape is a `max`.
+`starterRateMae` 8.30 vs max 8 on the 30-season seed did **not** fail on the
+2-seed panel. Not chased.
+
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
+(`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — byte-identical to
+PR #8 / #9 on main.
+
+**`npm run gate:full -- --seeds 2`:** all 14 harnesses exit 0.
+
+```
+FAIL  tails.milestonesOff  16.50  expected <= 16   known-open Poisson row; 2-seed noise around the 16.0 lock
+FAIL  drift.saveMbAtEnd    10.53  expected <= 10.5  knife-edge +0.03; not diagnosed (draft scoring does not grow the save)
+FAIL  careers.r1QbSharePct  9.77  expected 15.90 +/-3.2  THIS PACKET — toward nfl 10.3; two-sided lock
+FAIL  statcheck.qb5PassYds  4080  expected 4497 +/-360  inherited (same 4080 on #8)
+FAIL  statcheck.rb5RushYds  1401  expected 1191 +/-95   known-open (same 1401 on #8)
+```
 
 File cluster: `v2/lib/core/offseason/draft.ts` (`cpuBoardValue` only), plus
 the known-open row in `AGENTS.md` and this note.
