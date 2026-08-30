@@ -175,8 +175,17 @@ export function cpuExpectedView(
 
   // Reliability: how much of a private deviation to believe, given how noisy
   // this club's own read is against how uncertain the market itself is.
-  const keepOvr = CONSENSUS_SD ** 2 / (CONSENSUS_SD ** 2 + (OWN_OVR_SD * q) ** 2);
-  const keepRoom = COMMON_POT_SD ** 2 / (COMMON_POT_SD ** 2 + (OWN_POT_SD * q) ** 2);
+  // After PRIVATE_SIGNAL the common miss no longer cancels from (view −
+  // consensus), so the keep has to use the same leftover the view does.
+  // keep = cov(truth − consensus, view − consensus) / var(view − consensus).
+  const leftoverOvr = COMMON_OVR_SD * (1 - PRIVATE_SIGNAL);
+  const leftoverPot = COMMON_POT_SD * (1 - PRIVATE_SIGNAL);
+  const keepOvr =
+    (CONSENSUS_SD * (CONSENSUS_SD - leftoverOvr)) /
+    ((leftoverOvr - CONSENSUS_SD) ** 2 + (OWN_OVR_SD * q) ** 2);
+  const keepRoom =
+    (COMMON_POT_SD * (COMMON_POT_SD - leftoverPot)) /
+    ((leftoverPot - COMMON_POT_SD) ** 2 + (OWN_POT_SD * q) ** 2);
 
   const anchor = consensusScore(state, p);
   const ovr = anchor + (view.ovr - anchor) * keepOvr;
