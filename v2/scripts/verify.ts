@@ -610,9 +610,16 @@ function run(seasons: number, seed: number): void {
     const t = st.teams[champ.championId];
     const mvpId = champ.awards.mvp;
     const mvp = mvpId != null ? st.players.find((p) => p.id === mvpId) : null;
+    const royId = champ.awards.roy;
+    const roy = royId != null ? st.players.find((p) => p.id === royId) : null;
+    check(roy != null, "ROY was awarded");
+    // recordSeasonHistory runs before yearsPro increments, so a rookie is 1 here.
+    check(roy != null && roy.yearsPro === 1, "ROY is a rookie",
+      roy ? `${roy.firstName} ${roy.lastName} yearsPro=${roy.yearsPro}` : "none");
     console.log(
       `  champion: ${t.city} ${t.name}` +
-      (mvp ? ` | MVP: ${mvp.firstName} ${mvp.lastName} (${mvp.pos}, ${st.teams[mvp.teamId ?? 0]?.abbr ?? "FA"})` : "")
+      (mvp ? ` | MVP: ${mvp.firstName} ${mvp.lastName} (${mvp.pos}, ${st.teams[mvp.teamId ?? 0]?.abbr ?? "FA"})` : "") +
+      (roy ? ` | ROY: ${roy.firstName} ${roy.lastName} (${roy.pos})` : "")
     );
   }
 
