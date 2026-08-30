@@ -5,6 +5,44 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-28 — Poisson-interval verdict for `milestonesOff` (branch `task/312-poisson-milestones`)
+
+The prescribed count-based verdict is in. `scripts/tails.ts` no longer compares
+a quantized per-season rate to a ratio band. A category PASSES when the
+observed count sits inside the central 95% Poisson interval for
+λ = NFL rate × seasons.
+
+**Measured 5-seed panel, 16 seasons each (seeds 1-5):** 15 / 14 / 18 / 15 / 18,
+mean **16.0**, sd 1.87. `tails.milestonesOff` re-locked `max` 12 → **16** to
+match the new meaning. No other baseline moved. No engine, generation, or sim
+code was touched.
+
+The rare-event floor is gone: 550+ pass yds, 300+ rush yds, 5,500+ pass yds,
+50+ pass TD, and 23+ sacks all passed on this panel (one occurrence is inside
+[0,2] or [0,3] at these λ). 1,900+ receiving yards failed 1 of 5 (seed 3,
+count 4 vs [0,3]); 23+ sacks failed 0 of 5. Those two are **not claimed
+fixed** — pooled 80-season evidence still has them at 2.25× and 3.12×.
+
+What the new number actually is: the 95% interval is much tighter than the old
+0.62–1.6 ratio band once λ is large, so common-rate misses that used to read
+"ok" now count. Stable offs across all five seeds: 450+ pass yds, 200+ rush
+yds, 3+ sacks (~31 vs 22, too common), 15+ tackles, 60+ yd FG (~3.2 vs 1.5,
+too common), 4,500+ pass yds, 1,400+ rec yds, 150+ tackles. Do not tune the
+play engine against 16.0.
+
+**`gate:full --seeds 5` on 4 cores (72 min).** All 14 harnesses exit 0.
+`tails.milestonesOff` is inside the new max of 16 (not in the FAIL list).
+One metric red, the inherited known-open row:
+
+```
+FAIL  statcheck.rb5RushYds  1304  expected 1191 +/-95  (NFL ~1191)
+```
+
+Fast gate (single seed) still has the four inherited leaderboard reds
+(`qb5` / `qb10` / `rb5` / `wr10`). None of those are this change.
+
+---
+
 ## 2026-08-03 — FINALE: measurement repairs, panel, merge (branch `task/311-finale`)
 
 **`gate:full --seeds 5`: all 14 harnesses exit 0.** Two metric reds, both
@@ -25,15 +63,12 @@ FAIL  statcheck.rb5RushYds  1304   known-open row
   against sacks taken sat exactly there and oscillated between the two
   classifications across seeds on unchanged code.
 
-### NOT done — the Poisson verdict
+### Poisson verdict — done in task/312
 
-`tails.ts` still uses the ratio-band verdict. The count-based Poisson-interval
-repair is fully specified in the `milestonesOff` quantization section and was
-scoped for this session; **it was not implemented, because the session ran out
-of context and a rushed verdict change plus a re-locked baseline is exactly the
-move AGENTS.md warns against.** It is the first thing the next session should
-do. Pooled evidence still says only two categories are genuinely elevated —
-1,900+ receiving yards at 2.25x and 23+ sacks at 3.12x.
+The count-based Poisson-interval repair specified below was **not** done in
+this session. It landed 2026-08-28 on `task/312-poisson-milestones` (panel
+16.0). Pooled evidence still says only two rare categories are genuinely
+elevated — 1,900+ receiving yards at 2.25x and 23+ sacks at 3.12x.
 
 ### `careers` deltas, 24 seasons x 5 seeds (what 310b could not capture)
 
@@ -1192,17 +1227,17 @@ Panel: 17 / 14 / 17 / 10 / 14, mean 14.40, sd 2.88, SEM 1.29. Against the
 2026-07-29 lock, i.e. the metric did not regress; it is simply noisy at a level
 the max cannot resolve.
 
-**Two candidate repairs, both design decisions for Matt. Neither was done.**
+**Two candidate repairs, both design decisions for Matt.**
 
 1. **More seasons.** 32 seasons makes 1/32 = 0.031 representable and 48 makes
    1/48 = 0.021, so one freak game no longer trips a category. Cost is linear
    in runtime — `tails` was 146s for the 5-seed panel, so this is the cheap
-   option. It shrinks the artefact but does not remove it.
+   option. It shrinks the artefact but does not remove it. Not taken.
 2. **A count-based verdict.** Fail only when the observed COUNT falls outside a
    Poisson interval for λ = rate × seasons, instead of comparing a quantized
    rate against a ratio band. This removes the floor rather than shrinking it,
    and is the honest version of the claim the thresholds are making. It changes
    WHAT the guard measures, so per AGENTS.md it is a design decision.
 
-Until one of them lands, read `milestonesOff` as roughly "2.7 of arithmetic
-plus whatever the sim is actually doing", and do not tune against it.
+**Repair 2 landed 2026-08-28 (task/312).** Central 95% Poisson interval, panel
+16.0. See the session header. Do not tune the engine against the new number.
