@@ -5,6 +5,66 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-30 — POSITION_VALUE on the CPU board (branch `cursor/position-value-r1-qb-c9f5`)
+
+PR #9 was right: the leftover R1 QB gap is not `scouting.ts`. A true-BPA top 32
+scored `(ovr − replacement) × POSITION_VALUE` is **21.3% QB** (40 classes, 5
+seeds) against a real 10.3% (`nfl-reference.md` §2.4). No-PV true-OVR is 4.4%
+QB, matching that finding. Actual CPU drafts sat near 15% only because need /
+`startsHere` already suppress below the salary product.
+
+`cpuBoardValue` now multiplies surplus by `√POSITION_VALUE` (QB ≈ 1.84× a
+safety). The raw 3.4× salary table is unchanged — contracts, trades, FA,
+generation, and the user board were not touched. Square root is the geometric
+mean of the same table, not a fitted constant.
+
+**Careers 30 seasons, seed 12345, n=576 mature R1** (same instrument as #7/#9):
+
+| group | real §2.4 | main (#9) | after |
+|---|---:|---:|---:|
+| QB | 10.3% | 15.1% | **11.6%** |
+| DB | 16.7% | 21.0% | 19.8% |
+| DL | 24.5% | 24.3% | 20.0% |
+| OL | 20.3% | 17.9% | **20.3%** |
+| WR | 13.4% | 13.7% | 16.7% |
+| LB | 7.7% | 3.8% | 4.9% |
+| RB | 4.2% | 1.0% | 2.4% |
+| TE | 2.7% | 3.1% | 3.6% |
+
+`r1QbSharePct` 15.10 → **11.63**. `r1ShareMae` **2.22**. `r1BustPct` 6.94
+(max 34). `draftSignal` 6.24 (min 2). R1 true OVR 72.4 (was 71.9).
+
+DL is the cost — it was the one group sitting on the real rate and dropped
+4.3pp. WR overshot by about the same amount. Net composition mae improved.
+RB / LB / OL / DB all moved toward §2.4.
+
+**Lead call, baseline not moved.** The locked band is 15.9 ±3.2, built to
+catch a relapse to 19.6. 11.6 (and the 2-seed panel 9.77) fail the *floor*
+while sitting on the `nfl` note. The honest shape is a `max`.
+`starterRateMae` 8.30 vs max 8 on the 30-season seed did **not** fail on the
+2-seed panel. Not chased.
+
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
+(`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — byte-identical to
+PR #8 / #9 on main.
+
+**`npm run gate:full -- --seeds 2`:** all 14 harnesses exit 0.
+
+```
+FAIL  tails.milestonesOff  16.50  expected <= 16   known-open Poisson row; 2-seed noise around the 16.0 lock
+FAIL  drift.saveMbAtEnd    10.53  expected <= 10.5  knife-edge +0.03; not diagnosed (draft scoring does not grow the save)
+FAIL  careers.r1QbSharePct  9.77  expected 15.90 +/-3.2  THIS PACKET — toward nfl 10.3; two-sided lock
+FAIL  statcheck.qb5PassYds  4080  expected 4497 +/-360  inherited (same 4080 on #8)
+FAIL  statcheck.rb5RushYds  1401  expected 1191 +/-95   known-open (same 1401 on #8)
+```
+
+File cluster: `v2/lib/core/offseason/draft.ts` (`cpuBoardValue` only), plus
+the known-open row in `AGENTS.md` and this note.
+
+---
+
 ## 2026-08-28 — Poisson-interval verdict for `milestonesOff` (branch `task/312-poisson-milestones`)
 
 The prescribed count-based verdict is in. `scripts/tails.ts` no longer compares
