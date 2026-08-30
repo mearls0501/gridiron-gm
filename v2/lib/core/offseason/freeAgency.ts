@@ -2,10 +2,10 @@ import { Rng, clamp } from "../rng";
 import { defaultGuaranteedYears, makeContract } from "../generate";
 import { POSITION_VALUE } from "../ratings";
 import {
-  GameState, Player, POSITION_TARGET, Position, ROSTER_LIMIT,
+  FaBid, FaState, GameState, Player, POSITION_TARGET, Position, ROSTER_LIMIT,
 } from "../types";
 import { capHit, positionCount, rosterCount, teamCap } from "../select";
-import { askingPrice, negotiatedApy, suggestedYears } from "./contracts";
+import { negotiatedApy, suggestedYears } from "./contracts";
 import {
   FrontOffice, Posture, SPEND_FLOOR, evaluate, frontOffice, targetSpend, teamOutlook,
 } from "../frontOffice";
@@ -13,10 +13,13 @@ import {
 /**
  * Free agency.
  *
- * CPU teams bid against the user in waves. Every signing is validated against
- * the same cap and roster rules the user faces — the old build let the CPU sign
- * 40 players with no cap check while the user could grab any star for the
- * league minimum through an unguarded endpoint.
+ * CPU teams bid against the user in waves. Bids sit on `state.fa` so the user
+ * can see them and sign a target before the wave lands. Every signing is
+ * validated against the same cap and roster rules the user faces — the old
+ * build let the CPU sign 40 players with no cap check while the user could
+ * grab any star for the league minimum through an unguarded endpoint.
+ *
+ * The user's club is never auto-bid for (same convention as `cpuResign`).
  */
 
 export const FA_ROUNDS = 4;
@@ -64,17 +67,77 @@ export interface FaSigning {
   apy: number;
 }
 
+export function ensureFaState(state: GameState): FaState {
+  if (!state.fa) {
+    state.fa = { round: 0, maxRounds: FA_ROUNDS, bids: [], complete: false };
+  }
+  return state.fa;
+}
+
+/** Outstanding bids on players who are still free agents. */
+export function liveBids(state: GameState): FaBid[] {
+  if (!state.fa) return [];
+  const free = new Set<number>();
+  for (const p of state.players) {
+    if (p.teamId === null && !p.retired && !p.prospect) free.add(p.id);
+  }
+  return state.fa.bids.filter((b) => free.has(b.playerId));
+}
+
+/** Highest live bid on this player, if any. */
+export function leadingBid(state: GameState, playerId: number): FaBid | undefined {
+  let best: FaBid | undefined;
+  for (const b of liveBids(state)) {
+    if (b.playerId !== playerId) continue;
+    if (!best || b.apy > best.apy || (b.apy === best.apy && b.teamId < best.teamId)) {
+      best = b;
+    }
+  }
+  return best;
+}
+
+function pruneDeadBids(state: GameState): void {
+  const fa = state.fa;
+  if (!fa) return;
+  fa.bids = liveBids(state);
+}
+
+function contractForBid(state: GameState, bid: FaBid, rng: Rng) {
+  return makeContract(
+    rng, bid.apy, bid.years, state.season, defaultGuaranteedYears(bid.apy, bid.years)
+  );
+}
+
+function pendingLoad(state: GameState, teamId: number, rng: Rng): { spots: number; hit: number } {
+  let spots = 0;
+  let hit = 0;
+  for (const b of liveBids(state)) {
+    if (b.teamId !== teamId) continue;
+    spots++;
+    hit += capHit(contractForBid(state, b, rng));
+  }
+  return { spots, hit };
+}
+
+function claimedIds(state: GameState): Set<number> {
+  const ids = new Set<number>();
+  for (const b of liveBids(state)) ids.add(b.playerId);
+  return ids;
+}
+
 /**
- * Run one wave of CPU free agency. Returns the signings that happened so the UI
- * can show the user what they missed.
+ * CPU clubs write bids for this wave. Players stay unsigned until the wave
+ * resolves, so the user can still take a target off the board.
  */
-export function runCpuFaRound(state: GameState, rng: Rng, round: number): FaSigning[] {
-  const signings: FaSigning[] = [];
+function placeCpuBids(state: GameState, rng: Rng, round: number): void {
+  const fa = ensureFaState(state);
+  if (fa.complete) return;
+
   const pool = state.players
     .filter((p) => p.teamId === null && !p.retired && !p.prospect)
     .sort((a, b) => b.ovr - a.ovr);
 
-  if (pool.length === 0) return signings;
+  if (pool.length === 0) return;
 
   // Later rounds are bargain hunting; prices soften.
   const priceMult = [1.12, 1.0, 0.9, 0.8][clamp(round - 1, 0, 3)];
@@ -92,22 +155,26 @@ export function runCpuFaRound(state: GameState, rng: Rng, round: number): FaSign
       return da - db;
     });
 
+  const claimed = claimedIds(state);
+
   for (const teamId of teamOrder) {
-    if (rosterCount(state, teamId) >= ROSTER_LIMIT) continue;
+    const pending = pendingLoad(state, teamId, rng);
+    if (rosterCount(state, teamId) + pending.spots >= ROSTER_LIMIT) continue;
 
     const { posture } = teamOutlook(state, teamId);
     const fo = frontOffice(state, teamId);
     const capInfo = teamCap(state, teamId);
+    const committed = capInfo.committed + pending.hit;
     const target = targetSpend(state, teamId, posture) * capInfo.cap;
 
     // How active a club is depends on what it is trying to do and how much
     // room it has, not on a coin flip. An all-in team with $80M works the
     // market hard; a rebuilding cap hawk signs one bridge veteran and leaves.
-    const roomPct = clamp((target - capInfo.committed) / Math.max(1, capInfo.cap), 0, 1);
+    const roomPct = clamp((target - committed) / Math.max(1, capInfo.cap), 0, 1);
     // A club under the league spending floor has to be in the market whatever
     // its philosophy says — this is the mechanism that stops a stripped roster
     // from sitting at a third of the cap forever.
-    const belowFloor = capInfo.committed < capInfo.cap * SPEND_FLOOR;
+    const belowFloor = committed < capInfo.cap * SPEND_FLOOR;
     const appetite =
       (posture === "contend" ? 3.2 : posture === "retool" ? 2.2 : 1.2) *
       (0.5 + fo.capAggression) * (0.35 + roomPct * 4) * (belowFloor ? 2.2 : 1);
@@ -115,11 +182,14 @@ export function runCpuFaRound(state: GameState, rng: Rng, round: number): FaSign
 
     for (let m = 0; m < moves; m++) {
       const cap = teamCap(state, teamId);
-      const headroom = target - cap.committed;
+      const load = pendingLoad(state, teamId, rng);
+      const headroom = target - (cap.committed + load.hit);
       if (headroom <= 1_000_000) break;
-      if (rosterCount(state, teamId) >= ROSTER_LIMIT) break;
+      if (rosterCount(state, teamId) + load.spots >= ROSTER_LIMIT) break;
 
-      const available = pool.filter((p) => p.teamId === null && !p.retired);
+      const available = pool.filter(
+        (p) => p.teamId === null && !p.retired && !claimed.has(p.id)
+      );
       if (available.length === 0) break;
 
       const ranked = available
@@ -141,24 +211,111 @@ export function runCpuFaRound(state: GameState, rng: Rng, round: number): FaSign
       const years = contractYears(player, fo, posture);
       const probe = makeContract(rng, apy, years, state.season, defaultGuaranteedYears(apy, years));
       const hit = capHit(probe);
+      const space = cap.space - load.hit;
 
       // Hard cap discipline: never exceed available space, and stay inside the
       // club's own budget rather than the league maximum.
-      if (hit > cap.space) continue;
+      if (hit > space) continue;
       if (!belowFloor && hit > headroom) continue;
       // Don't blow more than half the remaining room on one non-star.
-      if (!belowFloor && player.ovr < 80 && hit > cap.space * 0.5) continue;
+      if (!belowFloor && player.ovr < 80 && hit > space * 0.5) continue;
 
-      player.teamId = teamId;
-      player.contract = probe;
-      signings.push({ player, teamId, years, apy });
-      state.log.push({
-        season: state.season, week: state.week, kind: "transaction",
-        text: `${state.teams[teamId].abbr} signed ${player.firstName} ${player.lastName} (${player.pos}, ${player.ovr} OVR) — ${years}yr / $${(apy / 1e6).toFixed(1)}M per year`,
-      });
+      const bid: FaBid = {
+        teamId,
+        playerId: player.id,
+        years,
+        totalValue: apy * years,
+        apy,
+        signingBonus: probe.signingBonus,
+      };
+      fa.bids.push(bid);
+      claimed.add(player.id);
     }
   }
+}
 
+/** Land the highest live bid on each still-available player. */
+function resolveFaBids(state: GameState, rng: Rng): FaSigning[] {
+  const fa = ensureFaState(state);
+  const signings: FaSigning[] = [];
+  const byPlayer = new Map<number, FaBid[]>();
+  for (const b of liveBids(state)) {
+    const arr = byPlayer.get(b.playerId) ?? [];
+    arr.push(b);
+    byPlayer.set(b.playerId, arr);
+  }
+
+  const winners: FaBid[] = [];
+  for (const bids of byPlayer.values()) {
+    bids.sort((a, b) => b.apy - a.apy || a.teamId - b.teamId);
+    winners.push(bids[0]);
+  }
+  winners.sort((a, b) => a.teamId - b.teamId || a.playerId - b.playerId);
+
+  for (const bid of winners) {
+    const player = state.players.find((p) => p.id === bid.playerId);
+    if (!player || player.teamId !== null || player.retired || player.prospect) continue;
+    if (rosterCount(state, bid.teamId) >= ROSTER_LIMIT) continue;
+
+    const probe = contractForBid(state, bid, rng);
+    const hit = capHit(probe);
+    const cap = teamCap(state, bid.teamId);
+    if (hit > cap.space) continue;
+
+    player.teamId = bid.teamId;
+    player.contract = probe;
+    signings.push({ player, teamId: bid.teamId, years: bid.years, apy: bid.apy });
+    state.log.push({
+      season: state.season, week: state.week, kind: "transaction",
+      text: `${state.teams[bid.teamId].abbr} signed ${player.firstName} ${player.lastName} (${player.pos}, ${player.ovr} OVR) — ${bid.years}yr / $${(bid.apy / 1e6).toFixed(1)}M per year`,
+    });
+  }
+
+  fa.bids = [];
+  return signings;
+}
+
+/**
+ * Open the market: CPU clubs place the first wave of bids without signing.
+ * The user's club is left off the actor list.
+ */
+export function openCpuBidding(state: GameState, rng: Rng): void {
+  const fa = ensureFaState(state);
+  if (fa.complete) return;
+  pruneDeadBids(state);
+  if (fa.bids.length > 0) return;
+  const round = fa.round < 1 ? 1 : fa.round;
+  placeCpuBids(state, rng, round);
+  fa.round = round;
+}
+
+/**
+ * Run one wave of CPU free agency. Pending bids land, then the next wave is
+ * written so the market is never an empty stub while rounds remain.
+ */
+export function runCpuFaRound(state: GameState, rng: Rng, round: number): FaSigning[] {
+  const fa = ensureFaState(state);
+  pruneDeadBids(state);
+  if (fa.complete) return [];
+
+  const current = fa.bids.length > 0 ? (fa.round < 1 ? 1 : fa.round) : clamp(round, 1, fa.maxRounds);
+
+  let signings: FaSigning[] = [];
+  if (fa.bids.length > 0) {
+    signings = resolveFaBids(state, rng);
+  } else {
+    placeCpuBids(state, rng, current);
+    signings = resolveFaBids(state, rng);
+  }
+
+  if (current >= fa.maxRounds) {
+    fa.complete = true;
+    fa.round = fa.maxRounds;
+  } else {
+    const next = current + 1;
+    placeCpuBids(state, rng, next);
+    fa.round = next;
+  }
   return signings;
 }
 

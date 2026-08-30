@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import { Rng } from "@/lib/core/rng";
 import { playerName } from "@/lib/core/ratings";
 import { askingPrice, signPlayer, suggestedYears } from "@/lib/core/offseason/contracts";
-import { FA_ROUNDS, faPool, faPoolFor } from "@/lib/core/offseason/freeAgency";
-import { runFaWave } from "@/lib/core/offseason";
+import { FA_ROUNDS, faPool, faPoolFor, leadingBid, liveBids } from "@/lib/core/offseason/freeAgency";
+import { openFaBidding, runFaWave } from "@/lib/core/offseason";
 import { formatMoney, rosterCount, teamCap } from "@/lib/core/select";
-import { POSITIONS, Player, Position, ROSTER_LIMIT } from "@/lib/core/types";
+import { FaBid, POSITIONS, Player, Position, ROSTER_LIMIT } from "@/lib/core/types";
 import {
   Button,
   Card,
@@ -74,7 +74,6 @@ export default function FreeAgencyPage() {
   const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [offer, setOffer] = useState<Offer | null>(null);
-  const [wave, setWave] = useState(1);
   const [lastWave, setLastWave] = useState<{ round: number; signings: WaveSigning[] } | null>(null);
 
   const pool = useMemo<Player[]>(
@@ -101,6 +100,20 @@ export default function FreeAgencyPage() {
     });
   }, [state, rev, pos, sortKey, query]);
 
+  const bids = useMemo<FaBid[]>(
+    () => (state ? liveBids(state) : []),
+    [state, rev]
+  );
+
+  useEffect(() => {
+    if (!state || state.phase !== "offseason-fa") return;
+    if (state.fa?.complete) return;
+    if (state.fa && (state.fa.bids.length > 0 || state.fa.round >= 1)) return;
+    apply((s) => {
+      openFaBidding(s);
+    });
+  }, [state, rev, apply]);
+
   if (!state) return null;
 
   const teamId = state.userTeamId;
@@ -109,8 +122,17 @@ export default function FreeAgencyPage() {
   const count = rosterCount(state, teamId);
   const rosterFull = count >= ROSTER_LIMIT;
   const faPhase = state.phase === "offseason-fa";
+  const marketRound = state.fa?.round ?? 1;
+  const marketMax = state.fa?.maxRounds ?? FA_ROUNDS;
+  const marketDone = !!state.fa?.complete;
   const best = pool[0] ?? null;
   const visible = showAll ? rows : rows.slice(0, 40);
+  const playerById = new Map<number, Player>();
+  for (const p of state.players) playerById.set(p.id, p);
+  const bidBoard = bids
+    .slice()
+    .sort((a, b) => b.apy - a.apy || a.playerId - b.playerId)
+    .slice(0, 16);
 
   /** Prefill the editor with the deal core would consider fair. */
   function startOffer(p: Player, asking: number) {
@@ -148,10 +170,10 @@ export default function FreeAgencyPage() {
   }
 
   function advanceMarket() {
-    const round = wave;
+    const round = state?.fa?.round ?? 1;
     let captured: WaveSigning[] = [];
     apply((s) => {
-      const signings = runFaWave(s, round);
+      const signings = runFaWave(s, s.fa?.round ?? round);
       captured = signings.map((sg, i) => ({
         key: i,
         name: `${sg.player.firstName} ${sg.player.lastName}`,
@@ -165,7 +187,6 @@ export default function FreeAgencyPage() {
       return `Wave ${round}: ${captured.length} free agent${captured.length === 1 ? "" : "s"} signed elsewhere`;
     });
     setLastWave({ round, signings: captured });
-    setWave((w) => w + 1);
     setOffer(null);
   }
 
@@ -197,8 +218,14 @@ export default function FreeAgencyPage() {
         />
         <Stat
           label="Market Wave"
-          value={`${Math.min(wave, FA_ROUNDS)} / ${FA_ROUNDS}`}
-          sub={wave > FA_ROUNDS ? "Bargain bin — prices at their floor" : "Prices soften each wave"}
+          value={marketDone ? `${marketMax} / ${marketMax}` : `${Math.min(marketRound, marketMax)} / ${marketMax}`}
+          sub={
+            marketDone
+              ? "Bargain bin — prices at their floor"
+              : bids.length > 0
+                ? `${bids.length} CPU bid${bids.length === 1 ? "" : "s"} on the board`
+                : "Prices soften each wave"
+          }
         />
       </div>
 
@@ -219,6 +246,37 @@ export default function FreeAgencyPage() {
             You are at the {ROSTER_LIMIT}-man limit. Any offer will be refused until you
             release someone from the roster page.
           </p>
+        </Card>
+      )}
+
+      {faPhase && bids.length > 0 && (
+        <Card
+          title="CPU bids on the board"
+          subtitle={`${bids.length} outstanding — sign a player now to take him off the market before the wave lands`}
+          padded={false}
+        >
+          <Table head={["Player", "Pos", "OVR", "Club", "Years", "Per Year"]}>
+            {bidBoard.map((b) => {
+              const p = playerById.get(b.playerId);
+              if (!p) return null;
+              return (
+                <Row key={`${b.teamId}-${b.playerId}`}>
+                  <Cell align="left" className="font-medium">
+                    <PlayerLink p={p} />
+                  </Cell>
+                  <Cell>
+                    <PosBadge pos={p.pos} />
+                  </Cell>
+                  <Cell>
+                    <OvrBadge ovr={p.ovr} size="sm" />
+                  </Cell>
+                  <Cell>{state.teams[b.teamId]?.abbr ?? b.teamId}</Cell>
+                  <Cell>{b.years}</Cell>
+                  <Cell>{formatMoney(b.apy)}</Cell>
+                </Row>
+              );
+            })}
+          </Table>
         </Card>
       )}
 
@@ -268,11 +326,13 @@ export default function FreeAgencyPage() {
             size="sm"
             variant="primary"
             onClick={advanceMarket}
-            disabled={pool.length === 0}
+            disabled={pool.length === 0 || marketDone}
             title={
               pool.length === 0
                 ? "There is nobody left to sign"
-                : "Let every CPU team make its moves — players you want may come off the board"
+                : marketDone
+                  ? "CPU bidding is over — remaining players are yours to sign"
+                  : "Resolve the bids on the board — players you want may come off it"
             }
           >
             Advance free agency
@@ -325,9 +385,10 @@ export default function FreeAgencyPage() {
             }
           />
         ) : (
-          <Table head={["Player", "Pos", "Age", "OVR", "Asking", "Sug. Yrs", ""]}>
+          <Table head={["Player", "Pos", "Age", "OVR", "Asking", "CPU bid", "Sug. Yrs", ""]}>
             {visible.map((p) => {
               const asking = askingPrice(state, p);
+              const bid = leadingBid(state, p.id);
               const editing = offer?.playerId === p.id;
               const total = editing
                 ? Math.round(Number(offer.apyM) * 1_000_000) * Math.round(Number(offer.years))
@@ -346,6 +407,11 @@ export default function FreeAgencyPage() {
                   </Cell>
                   <Cell className={cx(asking > cap.space && "text-[var(--color-bad)]")}>
                     {formatMoney(asking)}
+                  </Cell>
+                  <Cell className={bid ? "text-[var(--color-accent)]" : "text-[var(--color-faint)]"}>
+                    {bid
+                      ? `${state.teams[bid.teamId]?.abbr ?? "CPU"} ${formatMoney(bid.apy)}`
+                      : "—"}
                   </Cell>
                   <Cell className="text-[var(--color-muted)]">{suggestedYears(p)}</Cell>
                   <Cell>
@@ -418,7 +484,10 @@ export default function FreeAgencyPage() {
         Offers below about 92% of a player&apos;s asking price are refused, and no deal can
         put you over the cap or past {ROSTER_LIMIT} players.{" "}
         {faPhase ? (
-          <>Every wave of free agency you advance lets {state.teams.length - 1} CPU teams shop before you.</>
+          <>
+            CPU clubs have already bid. Sign someone now to beat a bid, or advance the
+            market and those deals land. Your club is never auto-bid for.
+          </>
         ) : (
           <Pill>Regular market</Pill>
         )}
