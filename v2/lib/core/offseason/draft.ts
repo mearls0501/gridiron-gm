@@ -307,17 +307,27 @@ function cpuBoardValue(
   // value rather than inverting — a replacement-level quarterback is worth
   // more than a replacement-level kicker, and a negative times 3.4 would say
   // the opposite.
-  // Positional value only counts if he actually takes the job. A quarterback is
-  // worth 3.4x a safety when he STARTS; a backup quarterback is a minimum-wage
+  //
+  // The salary table's 3.4× is still too steep even on surplus. A true-BPA
+  // top 32 scored (ovr − replacement) × POSITION_VALUE is ~21% QB against a
+  // real 10.3% (nfl-reference.md §2.4); actual CPU drafts sit near 15% only
+  // because need / startsHere already suppress below that board. The board
+  // reads the square root of the same table so a point of ability is still
+  // worth more at quarterback than at safety, without letting the contract
+  // premium write the first round. Contracts, trades and generation keep the
+  // raw table.
+  //
+  // Positional value only counts if he actually takes the job. A quarterback
+  // premium applies when he STARTS; a backup quarterback is a minimum-wage
   // clipboard holder worth almost nothing, because there are 32 jobs and no
   // more. Discounting by whether he displaces the incumbent is what stops
   // contenders spending firsts on a position they have already solved — the
-  // need term alone was far too weak a lever against a 3.4x multiplier.
+  // need term alone was far too weak a lever against the salary multiplier.
   const startsHere = clamp((view.ovr - incumbent + 6) / 12, 0.25, 1);
   const above = Math.max(1, perceived - REPLACEMENT_OVR + upside);
   // Medical and character checks are table stakes for a real department, so
   // known risk prices in league-wide rather than per-club.
-  return above * POSITION_VALUE[p.pos] * startsHere * bias * rebuildUpside *
+  return above * Math.sqrt(POSITION_VALUE[p.pos]) * startsHere * bias * rebuildUpside *
     (1 + need * needWeight) * riskDiscount(p);
 }
 
