@@ -5,6 +5,20 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — live free-agency market (user-contest layer)
+
+Ported from `task/312-statcheck-panel-guards` @ b8a8982 onto current main.
+CPU offscreen bidding (PR #3: `openCpuBidding` / `runCpuFaRound` / `FaBid` on
+`state.fa`) is unchanged. This packet is the user-visible contest: `openMarket`,
+`placeUserBid`, CPU counters via `interest()` / `negotiatedApy`, player choice
+through `CONTENDER_PULL = 0.16` and `GUARANTEE_PULL = 0.25` (design dials,
+deliberately ungated). `signingBonusFor` split out of `makeContract` so a bid
+can show its guarantee before anyone agrees. Headless path with no user bids
+is still `runCpuFaRound`. Did not port Poisson tails, rushing-ypc notes, or
+football-domain docs.
+
+---
+
 ## 2026-08-31 — late-round careers camp rope (branch `task/324-late-round-careers`)
 
 The known-open 8.8 / 1.0 rows were stale. Measured current main first
