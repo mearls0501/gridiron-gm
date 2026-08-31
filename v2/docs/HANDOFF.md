@@ -25,6 +25,13 @@ File cluster: `v2/AGENTS.md` (the known-open row) and this note. Careers was
 not re-run. `baselines.json` was not moved. Nothing in this packet can move
 a number.
 
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
+(`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — byte-identical to
+PR #8 / #9 / #11 on main. Not this packet. Full tier not run; docs cannot
+move a careers number.
+
 ---
 
 ## 2026-08-31 — week-0 League tab seeds (branch `cursor/week0-league-seeds-2802`)
