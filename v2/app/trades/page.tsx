@@ -9,6 +9,7 @@ import {
   assetValue,
   describeAsset,
   executeTrade,
+  liveDraftSlot,
   picksOwnedBy,
   proposeFromUser,
   rejectOffer,
@@ -539,7 +540,7 @@ function SidePanel({
                       readOnly
                       disabled={disabled}
                       tabIndex={-1}
-                      className="accent-[var(--color-accent)] shrink-0"
+                      className="accent-[var(--color-accent)] shrink-0 pointer-events-none"
                     />
                     <span className="truncate font-medium">{playerName(p)}</span>
                     {p.injuryWeeks > 0 && <Pill tone="bad">{p.injuryWeeks}w</Pill>}
@@ -570,6 +571,10 @@ function SidePanel({
               const a = pickAsset(pk);
               const on = keys.has(assetKey(a));
               const origin = state.teams[pk.originalTeamId];
+              const slot = liveDraftSlot(state, pk);
+              const label = slot && slot.playerId === null
+                ? `${pk.season} #${slot.pick}`
+                : `${pk.season} Draft`;
               return (
                 <Row
                   key={assetKey(a)}
@@ -584,9 +589,9 @@ function SidePanel({
                         readOnly
                         disabled={disabled}
                         tabIndex={-1}
-                        className="accent-[var(--color-accent)] shrink-0"
+                        className="accent-[var(--color-accent)] shrink-0 pointer-events-none"
                       />
-                      <span className="truncate">{pk.season} Draft</span>
+                      <span className="truncate">{label}</span>
                     </span>
                   </Cell>
                   <Cell>{pk.round}</Cell>
