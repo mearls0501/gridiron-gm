@@ -17,6 +17,8 @@ import { OFFSEASON_STEPS, reconcileRoster } from "@/lib/core/offseason";
 import { Rng } from "@/lib/core/rng";
 import { describeAsset } from "@/lib/core/trades";
 import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weatherLabel } from "@/lib/core/types";
+import { SeasonReviewPanels, SeasonReviewSummary } from "@/components/SeasonReview";
+import { presentSeasonReview } from "@/lib/view/seasonReview";
 
 /** One row in the Sim dropdown. */
 function SimOption({ label, hint, onClick }: { label: string; hint: string; onClick: () => void }) {
@@ -97,6 +99,11 @@ export default function Hub() {
 
   const isOffseason = state.phase.startsWith("offseason");
   const step = OFFSEASON_STEPS[state.phase];
+  const isRecap = state.phase === "offseason-recap";
+  const recap = isRecap || state.phase.startsWith("offseason")
+    ? presentSeasonReview(state)
+    : null;
+  const userSeasonGames = recap?.userGames ?? [];
 
   const primaryLabel = (() => {
     if (state.phase === "preseason") return "Start the Season";
@@ -199,7 +206,14 @@ export default function Hub() {
           <div className="px-4 pb-4 -mt-1">
             <div className="bg-[var(--color-surface-2)] border border-[var(--color-line-soft)] rounded-lg px-3 py-2.5">
               <div className="text-xs font-medium">{step.title}</div>
-              <div className="text-xs text-[var(--color-muted)] mt-0.5">{step.description}</div>
+              <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                {state.phase === "offseason-final" && issues.some((i) => i.kind === "underLimit")
+                  ? "Roster is short of 53. Sign players before the season opens — cutdown is for clubs over the limit."
+                  : step.description}
+              </div>
+              {isRecap && recap && (
+                <SeasonReviewSummary state={state} view={recap} />
+              )}
               <div className="flex gap-2 mt-2">
                 {state.phase === "offseason-fa" && (
                   <Link href="/free-agency"><Button size="sm">Go to Free Agency</Button></Link>
@@ -238,18 +252,31 @@ export default function Hub() {
           }
         >
           <div className="space-y-2">
-            {issues.map((i, n) => (
+            {issues.map((i, n) => {
+              const shortDuringCutdown =
+                i.kind === "underLimit" && state.phase === "offseason-final";
+              const nNeed = ROSTER_LIMIT - rosterCount(state, team.id);
+              return (
               <div key={n} className="flex items-start gap-2.5 text-sm">
                 <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-warn)] shrink-0" />
                 <div>
-                  <div>{i.message}</div>
-                  {i.detail && <div className="text-xs text-[var(--color-muted)]">{i.detail}</div>}
+                  <div>
+                    {shortDuringCutdown
+                      ? `Roster short of 53: ${rosterCount(state, team.id)}/${ROSTER_LIMIT}`
+                      : i.message}
+                  </div>
+                  <div className="text-xs text-[var(--color-muted)]">
+                    {shortDuringCutdown
+                      ? `Sign ${nNeed} more player${nNeed === 1 ? "" : "s"} before the season opens. Cutdown is for clubs over the limit.`
+                      : i.detail}
+                  </div>
                 </div>
                 <Link href={i.kind === "overCap" ? "/finances" : "/roster"} className="ml-auto shrink-0">
                   <Button size="sm" variant="ghost">Fix</Button>
                 </Link>
               </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
       )}
@@ -285,6 +312,10 @@ export default function Hub() {
         </Card>
       )}
 
+      {isRecap && recap && (
+        <SeasonReviewPanels state={state} view={recap} />
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Record" value={recordString(rec)} sub={`${rec.pf} PF · ${rec.pa} PA`} />
         <Stat
@@ -308,7 +339,18 @@ export default function Hub() {
 
       <div className="grid lg:grid-cols-3 gap-4">
         {/* ---- Next game / last results ----------------------------------- */}
-        <Card title={next ? "Next Game" : "Season"} className="lg:col-span-1">
+        <Card
+          title={next ? "Next Game" : userSeasonGames.length > 0 ? "Season Recap" : "Season"}
+          className="lg:col-span-1"
+          padded={!( !next && userSeasonGames.length > 0 )}
+          actions={
+            !next && userSeasonGames.length > 0 ? (
+              <Link href="/recap">
+                <Button size="sm" variant="ghost">Full recap</Button>
+              </Link>
+            ) : undefined
+          }
+        >
           {next ? (
             (() => {
               const home = next.homeId === team.id;
@@ -345,6 +387,38 @@ export default function Hub() {
             })()
           ) : bye && state.phase === "regular" ? (
             <Empty title="Bye week" hint="No game this week. Advance to move on." />
+          ) : userSeasonGames.length > 0 ? (
+            <Table head={["Wk", "Opp", ""]}>
+              {userSeasonGames.slice(-8).map((r) => {
+                const opp = state.teams[r.opponentId];
+                return (
+                  <Row key={r.game.id} highlight={r.won}>
+                    <Cell align="left">
+                      <span className="text-xs text-[var(--color-muted)]">
+                        {r.game.playoffRound ?? r.game.week}
+                      </span>
+                    </Cell>
+                    <Cell align="left">
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        {opp && <TeamMark team={opp} size={16} />}
+                        <span className="truncate text-xs">
+                          {r.home ? "vs" : "@"} {opp?.abbr ?? "—"}
+                        </span>
+                      </span>
+                    </Cell>
+                    <Cell>
+                      <span className={cx(
+                        "tnum text-xs",
+                        r.won && "text-[var(--color-good)]",
+                        !r.won && !r.tied && "text-[var(--color-bad)]"
+                      )}>
+                        {r.won ? "W" : r.tied ? "T" : "L"} {r.us}–{r.them}
+                      </span>
+                    </Cell>
+                  </Row>
+                );
+              })}
+            </Table>
           ) : (
             <Empty
               title={state.phase === "preseason" ? "Season hasn't started" : "No games scheduled"}

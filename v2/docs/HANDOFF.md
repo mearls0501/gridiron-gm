@@ -5,6 +5,39 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — Season Review UI (branch `task/324-season-review`)
+
+Presentation only. The Hub phase card advertised awards, retirements, and
+development and then rendered nothing; the Season panel said "No games
+scheduled" after the year was over. Progression already ran on Confirm
+(`runRecap`); the recap surface was missing.
+
+`presentSeasonReview` reads `history` when the year is archived, and otherwise
+scores MVP / OPOY / DPOY / ROY / leaders with the same formulas as
+`recordSeasonHistory` from the season lines already on the save. No writer,
+no invented awards, no sim edits. Retirements come from this year's
+`retires at` log entries (honest empty until Confirm writes them).
+Development is year-over-year production, labeled as derived — OVR deltas
+are not stored. `/recap` is the dedicated route. Hub short-roster copy
+during `offseason-final` no longer reads like a cutdown when the club is
+under 53.
+
+File cluster: `v2/lib/view/seasonReview.ts`, `v2/components/SeasonReview.tsx`,
+`v2/app/recap/page.tsx`, `v2/app/page.tsx`, this note. Nothing in the sim
+cluster, `scripts/`, `baselines.json`, or `AGENTS.md`.
+
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
+(`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — same numbers as
+PR #8 / #11 / #13 / #14 on main. Not this packet.
+
+`node scripts/e2e.mjs` against a built `next start` (`PW_CHROMIUM` = full
+Chrome): **E2E PASSED**. Interact suite not run — no new controls, only
+presentation and a recap link.
+
+---
+
 ## 2026-08-31 — `r1QbSharePct` re-locked as a max (branch `cursor/relock-r1-qb-share-db93`)
 
 Lead-authorized. `careers.r1QbSharePct` only. The two-sided 15.9 ±3.2 band
