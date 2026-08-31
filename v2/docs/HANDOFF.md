@@ -5,6 +5,76 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — late-round careers camp rope (branch `task/324-late-round-careers`)
+
+The known-open 8.8 / 1.0 rows were stale. Measured current main first
+(careers 24 / seed 12345), then diagnosed, then one function.
+
+**Main, before any edit**
+
+| rd | rostered y3 | real §2.2 | med | real |
+|---|---:|---:|---:|---:|
+| 1 | 100.0% | 94.4% | 9 | 8 |
+| 2 | 97.1% | 89.5% | 8 | 7 |
+| 3 | 89.6% | 79.6% | 7 | 7 |
+| 4 | 79.2% | 70.7% | 6 | 5 |
+| 5 | 61.2% | 65.2% | 5 | 5 |
+| 6 | 45.6% | 53.6% | 2 | 4 |
+| 7 | 34.1% | 38.1% | 1 | 2 |
+
+`survivalMae` **6.81** (want < 4). `careerLenMae` **0.86** (want < 0.5).
+`r1QbSharePct` 13.02. `draftSignal` 5.95. R1–R4 are too sticky; R6/R7 are
+the leftover.
+
+**Diagnosis (4 finalize classes, seed 12345).** Retirement is not the path
+(`ret=0` on every year-0 class). UDFA-on-53 is ~1/club. `cutWorstSurplus`
+is. R7 year-0 +8 (PR #8) already works — year-0 R7 survival ~86% vs real
+75.4% — but those men are the first cut the next August when the extra
+vanishes (`cutWorstSurplus` yp1 R7 = 35). R6 never got the bump and still
+loses the 65-to-53 trim (`cutWorstSurplus` yp0 R6 = 38). `upgradeRoster`
+is secondary. `spendToFloor` / `enforceCap` are not.
+
+**Change.** `draftCapitalHold` only. Camp rope covers R7 years 0–1 (year-0
+stays +8) and R6 years 0–2 (+5 decaying). `ROUND_HOLD` table, R1–R5,
+`cpuResign`, `POSITION_VALUE`, and `CARRY_SHARE` untouched.
+
+**After (same instrument)**
+
+| rd | y3 | med |
+|---|---:|---:|
+| 6 | 45.6 → **50.0** vs 53.6 | 2 → **4** |
+| 7 | 34.1 → **40.9** vs 38.1 | 1 → **2** |
+
+`survivalMae` 6.81 → **5.94**. `careerLenMae` 0.86 → **0.57**. R1/R2
+medians still 9 and 8. `r1QbSharePct` **10.16** (max 16). `draftSignal`
+5.51 (min 2). `starterRateMae` 8.12 → 6.96 (max 8). Residue on
+`careerLenMae` is R1/R2/R4 one–two seasons long — not this packet. MAE
+cannot honestly go under 4 from a late-round-only hold while R1–R3 sit
+5–10 points high.
+
+File cluster: `v2/lib/core/offseason/contracts.ts` (`draftCapitalHold`),
+the two known-open rows in `AGENTS.md`, this note. `baselines.json` not
+moved.
+
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
+(`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — byte-identical
+to PR #8 / #9 / #11 / #13 / #14 on main. Not this packet.
+
+**`npm run gate:full -- --seeds 2`:** all 14 harnesses exit 0.
+
+```
+FAIL  tails.milestonesOff  16.50  expected <= 16   known-open Poisson row; 2-seed noise around the 16.0 lock
+FAIL  drift.saveMbAtEnd    10.51  expected <= 10.5  knife-edge +0.01; same family as #10's 10.53
+FAIL  statcheck.qb5PassYds  4080  expected 4497 +/-360  inherited (same 4080 on #8)
+FAIL  statcheck.rb5RushYds  1401  expected 1191 +/-95   known-open (same 1401 on #8)
+```
+
+Nothing else went red. No `careers.*` line in the FAIL list.
+
+---
+
 ## 2026-08-31 — Season Review UI (branch `task/324-season-review`)
 
 Presentation only. The Hub phase card advertised awards, retirements, and
