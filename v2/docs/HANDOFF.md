@@ -48,10 +48,13 @@ FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
 ```
 
 `node scripts/e2e.mjs` against a built `next start` (`PW_CHROMIUM` = full
-Chrome): **E2E PASSED**. Targeted Hub header: week-0
+Chrome): **E2E PASSED** (twice — after the rank fix and after the
+alias). Targeted Hub header: week-0
 `2026 Preseason · 0-0 · AFC East · In-season film · 30/30 visits`;
 week 1 before kickoff still no place; after a 1-0,
 `1st in AFC East` returns. Film/visit copy left alone.
+`/season-review` is a 307 to `/recap` and the browser lands on
+Season Review (empty until a year is in the books). No Recap nav item.
 
 ---
 
