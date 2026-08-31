@@ -98,8 +98,8 @@ if (await scout.count()) {
   await scout.click();
   await page.waitForTimeout(800);
   const t = await text();
-  if (/\d+ points left/.test(t)) ok("scouting spends points");
-  else fail("scouting did not change points");
+  if (/Film Study:/.test(t) || /In-season film/.test(t)) ok("scouting runs inside the film window");
+  else fail("scouting did not run inside the open window");
 } else fail("no Scout button on the draft page");
 
 // ---- The war room -----------------------------------------------------------

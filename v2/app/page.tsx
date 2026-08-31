@@ -19,6 +19,7 @@ import { describeAsset } from "@/lib/core/trades";
 import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weatherLabel } from "@/lib/core/types";
 import { SeasonReviewPanels, SeasonReviewSummary } from "@/components/SeasonReview";
 import { presentSeasonReview } from "@/lib/view/seasonReview";
+import { PRIVATE_VISIT_CAP, calendarView } from "@/lib/core/scouting";
 
 /** One row in the Sim dropdown. */
 function SimOption({ label, hint, onClick }: { label: string; hint: string; onClick: () => void }) {
@@ -95,6 +96,7 @@ export default function Hub() {
 
   if (!state || !derived) return null;
   const { team, rec, cap, next, bye, injured, issues, divRank, roster, topPerformers } = derived;
+  const cal = calendarView(state);
   const offers = state.tradeOffers ?? [];
 
   const isOffseason = state.phase.startsWith("offseason");
@@ -138,6 +140,8 @@ export default function Hub() {
                 {state.phase === "regular" && ` · Week ${state.week} of ${REGULAR_SEASON_WEEKS}`}
                 {" · "}
                 {recordString(rec)} · {divRank > 0 ? `${divRank}${["st", "nd", "rd", "th"][Math.min(divRank - 1, 3)]} in ${team.division}` : team.division}
+                {" · "}
+                {cal.label} · {cal.visitsRemaining}/{PRIVATE_VISIT_CAP} visits
               </p>
             </div>
           </div>

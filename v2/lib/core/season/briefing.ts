@@ -7,6 +7,7 @@ import { userNextGame, isOnBye } from "./engine";
 import { divisionStandings } from "./standings";
 import { passerRating } from "./stats";
 import { playerName } from "../ratings";
+import { PRIVATE_VISIT_CAP, calendarView } from "../scouting";
 
 /**
  * The weekly briefing: one deterministic digest of what just happened and
@@ -225,9 +226,18 @@ function buildActionItems(state: GameState): { action: ActionItem[]; review: str
     action.push({ label: `Over the cap by ${formatMoney(-cap.space)}`, detail: "Restructure or release to get compliant.", href: "/finances", urgent: true });
   }
 
-  if (team.scoutingPoints >= 20 && state.phase === "regular") {
-    review.push(`${team.scoutingPoints} scouting points banked — film and workouts sharpen your draft board all season.`);
-  }
+  const cal = calendarView(state);
+  review.push(
+    `${cal.label} is open — ${cal.visitsRemaining} of ${PRIVATE_VISIT_CAP} private visits left this cycle.`
+  );
+  action.push({
+    label: `${cal.label} · ${cal.visitsRemaining} visits left`,
+    detail: cal.methods.length === 1
+      ? `The window decides what you can learn. Miss it and that information does not exist this cycle.`
+      : `Available now: last looks at the board. The 30-visit cap does not reset here.`,
+    href: "/draft",
+    urgent: cal.window === "privateVisits" && cal.visitsRemaining <= 8,
+  });
 
   if (state.phase === "regular" && state.week <= TRADE_DEADLINE_WEEK && TRADE_DEADLINE_WEEK - state.week <= 1) {
     review.push(`The trade deadline is ${state.week === TRADE_DEADLINE_WEEK ? "THIS week" : "next week"}.`);

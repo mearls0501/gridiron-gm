@@ -2,6 +2,7 @@ import { Rng } from "./rng";
 import { createNewGame, NewGameOptions, refreshDepthCharts } from "./generate";
 import { reconcileRoster } from "./offseason/contracts";
 import { generateDraftClass, initialScoutingPass } from "./offseason/draft";
+import { ensureScouting } from "./scouting";
 import { GameState } from "./types";
 import { ensurePickInventory } from "./trades";
 
@@ -23,6 +24,7 @@ export function newGame(opts: NewGameOptions = {}): GameState {
   // Seed the first draft class so scouting is available from day one.
   generateDraftClass(state, rng, state.season);
   initialScoutingPass(state, state.season, rng);
+  ensureScouting(state);
 
   ensurePickInventory(state);
   state.tradeOffers = [];

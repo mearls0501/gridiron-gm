@@ -189,18 +189,13 @@ function startersAt(state: GameState, teamId: number, pos: Position): number {
   return group[jobs - 1];
 }
 
-export const SCOUT_COST = 10;
-
-export function canScout(state: GameState, teamId: number): boolean {
-  return state.teams[teamId].scoutingPoints >= SCOUT_COST;
+export function canScout(_state: GameState, _teamId: number): boolean {
+  return true;
 }
 
-export function spendScouting(state: GameState, teamId: number, playerId: number, rng: Rng): boolean {
-  const team = state.teams[teamId];
-  if (team.scoutingPoints < SCOUT_COST) return false;
+export function spendScouting(state: GameState, _teamId: number, playerId: number, rng: Rng): boolean {
   const p = state.players.find((x) => x.id === playerId);
   if (!p || !p.prospect) return false;
-  team.scoutingPoints -= SCOUT_COST;
   scoutProspect(p, 22, rng);
   return true;
 }

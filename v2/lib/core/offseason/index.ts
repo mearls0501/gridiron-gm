@@ -6,10 +6,10 @@ import { recordSeasonHistory, runProgression, OffseasonReport } from "./progress
 import { cpuResign, expireContracts, reconcileRoster, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
-import { pruneScouting } from "../scouting";
+import { ensureScouting, pruneScouting } from "../scouting";
 import { ensurePickInventory, generateUserOffers, prunePickInventory, runCpuTrades, runDraftDayTrades } from "../trades";
 import { runHousekeeping } from "../housekeeping";
-import { refreshCpuStaff, scoutingPointsFor } from "../staff";
+import { refreshCpuStaff } from "../staff";
 
 export * from "./contracts";
 export * from "./draft";
@@ -225,11 +225,11 @@ export function finalizeOffseason(state: GameState): void {
   state.fa = null;
   // Intel and board notes on the class that was just drafted are dead weight.
   pruneScouting(state);
-  // CPU clubs re-allocate their staff for the new year, then everyone's
-  // scouting budget follows from what they funded. The user's own split is
-  // left alone — it is theirs until they change it.
+  // CPU clubs re-allocate their staff for the new year. The user's own
+  // split is left alone — it is theirs until they change it. Visits reset
+  // with the calendar the same way `ensureScouting` reseasons.
   refreshCpuStaff(state);
-  for (const t of state.teams) t.scoutingPoints = scoutingPointsFor(t);
+  ensureScouting(state);
 
   // Seed next year's class so the user can scout during the season.
   generateDraftClass(state, rng, state.season);

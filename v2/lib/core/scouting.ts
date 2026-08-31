@@ -3,7 +3,8 @@ import { frontOffice } from "./frontOffice";
 import { NEUTRAL_SHARE, share } from "./staff";
 import {
   AttrKey, BoardNote, CombineMetric, GameState, Player, Position,
-  ProspectProfile, RiskGrade, ScoutingMethod, ScoutingState, UserIntel,
+  ProspectProfile, RiskGrade, SCOUTING_WINDOWS, ScoutingMethod,
+  ScoutingState, ScoutingWindow, UserIntel,
 } from "./types";
 
 /**
@@ -14,8 +15,10 @@ import {
  * 1. PUBLIC — the prospect's profile: school, measurements, testing numbers,
  *    and a media consensus board. Everyone reads the same sheet for free.
  * 2. THE USER'S — `state.scouting`: OVR and potential bands centred on
- *    genuinely wrong estimates, tightened by spending the season's scouting
- *    points on specific methods. Stored, because the user paid for it.
+ *    genuinely wrong estimates, tightened by work done inside the current
+ *    calendar window. Stored, because the user did the work. Miss a window
+ *    and that intel kind does not exist this cycle. The scarce currency is
+ *    30 private visits, not a point pool.
  * 3. EACH CPU CLUB'S — derived, never stored. A club's read of a prospect is
  *    truth plus stable noise from a pure integer hash of (seed, season, club,
  *    player). No save growth, no RNG stream consumption, fully deterministic —
@@ -298,17 +301,197 @@ export function generateProspectProfile(rng: Rng, p: Player): void {
 }
 
 // ---------------------------------------------------------------------------
-// User intel
+// Calendar — windows, not a point pool
 // ---------------------------------------------------------------------------
 
-export const METHOD_COST: Record<ScoutingMethod, number> = {
-  film: 6, proDay: 5, privateWorkout: 10, medical: 4, interview: 4,
-};
+export const PRIVATE_VISIT_CAP = 30;
 
 export const METHOD_LABEL: Record<ScoutingMethod, string> = {
   film: "Film Study", proDay: "Pro Day", privateWorkout: "Private Workout",
   medical: "Medical Check", interview: "Interview",
 };
+
+export const WINDOW_LABEL: Record<ScoutingWindow, string> = {
+  filmFocus: "In-season film",
+  allStar: "All-star week",
+  combine: "Combine",
+  proDays: "Pro days",
+  privateVisits: "Private visits",
+  udfaPrep: "UDFA prep",
+};
+
+export const WINDOW_METHODS: Record<ScoutingWindow, ScoutingMethod[]> = {
+  filmFocus: ["film"],
+  allStar: ["interview"],
+  combine: ["medical"],
+  proDays: ["proDay"],
+  privateVisits: ["privateWorkout"],
+  udfaPrep: ["film", "interview"],
+};
+
+function windowIndex(w: ScoutingWindow): number {
+  return SCOUTING_WINDOWS.indexOf(w);
+}
+
+/** Earliest window the current game phase will accept. */
+export function windowFloor(state: GameState): ScoutingWindow {
+  switch (state.phase) {
+    case "preseason":
+    case "regular":
+    case "playoffs":
+      return "filmFocus";
+    case "offseason-recap":
+      return "allStar";
+    case "offseason-fa":
+      return "combine";
+    case "offseason-draft":
+      return state.draft?.complete ? "udfaPrep" : "privateVisits";
+    case "offseason-final":
+      return "udfaPrep";
+  }
+}
+
+/**
+ * Latest window the current game phase will accept. In-season and recap are
+ * locked to one window. Free agency is March — the GM can walk combine →
+ * pro days → private visits before the Hub click burns the rest. The draft
+ * itself is visits, then UDFA prep once the last pick is in.
+ */
+export function windowCeiling(state: GameState): ScoutingWindow {
+  switch (state.phase) {
+    case "preseason":
+    case "regular":
+    case "playoffs":
+      return "filmFocus";
+    case "offseason-recap":
+      return "allStar";
+    case "offseason-fa":
+      return "privateVisits";
+    case "offseason-draft":
+      return state.draft?.complete ? "udfaPrep" : "privateVisits";
+    case "offseason-final":
+      return "udfaPrep";
+  }
+}
+
+function markOpened(s: ScoutingState, w: ScoutingWindow): void {
+  if (!s.opened.includes(w)) s.opened.push(w);
+}
+
+function markClosed(s: ScoutingState, w: ScoutingWindow): void {
+  if (!s.closed.includes(w)) s.closed.push(w);
+}
+
+function closeThrough(s: ScoutingState, before: ScoutingWindow): void {
+  const cut = windowIndex(before);
+  for (const w of SCOUTING_WINDOWS) {
+    if (windowIndex(w) < cut) markClosed(s, w);
+  }
+}
+
+function freshCalendar(state: GameState): ScoutingState {
+  const w = windowFloor(state);
+  return {
+    season: state.season,
+    intel: {},
+    board: {},
+    window: w,
+    visitsRemaining: PRIVATE_VISIT_CAP,
+    opened: [w],
+    closed: [],
+  };
+}
+
+function migrateCalendar(state: GameState, s: ScoutingState): void {
+  const floor = windowFloor(state);
+  if (!s.window || !SCOUTING_WINDOWS.includes(s.window)) s.window = floor;
+  if (typeof s.visitsRemaining !== "number") s.visitsRemaining = PRIVATE_VISIT_CAP;
+  if (!Array.isArray(s.opened)) s.opened = [];
+  if (!Array.isArray(s.closed)) s.closed = [];
+  if (s.opened.length === 0) {
+    for (const w of SCOUTING_WINDOWS) {
+      if (windowIndex(w) <= windowIndex(s.window)) s.opened.push(w);
+    }
+  }
+  if (s.closed.length === 0) closeThrough(s, s.window);
+  // Leftover point-pool field is not a visit count. Discard it and start
+  // the calendar honestly — documented in HANDOFF.
+  for (const t of state.teams) {
+    if (t.scoutingPoints != null) delete t.scoutingPoints;
+  }
+}
+
+function syncCalendar(state: GameState, s: ScoutingState): void {
+  const floor = windowFloor(state);
+  const ceil = windowCeiling(state);
+  if (windowIndex(s.window) < windowIndex(floor)) {
+    closeThrough(s, floor);
+    s.window = floor;
+    markOpened(s, floor);
+  }
+  if (windowIndex(s.window) > windowIndex(ceil)) {
+    s.window = ceil;
+    markOpened(s, ceil);
+  }
+}
+
+export function canAdvanceScoutingWindow(state: GameState): boolean {
+  const w = calendarView(state).window;
+  const next = SCOUTING_WINDOWS[windowIndex(w) + 1];
+  return !!next && windowIndex(next) <= windowIndex(windowCeiling(state));
+}
+
+/** Close the current window and open the next one, if the phase allows it. */
+export function advanceScoutingWindow(state: GameState): boolean {
+  if (!canAdvanceScoutingWindow(state)) return false;
+  const s = ensureScouting(state);
+  const next = SCOUTING_WINDOWS[windowIndex(s.window) + 1];
+  markClosed(s, s.window);
+  s.window = next;
+  markOpened(s, next);
+  return true;
+}
+
+export function methodsForWindow(w: ScoutingWindow): ScoutingMethod[] {
+  return WINDOW_METHODS[w];
+}
+
+export function methodAllowed(state: GameState, method: ScoutingMethod): boolean {
+  const s = ensureScouting(state);
+  return WINDOW_METHODS[s.window].includes(method);
+}
+
+export function canRunScoutingMethod(state: GameState, method: ScoutingMethod): boolean {
+  if (!methodAllowed(state, method)) return false;
+  if (method === "privateWorkout" && ensureScouting(state).visitsRemaining <= 0) return false;
+  return true;
+}
+
+export function scoutingBlockReason(state: GameState, method: ScoutingMethod): string | null {
+  const s = ensureScouting(state);
+  if (!WINDOW_METHODS[s.window].includes(method)) {
+    return `${METHOD_LABEL[method]} is not available during ${WINDOW_LABEL[s.window]}. Miss that window and the information does not exist this cycle.`;
+  }
+  if (method === "privateWorkout" && s.visitsRemaining <= 0) {
+    return `No private visits remaining (${PRIVATE_VISIT_CAP} per season).`;
+  }
+  return null;
+}
+
+/** Read-only view for Hub/briefing. Does not write the save. */
+export function calendarView(state: GameState): {
+  window: ScoutingWindow;
+  label: string;
+  visitsRemaining: number;
+  methods: ScoutingMethod[];
+} {
+  const s = state.scouting;
+  const w = s?.season === state.season && s.window ? s.window : windowFloor(state);
+  const visits = s?.season === state.season && typeof s.visitsRemaining === "number"
+    ? s.visitsRemaining
+    : PRIVATE_VISIT_CAP;
+  return { window: w, label: WINDOW_LABEL[w], visitsRemaining: visits, methods: WINDOW_METHODS[w] };
+}
 
 function ovrErrSd(effort: number) { return Math.max(1.5, 10 - effort * 0.085); }
 function ovrWidth(effort: number) { return Math.max(2, Math.round(12 - effort * 0.1)); }
@@ -317,7 +500,10 @@ function potWidth(effort: number) { return Math.max(4, Math.round(16 - effort * 
 
 export function ensureScouting(state: GameState): ScoutingState {
   if (!state.scouting || state.scouting.season !== state.season) {
-    state.scouting = { season: state.season, intel: {}, board: {} };
+    state.scouting = freshCalendar(state);
+  } else {
+    migrateCalendar(state, state.scouting);
+    syncCalendar(state, state.scouting);
   }
   return state.scouting;
 }
@@ -372,32 +558,22 @@ export function setBoardNote(state: GameState, playerId: number, patch: Partial<
   else s.board[playerId] = next;
 }
 
-export function canAfford(state: GameState, method: ScoutingMethod): boolean {
-  return state.teams[state.userTeamId].scoutingPoints >= METHOD_COST[method];
-}
-
 /**
- * Spend scouting points on one method for one prospect.
- *
- * Each method reveals a different truth: film and workouts move the talent
- * bands, the pro day adds a coachability read on top of a modest tighten,
- * medicals and interviews reveal the risk grades. New information arrives as a
- * fresh noisy sample BLENDED with the standing estimate, so a report can move
- * a board — sometimes wrongly — without teleporting.
+ * Run one method on one prospect, gated by the calendar window (and the
+ * visit cap for a private workout). The intel writers are unchanged: film
+ * and workouts tighten bands, medicals and interviews reveal risk grades.
  */
 export function runScoutingMethod(
   state: GameState, playerId: number, method: ScoutingMethod, rng: Rng
 ): boolean {
-  const team = state.teams[state.userTeamId];
-  const cost = METHOD_COST[method];
-  if (team.scoutingPoints < cost) return false;
+  if (!canRunScoutingMethod(state, method)) return false;
   const p = state.players.find((x) => x.id === playerId);
   if (!p || !p.prospect || !p.profile) return false;
 
   const s = ensureScouting(state);
   const intel = s.intel[playerId] ?? { ...defaultIntel(state, p), methods: {} };
   s.intel[playerId] = intel;
-  team.scoutingPoints -= cost;
+  if (method === "privateWorkout") s.visitsRemaining = Math.max(0, s.visitsRemaining - 1);
   intel.methods[method] = (intel.methods[method] ?? 0) + 1;
 
   const gain = method === "privateWorkout" ? 20 : method === "film" ? 14 : method === "proDay" ? 8 : 3;

@@ -18,9 +18,9 @@ import {
   normaliseBudget,
   schemeById,
   schemeFit,
-  scoutingPointsFor,
   staffBudget,
 } from "@/lib/core/staff";
+import { PRIVATE_VISIT_CAP } from "@/lib/core/scouting";
 import { Player, StaffBudget } from "@/lib/core/types";
 import {
   Button, Card, Cell, cx, Empty, OvrBadge, Pill, PosBadge, Row, Stat, Table,
@@ -59,7 +59,7 @@ const BUCKET_BLURB: Record<StaffBucket, string> = {
   development:
     "Coaches who make players better. Fund it broadly and the whole roster grows faster; concentrate it and one man can reach a level he was never going to reach on his own.",
   scouting:
-    "Eyes on the draft class. More points means more prospects you actually know something about instead of guessing from a projection.",
+    "Eyes on the draft class. Funding the desk changes how well your people read a prospect; the calendar still decides when they can look, and every club gets the same 30 official visits.",
   training:
     "Strength staff, medical staff, sports science. Fewer soft-tissue injuries, quicker returns, and bodies that age a little more slowly.",
   scheme:
@@ -160,7 +160,6 @@ export default function FrontOfficePage() {
     const final = normaliseBudget(budget);
     apply((s) => {
       s.teams[s.userTeamId].staff = final;
-      s.teams[s.userTeamId].scoutingPoints = scoutingPointsFor(s.teams[s.userTeamId]);
       return "Staff budget set";
     });
     setDraft(null);
@@ -265,9 +264,9 @@ export default function FrontOfficePage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-5">
           <Stat
-            label="Scouting points"
-            value={scoutingPointsFor({ ...team, staff: normaliseBudget(budget) })}
-            sub="next draft"
+            label="Private visits"
+            value={PRIVATE_VISIT_CAP}
+            sub="NFL cap each season"
           />
           <Stat
             label="Injury risk"
