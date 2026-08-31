@@ -62,8 +62,16 @@ Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
 (`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — byte-identical
 to PR #8 / #9 / #11 / #13 / #14 on main. Not this packet.
 
-**`npm run gate:full -- --seeds 2`:** running; numbers land in the next
-edit of this section.
+**`npm run gate:full -- --seeds 2`:** all 14 harnesses exit 0.
+
+```
+FAIL  tails.milestonesOff  16.50  expected <= 16   known-open Poisson row; 2-seed noise around the 16.0 lock
+FAIL  drift.saveMbAtEnd    10.51  expected <= 10.5  knife-edge +0.01; same family as #10's 10.53
+FAIL  statcheck.qb5PassYds  4080  expected 4497 +/-360  inherited (same 4080 on #8)
+FAIL  statcheck.rb5RushYds  1401  expected 1191 +/-95   known-open (same 1401 on #8)
+```
+
+Nothing else went red. No `careers.*` line in the FAIL list.
 
 ---
 
