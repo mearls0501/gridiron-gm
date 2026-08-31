@@ -25,14 +25,16 @@ Calendar film window / visit copy left alone. Presentation only.
 
 **Also in this packet.** `/season-review` 404'd (unstyled white body
 under the dark shell) — playtest guessed the phase name. The real
-route is `/recap` (PR #16). Thin `app/season-review/page.tsx` redirects
-there. Hub already links “Full recap” when there are games; no top-nav
-Recap item. Phase banner still says “Season Review”.
+route is `/recap` (PR #16). A page-level `redirect()` never runs when
+Shell short-circuits to New Game, so the alias is a `next.config.ts`
+redirect (`/season-review` → `/recap`). Hub already
+links “Full recap” when there are games; no top-nav Recap item. Phase
+banner still says “Season Review”.
 
 File cluster: `standings.ts` (`seasonHasResults`), `app/page.tsx`,
 `briefing.ts`, `app/standings/page.tsx` (import, no behavior change),
-`app/season-review/page.tsx` (alias), this note. Nothing in the sim
-cluster, `scripts/`, or `baselines.json`.
+`next.config.ts` (alias), this note. Nothing in the sim cluster,
+`scripts/`, or `baselines.json`.
 
 ### Gate (`nproc`=4)
 
