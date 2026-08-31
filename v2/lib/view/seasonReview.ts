@@ -154,8 +154,15 @@ function deriveLeaders(state: GameState, season: number): SeasonHistory["leaders
 }
 
 function summarizeLine(l: SeasonStatLine): string {
-  if (l.passAtt > 0) return `${l.passYds} yds, ${l.passTd} TD, ${l.passInt} INT`;
-  if (l.rushAtt > l.rec) return `${l.rushYds} yds, ${l.rushTd} TD`;
+  const pass = l.passYds * 0.04 + l.passTd * 4;
+  const rush = l.rushYds * 0.06 + l.rushTd * 4;
+  const rec = l.recYds * 0.055 + l.recTd * 4;
+  const def = l.sacks * 7 + l.ints * 8 + l.tackles * 0.4;
+  if (def >= pass && def >= rush && def >= rec && (l.sacks > 0 || l.ints > 0 || l.tackles > 0)) {
+    return `${l.tackles} tkl, ${l.sacks} sk, ${l.ints} INT`;
+  }
+  if (pass >= rush && pass >= rec && l.passAtt > 0) return `${l.passYds} yds, ${l.passTd} TD, ${l.passInt} INT`;
+  if (rush >= rec && l.rushAtt > 0) return `${l.rushYds} yds, ${l.rushTd} TD`;
   if (l.rec > 0) return `${l.rec} rec, ${l.recYds} yds, ${l.recTd} TD`;
   if (l.sacks > 0 || l.ints > 0 || l.tackles > 0) return `${l.tackles} tkl, ${l.sacks} sk, ${l.ints} INT`;
   return `${l.games} GP`;
