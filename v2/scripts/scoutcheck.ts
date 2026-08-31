@@ -320,7 +320,7 @@ bar("8. Veteran beliefs — durable, private, quality-scaled");
   const userFas = vets.filter((p) => !knowsTrueRatings(st, p)).slice(0, 80);
   const panelErrs = userFas.map((p) => Math.abs(panelOvr(st, p) - p.ovr));
   const vetLeak = mean(panelErrs);
-  check(vetLeak > 1.0, "FA attribute panel cannot reconstruct true OVR", `MAE ${vetLeak.toFixed(2)} pts`);
+  check(vetLeak > 1.2, "FA attribute panel cannot reconstruct true OVR", `MAE ${vetLeak.toFixed(2)} pts`);
   const printedTruth = userFas.filter((p) => visibleOvr(st, p) === String(p.ovr)).length;
   check(printedTruth < userFas.length * 0.25, "visibleOvr is not a true-OVR dump", `${printedTruth}/${userFas.length} collapsed to truth`);
 }

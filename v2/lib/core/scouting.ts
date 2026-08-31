@@ -776,11 +776,11 @@ function veteranAttrBand(
   const q = scoutQuality(state, state.userTeamId);
   let sd: number, width: number;
   if (ATHLETIC.includes(key)) {
-    sd = 1.2 * q; width = Math.max(3, Math.round(3 * q));
+    sd = 1.5 * q; width = Math.max(4, Math.round(4 * q));
   } else if (MENTAL.includes(key)) {
-    sd = 3 * q; width = Math.max(5, Math.round(6 * q));
+    sd = 4 * q; width = Math.max(6, Math.round(8 * q));
   } else {
-    sd = 2.2 * q; width = Math.max(4, Math.round(5 * q));
+    sd = 4.5 * q; width = Math.max(6, Math.round(8 * q));
   }
   const center = clamp(
     v + stableNormal(state.seed, state.season, 0xb07 + state.userTeamId, p.id ^ hashKey(key)) * sd,
