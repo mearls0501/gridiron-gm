@@ -51,9 +51,27 @@ reseason), `scripts/e2e-interact.mjs`, this note.
 
 ### Gate (`nproc`=4)
 
-Pending — scout first, then fast gate. Inherited single-seed `statcheck`
-reds (`leadTackles`, `qb5`, `rb5`, `wr10`) matching main are not this
-packet.
+Scout first: all checks passed, including step 7 (window gate, visit
+cap 30, migrate discards leftover points, reseason resets visits).
+`leakMae` 2.05, `filmWidthDrop` 16.95, `clockTrades` 7, `udfaSignings` 81.
+
+Fast: all 8 harnesses exit 0. Three metric FAILs, **byte-identical to
+current main** (`c8aef58`, measured in a worktree after this packet):
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0     EDGE.prs → points; same 1 on main
+FAIL  statcheck.leadRecYds   2062  expected 1615 +/-400  same 2062 on main
+FAIL  statcheck.rb5RushYds   1327  expected 1191 +/-95   same 1327 on main
+```
+
+The older inherited quartet (`leadTackles` / `qb5` / `rb5` / `wr10`) is
+stale against this main — the rb5 YPC flatten (`da7c8e0`) re-rolled the
+single-seed board. Not this packet. `cpuProspectView` untouched;
+year-0 even-budget scout quality still 1.0.
+
+`node scripts/e2e.mjs` against a built `next start` (`PW_CHROMIUM` =
+full Chrome): **E2E PASSED**. Interact suite not re-run here; its
+"points left" assertion was updated to the film window.
 
 ---
 
