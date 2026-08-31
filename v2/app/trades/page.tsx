@@ -395,9 +395,10 @@ export default function TradesPage() {
               )}
               <Button
                 size="sm"
-                variant="primary"
+                variant={canPropose ? "primary" : "default"}
                 onClick={propose}
                 disabled={!canPropose}
+                className={!canPropose ? "opacity-40 cursor-not-allowed" : undefined}
                 title={
                   !open
                     ? "The trade window is closed"
