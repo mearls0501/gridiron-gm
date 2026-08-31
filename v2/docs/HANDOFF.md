@@ -5,6 +5,28 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — `r1BustPct` leftover retired (branch `cursor/retire-r1bustpct-9ede`)
+
+Docs only. The known-open `careers.r1BustPct` row in `AGENTS.md` still said
+28% → ~15%. That chase is stale and is now struck, same convention as PR #12.
+
+`isBust` is a first-rounder who never posted ≥9 GS in years 0–3. Current
+main (careers 30 / seed 12345, recorded on the POSITION_VALUE packet) reads
+**6.94%** against the traced `nfl-reference.md` §2.1 R1 St=0 of **6.3%**. The
+~15% figure is untraced; it is the never-two-starter-seasons rate (weighted
+1−St≥2 ≈ 14.3% from the same §2.1 bands), not this metric. Cuts, retirement,
+and depth-chart stickiness are not the leftover.
+
+The only cell still high is R1 QB never-start **22.4% vs 10.7%** (§2.5). That
+is a 32-job incumbent packet, not this one. Do not start a sim change for it.
+The `r1QbSharePct` band (15.9 ±3.2) was not re-locked.
+
+File cluster: `v2/AGENTS.md` (the known-open row) and this note. Careers was
+not re-run. `baselines.json` was not moved. Nothing in this packet can move
+a number.
+
+---
+
 ## 2026-08-31 — week-0 League tab seeds (branch `cursor/week0-league-seeds-2802`)
 
 The leftover was real and presentation-only. `/standings` League always ran
