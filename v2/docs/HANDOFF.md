@@ -39,6 +39,26 @@ untouched.
 User FA board and the free-agent player panel show `visibleOvr` / attr bands
 centred on the user's derived belief. Own-roster players stay exact.
 
+### Gate (`nproc`=4)
+
+Scout: all checks passed. Prospect metrics byte-identical to main (leakMae 2.05,
+filmWidthDrop 16.95, clockTrades 7, udfaSignings 81). Veteran section: clubs
+disagree (sd 1.83), even-budget MAE 1.55, scout-50 MAE 1.10 on the same club,
+FA panel leak MAE 1.39, 0/80 `visibleOvr` collapsed to truth.
+
+Fast: all 8 harnesses exit 0. Three inherited single-seed metric reds —
+byte-identical to PR #19 / #21 / #23 on main. Not this packet.
+
+```
+FAIL  leverage.wrongSign     1
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
+```
+
+`node scripts/e2e.mjs` against a built `next start` (`PW_CHROMIUM` = full
+Chrome): **E2E PASSED**. FA board prints ranges (e.g. `80-84`); own roster
+still prints exact OVR.
+
 ---
 
 ## 2026-08-31 — calendar + visit economy (branch `task/326-calendar-economy`)
