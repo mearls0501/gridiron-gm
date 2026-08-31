@@ -4,7 +4,7 @@ import {
 } from "../types";
 import { computeRecords, recordString, rosterIssues, teamCap, formatMoney, ordinal } from "../select";
 import { userNextGame, isOnBye } from "./engine";
-import { divisionStandings } from "./standings";
+import { divisionStandings, seasonHasResults } from "./standings";
 import { passerRating } from "./stats";
 import { playerName } from "../ratings";
 import { PRIVATE_VISIT_CAP, calendarView } from "../scouting";
@@ -302,7 +302,7 @@ function buildOpponent(state: GameState): OpponentPreview | null {
     teamId: oppId,
     name: fullName(opp),
     record: recordString(recs.get(oppId)!),
-    standing: `${ordinal(rank)} in ${opp.division}`,
+    standing: seasonHasResults(state) ? `${ordinal(rank)} in ${opp.division}` : opp.division,
     form: last3.length ? last3.join("-") : "no games yet",
     home: g.homeId === state.userTeamId,
     weather: g.conditions

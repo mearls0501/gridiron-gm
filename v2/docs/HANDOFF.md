@@ -5,6 +5,59 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — Hub week-0 division rank (branch `task/327-hub-week0-rank`)
+
+Same leftover as PR #11, different surface. League already hid 1–7 seeds
+when nobody has a W/L. Hub header (and the Week briefing opponent line)
+still printed `1st in AFC East` from `divisionStandings` at 0-0 — the
+team-id tiebreak, same lie. Division table on Hub was already honest
+(PCT —).
+
+**Source.** Not `computeSeeds`. Hub `app/page.tsx` ranks the live
+division table and always paints `Nth in DIVISION`. `buildOpponent` in
+`lib/core/season/briefing.ts` does the same for next week's opponent.
+`seasonHasResults` lived only on `/standings`.
+
+**Change.** Hoisted that gate onto `lib/core/season/standings.ts` and
+reused it. No results → Hub falls back to the division name; briefing
+`standing` is just the division. After a real W/L the rank is unchanged.
+Calendar film window / visit copy left alone. Presentation only.
+
+**Also in this packet.** `/season-review` 404'd (unstyled white body
+under the dark shell) — playtest guessed the phase name. The real
+route is `/recap` (PR #16). A page-level `redirect()` never runs when
+Shell short-circuits to New Game, so the alias is a `next.config.ts`
+redirect (`/season-review` → `/recap`). Hub already
+links “Full recap” when there are games; no top-nav Recap item. Phase
+banner still says “Season Review”.
+
+File cluster: `standings.ts` (`seasonHasResults`), `app/page.tsx`,
+`briefing.ts`, `app/standings/page.tsx` (import, no behavior change),
+`next.config.ts` (alias), this note. Nothing in the sim cluster,
+`scripts/`, or `baselines.json`.
+
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Three inherited single-seed metric reds —
+byte-identical to current main (PR #19 / #21 / #23):
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
+```
+
+`node scripts/e2e.mjs` against a built `next start` (`PW_CHROMIUM` = full
+Chrome): **E2E PASSED** (twice — after the rank fix and after the
+alias). Targeted Hub header: week-0
+`2026 Preseason · 0-0 · AFC East · In-season film · 30/30 visits`;
+week 1 before kickoff still no place; after a 1-0,
+`1st in AFC East` returns. Film/visit copy left alone.
+`/season-review` is a 307 to `/recap` and the browser lands on
+Season Review (empty until a year is in the books). No Recap nav item.
+
+---
+
 ## 2026-08-31 — veteran beliefs on the FA market (branch `task/327-veteran-beliefs`)
 
 Live FA is a contest (PR #18) but everyone still saw **true** ratings. That is

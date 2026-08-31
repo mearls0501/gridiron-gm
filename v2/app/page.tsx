@@ -11,7 +11,7 @@ import {
   computeRecords, recordString, formatMoney, teamCap, rosterCount, rosterIssues,
 } from "@/lib/core/select";
 import { userNextGame, isOnBye, injuredPlayers, weekGames } from "@/lib/core/season/engine";
-import { divisionStandings } from "@/lib/core/season/standings";
+import { divisionStandings, seasonHasResults } from "@/lib/core/season/standings";
 import { currentLine } from "@/lib/core/season/stats";
 import { OFFSEASON_STEPS, reconcileRoster } from "@/lib/core/offseason";
 import { Rng } from "@/lib/core/rng";
@@ -73,7 +73,9 @@ export default function Hub() {
     const injured = injuredPlayers(state, team.id);
     const issues = rosterIssues(state, team.id);
     const div = divisionStandings(state, team.division);
-    const divRank = div.findIndex((r) => r.teamId === team.id) + 1;
+    const divRank = seasonHasResults(state)
+      ? div.findIndex((r) => r.teamId === team.id) + 1
+      : 0;
     const roster = state.players.filter(
       (p) => p.teamId === team.id && !p.retired && !p.prospect
     );
