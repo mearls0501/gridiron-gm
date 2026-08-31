@@ -8,7 +8,7 @@ import {
   ATTR_KEYS, ATTR_LABEL, AttrKey, GameState, Player, Position, SeasonStatLine,
 } from "@/lib/core/types";
 import { POSITION_WEIGHTS, ovrTier, relevantAttrs } from "@/lib/core/ratings";
-import { attrBand } from "@/lib/core/scouting";
+import { attrBand, knowsTrueRatings, veteranIntel, visibleOvr, visiblePot } from "@/lib/core/scouting";
 import { boardGrade, gradeContext, verdictFor } from "@/lib/core/scouting-reports";
 import { capHit, deadMoney, formatMoney } from "@/lib/core/select";
 import { careerTotals, cmpPct, fgPct, passerRating, ypc, ypr } from "@/lib/core/season/stats";
@@ -20,9 +20,9 @@ import {
 /**
  * Player card.
  *
- * The one hard rule here: a draft prospect's true ability is never rendered.
- * Prospects get their scouted band and nothing else, because the whole point of
- * spending scouting points is that the band narrows.
+ * The one hard rule here: a draft prospect's true ability is never rendered,
+ * and neither is a free agent's or another club's veteran's. Those get scouted
+ * bands. Own-roster players stay exact — that is already the convention.
  */
 
 /** Left-aligned header cell (Table right-aligns everything after column 0). */
@@ -228,7 +228,10 @@ export default function PlayerPage() {
   const kind = statKindFor(p.pos);
   const seasons = p.stats.slice().sort((a, b) => a.season - b.season);
   const totals = careerTotals(p);
-  const tier = p.prospect ? null : ovrTier(p.ovr);
+  const known = knowsTrueRatings(state, p);
+  const fog = !p.prospect && !known;
+  const scouted = fog ? veteranIntel(state, p) : null;
+  const tier = known ? ovrTier(p.ovr) : null;
 
   return (
     <div className="space-y-4">
@@ -290,10 +293,10 @@ export default function PlayerPage() {
               <>
                 <div className="text-right">
                   <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
-                    Overall
+                    {fog ? "Scouted" : "Overall"}
                   </div>
                   <div className="mt-1">
-                    <OvrBadge ovr={p.ovr} />
+                    <OvrBadge ovr={fog ? visibleOvr(state, p) : p.ovr} />
                   </div>
                 </div>
                 <div className="text-right">
@@ -301,7 +304,7 @@ export default function PlayerPage() {
                     Potential
                   </div>
                   <div className="mt-1">
-                    <OvrBadge ovr={p.pot} />
+                    <OvrBadge ovr={fog ? visiblePot(state, p) : p.pot} />
                   </div>
                 </div>
               </>
@@ -321,6 +324,13 @@ export default function PlayerPage() {
               value={p.draftClassSeason ?? "—"}
               sub={p.draftedRound !== null ? `Drafted Rd ${p.draftedRound}` : "Undrafted so far"}
             />
+          </>
+        ) : fog && scouted ? (
+          <>
+            <Stat label="Scouted OVR" value={visibleOvr(state, p)} sub="Your department's read" />
+            <Stat label="Potential" value={visiblePot(state, p)} sub="Estimate — not the answer key" />
+            <Stat label="Durability" value={p.durability} sub={injured ? "Currently hurt" : "Healthy"} tone={injured ? "bad" : undefined} />
+            <Stat label="Peak Age" value={p.peakAge} sub={p.age < p.peakAge ? "Still rising" : "Past peak"} />
           </>
         ) : (
           <>
@@ -429,7 +439,7 @@ export default function PlayerPage() {
         <Card
           title={`Key Attributes — ${p.pos}`}
           subtitle={
-            p.prospect
+            p.prospect || fog
               ? "Scouted ranges — your department's read, not the truth"
               : "Weighted heaviest for this position"
           }
@@ -467,7 +477,7 @@ export default function PlayerPage() {
                   key={k}
                   k={k}
                   v={p.attrs[k]}
-                  band={p.prospect ? attrBand(state, p, k) : undefined}
+                  band={p.prospect || fog ? attrBand(state, p, k) : undefined}
                 />
               ))}
             </div>
@@ -483,7 +493,7 @@ export default function PlayerPage() {
               ) : (
                 <div className="grid gap-x-6 gap-y-2.5 sm:grid-cols-3 lg:grid-cols-4">
                   {rest.map((k) => {
-                    const band = p.prospect ? attrBand(state, p, k) : null;
+                    const band = p.prospect || fog ? attrBand(state, p, k) : null;
                     return (
                       <div key={k} className="flex items-baseline justify-between gap-2">
                         <span className="text-xs text-[var(--color-faint)] truncate">

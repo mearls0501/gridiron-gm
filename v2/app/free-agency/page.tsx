@@ -5,6 +5,7 @@ import { useGame } from "@/lib/store/game";
 import { Rng } from "@/lib/core/rng";
 import { playerName } from "@/lib/core/ratings";
 import { askingPrice, signPlayer, suggestedYears } from "@/lib/core/offseason/contracts";
+import { userVeteranView, visibleOvr } from "@/lib/core/scouting";
 import {
   FA_ROUNDS, faPool, faPoolFor, liveBids, placeUserBid, userBids, withdrawUserBid,
 } from "@/lib/core/offseason/freeAgency";
@@ -60,7 +61,7 @@ interface WaveSigning {
   key: number;
   name: string;
   pos: Position;
-  ovr: number;
+  ovr: string;
   team: string;
   years: number;
   apy: number;
@@ -94,13 +95,15 @@ export default function FreeAgencyPage() {
       (p) => !q || playerName(p).toLowerCase().includes(q)
     );
     return filtered.sort((a, b) => {
+      const va = userVeteranView(state, a).ovr;
+      const vb = userVeteranView(state, b).ovr;
       switch (sortKey) {
         case "ovr":
-          return b.ovr - a.ovr || a.id - b.id;
+          return vb - va || a.id - b.id;
         case "price":
-          return askingPrice(state, b) - askingPrice(state, a) || b.ovr - a.ovr;
+          return askingPrice(state, b) - askingPrice(state, a) || vb - va;
         case "age":
-          return a.age - b.age || b.ovr - a.ovr;
+          return a.age - b.age || vb - va;
       }
     });
   }, [state, rev, pos, sortKey, query]);
@@ -205,7 +208,7 @@ export default function FreeAgencyPage() {
         key: i,
         name: `${sg.player.firstName} ${sg.player.lastName}`,
         pos: sg.player.pos,
-        ovr: sg.player.ovr,
+        ovr: visibleOvr(s, sg.player),
         team: s.teams[sg.teamId].abbr,
         years: sg.years,
         apy: sg.apy,
@@ -313,7 +316,7 @@ export default function FreeAgencyPage() {
                     <PosBadge pos={p.pos} />
                   </Cell>
                   <Cell>
-                    <OvrBadge ovr={p.ovr} size="sm" />
+                    <OvrBadge ovr={visibleOvr(state, p)} size="sm" />
                   </Cell>
                   <Cell>{b.years}</Cell>
                   <Cell>{formatMoney(b.apy)}</Cell>
@@ -349,7 +352,7 @@ export default function FreeAgencyPage() {
                     <PosBadge pos={p.pos} />
                   </Cell>
                   <Cell>
-                    <OvrBadge ovr={p.ovr} size="sm" />
+                    <OvrBadge ovr={visibleOvr(state, p)} size="sm" />
                   </Cell>
                   <Cell>{state.teams[b.teamId]?.abbr ?? b.teamId}</Cell>
                   <Cell>{b.years}</Cell>
@@ -536,7 +539,7 @@ export default function FreeAgencyPage() {
                   </Cell>
                   <Cell>{p.age}</Cell>
                   <Cell>
-                    <OvrBadge ovr={p.ovr} size="sm" />
+                    <OvrBadge ovr={visibleOvr(state, p)} size="sm" />
                   </Cell>
                   <Cell className={cx(asking > cap.space && "text-[var(--color-bad)]")}>
                     {formatMoney(asking)}

@@ -5,6 +5,42 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — veteran beliefs on the FA market (branch `task/327-veteran-beliefs`)
+
+Live FA is a contest (PR #18) but everyone still saw **true** ratings. That is
+the leak: the market was a bidding game played with the answer key.
+
+**Diagnosis — every FA / contract / UI path that still read true `p.ovr`.**
+
+| site | what it did | this packet |
+|---|---|---|
+| `freeAgency.ts` `interest()` | `p.ovr + rng.normal(0, 2)` — ephemeral stream noise on truth, plus gates on true OVR; `evaluate` on truth | durable `cpuVeteranView`; gates and `evaluate` use the belief |
+| `placeCpuBids` pool sort | `b.ovr - a.ovr` | id order (re-rank is by interest) |
+| FA logs | printed true OVR | dropped, matching `signPlayer` |
+| `faPool` / FA board sort | true OVR | user's veteran view |
+| FA page `OvrBadge` / wave rows | true OVR | `visibleOvr` band |
+| player page (FA / other club) | true OVR, pot, attrs | scouted bands; own roster unchanged |
+| `contracts.ts` `askingPrice` / `negotiatedApy` | `marketApy(p.ovr, …)` | **left on truth** — one public ask, CPU prices stay even-budget-auditable. A determined user can invert the curve. Not a displayed OVR. |
+| `suggestedYears`, `cpuResign`, `spendToFloor`, `upgradeRoster` | true OVR | leftover, not the live contest |
+| `frontOffice.ts` `evaluate` | true ovr/pot | unchanged signature; FA passes a believed copy |
+| `cpuProspectView` private-signal lane | — | **untouched** |
+
+**The veteran view.** Same shape as a CPU prospect belief, not a stored
+per-club collection. `cpuVeteranView(state, teamId, p)` is truth plus hash
+noise keyed `(seed, season, club, player)`, scaled only by `scoutQuality`.
+`VET_OWN_OVR_SD = 2` matches the old `rng.normal(0, 2)` amplitude. No common
+term, no private-signal lane (those stay on the prospect formula). At `q === 1`
+the factor is exactly 1 — invariant 6: quality is redistribution of accuracy,
+not free OVR. Even-budget is **not** byte-identical to the old path: the old
+draw consumed the save RNG and `evaluate` ran on truth; this one does not
+touch the stream and prices the believed player. CONTENDER_PULL / GUARANTEE_PULL
+untouched.
+
+User FA board and the free-agent player panel show `visibleOvr` / attr bands
+centred on the user's derived belief. Own-roster players stay exact.
+
+---
+
 ## 2026-08-31 — calendar + visit economy (branch `task/326-calendar-economy`)
 
 Killed the scouting **point** mash. Matt called a spend pool the opposite of

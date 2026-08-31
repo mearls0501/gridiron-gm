@@ -8,6 +8,8 @@
  *      prospect's true rating (the attribute panel used to hand it over via
  *      position weights), and the CPU's read of a prospect contains genuine
  *      error on BOTH ovr and potential (it used to read true `pot` directly).
+ *      The same claim now covers free-agent veterans: CPU bids and the user
+ *      FA panel read a derived belief, not true OVR.
  *
  *   2. BELIEFS ARE PRIVATE AND DURABLE.  A club's opinion of a prospect is
  *      stable across calls (no per-call jitter — a war room holds a view),
@@ -32,7 +34,8 @@ import {
   PRIVATE_VISIT_CAP,
   advanceScoutingWindow,
   attrBand, calendarView, canRunScoutingMethod, cpuProspectView,
-  ensureScouting, getIntel, runScoutingMethod, scoutQuality, windowFloor,
+  cpuVeteranView, ensureScouting, getIntel, knowsTrueRatings,
+  runScoutingMethod, scoutQuality, visibleOvr, windowFloor,
 } from "../lib/core/scouting";
 import { initDraft, runFullDraft, runUdfaChase } from "../lib/core/offseason/draft";
 import { evenBudget } from "../lib/core/staff";
@@ -269,6 +272,57 @@ bar("7. Calendar windows and the visit cap");
   check(next.season === rolled.season, "calendar reseasons with the save", `${next.season}`);
   check(next.visitsRemaining === PRIVATE_VISIT_CAP, "visits reset at the rollover", `${next.visitsRemaining}`);
   check(next.window === "filmFocus", "new year opens on film", next.window);
+}
+
+bar("8. Veteran beliefs — durable, private, quality-scaled");
+{
+  const st = newGame({ seed: SEED + 5 });
+  for (const t of st.teams) t.staff = evenBudget();
+  const vets = st.players.filter((p) => !p.prospect && !p.retired && p.teamId === null);
+  const sample = vets.slice(0, 80);
+  check(sample.length >= 20, "year-0 has a free-agent pool", `${sample.length} unsigned veterans`);
+
+  let unstable = 0;
+  const spreads: number[] = [];
+  const evenErr: number[] = [];
+  for (const p of sample) {
+    const a = cpuVeteranView(st, 3, p);
+    const b = cpuVeteranView(st, 3, p);
+    if (a.ovr !== b.ovr || a.pot !== b.pot) unstable++;
+    const reads = [0, 1, 2, 3, 4, 5, 6, 7].map((t) => cpuVeteranView(st, t, p).ovr);
+    const m = mean(reads);
+    spreads.push(Math.sqrt(mean(reads.map((r) => (r - m) ** 2))));
+    evenErr.push(Math.abs(cpuVeteranView(st, 3, p).ovr - p.ovr));
+  }
+  check(unstable === 0, "a club's veteran read is stable across calls", `${unstable} unstable`);
+  const spread = mean(spreads);
+  check(spread > 0.6, "clubs disagree on the same veteran", `cross-club ovr sd ${spread.toFixed(2)}`);
+  const evenMae = mean(evenErr);
+  check(evenMae > 0.8, "even-budget veteran view is not the answer key", `MAE ${evenMae.toFixed(2)}`);
+
+  const qs = st.teams.map((t) => scoutQuality(st, t.id));
+  check(qs.every((q) => q === 1), "year-0 even split is q === 1", `${qs.filter((q) => q !== 1).length} off`);
+
+  // Same club, two funding levels — do not compare two archetypes (hash confound).
+  const club = 3;
+  const evenClubErr = sample.map((p) => Math.abs(cpuVeteranView(st, club, p).ovr - p.ovr));
+  st.teams[club].staff = { development: 20, scouting: 50, training: 15, scheme: 15 };
+  const fundedErr = sample.map((p) => Math.abs(cpuVeteranView(st, club, p).ovr - p.ovr));
+  const fundedMae = mean(fundedErr);
+  const evenClubMae = mean(evenClubErr);
+  check(
+    fundedMae < evenClubMae - 0.15,
+    "a well-funded desk is closer to truth on the same veterans",
+    `even MAE ${evenClubMae.toFixed(2)} -> scout-50 ${fundedMae.toFixed(2)} (q ${scoutQuality(st, club).toFixed(3)})`
+  );
+  st.teams[club].staff = evenBudget();
+
+  const userFas = vets.filter((p) => !knowsTrueRatings(st, p)).slice(0, 80);
+  const panelErrs = userFas.map((p) => Math.abs(panelOvr(st, p) - p.ovr));
+  const vetLeak = mean(panelErrs);
+  check(vetLeak > 1.0, "FA attribute panel cannot reconstruct true OVR", `MAE ${vetLeak.toFixed(2)} pts`);
+  const printedTruth = userFas.filter((p) => visibleOvr(st, p) === String(p.ovr)).length;
+  check(printedTruth < userFas.length * 0.25, "visibleOvr is not a true-OVR dump", `${printedTruth}/${userFas.length} collapsed to truth`);
 }
 
 bar("Result");

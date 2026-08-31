@@ -9,6 +9,7 @@ import { askingPrice, negotiatedApy, suggestedYears } from "./contracts";
 import {
   FrontOffice, Posture, SPEND_FLOOR, evaluate, frontOffice, targetSpend, teamOutlook,
 } from "../frontOffice";
+import { cpuVeteranView, userVeteranView } from "../scouting";
 
 /**
  * Free agency.
@@ -41,23 +42,20 @@ function teamNeed(state: GameState, teamId: number, pos: Position): number {
  * different players.
  */
 function interest(
-  state: GameState, teamId: number, p: Player, posture: Posture, rng: Rng
+  state: GameState, teamId: number, p: Player, posture: Posture, _rng: Rng
 ): number {
-  const fo = frontOffice(state, teamId);
   const need = teamNeed(state, teamId, p.pos);
+  const view = cpuVeteranView(state, teamId, p);
+  const believed: Player = { ...p, ovr: view.ovr, pot: view.pot };
 
   // A contender will take a clear upgrade at a position it already has covered;
   // a rebuilding club will not sign a 31-year-old to sit behind someone.
   const starBar = posture === "contend" ? 76 : posture === "retool" ? 79 : 84;
-  if (need <= 0 && p.ovr < starBar) return 0;
-  if (posture === "rebuild" && p.age >= 30 && p.ovr < 82) return 0;
+  if (need <= 0 && view.ovr < starBar) return 0;
+  if (posture === "rebuild" && p.age >= 30 && view.ovr < 82) return 0;
 
-  // Each club scouts the market slightly differently.
-  const perceived = p.ovr + rng.normal(0, 2);
-  const scoutingNoise = perceived - p.ovr;
-
-  const value = evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]);
-  return (value + scoutingNoise * POSITION_VALUE[p.pos]) * (1 + need * 0.6);
+  const value = evaluate(state, teamId, believed, posture, POSITION_VALUE[p.pos]);
+  return value * (1 + need * 0.6);
 }
 
 export interface FaSigning {
@@ -135,7 +133,7 @@ function placeCpuBids(state: GameState, rng: Rng, round: number): void {
 
   const pool = state.players
     .filter((p) => p.teamId === null && !p.retired && !p.prospect)
-    .sort((a, b) => b.ovr - a.ovr);
+    .sort((a, b) => a.id - b.id);
 
   if (pool.length === 0) return;
 
@@ -218,7 +216,7 @@ function placeCpuBids(state: GameState, rng: Rng, round: number): void {
       if (hit > space) continue;
       if (!belowFloor && hit > headroom) continue;
       // Don't blow more than half the remaining room on one non-star.
-      if (!belowFloor && player.ovr < 80 && hit > space * 0.5) continue;
+      if (!belowFloor && cpuVeteranView(state, teamId, player).ovr < 80 && hit > space * 0.5) continue;
 
       const bid: FaBid = {
         teamId,
@@ -267,7 +265,7 @@ function resolveFaBids(state: GameState, rng: Rng): FaSigning[] {
     signings.push({ player, teamId: bid.teamId, years: bid.years, apy: bid.apy });
     state.log.push({
       season: state.season, week: state.week, kind: "transaction",
-      text: `${state.teams[bid.teamId].abbr} signed ${player.firstName} ${player.lastName} (${player.pos}, ${player.ovr} OVR) — ${bid.years}yr / $${(bid.apy / 1e6).toFixed(1)}M per year`,
+      text: `${state.teams[bid.teamId].abbr} signed ${player.firstName} ${player.lastName} (${player.pos}) — ${bid.years}yr / $${(bid.apy / 1e6).toFixed(1)}M per year`,
     });
   }
 
@@ -550,7 +548,7 @@ export function resolveFaWave(state: GameState, rng: Rng, round: number): WaveOu
 
     state.log.push({
       season: state.season, week: state.week, kind: "transaction",
-      text: `${state.teams[winner.teamId].abbr} signed ${p.firstName} ${p.lastName} (${p.pos}, ${p.ovr} OVR) — ${winner.years}yr / $${(winner.apy / 1e6).toFixed(1)}M per year${field.length > 1 ? ` (${field.length} clubs bid)` : ""}`,
+      text: `${state.teams[winner.teamId].abbr} signed ${p.firstName} ${p.lastName} (${p.pos}) — ${winner.years}yr / $${(winner.apy / 1e6).toFixed(1)}M per year${field.length > 1 ? ` (${field.length} clubs bid)` : ""}`,
     });
   }
 
@@ -580,7 +578,11 @@ export function resolveFaWave(state: GameState, rng: Rng, round: number): WaveOu
 export function faPool(state: GameState): Player[] {
   return state.players
     .filter((p) => p.teamId === null && !p.retired && !p.prospect)
-    .sort((a, b) => b.ovr - a.ovr);
+    .sort((a, b) => {
+      const va = userVeteranView(state, a).ovr;
+      const vb = userVeteranView(state, b).ovr;
+      return vb - va || a.id - b.id;
+    });
 }
 
 export function faPoolFor(state: GameState, pos: Position | "ALL"): Player[] {
