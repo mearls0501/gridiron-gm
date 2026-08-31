@@ -182,6 +182,24 @@ issue, not this page.
 `signUdfa` did not count, and Sign never disabled. Writer now refuses at
 `UDFA_SIGNINGS_MAX`; the board shows `N/4` and Sign disables at 4.
 
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
+(`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — byte-identical to
+PR #8 / #9 / #11 / #13 / #14 / #16 / #17 on main. Not this packet.
+
+```
+FAIL  statcheck.leadTackles  129  expected 177 +/-40
+FAIL  statcheck.qb5PassYds  4057  expected 4497 +/-360
+FAIL  statcheck.rb5RushYds  1291  expected 1191 +/-95
+FAIL  statcheck.wr10RecYds  1058  expected 1208 +/-97
+```
+
+`node scripts/e2e.mjs` against a built `next start` (`PW_CHROMIUM` = full
+Chrome): **E2E PASSED**. Interact suite also **PASSED** (Sign disable is a
+control change). Headless writer check: spent slot filtered + rejected;
+`signUdfa` stops at 4.
+
 ---
 
 ## 2026-08-31 — live free-agency market (user-contest layer)
