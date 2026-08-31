@@ -202,6 +202,108 @@ export function scoutQuality(state: GameState, teamId: number): number {
   return clamp(Math.pow(NEUTRAL_SHARE / s, 0.5), 0.7, 1.6);
 }
 
+// ---------------------------------------------------------------------------
+// Veteran beliefs — same shape as CPU prospect views, smaller error
+// ---------------------------------------------------------------------------
+
+/**
+ * Veterans have NFL film. The old FA path added `rng.normal(0, 2)` on top of
+ * true OVR — ephemeral, shared-stream, the same draw for nobody in particular.
+ * This is that amplitude, hash-keyed (seed, season, club, player) so two clubs
+ * disagree and a reload does not reshuffle the board. No save bytes.
+ *
+ * No common term and no private-signal lane: those are the prospect formula
+ * (PR #21) and stay untouched. Quality only scales own noise. At `q === 1`
+ * the factor is exactly 1, so even-budget error is N(0, 2) on OVR — the old
+ * amplitude — not a free accuracy gift. The old path consumed the save RNG;
+ * this one does not. That is a documented stream change, not a quality effect.
+ */
+const VET_OWN_OVR_SD = 2;
+const VET_OWN_POT_SD = 1.5;
+const VET_HASH = 0x0e700;
+
+const vetCache = new Map<string, { ovr: number; pot: number }>();
+
+/**
+ * What one club believes a non-prospect veteran is and could still become.
+ *
+ * Used by CPU FA ranking / bidding, and by the user's FA board as the centre
+ * of a displayed band. Own-roster players are not read through this — the
+ * club already has them.
+ */
+export function cpuVeteranView(
+  state: GameState, teamId: number, p: Player
+): { ovr: number; pot: number } {
+  const q = scoutQuality(state, teamId);
+  const key = `v:${state.seed}:${state.season}:${teamId}:${p.id}:${p.ovr}:${p.pot}:${q.toFixed(3)}`;
+  const hit = vetCache.get(key);
+  if (hit) return hit;
+  if (vetCache.size > 80_000) vetCache.clear();
+
+  const ownOvr = stableNormal(state.seed, state.season, VET_HASH + teamId + 1, p.id);
+  const ownPot = stableNormal(state.seed, state.season, VET_HASH + teamId + 1, p.id ^ 0x51ed);
+  const ovr = clamp(p.ovr + ownOvr * VET_OWN_OVR_SD * q, 30, 99);
+  const pot = clamp(p.pot + ownPot * VET_OWN_POT_SD * q, ovr, 99);
+  const out = { ovr, pot };
+  vetCache.set(key, out);
+  return out;
+}
+
+/** The user's desk — same derived belief, no stored veteran intel collection. */
+export function userVeteranView(state: GameState, p: Player): { ovr: number; pot: number } {
+  return cpuVeteranView(state, state.userTeamId, p);
+}
+
+/**
+ * True ratings are only authoritative for the user's own roster. Prospects
+ * already have their own fog; everyone else is a veteran the desk is
+ * estimating.
+ */
+export function knowsTrueRatings(state: GameState, p: Player): boolean {
+  return !p.prospect && p.teamId === state.userTeamId;
+}
+
+/** Scouted band around the user's veteran belief. Width grows as `q` grows. */
+export function veteranIntel(state: GameState, p: Player): {
+  ovrLow: number; ovrHigh: number; potLow: number; potHigh: number;
+} {
+  const view = userVeteranView(state, p);
+  const q = scoutQuality(state, state.userTeamId);
+  const ovrW = Math.max(2, Math.round(4 * q));
+  const potW = Math.max(3, Math.round(6 * q));
+  const ovrLow = clamp(Math.round(view.ovr - ovrW / 2), 30, 99);
+  const ovrHigh = clamp(Math.round(view.ovr + ovrW / 2), ovrLow, 99);
+  const potLow = clamp(Math.round(view.pot - potW / 2), 30, 99);
+  const potHigh = clamp(Math.round(view.pot + potW / 2), potLow, 99);
+  return { ovrLow, ovrHigh, potLow, potHigh };
+}
+
+function formatBand(low: number, high: number): string {
+  if (high - low <= 2) return String(Math.round((low + high) / 2));
+  return `${low}-${high}`;
+}
+
+/** What a rendered surface may print for OVR. Never the answer key for a FA. */
+export function visibleOvr(state: GameState, p: Player): string {
+  if (p.prospect) {
+    const i = getIntel(state, p);
+    return formatBand(i.ovrLow, i.ovrHigh);
+  }
+  if (knowsTrueRatings(state, p)) return String(p.ovr);
+  const i = veteranIntel(state, p);
+  return formatBand(i.ovrLow, i.ovrHigh);
+}
+
+export function visiblePot(state: GameState, p: Player): string {
+  if (p.prospect) {
+    const i = getIntel(state, p);
+    return formatBand(i.potLow, i.potHigh);
+  }
+  if (knowsTrueRatings(state, p)) return String(p.pot);
+  const i = veteranIntel(state, p);
+  return formatBand(i.potLow, i.potHigh);
+}
+
 /**
  * How a club prices known risk. Medical and character checks are table stakes
  * for a real department, so CPU clubs read the truth here — their edge or
@@ -630,7 +732,10 @@ export function attrBand(
   state: GameState, p: Player, key: AttrKey
 ): { low: number; high: number } {
   const v = p.attrs[key];
-  if (!p.prospect) return { low: v, high: v };
+  if (!p.prospect) {
+    if (knowsTrueRatings(state, p)) return { low: v, high: v };
+    return veteranAttrBand(state, p, key, v);
+  }
 
   const intel = getIntel(state, p);
   let sd: number, width: number;
@@ -657,4 +762,32 @@ function hashKey(key: AttrKey): number {
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
   return h;
+}
+
+/**
+ * Fog over a free agent / other-club veteran's attributes. Tighter than a
+ * prospect (there is NFL film) and still not centred on truth — a band on
+ * truth is the v1 leak. Quality widens the miss; at q=1 the widths stay
+ * modest. Own-roster players never enter here.
+ */
+function veteranAttrBand(
+  state: GameState, p: Player, key: AttrKey, v: number
+): { low: number; high: number } {
+  const q = scoutQuality(state, state.userTeamId);
+  let sd: number, width: number;
+  if (ATHLETIC.includes(key)) {
+    sd = 1.5 * q; width = Math.max(4, Math.round(4 * q));
+  } else if (MENTAL.includes(key)) {
+    sd = 4 * q; width = Math.max(6, Math.round(8 * q));
+  } else {
+    sd = 4.5 * q; width = Math.max(6, Math.round(8 * q));
+  }
+  const center = clamp(
+    v + stableNormal(state.seed, state.season, 0xb07 + state.userTeamId, p.id ^ hashKey(key)) * sd,
+    1, 99
+  );
+  return {
+    low: Math.max(1, Math.round(center - width / 2)),
+    high: Math.min(99, Math.round(center + width / 2)),
+  };
 }
