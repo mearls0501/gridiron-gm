@@ -263,8 +263,8 @@ their baselines are set to today's value so they cannot get *worse*:
 | `careers.careerLenMae` — a 6th or 7th rounder's median career is 1 and 0 seasons against a real 4 and 2 | 1.0 | < 0.5 |
 | **`careers.r1QbSharePct` — leftover after PR #7/#9 is POSITION_VALUE on the CPU board, not scouting (2026-08-30).** PR #9 showed a true-BPA top 32 scored `(ovr − replacement) × POSITION_VALUE` is already ~18–21% QB against a real 10.3% (`nfl-reference.md` §2.4); actual drafts sat near 15% only because need / `startsHere` suppress below that board. Selection premium is still flat — quarterbacks are not scouted worse. `cpuBoardValue` now reads `√POSITION_VALUE` (QB ≈ 1.84× a safety) so the salary table cannot write the first round; contracts / trades / generation keep the raw 3.4×. Careers 30 / seed 12345: **15.1% → 11.6%** toward 10.3, `r1ShareMae` 2.22. 2-seed panel (24 seasons): **9.77**. Other groups on the 30-season run: OL 20.3% (real 20.3), RB 2.4→ toward 4.2, LB 4.9→ toward 7.7, DB 19.8 (was 21.0 vs 16.7), WR 16.7 (was 13.7 vs 13.4), DL 20.0 (was 24.3 vs 24.5). **The locked band is 15.9 ±3.2 — a two-sided lock around the old reading — so 11.6 / 9.77 fail the floor while sitting on the `nfl` note.** That band was built to catch a relapse to 19.6; the honest shape is a max. Re-lock is a lead call; the baseline was not moved. | 11.6 / 9.77 | 10.3% |
 | `careers.r1BustPct` — a first rounder who never starts half a season in four years | 28% | ~15% |
-| second contracts with the drafting club run 3-5x too high at every round | R7 at 15% | R7 at 1.5% |
-| `leverage.noEffect` — LB awareness is 16% of OVR and the engine never reads it | 1 | 0 |
+| ~~second contracts with the drafting club run 3-5x too high at every round~~ **ROW RETIRED 2026-08-31 — mechanism closed by PR #6.** `cpuResign` now requires a rookie-deal player (`draftedRound !== null && yearsPro <= 4`) to outgrow a 70 OVR bar; the loyalty/youth/floor-pull terms that kept replacement-level late-rounders at ~50% (R7 11.5–15% vs 1.5%, `nfl-reference.md` §2.3) no longer apply on that path. Careers was not re-run on this docs pass; no new R7 share is claimed. | was R7 at 15% | R7 at 1.5% |
+| ~~`leverage.noEffect` — LB awareness is 16% of OVR and the engine never reads it~~ **CLAIM RETIRED 2026-08-31.** The engine already reads LB `awr` via `frontScore` in `sim/game.ts` (`unitAvg(lbs, "awr") * 0.12` into rush yards). The harness probe is `LB.awr` → `teamRushYds` and the measured swing is ~−4.4, not dead. The leftover `noEffect` 1 is the knife-edge `OT.sta` → `sacksTaken` probe (`leverage.ts` treats `|swing| < 0.05` as dead; it oscillated NO EFFECT / WRONG SIGN on unchanged code). Do not invent a leverage fix. | 1 | 0 |
 | **`drift.passRecordSeasons` — reconditioned 2026-08-03; STILL 0 of 20 with the top-end restored, so `min: 1` was NOT added.** The guard used to read the season line after `playoffs.ts` wrote into it, counting REG+POST yards against a REG-only 5,477 (5,316 with playoffs against 4,735 without); it now snapshots at the end of the regular season (§6.8A). task/310b restored elite passing production — every leaderboard floor is green — and the panel still reads **0 of 20**: the sim's single-season leader averages 4,742 at 60 seeds against a record of 5,477, so the tail is ~700 short even now. §6.4's floor is therefore still unmet and the authorized `min: 1` was deliberately withheld. What is left is the top-5 VOLUME gap §5.8 shows cannot be closed honestly (real run-heavy clubs do not spread carries, corr −0.015), so the record may simply be out of reach until pass volume can be widened without the run-share coupling. | 0 of 20 | 1-3 of 20 |
 | `conditions.coldPointsDelta` — cold games barely suppress scoring (−0.5 against a real −2.4). Single-seed reading on a 6-season sample; not yet confirmed against a matched-seed baseline. | −0.5 | −2.4 |
 | **`tails.milestonesOff` — Poisson-interval verdict LANDED 2026-08-28 (task/312).** The guard now counts how many of 49 threshold categories have an observed count outside the central 95% Poisson interval (λ = NFL rate × seasons). Panel **16.0** (14 / 15 / 15 / 18 / 18, sd 1.87). Ratio-band continuity readings were 14.4 / 17.2 / 16.4 / 20.8 — the drop is the rare-event quantization coming off (~2.75 false fails from 1/16 > 0.06), not an engine change. The 95% interval is tighter than the old 0.62–1.6 ratio band on high-λ categories, so common-rate misses now count. Stable offs on this panel: 450+ pass yds, 200+ rush yds, 3+ sacks (too common, ~1.4×), 15+ tackles, 60+ yd FG (too common, ~2×), 4,500+ pass yds, 1,400+ rec yds, 150+ tackles. The two rare categories previously called genuinely elevated — 1,900+ receiving yards at 2.25× pooled and 23+ sacks at 3.12× — are **not claimed fixed**; 1,900+ failed 1 of 5 seeds here and 23+ failed 0 of 5 at 16-season resolution. Do not tune the engine against this number. | 16.0 | 0 |
@@ -287,10 +287,16 @@ trading means a bottom-six club may legitimately not HOLD pick 1 — the claim i
 unchanged, the confound is removed); and the four `scout.*` structural
 baselines (leak floor, tightening floor, clock-trade floor, UDFA band).
 
-Also unguarded, and worth knowing before you touch the surrounding code: free
-agency has no live CPU bidding (`FaState`/`FaBid` are declared and always
-null); ROY is not restricted to rookies; `history[].standings` exists but no
-page reads it. Garbage-time QB rotation now exists and is fitted to §5.4b
+Also unguarded, and worth knowing before you touch the surrounding code:
+~~free agency has no live CPU bidding (`FaState`/`FaBid` are declared and always
+null)~~ **CPU FA bidding is live (PR #3).** `openCpuBidding` / `runCpuFaRound`
+write and resolve `FaBid`s on `state.fa`; the user's club stays interactive-only,
+same convention as `cpuResign`. ~~ROY is not restricted to rookies;
+`history[].standings` exists but no page reads it.~~ **ROY is rookies-only
+(PR #2)** — `recordSeasonHistory` scores only `yearsPro === 0`; `verify` asserts
+the winner is a rookie. **`/standings` reads `history[].standings`** via
+`computeRecords` for archived seasons; the League tab links each year into
+`/standings?season=`. Garbage-time QB rotation now exists and is fitted to §5.4b
 (`decided` / `onField` in `sim/game.ts`) — both sides, the trailing one sooner
 — but a club never benches a passer for playing badly, and there are no trick
 plays, which together are most of the real 21.4% of team-games with a second
@@ -319,9 +325,14 @@ offensive and defensive identity. Development spending buys back the gap
 between a player's `ceiling` and his `pot` and never touches `pot` itself. CPU
 clubs allocate from their existing archetype via `refreshCpuStaff`.
 
-**Structurally missing in the trade model**, per `docs/nfl-reference.md` §1:
-the cutdown window (~17% of real activity) still does not exist, and in-season
-deadline volume is thin. Draft weekend now has both halves — a pre-draft burst
+**Trade calendar**, per `docs/nfl-reference.md` §1:
+~~the cutdown window (~17% of real activity) still does not exist, and in-season
+deadline volume is thin.~~ **Cutdown and deadline markets landed (PR #4).**
+Late-August cutdown (`runCutdownTrades` from `prunePickInventory` during
+`offseason-final`) is a one-pick scrap-heap dump capped at the sourced ~16
+trades a year. In-season volume follows `TRADE_WEEK_WEIGHTS` in `season/engine.ts`
+(~40% in the deadline week, September floor ~3–4% per week; ~16 in-season
+trades a year). Draft weekend now has both halves — a pre-draft burst
 (`runDraftDayTrades`) and an on-the-clock market (`tryCpuClockTrade` /
 `generateClockOffers` / `quoteMoveUp` in `offseason/draft.ts`) where a club
 whose board tier collapsed pays a premium to move up, which is the mechanism
