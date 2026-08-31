@@ -5,6 +5,33 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — `r1QbSharePct` re-locked as a max (branch `cursor/relock-r1-qb-share-db93`)
+
+Lead-authorized. `careers.r1QbSharePct` only. The two-sided 15.9 ±3.2 band
+was a lie after PR #10: careers 30 / seed 12345 moved **15.1% → 11.6%**
+toward nfl 10.3 (`nfl-reference.md` §2.4), and the 2-seed panel read
+**9.77**, but both failed the floor. That band's ceiling (19.1) existed to
+catch a relapse to 19.6. Honest shape is a `max`, not a new two-sided band
+around 11.6. `npm run gate:lock` was not used.
+
+New lock: `max: 16`, `nfl: 10.3`. 11.6 / 9.77 / ~10.3 pass; 19.6 fails.
+Known-open row retired. Do not start the R1 QB never-start 22.4 vs 10.7
+packet.
+
+File cluster: `v2/docs/baselines.json` (this metric only), `v2/AGENTS.md`,
+this note. Nothing in `v2/lib`, `draft.ts`, `POSITION_VALUE`, scouting,
+contracts, generation, tests, or `careers.ts`.
+
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
+(`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — byte-identical to
+PR #8 / #9 / #11 / #13 on main. Not this packet. `careers` is full-tier only;
+the recorded 9.77 / 11.6 sit under `max: 16` (gate fail is `value > max`).
+Full tier not run; this packet does not re-measure careers.
+
+---
+
 ## 2026-08-31 — `r1BustPct` leftover retired (branch `cursor/retire-r1bustpct-9ede`)
 
 Docs only. The known-open `careers.r1BustPct` row in `AGENTS.md` still said

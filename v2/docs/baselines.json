@@ -413,10 +413,9 @@
       "note": "round 1 positional composition vs 15 real drafts. today 2.83"
     },
     "careers.r1QbSharePct": {
-      "target": 15.9,
-      "tol": 3.2,
+      "max": 16,
       "nfl": 10.3,
-      "note": "KNOWN-OPEN, locked at today's value so it cannot get worse. Quarterbacks are 10.3% of round 1 in reality, 3.27 a draft, sd 1.44 (nfl-reference.md S2.4). Sim reads 14.1 and 17.7 on two seeds. The first band here was set from one seed and failed on another -- widened to cover both rather than to make it pass."
+      "note": "Ceiling against a relapse toward the old ~19.6 R1 QB share. After PR #10 (cpuBoardValue uses sqrt(POSITION_VALUE)) careers 30 / seed 12345 moved 15.1 -> 11.6 toward nfl 10.3 (nfl-reference.md S2.4); 2-seed panel 9.77. The previous 15.9 +/-3.2 two-sided band failed those readings on the floor. Max 16 still fails 19.6 and lets 11.6 / 9.77 / 10.3 through."
     },
     "careers.r1BustPct": {
       "max": 34,
