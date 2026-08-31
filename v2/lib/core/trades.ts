@@ -1,7 +1,7 @@
 import { Rng, clamp } from "./rng";
 import { POSITION_VALUE } from "./ratings";
 import {
-  GameState, PICK_HORIZON, PickOwnership, Player, POSITION_MIN, POSITION_TARGET,
+  DraftPick, GameState, PICK_HORIZON, PickOwnership, Player, POSITION_MIN, POSITION_TARGET,
   Position, ROSTER_LIMIT, STARTERS, TRADE_DEADLINE_WEEK, TradeAsset, TradeOffer,
 } from "./types";
 import {
@@ -71,9 +71,39 @@ export function prunePickInventory(state: GameState, throughSeason: number): voi
   }
 }
 
+/**
+ * The concrete board slot for a year+round row, when that class is on the
+ * clock. Clock trades already reason in these slots (`liveAsset` in draft.ts);
+ * mid-draft /trades inventory has to as well, or a spent pick stays listed as
+ * a generic "2026 R1".
+ */
+export function liveDraftSlot(
+  state: GameState,
+  pick: { season: number; round: number; originalTeamId: number }
+): DraftPick | undefined {
+  const d = state.draft;
+  if (!d || d.season !== pick.season) return undefined;
+  return d.picks.find(
+    (pk) => pk.round === pick.round && pk.originalTeamId === pick.originalTeamId
+  );
+}
+
+/** A year+round aggregate that includes a used slot is a dead asset. */
+export function isSpentPick(
+  state: GameState,
+  pick: { season: number; round: number; originalTeamId: number }
+): boolean {
+  const d = state.draft;
+  if (!d || d.season !== pick.season) return false;
+  if (d.complete) return true;
+  const slot = liveDraftSlot(state, pick);
+  return slot != null && slot.playerId !== null;
+}
+
 export function picksOwnedBy(state: GameState, teamId: number, season?: number): PickOwnership[] {
   return (state.pickOwners ?? [])
     .filter((p) => p.teamId === teamId && (season === undefined || p.season === season))
+    .filter((p) => !isSpentPick(state, p))
     .sort((a, b) => a.season - b.season || a.round - b.round || a.originalTeamId - b.originalTeamId);
 }
 
@@ -256,7 +286,9 @@ export function checkTrade(state: GameState, offer: TradeOffer): TradeCheck {
         const pick = findPick(state, a);
         if (!pick) return { ok: false, reason: "That pick does not exist." };
         if (pick.teamId !== teamId) return { ok: false, reason: "That pick belongs to someone else." };
-        if (pick.season < state.season) return { ok: false, reason: "That pick has already been used." };
+        if (pick.season < state.season || isSpentPick(state, pick)) {
+          return { ok: false, reason: "That pick has already been used." };
+        }
       }
     }
   }
@@ -342,6 +374,21 @@ function moveAsset(state: GameState, a: TradeAsset, toTeamId: number): void {
   p.teamId = toTeamId;
 }
 
+/** Re-point every unexercised slot at its current owner after a mid-draft swap. */
+function syncLiveDraftOwners(state: GameState): void {
+  const d = state.draft;
+  if (!d || d.complete) return;
+  const owners = new Map<string, number>();
+  for (const row of state.pickOwners ?? []) {
+    if (row.season === d.season) owners.set(`${row.round}:${row.originalTeamId}`, row.teamId);
+  }
+  for (let i = d.onClock; i < d.picks.length; i++) {
+    const pk = d.picks[i];
+    if (pk.playerId !== null) continue;
+    pk.teamId = owners.get(`${pk.round}:${pk.originalTeamId}`) ?? pk.originalTeamId;
+  }
+}
+
 function remainingGuaranteed(p: Player): number {
   const c = p.contract;
   if (!c) return 0;
@@ -371,7 +418,10 @@ export function describeAsset(state: GameState, a: TradeAsset): string {
     return p ? `${p.firstName} ${p.lastName} (${p.pos}, ${p.ovr})` : "a player";
   }
   const owner = state.teams[a.originalTeamId];
-  return `${a.season} R${a.round}${owner ? ` (${owner.abbr})` : ""}`;
+  const origin = owner ? ` (${owner.abbr})` : "";
+  const slot = liveDraftSlot(state, a);
+  if (slot && slot.playerId === null) return `${a.season} #${slot.pick}${origin}`;
+  return `${a.season} R${a.round}${origin}`;
 }
 
 export function executeTrade(state: GameState, offer: TradeOffer): TradeCheck {
@@ -380,6 +430,7 @@ export function executeTrade(state: GameState, offer: TradeOffer): TradeCheck {
 
   for (const a of offer.give) moveAsset(state, a, offer.toTeamId);
   for (const a of offer.get) moveAsset(state, a, offer.fromTeamId);
+  syncLiveDraftOwners(state);
   state.nextTradeId = Math.max(state.nextTradeId ?? 1, offer.id + 1);
 
   const from = state.teams[offer.fromTeamId];

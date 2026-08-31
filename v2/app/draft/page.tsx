@@ -17,6 +17,7 @@ import {
   rookieContract,
   runUdfaChase,
   signUdfa,
+  udfaSignedCount,
   userPicks,
 } from "@/lib/core/offseason/draft";
 import {
@@ -166,6 +167,8 @@ export default function DraftPage() {
   const myTurn = isUserOnClock(state);
   const needs = positionsOfNeed(state, teamId);
   const remaining = d ? availableProspects(state, d.season).length : pool.length;
+  const udfaTaken = udfaSignedCount(state, teamId);
+  const udfaFull = udfaTaken >= UDFA_SIGNINGS_MAX;
 
   const mine = userPicks(state);
   const myUpcoming = mine.filter((p) => p.playerId === null);
@@ -607,7 +610,7 @@ export default function DraftPage() {
 
       {d && d.complete && !d.udfaDone && (
         <Card
-          title="Priority free agency"
+          title={`Priority free agency — ${udfaTaken}/${UDFA_SIGNINGS_MAX}`}
           subtitle={`The draft is over. ${remaining} undrafted men are taking calls — sign up to ${UDFA_SIGNINGS_MAX} before the league picks the pool clean.`}
           actions={
             <Button size="sm" variant="primary" onClick={finishUdfa}>
@@ -1013,7 +1016,12 @@ export default function DraftPage() {
                           size="sm"
                           variant="primary"
                           onClick={() => signPriority(p)}
-                          title={`Sign ${playerName(p)} to a three-year minimum deal`}
+                          disabled={udfaFull}
+                          title={
+                            udfaFull
+                              ? `Priority UDFA cap reached (${udfaTaken}/${UDFA_SIGNINGS_MAX})`
+                              : `Sign ${playerName(p)} to a three-year minimum deal (${udfaTaken}/${UDFA_SIGNINGS_MAX})`
+                          }
                         >
                           Sign
                         </Button>

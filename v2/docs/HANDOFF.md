@@ -154,6 +154,53 @@ toggle flipped only itself; a `/trades` checkbox selected that row.
 
 ---
 
+## 2026-08-31 — draft-weekend integrity leftovers (branch `cursor/task-325-draft-integrity-80bf`)
+
+Two production playtest bugs from save "GM Draft QA 0831" (Boston Minutemen).
+No third bug invented. File cluster: `trades.ts`, `offseason/draft.ts`,
+`/trades` and `/draft` UI. Did not touch sim/game.ts, scouting.ts,
+contracts.ts, baselines.json, or CARRY_SHARE.
+
+**Bug A — dead-slot pick on mid-draft trades.** `/trades` listed year+round
+inventory (`2026 R1`) during an active draft. After a trade-down (#2 → #27)
+the partner's acquired early slot could already be off the board; the user
+could still check it and pay (CAR had picked #2; BOS paid 3 firsts; still on
+the clock at #27; pick count 22→20). Clock trades already skipped
+`playerId !== null` via `liveAsset`. Mid-draft inventory now filters
+`isSpentPick`; `checkTrade` rejects a spent slot; `describeAsset` / the
+pick table name a live slot as `#N`; `executeTrade` re-points unexercised
+`draft.picks` at the new owner so a /trades swap of a live slot actually
+moves the board. `pickOwners` rows stay (verify's conservation check).
+
+**Checkbox hitboxes on `/trades`.** Decorative readOnly checkboxes were
+stealing clicks inside the row. `pointer-events-none` on those inputs so
+the row is the hit target. Settings uses real `<label>` checkboxes — left
+alone; if those are also ~50px off it is a Shell sticky-header (h-14)
+issue, not this page.
+
+**Bug B — UDFA cap of 4 not enforced.** `runUdfaChase` capped CPU clubs;
+`signUdfa` did not count, and Sign never disabled. Writer now refuses at
+`UDFA_SIGNINGS_MAX`; the board shows `N/4` and Sign disables at 4.
+
+### Gate (`nproc`=4)
+
+Rebased onto `origin/main` after #19 (`da7c8e0`) and #21 (`c8aef58`). Fast:
+all 8 harnesses exit 0. Three single-seed metric reds — byte-identical to
+#19's fast gate on main, not this packet. Writer check after rebase: spent
+slot filtered + rejected; `signUdfa` stops at 4.
+
+```
+FAIL  leverage.wrongSign     1     EDGE.prs → points +0.6; 0 on every panel seed
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400  (panel 1644)
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95  (panel 1254)
+```
+
+`node scripts/e2e.mjs` against a built `next start` (`PW_CHROMIUM` = full
+Chrome): **E2E PASSED**. Interact suite also **PASSED** (Sign disable is a
+control change).
+
+---
+
 ## 2026-08-31 — live free-agency market (user-contest layer)
 
 Ported from `task/312-statcheck-panel-guards` @ b8a8982 onto current main.

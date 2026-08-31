@@ -471,10 +471,24 @@ export function udfaContract(state: GameState, rng: Rng) {
   return makeContract(rng, LEAGUE_MINIMUM, 3, state.season, 0);
 }
 
+/** How many priority UDFAs this club has already signed from the live class. */
+export function udfaSignedCount(state: GameState, teamId: number): number {
+  const season = state.draft?.season ?? state.season;
+  return state.players.filter(
+    (p) =>
+      p.teamId === teamId &&
+      !p.prospect &&
+      !p.retired &&
+      p.draftClassSeason === season &&
+      p.draftedRound === null
+  ).length;
+}
+
 /** Sign one undrafted prospect as a priority free agent. */
 export function signUdfa(state: GameState, teamId: number, playerId: number, rng: Rng): boolean {
   const d = state.draft;
   if (!d || !d.complete) return false;
+  if (udfaSignedCount(state, teamId) >= UDFA_SIGNINGS_MAX) return false;
   const p = state.players.find((x) => x.id === playerId);
   if (!p || !p.prospect || p.teamId !== null) return false;
   if (rosterCount(state, teamId) >= ROSTER_LIMIT + 20) return false;
