@@ -1,6 +1,7 @@
 import { GameState, STATE_VERSION, defaultSettings } from "../core/types";
 import { blankRecordBook } from "../core/season/records";
 import { SCHEMES, evenBudget } from "../core/staff";
+import { ensureScouting } from "../core/scouting";
 import { decodeSave, encodeSave, EncodedSave } from "./codec";
 
 /**
@@ -129,6 +130,8 @@ function migrate(state: GameState): GameState {
     if (!t.offScheme) t.offScheme = SCHEMES.find((s) => s.side === "offense")!.id;
     if (!t.defScheme) t.defScheme = SCHEMES.find((s) => s.side === "defense")!.id;
   }
+  // Point-pool leftovers become a real calendar; does not crash old saves.
+  ensureScouting(state);
 
   if (state.version === STATE_VERSION) return state;
   state.version = STATE_VERSION;

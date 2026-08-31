@@ -297,7 +297,12 @@ export interface Team {
   coach: Coach;
   /** Optional so saves written before front offices existed still load. */
   frontOffice?: FrontOffice;
-  scoutingPoints: number;
+  /**
+   * Leftover from the retired point-pool spend. New saves omit it. Old saves
+   * may still carry a number; `ensureScouting` discards it and starts the
+   * calendar honestly (30 visits, window from the current phase).
+   */
+  scoutingPoints?: number;
 
   /**
    * How this club splits its staff points across development, scouting,
@@ -618,6 +623,22 @@ export type ScoutingMethod =
   | "film" | "proDay" | "privateWorkout" | "medical" | "interview";
 
 /**
+ * Ordered scouting calendar. Miss a window and that intel kind does not
+ * exist this cycle. The scarce currency is 30 private visits, not a point
+ * pool.
+ */
+export const SCOUTING_WINDOWS = [
+  "filmFocus",
+  "allStar",
+  "combine",
+  "proDays",
+  "privateVisits",
+  "udfaPrep",
+] as const;
+
+export type ScoutingWindow = (typeof SCOUTING_WINDOWS)[number];
+
+/**
  * What the USER'S department believes about one prospect. Both bands are
  * centred on genuinely wrong estimates that tighten as work is done — the
  * midpoint being unknowably off is the entire game.
@@ -652,6 +673,14 @@ export interface ScoutingState {
   season: number;
   intel: Record<number, UserIntel>;
   board: Record<number, BoardNote>;
+  /** Active window on this save. Availability follows this, not a point pool. */
+  window: ScoutingWindow;
+  /** Official visits left this cycle. Cap 30; resets at the season rollover. */
+  visitsRemaining: number;
+  /** Windows that have opened this cycle (including the current one). */
+  opened: ScoutingWindow[];
+  /** Windows that have closed. A closed window cannot be reopened. */
+  closed: ScoutingWindow[];
 }
 
 export interface FaBid {

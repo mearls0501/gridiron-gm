@@ -11,12 +11,12 @@
  *
  *   2. BELIEFS ARE PRIVATE AND DURABLE.  A club's opinion of a prospect is
  *      stable across calls (no per-call jitter — a war room holds a view),
- *      differs from other clubs', and is untouched by the user's spending
+ *      differs from other clubs', and is untouched by the user's work
  *      (the old shared band meant user scouting sharpened all 31 rivals).
  *
- *   3. WORK BUYS INFORMATION.  User methods tighten the user's bands, cost
- *      points, and reveal what they claim to reveal — and nothing reveals
- *      `ceiling`, ever.
+ *   3. WORK BUYS INFORMATION.  User methods tighten the user's bands and
+ *      reveal what they claim to reveal — and nothing reveals `ceiling`,
+ *      ever. Availability follows the calendar window, not a point pool.
  *
  *   4. THE DRAFT MARKET IS ALIVE.  A headless draft completes legally, clubs
  *      trade on the clock, and the priority-UDFA chase signs real numbers.
@@ -26,10 +26,13 @@
 import { emitAll, seedFor } from "./metrics";
 import { newGame } from "../lib/core/newGame";
 import { Rng } from "../lib/core/rng";
-import { GameState, Player } from "../lib/core/types";
+import { GameState, Player, SCOUTING_WINDOWS } from "../lib/core/types";
 import { POSITION_WEIGHTS } from "../lib/core/ratings";
 import {
-  attrBand, cpuProspectView, getIntel, runScoutingMethod, scoutQuality,
+  PRIVATE_VISIT_CAP,
+  advanceScoutingWindow,
+  attrBand, calendarView, canRunScoutingMethod, cpuProspectView,
+  ensureScouting, getIntel, runScoutingMethod, scoutQuality, windowFloor,
 } from "../lib/core/scouting";
 import { initDraft, runFullDraft, runUdfaChase } from "../lib/core/offseason/draft";
 import { evenBudget } from "../lib/core/staff";
@@ -58,6 +61,27 @@ function panelOvr(state: GameState, p: Player): number {
     total += ((band.low + band.high) / 2) * (weight ?? 0);
   }
   return total;
+}
+
+/** Walk the calendar to a named window without touching the RNG stream. */
+function walkTo(state: GameState, target: typeof SCOUTING_WINDOWS[number]): void {
+  if (target === "filmFocus") {
+    state.phase = "preseason";
+    ensureScouting(state);
+    return;
+  }
+  if (target === "allStar") {
+    state.phase = "offseason-recap";
+    ensureScouting(state);
+    return;
+  }
+  state.phase = "offseason-fa";
+  state.fa = state.fa ?? { round: 0, maxRounds: 4, bids: [], complete: false };
+  ensureScouting(state);
+  let guard = 0;
+  while (ensureScouting(state).window !== target && guard++ < 8) {
+    if (!advanceScoutingWindow(state)) break;
+  }
 }
 
 const state = newGame({ seed: SEED });
@@ -96,13 +120,14 @@ bar("2. Beliefs are private, durable, and wrong in private ways");
   const potMae = mean(potErr);
   check(potMae > 1.5, "potential is no longer read off the answer key", `CPU pot MAE ${potMae.toFixed(2)}`);
 
-  // The user's spending must not sharpen anyone else's board.
+  // The user's work must not sharpen anyone else's board.
   const target = sample[0];
   const before = cpuProspectView(state, 9, target);
-  state.teams[state.userTeamId].scoutingPoints = 999;
   const rng = new Rng(1234);
   runScoutingMethod(state, target.id, "film", rng);
+  walkTo(state, "privateVisits");
   runScoutingMethod(state, target.id, "privateWorkout", rng);
+  walkTo(state, "filmFocus");
   const after = cpuProspectView(state, 9, target);
   check(
     before.ovr === after.ovr && before.pot === after.pot,
@@ -130,18 +155,21 @@ bar("4. The attribute panel cannot reconstruct the truth");
 bar("5. Work buys information");
 {
   const rng = new Rng(777);
-  state.teams[state.userTeamId].scoutingPoints = 999;
   const widthDrops: number[] = [];
   const potDrops: number[] = [];
   for (const p of pool.slice(10, 30)) {
+    walkTo(state, "filmFocus");
     const w0 = getIntel(state, p);
     const width0 = w0.ovrHigh - w0.ovrLow;
     const pot0 = w0.potHigh - w0.potLow;
     runScoutingMethod(state, p.id, "film", rng);
     runScoutingMethod(state, p.id, "film", rng);
-    runScoutingMethod(state, p.id, "privateWorkout", rng);
-    runScoutingMethod(state, p.id, "medical", rng);
+    walkTo(state, "allStar");
     runScoutingMethod(state, p.id, "interview", rng);
+    walkTo(state, "combine");
+    runScoutingMethod(state, p.id, "medical", rng);
+    walkTo(state, "privateVisits");
+    runScoutingMethod(state, p.id, "privateWorkout", rng);
     const w1 = getIntel(state, p);
     widthDrops.push(width0 - (w1.ovrHigh - w1.ovrLow));
     potDrops.push(pot0 - (w1.potHigh - w1.potLow));
@@ -179,6 +207,68 @@ bar("6. The draft market is alive");
     "scout.clockTrades": clockTrades,
     "scout.udfaSignings": udfa,
   });
+}
+
+bar("7. Calendar windows and the visit cap");
+{
+  const st = newGame({ seed: SEED + 2 });
+  const rng = new Rng(4242);
+  const classPool = prospects(st);
+  const cal0 = calendarView(st);
+  check(cal0.window === "filmFocus", "year-0 opens on in-season film", cal0.window);
+  check(cal0.visitsRemaining === PRIVATE_VISIT_CAP, "year-0 visits start at the cap", `${cal0.visitsRemaining}`);
+  check(windowFloor(st) === "filmFocus", "preseason floor is film", windowFloor(st));
+
+  check(canRunScoutingMethod(st, "film"), "film is open in the film window", "film");
+  check(!canRunScoutingMethod(st, "privateWorkout"), "workouts are closed in the film window", "privateWorkout");
+  check(!canRunScoutingMethod(st, "medical"), "medicals are closed in the film window", "medical");
+  check(!canRunScoutingMethod(st, "interview"), "interviews are closed in the film window", "interview");
+  check(!runScoutingMethod(st, classPool[0].id, "medical", rng), "a closed window writes nothing", "medical blocked");
+
+  walkTo(st, "allStar");
+  check(ensureScouting(st).window === "allStar", "recap opens all-star week", ensureScouting(st).window);
+  check(canRunScoutingMethod(st, "interview"), "interviews open in all-star week", "interview");
+  check(!canRunScoutingMethod(st, "film"), "film is gone once all-star opens", "film closed");
+
+  walkTo(st, "combine");
+  check(canRunScoutingMethod(st, "medical"), "medicals open at the combine", "medical");
+  check(!canRunScoutingMethod(st, "proDay"), "pro days are not a free mash during combine", "proDay closed");
+
+  walkTo(st, "privateVisits");
+  check(ensureScouting(st).window === "privateVisits", "FA walk reaches private visits", ensureScouting(st).window);
+  let spent = 0;
+  for (const p of classPool) {
+    if (spent >= PRIVATE_VISIT_CAP) break;
+    if (runScoutingMethod(st, p.id, "privateWorkout", rng)) spent++;
+  }
+  check(spent === PRIVATE_VISIT_CAP, "the visit cap is 30", `${spent} visits landed`);
+  check(ensureScouting(st).visitsRemaining === 0, "the 30th visit empties the budget", `${ensureScouting(st).visitsRemaining} left`);
+  check(
+    !runScoutingMethod(st, classPool[spent]?.id ?? classPool[0].id, "privateWorkout", rng),
+    "a 31st visit is refused",
+    "cap holds"
+  );
+
+  // Old saves: leftover points are discarded, visits start at 30, no crash.
+  const old = newGame({ seed: SEED + 3 });
+  old.scouting = { season: old.season, intel: {}, board: {} } as unknown as GameState["scouting"];
+  old.teams[old.userTeamId].scoutingPoints = 47;
+  const migrated = ensureScouting(old);
+  check(migrated.visitsRemaining === PRIVATE_VISIT_CAP, "old points do not become visits", `${migrated.visitsRemaining}`);
+  check(migrated.window === "filmFocus", "old saves land on the honest window", migrated.window);
+  check(old.teams[old.userTeamId].scoutingPoints == null, "leftover scoutingPoints is stripped", "deleted");
+
+  // Season rollover reseeds visits the same way ensureScouting reseasons.
+  const rolled = newGame({ seed: SEED + 4 });
+  walkTo(rolled, "privateVisits");
+  runScoutingMethod(rolled, prospects(rolled)[0].id, "privateWorkout", new Rng(1));
+  check(ensureScouting(rolled).visitsRemaining === PRIVATE_VISIT_CAP - 1, "a visit was spent before rollover", `${ensureScouting(rolled).visitsRemaining}`);
+  rolled.season += 1;
+  rolled.phase = "preseason";
+  const next = ensureScouting(rolled);
+  check(next.season === rolled.season, "calendar reseasons with the save", `${next.season}`);
+  check(next.visitsRemaining === PRIVATE_VISIT_CAP, "visits reset at the rollover", `${next.visitsRemaining}`);
+  check(next.window === "filmFocus", "new year opens on film", next.window);
 }
 
 bar("Result");

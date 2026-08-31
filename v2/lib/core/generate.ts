@@ -492,7 +492,6 @@ export function createNewGame(opts: NewGameOptions = {}): GameState {
     depthChartManual: false,
     coach: makeCoach(rng),
     frontOffice: offices[i],
-    scoutingPoints: 100,
     deadCap: 0,
     // An even split to start. `refreshCpuStaff` gives the CPU clubs their own
     // allocation at the first rollover; the user's stays even until they

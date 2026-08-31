@@ -20,11 +20,18 @@ import {
   userPicks,
 } from "@/lib/core/offseason/draft";
 import {
-  METHOD_COST,
   METHOD_LABEL,
+  PRIVATE_VISIT_CAP,
+  WINDOW_LABEL,
+  advanceScoutingWindow,
+  calendarView,
+  canAdvanceScoutingWindow,
+  ensureScouting,
   boardNote,
   getIntel,
+  methodsForWindow,
   runScoutingMethod,
+  scoutingBlockReason,
   setBoardNote,
 } from "@/lib/core/scouting";
 import { describeAsset } from "@/lib/core/trades";
@@ -56,8 +63,8 @@ import {
  * The one rule this screen holds absolutely: a prospect's true `ovr` and `pot`
  * never reach the DOM. Everything the user sees about an undrafted player comes
  * from `displayedOvr`, which reads the scouted band — a deliberately wrong
- * estimate that tightens as scouting is spent. Showing the real number anywhere
- * would delete the entire draft game.
+ * estimate that tightens as work is done inside the open window. Showing the
+ * real number anywhere would delete the entire draft game.
  */
 
 type SortKey = "board" | "band" | "age" | "scouted" | "pos";
@@ -159,7 +166,10 @@ export default function DraftPage() {
   if (!state) return null;
 
   const teamId = state.userTeamId;
-  const team = state.teams[teamId];
+  const cal = calendarView(state);
+  const windowMethods = methodsForWindow(cal.window);
+  const defaultMethod = windowMethods[0] ?? "film";
+  const canCloseWindow = canAdvanceScoutingWindow(state);
   const d = state.draft;
   const onClock = d && !d.complete ? d.picks[d.onClock] ?? null : null;
   const onClockTeam = onClock ? state.teams[onClock.teamId] : null;
@@ -189,15 +199,25 @@ export default function DraftPage() {
   function scout(p: Player, method: ScoutingMethod = "film") {
     const name = playerName(p);
     apply((s) => {
+      const blocked = scoutingBlockReason(s, method);
+      if (blocked) return blocked;
       const rng = new Rng(s.rngState);
       const ok = runScoutingMethod(s, p.id, method, rng);
       s.rngState = rng.state;
-      if (!ok) {
-        return `Not enough scouting points — ${METHOD_COST[method]} required for a ${METHOD_LABEL[method].toLowerCase()}.`;
-      }
+      if (!ok) return `Could not run ${METHOD_LABEL[method].toLowerCase()}.`;
       const updated = s.players.find((x) => x.id === p.id);
       const grade = updated ? boardGrade(s, updated, gradeContext(s, pool)).label : "?";
-      return `${METHOD_LABEL[method]}: ${name} — board grade ${grade} · ${s.teams[s.userTeamId].scoutingPoints} points left`;
+      const cal = ensureScouting(s);
+      return `${METHOD_LABEL[method]}: ${name} — board grade ${grade} · ${WINDOW_LABEL[cal.window]}`;
+    });
+  }
+
+  function closeWindow() {
+    apply((s) => {
+      const before = ensureScouting(s).window;
+      const ok = advanceScoutingWindow(s);
+      if (!ok) return "That window cannot close yet.";
+      return `${WINDOW_LABEL[before]} is closed. ${WINDOW_LABEL[ensureScouting(s).window]} is open.`;
     });
   }
 
@@ -364,20 +384,20 @@ export default function DraftPage() {
               sub={`${d.picks.filter((p) => p.playerId !== null).length} of ${d.picks.length} picks made`}
             />
             <Stat
-              label="Scouting Points"
-              value={team.scoutingPoints}
-              sub={`film ${METHOD_COST.film} · workout ${METHOD_COST.privateWorkout} · checks ${METHOD_COST.medical}`}
-              tone={team.scoutingPoints < METHOD_COST.medical ? "warn" : undefined}
+              label="Scouting window"
+              value={WINDOW_LABEL[cal.window]}
+              sub={`${cal.visitsRemaining} of ${PRIVATE_VISIT_CAP} visits left`}
+              tone={cal.visitsRemaining === 0 ? "warn" : undefined}
             />
           </>
         ) : (
           <>
             <Stat label="Class Size" value={pool.length} sub={`${state.season} draft class`} />
             <Stat
-              label="Scouting Points"
-              value={team.scoutingPoints}
-              sub={`film ${METHOD_COST.film} · workout ${METHOD_COST.privateWorkout} · checks ${METHOD_COST.medical}`}
-              tone={team.scoutingPoints < METHOD_COST.medical ? "warn" : undefined}
+              label="Scouting window"
+              value={WINDOW_LABEL[cal.window]}
+              sub={`${cal.visitsRemaining} of ${PRIVATE_VISIT_CAP} visits left`}
+              tone={cal.visitsRemaining === 0 ? "warn" : undefined}
             />
             <Stat
               label="Roster"
@@ -387,7 +407,7 @@ export default function DraftPage() {
             <Stat
               label="Draft Opens"
               value="Offseason"
-              sub="Scout now — points do not carry over"
+              sub="Miss a window and that look is gone"
             />
           </>
         )}
@@ -413,8 +433,16 @@ export default function DraftPage() {
             opinion, and the market is sometimes wrong.
           </p>
           <p className="text-xs text-[var(--color-faint)] mt-2">
-            Scouting points reset each offseason, so anything you do not spend is wasted.
+            {WINDOW_LABEL[cal.window]} is open. Miss a window and that information does not
+            exist this cycle. {cal.visitsRemaining} of {PRIVATE_VISIT_CAP} private visits remain.
           </p>
+          {canCloseWindow && (
+            <div className="mt-3">
+              <Button size="sm" variant="ghost" onClick={closeWindow}>
+                Close {WINDOW_LABEL[cal.window]}
+              </Button>
+            </div>
+          )}
         </Card>
       )}
 
@@ -734,7 +762,7 @@ export default function DraftPage() {
 
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
-                  Send the department
+                  {WINDOW_LABEL[cal.window]}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {methods.map((m) => {
@@ -742,20 +770,27 @@ export default function DraftPage() {
                     const revealed =
                       (m === "medical" && intel.medical !== null) ||
                       (m === "interview" && intel.character !== null);
+                    const open = windowMethods.includes(m);
+                    const noVisits = m === "privateWorkout" && cal.visitsRemaining <= 0;
                     return (
                       <Button
                         key={m}
                         size="sm"
                         variant="ghost"
                         onClick={() => scout(focus, m)}
-                        disabled={team.scoutingPoints < METHOD_COST[m] || revealed}
+                        disabled={!open || noVisits || revealed}
                         title={
                           revealed
                             ? "Already on file"
-                            : `${METHOD_LABEL[m]} — ${METHOD_COST[m]} points`
+                            : !open
+                              ? `Not this window — ${WINDOW_LABEL[cal.window]}`
+                              : noVisits
+                                ? `No private visits remaining (${PRIVATE_VISIT_CAP} per season)`
+                                : METHOD_LABEL[m]
                         }
                       >
-                        {METHOD_LABEL[m]} · {METHOD_COST[m]}
+                        {METHOD_LABEL[m]}
+                        {!open ? " · closed" : noVisits ? " · no visits" : ""}
                         {done > 0 && !revealed ? ` (×${done})` : ""}
                       </Button>
                     );
@@ -910,7 +945,8 @@ export default function DraftPage() {
           <Table head={boardHead}>
             {visible.map((p) => {
               const width = bandWidth(p);
-              const affordable = team.scoutingPoints >= METHOD_COST.film;
+              const windowOpen = windowMethods.includes(defaultMethod)
+                && (defaultMethod !== "privateWorkout" || cal.visitsRemaining > 0);
               const note = boardNote(state, p.id);
               const intel = getIntel(state, p);
               return (
@@ -970,14 +1006,14 @@ export default function DraftPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => scout(p)}
-                        disabled={!affordable || p.scouted >= 100}
+                        onClick={() => scout(p, defaultMethod)}
+                        disabled={!windowOpen || p.scouted >= 100}
                         title={
                           p.scouted >= 100
                             ? "Fully scouted"
-                            : affordable
-                              ? `Film study — ${METHOD_COST.film} points. Open the war room for the full toolkit.`
-                              : `Not enough scouting points (${METHOD_COST.film} needed)`
+                            : windowOpen
+                              ? `${METHOD_LABEL[defaultMethod]} — ${WINDOW_LABEL[cal.window]}. Open the war room for the full toolkit.`
+                              : `${METHOD_LABEL[defaultMethod]} is not available during ${WINDOW_LABEL[cal.window]}`
                         }
                       >
                         Scout

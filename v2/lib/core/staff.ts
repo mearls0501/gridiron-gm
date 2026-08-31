@@ -234,22 +234,6 @@ export function declineMultiplier(team: Team): number {
 }
 
 // ---------------------------------------------------------------------------
-// Scouting
-// ---------------------------------------------------------------------------
-
-/**
- * Scouting points for the season.
- *
- * This is the bucket that already existed — it was a flat 100 a year buying
- * looks at draft prospects — and it is now one claim on the pool among four.
- * A club that wants to lift the fog off a draft class pays for it by coaching
- * its roster worse, or by getting hurt more.
- */
-export function scoutingPointsFor(team: Team): number {
-  return Math.round(STAFF_POINTS * (share(team, "scouting") / NEUTRAL_SHARE) * 0.5 + 50);
-}
-
-// ---------------------------------------------------------------------------
 // Scheme
 // ---------------------------------------------------------------------------
 

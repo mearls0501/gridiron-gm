@@ -132,7 +132,7 @@ export default function WeekPage() {
         <Card title="The Season Ahead" subtitle="The schedule drops when the season starts.">
           <p className="text-sm text-[var(--color-muted)] mb-3">
             Camp is where seasons are won: settle the roster, order the depth
-            chart, and put your scouting budget to work before week 1.
+            chart, and use the film window before it closes.
           </p>
           <div className="flex gap-2">
             <Link href="/roster"><Button size="sm">Roster</Button></Link>

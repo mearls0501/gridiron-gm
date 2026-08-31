@@ -5,6 +5,58 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — calendar + visit economy (branch `task/326-calendar-economy`)
+
+Killed the scouting **point** mash. Matt called a spend pool the opposite of
+the game: buttons that are always for sale. Scarce currency is now **30
+private visits**. Miss a window and that intel kind does not exist that cycle.
+
+**Removed.** `METHOD_COST`, `canAfford`, the points debit inside
+`runScoutingMethod`, `Team.scoutingPoints` as a spend model,
+`scoutingPointsFor`, and every UI that treated methods as always-available
+purchases. Intel writers (band tightening, medical/character reveals) stay.
+
+**Window order** (and the method each one gates):
+
+1. In-season film → `film` (`preseason` / `regular` / `playoffs`)
+2. All-star week → `interview` (`offseason-recap`)
+3. Combine → `medical` (`offseason-fa` floor)
+4. Pro days → `proDay` (walk forward during FA)
+5. 30 private visits → `privateWorkout`, costs one visit (`offseason-fa`
+   ceiling, then `offseason-draft` until the last pick)
+6. UDFA prep → `film` + `interview` (draft complete / `offseason-final`)
+
+Free agency is March, so the GM can close combine → pro days → visits before
+the Hub click to the draft burns whatever they skipped. In-season cannot
+jump ahead. `cpuProspectView`, `POSITION_VALUE`, `CARRY_SHARE`, and
+`baselines.json` were not touched.
+
+**Migration.** Old saves that still have `scoutingPoints` do not crash.
+Leftover points are **discarded** — they are not a visit count — and the
+calendar starts honestly: `visitsRemaining = 30`, window from the current
+phase, prior windows marked closed. Documented here rather than mapped
+`points / 100 * 30`, which would invent a conversion the old pool never had.
+
+**Season rollover.** `pruneScouting` then `ensureScouting` reseasons the
+same way it always did: wipe the spent class, reset visits to 30, open
+in-season film.
+
+**Files.** `v2/lib/core/scouting.ts`, `types.ts`, `generate.ts`,
+`newGame.ts`, `staff.ts` (`scoutingPointsFor` removed),
+`offseason/index.ts`, `offseason/draft.ts` (legacy `spendScouting` no
+longer debits), `season/briefing.ts`, `lib/store/save.ts`,
+`app/draft/page.tsx`, `app/front-office/page.tsx`, `app/week/page.tsx`,
+`scripts/scoutcheck.ts` (step 7: window gate + visit cap + migrate +
+reseason), `scripts/e2e-interact.mjs`, this note.
+
+### Gate (`nproc`=4)
+
+Pending — scout first, then fast gate. Inherited single-seed `statcheck`
+reds (`leadTackles`, `qb5`, `rb5`, `wr10`) matching main are not this
+packet.
+
+---
+
 ## 2026-08-31 — quality-scaled private-signal lane (branch `task/325-private-signal`)
 
 `cpuProspectView` already shrank the common term by a flat `PRIVATE_SIGNAL = 0.45`
