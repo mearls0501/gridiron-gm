@@ -27,6 +27,23 @@ File cluster: `standings.ts` (`seasonHasResults`), `app/page.tsx`,
 `briefing.ts`, `app/standings/page.tsx` (import, no behavior change),
 this note. Nothing in the sim cluster, `scripts/`, or `baselines.json`.
 
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Three inherited single-seed metric reds —
+byte-identical to current main (PR #19 / #21 / #23):
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
+```
+
+`node scripts/e2e.mjs` against a built `next start` (`PW_CHROMIUM` = full
+Chrome): **E2E PASSED**. Targeted Hub header: week-0
+`2026 Preseason · 0-0 · AFC East · In-season film · 30/30 visits`;
+week 1 before kickoff still no place; after a 1-0,
+`1st in AFC East` returns. Film/visit copy left alone.
+
 ---
 
 ## 2026-08-31 — veteran beliefs on the FA market (branch `task/327-veteran-beliefs`)
