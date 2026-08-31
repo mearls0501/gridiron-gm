@@ -5,6 +5,22 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — week-0 League tab seeds (branch `cursor/week0-league-seeds-2802`)
+
+The leftover was real and presentation-only. `/standings` League always ran
+`computeSeeds` and painted the 14 green seed pills. At week 0 (and week 1
+before kickoff) every club is 0-0, so the pills were the team-id tiebreak —
+a made-up playoff picture.
+
+`seasonHasResults` now gates that column: anyone with a W/L/T (live games
+or an archived `history[].standings` table) still sees seeds. Empty records
+do not. `computeSeeds` itself is unchanged. Conference cut-line and the
+Playoffs page were left alone.
+
+File cluster: `v2/app/standings/page.tsx` only.
+
+---
+
 ## 2026-08-30 — POSITION_VALUE on the CPU board (branch `cursor/position-value-r1-qb-c9f5`)
 
 PR #9 was right: the leftover R1 QB gap is not `scouting.ts`. A true-BPA top 32

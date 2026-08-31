@@ -3,8 +3,8 @@
 import { Fragment, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGame } from "@/lib/store/game";
-import { Conference, TeamRecord } from "@/lib/core/types";
-import { recordString, winPct } from "@/lib/core/select";
+import { Conference, GameState, TeamRecord } from "@/lib/core/types";
+import { computeRecords, recordString, winPct } from "@/lib/core/select";
 import {
   divisionStandings, conferenceStandings, leagueStandings, computeSeeds,
 } from "@/lib/core/season/standings";
@@ -36,6 +36,17 @@ function subRecord(w: number, l: number, t: number): string {
   return t > 0 ? `${w}-${l}-${t}` : `${w}-${l}`;
 }
 
+/** True once anyone has a regular-season result. Week 0 (and week 1
+ *  before kickoff) is all 0-0, so `computeSeeds` is just the team-id
+ *  tiebreak — a made-up playoff picture. Archived seasons read the
+ *  stored table, so they still count. */
+function seasonHasResults(state: GameState, season: number): boolean {
+  for (const r of computeRecords(state, season).values()) {
+    if (r.w + r.l + r.t > 0) return true;
+  }
+  return false;
+}
+
 export default function StandingsPage() {
   return (
     <Suspense fallback={null}>
@@ -64,7 +75,10 @@ function StandingsBody() {
   const archived = viewingSeason !== state.season;
 
   const userId = state.userTeamId;
-  const seeds = new Map(computeSeeds(state, viewingSeason).map((s) => [s.teamId, s.seed]));
+  const showSeeds = seasonHasResults(state, viewingSeason);
+  const seeds = showSeeds
+    ? new Map(computeSeeds(state, viewingSeason).map((s) => [s.teamId, s.seed]))
+    : new Map<number, number>();
 
   const fullHead = [
     L("Team"), "W", "L", "T", "PCT", "PF", "PA", "DIFF", "DIV", "CONF",
@@ -211,19 +225,27 @@ function StandingsBody() {
 
       {tab === "league" && (
         <Card title="League" subtitle="All 32 teams by record" padded={false}>
-          <Table head={[L("Team"), "Seed", "W", "L", "T", "PCT", "PF", "PA", "DIFF", "DIV", "CONF"]}>
+          <Table
+            head={
+              showSeeds
+                ? [L("Team"), "Seed", "W", "L", "T", "PCT", "PF", "PA", "DIFF", "DIV", "CONF"]
+                : [L("Team"), "W", "L", "T", "PCT", "PF", "PA", "DIFF", "DIV", "CONF"]
+            }
+          >
             {leagueStandings(state, viewingSeason).map((r, i) => {
               const seed = seeds.get(r.teamId);
               return (
                 <Row key={r.teamId} highlight={r.teamId === userId}>
                   <Cell align="left">{teamCell(r.teamId, String(i + 1))}</Cell>
-                  <Cell>
-                    {seed !== undefined ? (
-                      <Pill tone="good">{seed}</Pill>
-                    ) : (
-                      <span className="text-[var(--color-faint)]">—</span>
-                    )}
-                  </Cell>
+                  {showSeeds && (
+                    <Cell>
+                      {seed !== undefined ? (
+                        <Pill tone="good">{seed}</Pill>
+                      ) : (
+                        <span className="text-[var(--color-faint)]">—</span>
+                      )}
+                    </Cell>
+                  )}
                   <Cell>{r.w}</Cell>
                   <Cell>{r.l}</Cell>
                   <Cell>{r.t}</Cell>
