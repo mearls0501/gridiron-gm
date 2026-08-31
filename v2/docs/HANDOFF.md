@@ -5,6 +5,63 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — `statcheck.rb5RushYds` YPC compression (branch `cursor/rb5-rush-ypc-68a6`)
+
+The remaining 5-seed-panel red. Matt's §5.10 diagnosis held: `CARRY_SHARE` is
+exonerated, rank-5 carries were already right (255 vs 247), and the overage
+was top-end yards-per-carry (+6.9%). Coupling is not the defect — real
+`corr(carries, ypc)` is +0.129 and the sim matches it.
+
+**Centre is live, not 70.** Starting-RB skill (`elu 0.4 + acc 0.25 + spd 0.2 +
+agi 0.15`) on the 32 depth-chart lead backs measures **~78**, not the
+hypothesized 70 (that number is the QB-arm middle). A hardcoded 70 would have
+been an 8-point level shift. Recompute-each-game from current RB1s, not a
+generation-time freeze: ratings age, and a frozen year-0 mean becomes a level
+shift by year 10.
+
+`runPlay` only. RB carries flatten the skill slope 0.049 → 0.024 around that
+live centre (mean-preserving at the population mean). Jet sweeps and keepers
+keep the old lever. `CARRY_SHARE` untouched. FA pulls untouched.
+
+**Panel (`nproc`=4, 5 seeds)**
+
+| | before | after | band |
+|---|---:|---:|---|
+| `rb5RushYds` | 1357 (1460/1342/1365/1273/1344) | **1254** (1269/1205/1328/1267/1203) | 1191 ±95 |
+| `calibrate.ypc` | — | 4.41 | 4.46 ±0.35 |
+| `calibrate.rushYds` | — | 117.6 | 119.8 ±10 |
+| `rushers1700` | 0–1 | 0 | max 2 |
+
+Stream moved — default-seed `rb5` went 1291 → 1327, which is why the panel
+and not the fast seed is the verdict. Fast-tier `leadTackles` / `qb5` /
+`wr10` reshuffled with it (and went green on this seed); do not chase them
+here.
+
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Three single-seed metric reds:
+
+```
+FAIL  leverage.wrongSign     1     EDGE.prs → points +0.6; 0 on every panel seed
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400  (panel 1644)
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95  (panel 1254)
+```
+
+`wrongSign` / `leadRecYds` are default-seed stream noise — not present on
+GG_SEED 1-5. Inherited `leadTackles` 146, `qb5` 4204, `wr10` 1172 are inside
+their bands on this seed.
+
+**`npm run gate:full -- --seeds 5`:** all 14 harnesses exit 0. Two metric
+reds, both inherited known-opens. `statcheck.rb5RushYds` is not in the list.
+
+```
+FAIL  tails.milestonesOff  20.40  expected <= 16   known-open Poisson row
+FAIL  drift.saveMbAtEnd    10.52  expected <= 10.5  knife-edge +0.02; same family as #10/#11
+```
+
+File cluster: `v2/lib/core/sim/game.ts` (`runPlay` skill lever), §5.10 in
+`nfl-reference.md`, the known-open row, this note. `baselines.json` not moved.
+
 ## 2026-08-31 — live free-agency market (user-contest layer)
 
 Ported from `task/312-statcheck-panel-guards` @ b8a8982 onto current main.

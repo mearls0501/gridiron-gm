@@ -228,6 +228,19 @@ const QB_CENTRE = 70;
 const QB_SPREAD = 0.0040;
 
 /**
+ * Rushing-skill lever. Old formula centred on 60 (replacement); the starting
+ * population's elu/acc/spd/agi blend measures ~78, and it will drift as
+ * ratings age. The live centre is the mean of the 32 depth-chart lead backs,
+ * recomputed each game — a generation-time freeze would become a level shift
+ * by year 10. 70 is only the empty-league fallback (the QB-arm centre, not
+ * this blend). Slope is flattened around that centre so an elite back sheds
+ * what a replacement back gains. RB carries only; see nfl-reference.md §5.10.
+ */
+const RB_SKILL_SLOPE = 0.024;
+const RB_SKILL_SLOPE_OLD = 0.049;
+const RB_CENTRE_FALLBACK = 70;
+
+/**
  * Victory formation. Real quarterbacks kneel 0.761 times a team-game for a
  * mean of -1.09 yards (nfl-reference.md §5.6, nflverse pbp `qb_kneel`), and the
  * engine had no such play — which cost the quarterback about a fifth of his
@@ -397,6 +410,18 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     for (const p of players) t += att(p, key);
     return t / players.length;
   };
+
+  const rbSkillOf = (p: Player): number =>
+    sc(p, "elu") * 0.4 + sc(p, "acc") * 0.25 + sc(p, "spd") * 0.2 + sc(p, "agi") * 0.15;
+  let rbCentreSum = 0, rbCentreN = 0;
+  for (const team of state.teams) {
+    const lead = team.depthChart.RB[0];
+    const p = lead != null ? byId.get(lead) : undefined;
+    if (!p) continue;
+    rbCentreSum += rbSkillOf(p);
+    rbCentreN++;
+  }
+  const rbCentre = rbCentreN > 0 ? rbCentreSum / rbCentreN : RB_CENTRE_FALLBACK;
 
   /**
    * Put both twenty-two on the field for one scrimmage play.
@@ -985,6 +1010,13 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     const skill = att(carrier, "elu") * 0.4 + sc(carrier, "acc") * 0.25 +
                   sc(carrier, "spd") * 0.2 + sc(carrier, "agi") * 0.15;
 
+    const rbCarry = carrier.pos === "RB";
+    const skillCentre = rbCarry ? rbCentre : 60;
+    const skillSlope = rbCarry ? RB_SKILL_SLOPE : RB_SKILL_SLOPE_OLD;
+    const skillTerm = (skillCentre - 60) * RB_SKILL_SLOPE_OLD + (skill - skillCentre) * skillSlope;
+    const bo1Slope = rbCarry ? 0.0011 * (RB_SKILL_SLOPE / RB_SKILL_SLOPE_OLD) : 0.0011;
+    const bo2Slope = rbCarry ? 0.00054 * (RB_SKILL_SLOPE / RB_SKILL_SLOPE_OLD) : 0.00054;
+
     const goalLineSquash = yardLine >= 88 ? 1.36 : yardLine >= 80 ? 0.72 : 0;
     const homeRun = offenseIsHome ? HOME_FIELD.homeRush : 1;
     // Short yardage on a must-convert down: extra blocker, quarterback sneak,
@@ -992,15 +1024,15 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     // offence still gets the yard more often than not.
     const shortYardagePush = down >= 3 && toGo <= 2 && yardLine < 88 ? 0.38 : 0;
     let yards = rng.normal(
-      (0.93 + shortYardagePush - goalLineSquash + advantage * 3.10 + (skill - 60) * 0.049)
+      (0.93 + shortYardagePush - goalLineSquash + advantage * 3.10 + skillTerm)
         * homeRun * restFor(offenseIsHome),
       3.30
     );
     const breakout = clamp(0.40 + advantage * 1.25, 0.40, 1.70);
-    if (rng.chance((0.046 + (skill - 60) * 0.0011) * breakout)) {
+    if (rng.chance((0.046 + (skillCentre - 60) * 0.0011 + (skill - skillCentre) * bo1Slope) * breakout)) {
       yards += Math.abs(rng.normal(13, 9));           // through the second level
     }
-    if (rng.chance((0.0113 + (skill - 60) * 0.00054) * breakout)) {
+    if (rng.chance((0.0113 + (skillCentre - 60) * 0.00054 + (skill - skillCentre) * bo2Slope) * breakout)) {
       yards += Math.abs(rng.normal(23, 13.5));          // gone
     }
     yards = Math.round(clamp(yards, -6, 100 - yardLine));
