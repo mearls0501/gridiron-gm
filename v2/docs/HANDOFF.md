@@ -85,6 +85,16 @@ New Game pick it up together. No HTML, no sim.
 File cluster: `v2/app/globals.css`, this note. Nothing in `lib/core`,
 `scripts/`, or `baselines.json`.
 
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
+(`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — same numbers as
+PR #8 / #11 / #13 / #14 / #16 on main. Not this packet.
+
+`node scripts/e2e.mjs` against a built `next start` (`PW_CHROMIUM` = full
+Chrome): **E2E PASSED**. Playwright click-through: each Settings Gameplay
+toggle flipped only itself; a `/trades` checkbox selected that row.
+
 ---
 
 ## 2026-08-31 — live free-agency market (user-contest layer)
