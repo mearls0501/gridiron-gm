@@ -530,12 +530,14 @@ export function draftCapitalHold(p: Player, season: number): number {
   if (yearsIn < 0 || yearsIn > ROOKIE_HOLD_YEARS) return 0;
   const base = ROUND_HOLD[p.draftedRound] ?? 0;
   const hold = base * (1 - yearsIn / (ROOKIE_HOLD_YEARS + 1));
-  // Camp rope for the 65-to-53 trim, decaying through the second cutdown so a
-  // late-rounder who made the 53 is not the first cut the next August. R7
-  // year-0 stays +8 (PR #8). R1–R5 already clear the trim on the table.
-  if (yearsIn <= 1 && p.draftedRound >= 6) {
-    const extra = p.draftedRound === 7 ? 8 : 5;
-    return hold + extra * (1 - yearsIn / 2);
+  // Camp rope for the 65-to-53 trim. R7 year-0 stays +8 (PR #8) and decays
+  // through the second cutdown. R6 needs a third camp to reach the traced
+  // median of 4; R1–R5 already clear the trim on the table.
+  if (p.draftedRound === 7 && yearsIn <= 1) {
+    return hold + 8 * (1 - yearsIn / 2);
+  }
+  if (p.draftedRound === 6 && yearsIn <= 2) {
+    return hold + 5 * (1 - yearsIn / 3);
   }
   return hold;
 }
