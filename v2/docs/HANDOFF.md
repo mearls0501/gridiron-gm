@@ -51,6 +51,14 @@ FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95  (panel 1254)
 GG_SEED 1-5. Inherited `leadTackles` 146, `qb5` 4204, `wr10` 1172 are inside
 their bands on this seed.
 
+**`npm run gate:full -- --seeds 5`:** all 14 harnesses exit 0. Two metric
+reds, both inherited known-opens. `statcheck.rb5RushYds` is not in the list.
+
+```
+FAIL  tails.milestonesOff  20.40  expected <= 16   known-open Poisson row
+FAIL  drift.saveMbAtEnd    10.52  expected <= 10.5  knife-edge +0.02; same family as #10/#11
+```
+
 File cluster: `v2/lib/core/sim/game.ts` (`runPlay` skill lever), §5.10 in
 `nfl-reference.md`, the known-open row, this note. `baselines.json` not moved.
 
