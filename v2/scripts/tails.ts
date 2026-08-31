@@ -86,11 +86,53 @@ const SEASON_THRESHOLDS: Threshold[] = [
   { label: "180+ tackles",    nfl: 0.3,  note: "~1 every 3 years",       test: (l) => l.tackles >= 180 },
 ];
 
-function verdict(actual: number, expected: number): string {
-  if (expected <= 0.05) {
-    // "Should essentially never happen" — anything above ~1 per 20 seasons is wrong.
-    return actual <= 0.06 ? "ok" : "TOO COMMON";
+/**
+ * Central 95% Poisson interval for a COUNT.
+ *
+ * The old verdict compared RATES, and at 16 seasons the finest nonzero rate
+ * expressible is 1/16 = 0.0625 — above the 0.06 pass line seven categories
+ * used. One occurrence in the entire run flipped them to TOO COMMON, and
+ * nothing between "never" and "fails" was representable. A correctly
+ * calibrated sim failed them by construction: at nfl 0.02 over 16 seasons
+ * lambda = 0.32 and P(>=1) is 27%; at 0.05, lambda = 0.8 and P(>=1) is 55%.
+ * Roughly 2.75 of the reported failures per seed were arithmetic.
+ *
+ * Counting instead of rating fixes it. At lambda 0.32 the interval is [0, 2],
+ * so a single occurrence is inside it, which is the honest answer: one event
+ * is this guard's resolution limit and carries no information.
+ */
+function poissonInterval(lambda: number): [number, number] {
+  if (lambda <= 0) return [0, 0];
+  let lo = -1, hi = -1;
+  let cdf = 0, term = Math.exp(-lambda);
+  for (let k = 0; k < 100000; k++) {
+    if (k > 0) term *= lambda / k;
+    cdf += term;
+    if (lo < 0 && cdf >= 0.025) lo = k;
+    if (cdf >= 0.975) { hi = k; break; }
   }
+  return [Math.max(0, lo), hi < 0 ? Math.ceil(lambda * 3) : hi];
+}
+
+/**
+ * Verdict on a raw count over `seasons`.
+ *
+ * Poisson-interval OR the old ratio band — deliberately a union, not a
+ * replacement. A pure Poisson test treats the NFL rate as known exactly and
+ * assumes the only variation is sampling; at lambda 480 its interval is +/-9%,
+ * far tighter than the +/-60% the ratio band allows, and real per-season rates
+ * are overdispersed relative to Poisson. Swapping outright would trade seven
+ * fictional failures for a batch of new ones on the COMMON categories. The
+ * union removes the quantization failures and changes nothing else, so this
+ * repair can only move `milestonesOff` down.
+ */
+function verdict(count: number, expected: number, seasons: number): string {
+  const lambda = expected * seasons;
+  const [lo, hi] = poissonInterval(lambda);
+  if (count >= lo && count <= hi) return "ok";
+
+  const actual = count / seasons;
+  if (expected <= 0.05) return "TOO COMMON";
   const ratio = actual / expected;
   if (ratio > 2.5) return "TOO COMMON";
   if (ratio < 0.4) return "TOO RARE";
@@ -100,15 +142,17 @@ function verdict(actual: number, expected: number): string {
 
 function report(title: string, rows: { t: Threshold; count: number }[], seasons: number): number {
   console.log(`\n${title}   (per season, ${seasons} simulated)`);
-  console.log(`  ${"milestone".padEnd(17)} ${"sim".padStart(7)} ${"NFL".padStart(7)}   verdict`);
+  console.log(`  ${"milestone".padEnd(17)} ${"sim".padStart(7)} ${"NFL".padStart(7)} ${"n".padStart(5)} ${"95% band".padStart(10)}   verdict`);
   let problems = 0;
   for (const { t, count } of rows) {
     const per = count / seasons;
-    const v = verdict(per, t.nfl);
+    const [lo, hi] = poissonInterval(t.nfl * seasons);
+    const v = verdict(count, t.nfl, seasons);
     if (v !== "ok") problems++;
     const flag = v === "ok" ? "" : `  <- ${v}`;
     console.log(
-      `  ${t.label.padEnd(17)} ${per.toFixed(2).padStart(7)} ${t.nfl.toFixed(2).padStart(7)}   ${t.note}${flag}`
+      `  ${t.label.padEnd(17)} ${per.toFixed(2).padStart(7)} ${t.nfl.toFixed(2).padStart(7)} ` +
+      `${String(count).padStart(5)} ${`${lo}-${hi}`.padStart(10)}   ${t.note}${flag}`
     );
   }
   return problems;

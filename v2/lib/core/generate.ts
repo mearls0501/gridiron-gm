@@ -122,16 +122,28 @@ export function defaultGuaranteedYears(apy: number, years: number): number {
   return Math.min(g, years);
 }
 
-export function makeContract(
-  rng: Rng, apy: number, years: number, season: number, guaranteedYears = 0
-): Contract {
-  const total = apy * years;
+/**
+ * The signing bonus a deal of this size carries.
+ *
+ * Split out of `makeContract` so free agency can price a BID without building
+ * the contract — a bid has to show its guarantee before anyone has agreed to
+ * it, and duplicating this formula there would let the two drift apart.
+ * Deterministic: no RNG, same inputs always give the same bonus.
+ */
+export function signingBonusFor(apy: number, years: number): number {
   // Bigger deals carry proportionally more bonus.
   // Capped lower than real NFL megadeals: at 45% a freshly-signed star carried
   // three times his cap hit in dead money, which made him literally un-cuttable
   // and turned one misclick into an unrecoverable franchise.
   const bonusPct = clamp(0.14 + (apy / 30_000_000) * 0.14, 0.12, 0.32);
-  const signingBonus = Math.round((total * bonusPct) / 50_000) * 50_000;
+  return Math.round((apy * years * bonusPct) / 50_000) * 50_000;
+}
+
+export function makeContract(
+  rng: Rng, apy: number, years: number, season: number, guaranteedYears = 0
+): Contract {
+  const total = apy * years;
+  const signingBonus = signingBonusFor(apy, years);
   const prorationYears = Math.min(years, 5);
   const annualProration = signingBonus / prorationYears;
 

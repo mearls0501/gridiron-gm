@@ -1,8 +1,8 @@
 import { Rng, clamp } from "../rng";
-import { defaultGuaranteedYears, makeContract } from "../generate";
+import { defaultGuaranteedYears, makeContract, signingBonusFor } from "../generate";
 import { POSITION_VALUE } from "../ratings";
 import {
-  GameState, Player, POSITION_TARGET, Position, ROSTER_LIMIT,
+  FaBid, FaState, GameState, LEAGUE_MINIMUM, Player, POSITION_TARGET, Position, ROSTER_LIMIT,
 } from "../types";
 import { capHit, positionCount, rosterCount, teamCap } from "../select";
 import { askingPrice, negotiatedApy, suggestedYears } from "./contracts";
@@ -170,6 +170,227 @@ function contractYears(p: Player, fo: FrontOffice, posture: Posture): number {
   if (fo.loyalty > 0.7 && p.age < 28) yrs = Math.min(6, yrs + 1);
   if (fo.youthPreference > 0.75 && p.age >= 30) yrs = Math.max(1, yrs - 1);
   return clamp(yrs, 1, 6);
+}
+
+// ---------------------------------------------------------------------------
+// The live market
+// ---------------------------------------------------------------------------
+
+/**
+ * Free agency as a contest rather than a shopping trip.
+ *
+ * Before this, `signPlayer` handed the user anyone he was willing to pay asking
+ * price for, instantly and unopposed — the 31 CPU clubs only ever picked over
+ * what he had already declined. `FaState`/`FaBid` were declared for exactly
+ * this and left null.
+ *
+ * Now the user places a BID. When the wave resolves, clubs that want the same
+ * player bid against him, and the player picks. Everything the CPU uses here is
+ * the machinery that already decided its offscreen signings — `interest()`,
+ * `negotiatedApy`, the club's posture and front-office dials — so a club cannot
+ * bid in a way it would not have signed.
+ *
+ * DESIGN DIALS, NOT MEASUREMENTS. `CONTENDER_PULL` and `GUARANTEE_PULL` below
+ * are chosen to make a decision interesting, not derived from a primary source,
+ * and nothing in the gate is tuned against them. They are deliberately ungated
+ * for the same reason `kickExposure` is (invariant 7). If they are ever to be
+ * fitted, the number to fit against is how often real free agents take less
+ * than the top offer, and that computation does not exist in nfl-reference.md.
+ */
+
+/** How much a winning team is worth to a player, as a share of salary. */
+const CONTENDER_PULL = 0.16;
+/** How much a fully-guaranteed-looking deal is worth beyond its salary. */
+const GUARANTEE_PULL = 0.25;
+/** Players are not perfectly rational calculators. */
+const CHOICE_NOISE_SD = 0.03;
+
+export function openMarket(state: GameState): void {
+  state.fa = { round: 1, maxRounds: FA_ROUNDS, bids: [], complete: false };
+}
+
+function bidFor(teamId: number, p: Player, years: number, apy: number): FaBid {
+  const yrs = clamp(Math.round(years), 1, 6);
+  const rate = Math.max(LEAGUE_MINIMUM, Math.round(apy));
+  return {
+    teamId, playerId: p.id, years: yrs, apy: rate,
+    totalValue: rate * yrs,
+    signingBonus: signingBonusFor(rate, yrs),
+  };
+}
+
+export interface BidResult { ok: boolean; reason?: string }
+
+/**
+ * Place or replace the user's bid on a free agent.
+ *
+ * Validated against the same rules `signPlayer` enforces, because a bid the
+ * user could not honour is worse than no bid — he would plan around winning a
+ * player the cap will not let him have.
+ */
+export function placeUserBid(
+  state: GameState, playerId: number, years: number, apy: number
+): BidResult {
+  if (!state.fa) return { ok: false, reason: "The market is not open." };
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p) return { ok: false, reason: "No such player" };
+  if (p.retired) return { ok: false, reason: "Player has retired" };
+  if (p.teamId !== null) return { ok: false, reason: "Player is already under contract" };
+
+  const bid = bidFor(state.userTeamId, p, years, apy);
+  const asking = askingPrice(state, p);
+  if (bid.apy < asking * 0.92) {
+    return { ok: false, reason: `${p.lastName} will not listen below $${(asking / 1e6).toFixed(1)}M per year.` };
+  }
+
+  // Cap is checked against every bid the user already has outstanding, not just
+  // this one — otherwise he could bid his whole cap on four players and win all
+  // four.
+  const probe = capHit(makeContract(new Rng(1), bid.apy, bid.years, state.season,
+    defaultGuaranteedYears(bid.apy, bid.years)));
+  const others = state.fa.bids
+    .filter((b) => b.teamId === state.userTeamId && b.playerId !== playerId)
+    .reduce((sum, b) => sum + capHit(makeContract(new Rng(1), b.apy, b.years, state.season,
+      defaultGuaranteedYears(b.apy, b.years))), 0);
+  const cap = teamCap(state, state.userTeamId);
+  if (probe + others > cap.space) {
+    return {
+      ok: false,
+      reason: `That would commit $${((probe + others) / 1e6).toFixed(1)}M against $${(cap.space / 1e6).toFixed(1)}M of room, counting your other outstanding bids.`,
+    };
+  }
+
+  const openSpots = ROSTER_LIMIT - rosterCount(state, state.userTeamId);
+  if (state.fa.bids.filter((b) => b.teamId === state.userTeamId && b.playerId !== playerId).length + 1 > openSpots) {
+    return { ok: false, reason: `Only ${openSpots} roster spot${openSpots === 1 ? "" : "s"} open.` };
+  }
+
+  state.fa.bids = state.fa.bids.filter(
+    (b) => !(b.teamId === state.userTeamId && b.playerId === playerId)
+  );
+  state.fa.bids.push(bid);
+  return { ok: true };
+}
+
+export function withdrawUserBid(state: GameState, playerId: number): void {
+  if (!state.fa) return;
+  state.fa.bids = state.fa.bids.filter(
+    (b) => !(b.teamId === state.userTeamId && b.playerId === playerId)
+  );
+}
+
+export function userBids(state: GameState): FaBid[] {
+  return state.fa?.bids.filter((b) => b.teamId === state.userTeamId) ?? [];
+}
+
+/**
+ * What this offer is worth to the player.
+ *
+ * Money dominates, but not absolutely — a winning club buys a discount, and so
+ * does guaranteed money. That is what gives the user a lever other than cash:
+ * build a contender and the market gets cheaper.
+ */
+function offerScore(state: GameState, p: Player, bid: FaBid, rng: Rng): number {
+  const asking = Math.max(1, askingPrice(state, p));
+  const money = bid.apy / asking;
+
+  const guaranteeShare = clamp(bid.signingBonus / Math.max(1, bid.totalValue), 0, 0.5);
+  const { wins } = teamOutlook(state, bid.teamId);
+  const winShare = clamp(wins / 17, 0, 1);
+
+  return money
+    * (1 + guaranteeShare * GUARANTEE_PULL)
+    * (1 + CONTENDER_PULL * (winShare - 0.5))
+    * (1 + rng.normal(0, CHOICE_NOISE_SD));
+}
+
+export interface WaveOutcome {
+  /** Offscreen CPU signings, as before. */
+  signings: FaSigning[];
+  /** Players the user bid on and got. */
+  won: FaSigning[];
+  /** Players the user bid on and lost, with who took them and for how much. */
+  lost: { player: Player; teamId: number; years: number; apy: number }[];
+}
+
+/**
+ * Resolve one wave: contested bids first, then the rest of the market.
+ *
+ * Contested players are settled BEFORE `runCpuFaRound` so a club that loses the
+ * auction still has its money and can go spend it, which is what stops the
+ * user's bids from quietly suppressing CPU activity.
+ */
+export function resolveFaWave(state: GameState, rng: Rng, round: number): WaveOutcome {
+  const out: WaveOutcome = { signings: [], won: [], lost: [] };
+  const fa = state.fa;
+
+  const pending = fa ? fa.bids.filter((b) => b.teamId === state.userTeamId) : [];
+  for (const userBid of pending) {
+    const p = state.players.find((x) => x.id === userBid.playerId);
+    if (!p || p.teamId !== null || p.retired) continue;
+
+    const { posture: _u } = teamOutlook(state, state.userTeamId);
+    const rivals: FaBid[] = [];
+
+    // Which clubs would counter, ranked by how badly they want him. Capped so a
+    // single free agent does not pull all 31 clubs into one auction.
+    const keen = state.teams
+      .map((t) => t.id)
+      .filter((id) => id !== state.userTeamId)
+      .filter((id) => rosterCount(state, id) < ROSTER_LIMIT)
+      .map((id) => ({ id, v: interest(state, id, p, teamOutlook(state, id).posture, rng) }))
+      .filter((x) => x.v > 0)
+      .sort((a, b) => b.v - a.v)
+      .slice(0, 4);
+
+    for (const { id } of keen) {
+      const posture = teamOutlook(state, id).posture;
+      const fo = frontOffice(state, id);
+      // A club that wants him will stretch past its usual discipline to match a
+      // rival's number, but only within the ceiling `negotiatedApy` enforces.
+      const eagerness = 1 + (fo.capAggression - 0.5) * 0.14 + (posture === "contend" ? 0.08 : -0.03);
+      const apy = negotiatedApy(state, id, p, eagerness * 1.05);
+      const years = contractYears(p, fo, posture);
+      const rival = bidFor(id, p, years, apy);
+      const hit = capHit(makeContract(new Rng(1), rival.apy, rival.years, state.season,
+        defaultGuaranteedYears(rival.apy, rival.years)));
+      if (hit > teamCap(state, id).space) continue;
+      if (rival.apy < askingPrice(state, p) * 0.92) continue;
+      rivals.push(rival);
+    }
+
+    const field = [userBid, ...rivals];
+    const scored = field.map((b) => ({ b, s: offerScore(state, p, b, rng) }));
+    scored.sort((a, b) => b.s - a.s);
+    const winner = scored[0].b;
+
+    const contract = makeContract(rng, winner.apy, winner.years, state.season,
+      defaultGuaranteedYears(winner.apy, winner.years));
+    if (capHit(contract) > teamCap(state, winner.teamId).space) continue;
+
+    p.teamId = winner.teamId;
+    p.contract = contract;
+    const rec = { player: p, teamId: winner.teamId, years: winner.years, apy: winner.apy };
+    if (winner.teamId === state.userTeamId) out.won.push(rec);
+    else out.lost.push(rec);
+
+    state.log.push({
+      season: state.season, week: state.week, kind: "transaction",
+      text: `${state.teams[winner.teamId].abbr} signed ${p.firstName} ${p.lastName} (${p.pos}, ${p.ovr} OVR) — ${winner.years}yr / $${(winner.apy / 1e6).toFixed(1)}M per year${field.length > 1 ? ` (${field.length} clubs bid)` : ""}`,
+    });
+  }
+
+  if (fa) fa.bids = fa.bids.filter((b) => {
+    const p = state.players.find((x) => x.id === b.playerId);
+    return p != null && p.teamId === null && !p.retired;
+  });
+
+  out.signings = runCpuFaRound(state, rng, round);
+  if (fa) {
+    fa.round = round + 1;
+    fa.complete = fa.round > fa.maxRounds;
+  }
+  return out;
 }
 
 export function faPool(state: GameState): Player[] {

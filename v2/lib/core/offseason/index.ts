@@ -4,7 +4,7 @@ import { clearDeadCap } from "../select";
 import { GameState, Phase } from "../types";
 import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
 import { cpuResign, expireContracts, reconcileRoster, spendToFloor, upgradeRoster } from "./contracts";
-import { FA_ROUNDS, runCpuFaRound } from "./freeAgency";
+import { FA_ROUNDS, openMarket, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
 import { pruneScouting } from "../scouting";
 import { ensurePickInventory, generateUserOffers, prunePickInventory, runCpuTrades, runDraftDayTrades } from "../trades";
@@ -105,14 +105,25 @@ export function runFreeAgencyOpen(state: GameState): void {
     cpuResign(state, teamId, players, rng);
   }
 
+  // The board is open: from here the user bids and clubs bid back.
+  openMarket(state);
+
   state.rngState = rng.state;
 }
 
+/**
+ * Advance the market one wave.
+ *
+ * Resolves the user's outstanding bids against CPU counter-offers first, then
+ * runs the ordinary offscreen wave. With no user bids outstanding — which is
+ * every headless run — this is exactly the old `runCpuFaRound` call, so
+ * `verify`, `drift` and `sweep` see unchanged behaviour.
+ */
 export function runFaWave(state: GameState, round: number) {
   const rng = new Rng(state.rngState);
-  const signings = runCpuFaRound(state, rng, round);
+  const outcome = resolveFaWave(state, rng, round);
   state.rngState = rng.state;
-  return signings;
+  return outcome;
 }
 
 /** Skip ahead: run every remaining CPU wave at once. */

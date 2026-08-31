@@ -902,6 +902,114 @@ its lock (240.29 ±12) and is in fact CLOSER to the locked target than the 234.5
 it replaced, though further from the `nfl: 230` note. Recorded rather than
 hidden, because the next person tuning this will meet the same trade-off.
 
+### 5.10 Do the biggest workloads go to the most efficient backs? Yes, weakly
+
+Added 2026-08-10 to unblock `statcheck.rb5RushYds`.
+`docs/statcheck-noise-2026-08-06.md` §7 diagnosed the sim's rushing tail as a
+positive carries↔ypc coupling, asserted that *"real football runs the other way
+— the workhorse back carries into loaded boxes and the highest ypc figures
+belong to committee backs with fewer carries"*, and proposed introducing a
+NEGATIVE coupling. **That assertion is not supported by the data.** The real
+coupling is positive. This block is the primary-source computation invariant 7
+requires before that call could be made, and it reverses the proposed fix.
+
+**Dataset.** nflverse `player_stats_YYYY.csv.gz`, 2021-2024 (17-game era), from
+<https://github.com/nflverse/nflverse-data/releases/download/player_stats/>.
+Weekly rows filtered to `season_type == "REG"`, summed per `player_id` per
+season. The RB group is `position in (RB, FB, HB)`, as §5.5. **Qualified = 100+
+carries in the season**, which yields 46.8 backs a year — the same population
+the sim measurement uses.
+
+A player's season line is summed across every club he appeared for. That is
+correct here and is **not** the trade trap of `statcheck-noise-2026-08-06.md`
+§6: that trap is about attributing a season line to a TEAM, and no team key is
+read anywhere in this block.
+
+**Validation.** The same loader reproduces §5.5's carry-composition table
+exactly — RB 80.7% at 4.29 ypc, QB 15.7% at 4.42, WR 3.1% at 5.86, TE 0.4% at
+4.15 — and reproduces §5's cited rushing leaders: 2021 Jonathan Taylor 1,811 on
+332, 2023 Christian McCaffrey 1,459 on 272, 2024 Saquon Barkley 2,005 on 345.
+
+**The two numbers.**
+
+| quantity | 17-game era 2021-2024 | pooled 2018-2024 |
+|---|---|---|
+| n player-seasons | 187 | 326 |
+| **corr(carries, ypc)** | **+0.129** | **+0.126** |
+| 95% CI (Fisher z) | −0.014 .. +0.268 | +0.018 .. +0.232 |
+| Spearman | +0.136 | — |
+| **ypc sd** | **0.642** | 0.636 |
+| ypc mean, unweighted | 4.334 | 4.360 |
+| ypc mean, carry-weighted | 4.360 | 4.386 |
+| ypc p10 / p50 / p90 / p99 / max | 3.64 / 4.27 / 5.13 / 5.96 / 7.77 | — |
+| carries mean / sd | 189.7 / 59.4 | 184.1 / 59.3 |
+
+The coupling is **positive and weak**, and it is not an artifact: Spearman
+agrees with Pearson, so it is not driven by the 7.77 outlier, and the 16-game
+era reads **+0.137** on the same definition. Per season it runs −0.030 / +0.184
+/ −0.043 / +0.393 for 2021-2024, so a single season cannot resolve it.
+
+It is sensitive to the qualifying cut — **+0.187 at 50 carries, +0.129 at 100,
++0.263 at 150, +0.215 at 200** — so always state the cut when quoting it.
+
+**ypc dispersion is not flat across workload.** Real mid-volume backs are
+tightly clustered; the spread lives at the two ends, and the 100-149 band's
+0.841 is small-sample noise on ~7 games' worth of carries rather than talent.
+
+| carries | n | ypc mean | sd | p90 | max |
+|---|---|---|---|---|---|
+| 100-149 | 58 | 4.302 | 0.841 | 5.34 | 7.77 |
+| 150-199 | 43 | 4.215 | **0.504** | 4.88 | 5.22 |
+| 200-249 | 55 | 4.376 | **0.477** | 4.95 | 5.52 |
+| 250+ | 31 | 4.486 | 0.633 | 5.45 | 5.91 |
+
+**The rushing leaderboard, decomposed** — ranked by rushing yards within each
+season, all positions, which is what `statcheck`'s `rb5RushYds` reads:
+
+| rank | yards | carries | ypc |
+|---|---|---|---|
+| #1 | 1732 +/- 232 | 322 +/- 34 | 5.37 |
+| #3 | 1332 +/- 186 | 282 +/- 36 | 4.75 |
+| #5 | **1222 +/- 155** | **247 +/- 13** | **4.95** |
+| #10 | 1046 +/- 94 | 208 +/- 5 | 5.03 |
+| #20 | 879 +/- 51 | 197 +/- 44 | 4.67 |
+
+§5.1's pooled #5 of 1191 +/- 125 and this 17-game 1222 agree inside the era
+caveat §5 already carries.
+
+**A denominator correction, and it changes the diagnosis.** §7 compared the
+sim's qualified-RB ypc of 4.498 against §5.6's non-kneel **4.51** and concluded
+the means were correct. **§5.6's 4.51 is ALL POSITIONS**, lifted by receiver
+carries at 5.86 ypc and by non-kneel quarterback scrambles at about 5.6. It is
+not the comparator for a population of 100+-carry running backs. The four
+figures, so this cannot happen again:
+
+| population | real ypc |
+|---|---|
+| all rushers, including kneels | 4.355 |
+| all rushers, non-kneel (**this is §5.6's 4.51**) | 4.51 |
+| RB group, all volumes (§5.5) | 4.29 |
+| **RB group, 100+ carries, carry-weighted** | **4.36** |
+
+**What this leaves for the sim.** Measured on the matched population at
+`43b9303` (engine byte-identical to `190cbd0`), 8 seeds, n = 387: the sim's
+`corr(carries, ypc)` is **+0.159** against this block's **+0.129** — a
+difference of z = 0.34, p = 0.73, statistically indistinguishable. **There is
+no coupling defect and nothing to decouple.** Two quantities are genuinely
+wrong, and both are about efficiency spread and level rather than its
+correlation with volume:
+
+| quantity | sim | real | |
+|---|---|---|---|
+| ypc sd, qualified RBs | **0.747** | **0.642** | +16%, F = 1.35, p ≈ 0.007 |
+| ypc mean, carry-weighted | **4.532** | **4.360** | +3.9% |
+| ypc sd, 150-249 carries | 0.72-0.81 | 0.48-0.50 | where the excess lives |
+| carries, rank 5 | 255 | 247 | correct |
+| ypc, rank 5 | 5.29 | 4.95 | +6.9% — the whole gap |
+
+The sim's rank-5 rushing season divided by that 6.9% is 1,230 against a real
+1,222, so top-end ypc accounts for the entire `rb5RushYds` overage on its own.
+
 ## 6. Starter availability — how much time a real starter misses
 
 Added 2026-08-02 for `task/305-availability`. **PARTIAL: skill positions only.**

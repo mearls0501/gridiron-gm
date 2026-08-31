@@ -110,16 +110,65 @@ The one true red. #5 rushing season is 255 carries × **5.29 ypc** = 1347. Real 
 takes 327 ±34 carries at 5.21 ypc (§5.1); the sim's #1 takes 296 at **5.65**. Top
 backs are short on carries and long on yards per carry.
 
-Every mean is correct — league ypc 4.276 vs real 4.3, qualified-RB ypc 4.498 vs
-§5.6's 4.51. The **spread** is wrong: RB ypc sd 0.666, and
-`corr(carries, ypc) = +0.275`. The sim gives its best backs more carries AND more
-yards per carry, compounding on the same players. Real football runs the other
-way. Same defect as passing, inverted: volume under-spread, efficiency
-over-spread.
+**CORRECTED 2026-08-10.** The first version of this section claimed real football
+runs the *other* way — workhorse backs into loaded boxes, high ypc belonging to
+committee backs. **That was unsourced and it is false.** §5.10 (derived since,
+nflverse 2021-2024 REG, RB/FB/HB, 100+ carries, n=187):
 
-**Blocked on a number:** the real `corr(carries, ypc)` for qualified backs is not
-in `nfl-reference.md`. Per AGENTS.md nothing gets tuned against a figure with no
-primary-source computation — derive it into §5 first.
+```
+real corr(carries, ypc) = +0.129   CI -0.014 .. +0.268
+sim  corr, matched pop  = +0.159   z = 0.34, p = 0.73  -> indistinguishable
+```
+
+The coupling is positive in both and the sim already matches it. **Do not build
+in a negative coupling** — that would tune away from the measurement.
+
+What is actually wrong is dispersion and level:
+
+| | sim | real |
+|---|---|---|
+| ypc sd, qualified backs | 0.747 | 0.642 (+16%, p≈0.007) |
+| ypc level, qualified backs | 4.532 | 4.360 (+3.9%) |
+| ypc sd, 150-249 carry band | 0.72-0.81 | 0.48-0.50 |
+| rank-5 carries | 255 | 247 (fine) |
+| rank-5 ypc | 5.29 | 4.95 (+6.9%) |
+
+Divide the 6.9% out and rank-5 lands 1315 → **1230** vs a real **1222**. Top-end
+efficiency is the whole overage; volume is not implicated.
+
+League means stay correct throughout — league ypc 4.276 vs 4.3 — so the fix must
+redistribute, not trim.
+
+### MEASURED 2026-08-10 — the centring constant for any rushing-ypc fix
+
+The proposed repair compresses `game.ts:984-1003`, which runs the carrier skill
+composite through three slopes off a hardcoded **60** — base mean `*0.049`, plus
+breakaway `*0.0011` and `*0.00054`. Before anyone fits `K`, two facts about the
+centre, measured (seed 1, carry-weighted, raw attrs):
+
+```
+S2026  carry-weighted 74.86   unweighted 69.41
+S2028  carry-weighted 69.91   unweighted 67.08
+S2030  carry-weighted 69.97   unweighted 66.77
+S2032  carry-weighted 68.09   unweighted 65.89
+```
+
+1. **The centre is ~70, not 60.** Every carry already runs with roughly +0.5 ypc
+   of baked-in offset that the `0.93` base term has been tuned around. Centring a
+   compression on 60 would drag league ypc by about `(70-60)*(1-K)*0.049` ≈
+   **−0.10 ypc, −2.2%**, which is a level change disguised as a redistribution.
+2. **The centre DRIFTS — 74.9 → 68.1 over seven seasons**, and the unweighted mean
+   drifts with it, so this is the carrier population settling toward the sim's
+   equilibrium, not a carry-allocation artifact. **A frozen `SBAR` fitted at
+   season 1 decalibrates as a franchise ages** (~1.5% on ypc by season 7 and
+   still moving) — the same shape as the round-2 ratings-inflation bug. Decide
+   explicitly: recompute per season, or freeze it and add a drift guard.
+
+Also: this change is **NOT stream-invariant.** The two breakaway `rng.chance()`
+branches consume *conditional* draws — flipping one changes how many values are
+drawn, which moves the PRNG stream (see [[gate-stream-sensitivity]]). Expect
+unrelated single-league metrics to re-roll. Judge every one of them on the 5-seed
+panel, which `Step.minPanel` now provides on the fast tier.
 
 ### `positionShort` now fires (`lib/core/select.ts`)
 

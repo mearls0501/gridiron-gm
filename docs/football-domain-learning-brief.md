@@ -2,10 +2,13 @@
 
 Purpose: turn NFL/front-office domain knowledge and football-management-game market research into build guidance for Gridiron GM.
 
-Last updated: 2026-07-28
+Last updated: 2026-07-30
 
 ## Latest focused research
 
+- 2026-07-30 (evening) — **The scouting + draft system is BUILT** on branch `task/301-scouting-draft-e2e`: per-team beliefs (CPU derived from a stable hash, user stored per-method intel with OVR + potential bands), method-based scouting, war-room board, the attribute-panel leak closed, on-the-clock draft trades, and a priority-UDFA phase. Guarded by `v2/scripts/scoutcheck.ts` in the gate. See `v2/docs/HANDOFF.md`. Note: `docs/football-domain-save-load-ownership.md` is v1-only and must not be actioned against v2 (no-backend invariant).
+- 2026-07-30 — Scouting + draft connected system: see `docs/football-domain-scouting-draft.md`. Bottom line: build team-specific prospect intel and a saved war-room board before adding draft ceremony; scouting should reveal different truths by method, preserve uncertainty, and stop user scouting from improving CPU draft boards.
+- 2026-07-29 — Attribute model / position archetypes / OVR-POT / scheme fit: see `docs/football-domain-attribute-model.md`. Bottom line: keep v2's compact deterministic attribute engine and display-only OVR, preserve the POT vs hidden-ceiling split, then add a derived archetype + computed scheme-fit layer before scouting/draft/roster systems depend on player evaluation.
 - 2026-07-28 — Draft outcome calibration / rounds 1-7 / UDFA outcomes: see `docs/draft-outcome-research-2026-07-28.md`. Bottom line: use pick-band and position-specific outcome curves, split draftable prospects from a large UDFA/camp pool, lower late-round/UDFA floors, and tune roster churn before adding more draft-day UI.
 - 2026-07-28 — Game setup / save / load / auth ownership / save-game isolation: see `docs/football-domain-save-load-ownership.md`. Bottom line: build a server-side franchise setup + save manifest contract before more football realism; the user must be able to create, resume, autosave, and isolate a franchise reliably before deeper systems matter.
 - 2026-07-27 — Season progression spine / calendar / weekly advancement / stats / offseason transitions: see `docs/football-domain-season-progression-spine.md`. Bottom line: build a save-scoped calendar/advancement service before adding more realism systems; it should atomically simulate weeks, persist durable run logs, update standings/playoff state, and unlock the next calendar event.

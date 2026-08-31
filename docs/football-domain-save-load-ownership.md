@@ -2,6 +2,13 @@
 
 Date researched: 2026-07-28
 
+> **SCOPE WARNING (added 2026-07-30): v1 ONLY.** Everything below concerns the
+> root Next.js + Supabase app. v2 — the live build — has a hard invariant of
+> no backend, no auth, no server (`v2/AGENTS.md` invariant 5); its save is one
+> serializable document in IndexedDB with export/import, guarded by
+> `codeccheck` and the determinism harness. Do not action this document's
+> recommendations against v2.
+
 ## Focus
 
 Priority #1 in Matt's corrected build order: make the player able to start a franchise, pick a team, persist it, reload it, resume the exact phase/week, and trust that every save-scoped system is isolated to the signed-in owner.

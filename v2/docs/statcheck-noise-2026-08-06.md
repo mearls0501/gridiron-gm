@@ -230,21 +230,43 @@ RBs with 100+ carries (n=243, 5 seeds)
   corr(carries, ypc) = +0.275
 ```
 
-That positive correlation is the mechanism. The sim hands its best backs more carries *and* more
-yards per carry, so the two compound on the same players and inflate the top of the leaderboard while
-the league mean stays perfectly calibrated. Real football runs the other way — the workhorse back
-carries into loaded boxes and the highest ypc figures belong to committee backs with fewer carries.
+### CORRECTION 2026-08-10 — the coupling half of this was wrong
 
-This mirrors §5.3's finding on passing exactly, inverted: *"a mid-table passing season is a volume
-season, not an efficient one... the lever is attempts."* The sim under-spreads volume and
-over-spreads efficiency on both sides of the ball.
+The paragraph that stood here claimed *"real football runs the other way — the workhorse back carries
+into loaded boxes and the highest ypc figures belong to committee backs."* **That was asserted with no
+source and it is false.** It is exactly the move AGENTS.md forbids: a plausible mechanism story
+standing in for a measurement. It was written into this document and into `HANDOFF.md` and shipped.
 
-**Proposed fix, for the lead — not applied.** Compress per-player rushing efficiency spread and/or
-introduce the negative carries↔ypc coupling, rather than trimming ypc across the board (which would
-break the league mean, currently correct). **Blocker: the real `corr(carries, ypc)` for qualified
-backs is not in `nfl-reference.md`.** Per AGENTS.md nothing should be tuned against a number that has
-no primary-source computation, so that correlation must be derived from nflverse and written into §5
-before any fix is calibrated.
+Derived since, into `nfl-reference.md` §5.10 (nflverse 2021-2024 REG, RB/FB/HB, 100+ carries, n=187):
+
+```
+real corr(carries, ypc) = +0.129   95% CI -0.014 .. +0.268   (Spearman +0.136)
+real ypc sd             =  0.642
+sim  corr, matched pop  = +0.159   z = 0.34, p = 0.73  -> indistinguishable
+```
+
+The real coupling is **positive**, and the sim's matches it. There is nothing to decouple, and
+building in a negative coupling would have tuned the sim *away* from the measurement. The
+`+0.275` quoted above also came from an unmatched population and is superseded by the matched
+`+0.159`.
+
+**What is actually wrong is dispersion and level, not coupling:**
+
+| | sim | real | |
+|---|---|---|---|
+| ypc sd, qualified backs | 0.747 | 0.642 | +16%, p ≈ 0.007 |
+| ypc level, qualified backs | 4.532 | 4.360 | +3.9% |
+| ypc sd, 150-249 carry band | 0.72-0.81 | 0.48-0.50 | where it concentrates |
+| rank-5 carries | 255 | 247 | fine |
+| rank-5 ypc | 5.29 | 4.95 | +6.9% |
+
+Dividing that 6.9% out of the rank-5 season lands 1315 → **1230** against a real **1222**. Top-end
+efficiency is the entire overage; volume is not implicated at all.
+
+So the §5.3 parallel drawn above — "under-spreads volume and over-spreads efficiency on both sides of
+the ball" — survives only in its second half. The rushing side over-spreads efficiency. It does not
+under-spread volume, and the tidiness of the symmetry is probably what made the unsourced half feel
+true.
 
 ---
 
