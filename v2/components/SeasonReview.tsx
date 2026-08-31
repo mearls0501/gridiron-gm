@@ -70,25 +70,33 @@ function RetirementBlock({
       />
     );
   }
+  const shown = rows.slice(0, 16);
   return (
-    <Table head={["Player", "Age", "OVR"]}>
-      {rows.map((r, i) => (
-        <Row key={r.player ? r.player.id : `log-${i}`}>
-          <Cell align="left">
-            {r.player ? (
-              <span className="flex items-center gap-2 min-w-0">
-                <PosBadge pos={r.player.pos} />
-                <PlayerLink p={r.player} className="truncate" />
-              </span>
-            ) : (
-              <span className="text-xs text-[var(--color-muted)] truncate">{r.text}</span>
-            )}
-          </Cell>
-          <Cell>{r.age ?? "—"}</Cell>
-          <Cell>{r.ovr ?? "—"}</Cell>
-        </Row>
-      ))}
-    </Table>
+    <>
+      <Table head={["Player", "Age", "OVR"]}>
+        {shown.map((r, i) => (
+          <Row key={r.player ? r.player.id : `log-${i}`}>
+            <Cell align="left">
+              {r.player ? (
+                <span className="flex items-center gap-2 min-w-0">
+                  <PosBadge pos={r.player.pos} />
+                  <PlayerLink p={r.player} className="truncate" />
+                </span>
+              ) : (
+                <span className="text-xs text-[var(--color-muted)] truncate">{r.text}</span>
+              )}
+            </Cell>
+            <Cell>{r.age ?? "—"}</Cell>
+            <Cell>{r.ovr ?? "—"}</Cell>
+          </Row>
+        ))}
+      </Table>
+      {rows.length > shown.length && (
+        <div className="px-4 py-2 text-[11px] text-[var(--color-faint)]">
+          and {rows.length - shown.length} more on the save
+        </div>
+      )}
+    </>
   );
 }
 

@@ -26,6 +26,16 @@ File cluster: `v2/lib/view/seasonReview.ts`, `v2/components/SeasonReview.tsx`,
 `v2/app/recap/page.tsx`, `v2/app/page.tsx`, this note. Nothing in the sim
 cluster, `scripts/`, `baselines.json`, or `AGENTS.md`.
 
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
+(`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — same numbers as
+PR #8 / #11 / #13 / #14 on main. Not this packet.
+
+`node scripts/e2e.mjs` against a built `next start` (`PW_CHROMIUM` = full
+Chrome): **E2E PASSED**. Interact suite not run — no new controls, only
+presentation and a recap link.
+
 ---
 
 ## 2026-08-31 — `r1QbSharePct` re-locked as a max (branch `cursor/relock-r1-qb-share-db93`)
