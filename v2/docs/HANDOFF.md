@@ -19,6 +19,26 @@ Playoffs page were left alone.
 
 File cluster: `v2/app/standings/page.tsx` only.
 
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
+(`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — same numbers as
+PR #8 / #9 on main.
+
+**`npm run gate:full -- --seeds 2`:** all 14 harnesses exit 0.
+
+```
+FAIL  tails.milestonesOff  16.50  expected <= 16   known-open Poisson row; 2-seed noise around the 16.0 lock
+FAIL  drift.saveMbAtEnd    10.53  expected <= 10.5  knife-edge +0.03; not this packet
+FAIL  careers.r1QbSharePct  9.77  expected 15.90 +/-3.2  leftover from #9; toward nfl 10.3
+FAIL  statcheck.qb5PassYds  4080  expected 4497 +/-360  inherited (same 4080 on #8)
+FAIL  statcheck.rb5RushYds  1401  expected 1191 +/-95   known-open (same 1401 on #8)
+```
+
+Nothing in this packet moved a number. Screenshots: week-0 League before
+(green 1–7 pills on 0-0) / after (Seed column gone); week 9 League still
+shows conference 1–7 from real records.
+
 ---
 
 ## 2026-08-30 — POSITION_VALUE on the CPU board (branch `cursor/position-value-r1-qb-c9f5`)
