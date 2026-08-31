@@ -98,7 +98,8 @@ const PRIVATE_SIGNAL = 0.45;
  * stays in the calibrated range while WHO knows WHAT changes completely.
  *
  * A club that funds scouting above the neutral 25 share shrinks its
- * independent error; at exactly the neutral share the factor is 1.0, which is
+ * independent error and recovers more of the consensus miss; at exactly the
+ * neutral share the factor is 1.0 and the extra lane is 0, which is
  * invariant 6: an even budget changes nothing.
  */
 const viewCache = new Map<string, { ovr: number; pot: number }>();
@@ -121,12 +122,20 @@ export function cpuProspectView(
   const ownOvr = stableNormal(state.seed, season, teamId + 1, p.id);
   const ownPot = stableNormal(state.seed, season, teamId + 1, p.id ^ 0x7a11);
 
+  // Quality-scaled recovery of (truth − consensus). Zero at q=1 so even-budget
+  // views stay byte-identical to the PRIVATE_SIGNAL=0.45 formula on main.
+  // Own-noise already shrinks with q; without this lane a well-funded desk
+  // just hears leftover groupthink more clearly. Pot uses the shared pot
+  // error — there is no public potential board.
+  const lane = q === 1 ? 0 : (1 - q) * PRIVATE_SIGNAL;
   const ovr = clamp(
-    p.ovr + common * COMMON_OVR_SD * (1 - PRIVATE_SIGNAL) + ownOvr * OWN_OVR_SD * q,
+    p.ovr + common * COMMON_OVR_SD * (1 - PRIVATE_SIGNAL) + ownOvr * OWN_OVR_SD * q
+      + lane * (-common * CONSENSUS_SD),
     30, 99
   );
   const pot = clamp(
-    p.pot + common * COMMON_POT_SD * (1 - PRIVATE_SIGNAL) + ownPot * OWN_POT_SD * q,
+    p.pot + common * COMMON_POT_SD * (1 - PRIVATE_SIGNAL) + ownPot * OWN_POT_SD * q
+      + lane * (-common * COMMON_POT_SD),
     ovr, 99
   );
   const out = { ovr, pot };

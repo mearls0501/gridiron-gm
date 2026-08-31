@@ -5,6 +5,58 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — quality-scaled private-signal lane (branch `task/325-private-signal`)
+
+`cpuProspectView` already shrank the common term by a flat `PRIVATE_SIGNAL = 0.45`
+and scaled only OWN noise with `scoutQuality` (`q`). That is the wrong quality
+shape: a well-funded desk just hears leftover groupthink more clearly.
+
+**Main, before any edit.** `npx tsx scripts/scoutcheck.ts` green (leakMae 2.05,
+filmWidthDrop 15.95, clockTrades 7, udfaSignings 81). Year-0 staff is even
+(`q === 1` for every club); `refreshCpuStaff` only runs at rollover, and CPU
+scouting then only spans 20–31 points (`q` 0.898–1.118). Same-club isolation
+was required — comparing two archetypes confounds the own-noise hash.
+
+Cheap draft-only R1 (12 seeds 1000–1011, `refreshCpuStaff` then one draft,
+n=384): QB 9.1 / DB 26.3 / WR 17.2 / DL 22.9 / OL 15.6 vs nfl §2.4
+10.3 / 16.7 / 13.4 / 24.5 / 20.3. This is not the careers 30 / seed 12345
+instrument (QB 11.6, DB 19.8 after PR #10). Careers was not run — full panel
+is expensive and the cheap instrument is the honest one for a draft-board
+claim.
+
+**Change.** One extra term in `cpuProspectView`, same structure on pot:
+
+`lane = (q === 1) ? 0 : (1 − q) × PRIVATE_SIGNAL`
+
+added as `lane × (−common × CONSENSUS_SD)` on OVR and
+`lane × (−common × COMMON_POT_SD)` on pot. At `q=1` the lane is exactly 0, so
+even-budget views are byte-identical to the current `PRIVATE_SIGNAL=0.45`
+formula. `cpuExpectedView` keep left alone: the leftover-aware keep (task/323)
+changed q=1 values and raised `r1QbSharePct` 15.1 → 17.2. Keep already
+preserves more of a well-funded club's deviation (`CONSENSUS² / (CONSENSUS² +
+(OWN·q)²)`). `POSITION_VALUE`, `draft.ts`, `contracts.ts`, `baselines.json`
+untouched. `r1QbSharePct` max-16 lock not reopened.
+
+**After (same instruments).** Even-budget: 0 / 2560 view mismatches vs the old
+formula, 0 expected-view mismatches. Same club (seed 90210, 80 prospects):
+
+| funding | q | corr(view−cons, truth−cons) | ovr MAE |
+|---|---:|---:|---:|
+| even 25 | 1.000 | 0.360 | 4.95 |
+| scout 50 | 0.707 | **0.623** | **3.65** |
+| scout 10 | 1.581 | 0.038 | 7.48 |
+
+Scout harness byte-identical to main (year-0 is even). Cheap R1 after:
+QB 8.9 / DB 27.3 / WR 17.2 / DL 22.1 / OL 15.6 — within ~1pp of before.
+CPU allocation swing is too small for league composition to move. No
+composition claim. No known-open row moved. `AGENTS.md` untouched.
+
+### Gate (`nproc`=4)
+
+Scout: all checks passed. Fast gate recorded below / in the PR.
+
+---
+
 ## 2026-08-31 — `statcheck.rb5RushYds` YPC compression (branch `cursor/rb5-rush-ypc-68a6`)
 
 The remaining 5-seed-panel red. Matt's §5.10 diagnosis held: `CARRY_SHARE` is
