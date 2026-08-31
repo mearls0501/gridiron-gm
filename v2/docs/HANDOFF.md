@@ -5,6 +5,29 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — Season Review UI (branch `task/324-season-review`)
+
+Presentation only. The Hub phase card advertised awards, retirements, and
+development and then rendered nothing; the Season panel said "No games
+scheduled" after the year was over. Progression already ran on Confirm
+(`runRecap`); the recap surface was missing.
+
+`presentSeasonReview` reads `history` when the year is archived, and otherwise
+scores MVP / OPOY / DPOY / ROY / leaders with the same formulas as
+`recordSeasonHistory` from the season lines already on the save. No writer,
+no invented awards, no sim edits. Retirements come from this year's
+`retires at` log entries (honest empty until Confirm writes them).
+Development is year-over-year production, labeled as derived — OVR deltas
+are not stored. `/recap` is the dedicated route. Hub short-roster copy
+during `offseason-final` no longer reads like a cutdown when the club is
+under 53.
+
+File cluster: `v2/lib/view/seasonReview.ts`, `v2/components/SeasonReview.tsx`,
+`v2/app/recap/page.tsx`, `v2/app/page.tsx`, this note. Nothing in the sim
+cluster, `scripts/`, `baselines.json`, or `AGENTS.md`.
+
+---
+
 ## 2026-08-31 — `r1QbSharePct` re-locked as a max (branch `cursor/relock-r1-qb-share-db93`)
 
 Lead-authorized. `careers.r1QbSharePct` only. The two-sided 15.9 ±3.2 band
