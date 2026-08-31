@@ -53,7 +53,12 @@ composition claim. No known-open row moved. `AGENTS.md` untouched.
 
 ### Gate (`nproc`=4)
 
-Scout: all checks passed. Fast gate recorded below / in the PR.
+Scout: all checks passed (leakMae 2.05, filmWidthDrop 15.95, clockTrades 7,
+udfaSignings 81 — byte-identical to main).
+
+Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
+(`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — byte-identical to
+PR #8 / #9 / #11 / #13 / #14 / #16 / #17 on main. Not this packet.
 
 ---
 
