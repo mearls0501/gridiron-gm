@@ -3,10 +3,11 @@
 import { Fragment, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGame } from "@/lib/store/game";
-import { Conference, GameState, TeamRecord } from "@/lib/core/types";
-import { computeRecords, recordString, winPct } from "@/lib/core/select";
+import { Conference, TeamRecord } from "@/lib/core/types";
+import { recordString, winPct } from "@/lib/core/select";
 import {
   divisionStandings, conferenceStandings, leagueStandings, computeSeeds,
+  seasonHasResults,
 } from "@/lib/core/season/standings";
 import { DIVISIONS } from "@/lib/core/names";
 import { Card, Cell, Pill, Row, Table, Tabs, TeamMark, cx } from "@/components/ui";
@@ -34,17 +35,6 @@ function diff(r: TeamRecord): string {
 
 function subRecord(w: number, l: number, t: number): string {
   return t > 0 ? `${w}-${l}-${t}` : `${w}-${l}`;
-}
-
-/** True once anyone has a regular-season result. Week 0 (and week 1
- *  before kickoff) is all 0-0, so `computeSeeds` is just the team-id
- *  tiebreak — a made-up playoff picture. Archived seasons read the
- *  stored table, so they still count. */
-function seasonHasResults(state: GameState, season: number): boolean {
-  for (const r of computeRecords(state, season).values()) {
-    if (r.w + r.l + r.t > 0) return true;
-  }
-  return false;
 }
 
 export default function StandingsPage() {

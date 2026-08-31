@@ -128,6 +128,17 @@ export function leagueStandings(state: GameState, season = state.season): TeamRe
     .sort((a, b) => compareTeams(state, a, b, season, false));
 }
 
+/** True once anyone has a regular-season result. Week 0 (and week 1
+ *  before kickoff) is all 0-0, so `computeSeeds` and division rank are
+ *  just the team-id tiebreak — a made-up picture. Archived seasons
+ *  read the stored table, so they still count. */
+export function seasonHasResults(state: GameState, season = state.season): boolean {
+  for (const r of computeRecords(state, season).values()) {
+    if (r.w + r.l + r.t > 0) return true;
+  }
+  return false;
+}
+
 /**
  * Seven seeds per conference: four division winners ordered by record, then the
  * three best remaining teams.

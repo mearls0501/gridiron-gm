@@ -5,6 +5,30 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-08-31 — Hub week-0 division rank (branch `task/327-hub-week0-rank`)
+
+Same leftover as PR #11, different surface. League already hid 1–7 seeds
+when nobody has a W/L. Hub header (and the Week briefing opponent line)
+still printed `1st in AFC East` from `divisionStandings` at 0-0 — the
+team-id tiebreak, same lie. Division table on Hub was already honest
+(PCT —).
+
+**Source.** Not `computeSeeds`. Hub `app/page.tsx` ranks the live
+division table and always paints `Nth in DIVISION`. `buildOpponent` in
+`lib/core/season/briefing.ts` does the same for next week's opponent.
+`seasonHasResults` lived only on `/standings`.
+
+**Change.** Hoisted that gate onto `lib/core/season/standings.ts` and
+reused it. No results → Hub falls back to the division name; briefing
+`standing` is just the division. After a real W/L the rank is unchanged.
+Calendar film window / visit copy left alone. Presentation only.
+
+File cluster: `standings.ts` (`seasonHasResults`), `app/page.tsx`,
+`briefing.ts`, `app/standings/page.tsx` (import, no behavior change),
+this note. Nothing in the sim cluster, `scripts/`, or `baselines.json`.
+
+---
+
 ## 2026-08-31 — veteran beliefs on the FA market (branch `task/327-veteran-beliefs`)
 
 Live FA is a contest (PR #18) but everyone still saw **true** ratings. That is
@@ -58,6 +82,7 @@ FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
 `node scripts/e2e.mjs` against a built `next start` (`PW_CHROMIUM` = full
 Chrome): **E2E PASSED**. FA board prints ranges (e.g. `80-84`); own roster
 still prints exact OVR.
+
 
 ---
 
