@@ -62,6 +62,31 @@ FAIL  drift.saveMbAtEnd    10.52  expected <= 10.5  knife-edge +0.02; same famil
 File cluster: `v2/lib/core/sim/game.ts` (`runPlay` skill lever), §5.10 in
 `nfl-reference.md`, the known-open row, this note. `baselines.json` not moved.
 
+---
+
+## 2026-08-31 — checkbox hitbox alignment (branch `task/325-hitbox-align`)
+
+Playtest (GM Draft QA 0831): Settings → Gameplay, clicking the trade-offer
+pause toggle flipped "owner can fire you". Same family reported on `/trades`.
+
+**Diagnosis.** There is no shared checkbox component — Settings, New Game,
+and `/trades` all use a raw `<input type="checkbox">`. On Linux Chrome the
+layout box is 13×13 and a click at that box's center flips the right
+setting. The owner and trade-offer *centers* are 53px apart, which is the
+reported miss. Tailwind preflight puts `font: inherit` / transparent
+background on every input; the shell header is `sticky` + `backdrop-blur`.
+Native widgets can paint away from that CSS box (especially with a
+compositor ancestor). Not a trades/sim bug.
+
+**Change.** One rule in `app/globals.css`: `appearance: none` and a 1rem
+box so the painted control *is* the hit target. Settings, `/trades`, and
+New Game pick it up together. No HTML, no sim.
+
+File cluster: `v2/app/globals.css`, this note. Nothing in `lib/core`,
+`scripts/`, or `baselines.json`.
+
+---
+
 ## 2026-08-31 — live free-agency market (user-contest layer)
 
 Ported from `task/312-statcheck-panel-guards` @ b8a8982 onto current main.
