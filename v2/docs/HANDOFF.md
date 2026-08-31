@@ -112,7 +112,6 @@ FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
 Chrome): **E2E PASSED**. FA board prints ranges (e.g. `80-84`); own roster
 still prints exact OVR.
 
-
 ---
 
 ## 2026-08-31 — calendar + visit economy (branch `task/326-calendar-economy`)
