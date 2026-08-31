@@ -34,7 +34,22 @@ keep the old lever. `CARRY_SHARE` untouched. FA pulls untouched.
 
 Stream moved — default-seed `rb5` went 1291 → 1327, which is why the panel
 and not the fast seed is the verdict. Fast-tier `leadTackles` / `qb5` /
-`wr10` reshuffled with it; do not chase them here.
+`wr10` reshuffled with it (and went green on this seed); do not chase them
+here.
+
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Three single-seed metric reds:
+
+```
+FAIL  leverage.wrongSign     1     EDGE.prs → points +0.6; 0 on every panel seed
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400  (panel 1644)
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95  (panel 1254)
+```
+
+`wrongSign` / `leadRecYds` are default-seed stream noise — not present on
+GG_SEED 1-5. Inherited `leadTackles` 146, `qb5` 4204, `wr10` 1172 are inside
+their bands on this seed.
 
 File cluster: `v2/lib/core/sim/game.ts` (`runPlay` skill lever), §5.10 in
 `nfl-reference.md`, the known-open row, this note. `baselines.json` not moved.
