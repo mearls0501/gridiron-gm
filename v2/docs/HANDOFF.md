@@ -22,6 +22,14 @@ File cluster: `v2/docs/baselines.json` (this metric only), `v2/AGENTS.md`,
 this note. Nothing in `v2/lib`, `draft.ts`, `POSITION_VALUE`, scouting,
 contracts, generation, tests, or `careers.ts`.
 
+### Gate (`nproc`=4)
+
+Fast: all 8 harnesses exit 0. Four inherited `statcheck` single-seed reds
+(`leadTackles` 129, `qb5` 4057, `rb5` 1291, `wr10` 1058) — byte-identical to
+PR #8 / #9 / #11 / #13 on main. Not this packet. `careers` is full-tier only;
+the recorded 9.77 / 11.6 sit under `max: 16` (gate fail is `value > max`).
+Full tier not run; this packet does not re-measure careers.
+
 ---
 
 ## 2026-08-31 — `r1BustPct` leftover retired (branch `cursor/retire-r1bustpct-9ede`)
