@@ -29,8 +29,14 @@ File cluster: `components/Shell.tsx`, a 1024/768 check in
 
 ### Gate (`nproc`=4)
 
-Fast: pending in this packet. Inherited single-seed reds left alone
-unless they move.
+Fast: all 9 harnesses exit 0 (`simtoast` included). Three inherited
+single-seed metric reds — byte-identical to current main (PR #26):
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
+```
 
 ---
 
