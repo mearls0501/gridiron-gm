@@ -5,6 +5,51 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-01 — closed-window Accept still looks live (branch `cursor/trade-window-accept-27c1`)
+
+GM Playtest year 0901 (Boston, Week 10): `/trades` banner said the
+window is closed and nothing can be accepted or proposed. Propose was
+dead. A leftover Kansas City offer still showed a live blue Accept
+(and a live Reject). Reject cleared the offer; Accept was the lie.
+
+**Diagnosis.** Banner and Accept share `tradeWindowOpen` — they
+agree. Accept already had `disabled={!open}`. Propose switches to
+`variant="default"` plus extra opacity when shut; Accept stayed
+`primary`. `disabled:opacity-40` on the accent button still reads as
+a live Accept. Engine `acceptOffer` → `checkTrade` already refuses
+("The trade window is closed.") and does not move assets. Reject has
+no window gate on purpose: it only drops the offer. The first click
+that did nothing was Accept (disabled); Reject worked on the next.
+
+**Change.** Incoming-offer Accept uses the same dead treatment as
+Propose when the window is shut (`default` + opacity, not primary).
+The click handler returns before `acceptOffer` if the window is
+closed. Reject still clears a stale offer. Propose stays disabled.
+Deadline week, trade engine, pause-on, POSITION_VALUE,
+cpuProspectView, CONTENDER_PULL, GUARANTEE_PULL, roster-short, and
+post-draft Auto-fix are untouched.
+
+Regression: `lib/view/tradeWindow.test.ts` (gate `tradewindow`) —
+closed Week 10 leftover offer: Accept not a live trade, copy matches
+controls, `acceptOffer` does not complete, Reject clears.
+
+File cluster: `tradeWindow.ts` + test, `/trades` page wiring,
+gate/package.json, this note.
+
+### Gate (`nproc`=4)
+
+Fast: all 13 harnesses exit 0 (`tradewindow` included). Three inherited
+single-seed metric reds — leave them; same family as PR #26 / #27 /
+#28 / #29 / #30:
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
+```
+
+---
+
 ## 2026-09-01 — Hub Sim menu stays open on click-away / Esc (branch `cursor/hub-sim-menu-dismiss-f004`)
 
 GM UX production sit (save `GM UX PR25 0901`): the Hub Sim ▾ dropdown
