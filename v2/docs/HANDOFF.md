@@ -31,6 +31,22 @@ File cluster: `lib/store/simToast.ts`, `lib/store/game.ts`,
 `components/Shell.tsx`, the test, this note. No sim engine, no pauseOn
 semantics, no draft 201/224 path.
 
+### Gate (`nproc`=4)
+
+Fast: all 9 harnesses exit 0 (`simtoast` included). Three inherited
+single-seed metric reds — byte-identical to current main (PR #25):
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
+```
+
+Playwright against a built `next start` (`PW_CHROMIUM` = full Chrome),
+seed 1, Start the Season then immediately Through the Playoffs:
+first toast `Simulation paused — a starter went down. (Week 1 complete)`;
+second pause still shows.
+
 ---
 
 ## 2026-08-31 — Hub week-0 division rank (branch `task/327-hub-week0-rank`)
