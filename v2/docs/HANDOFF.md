@@ -5,6 +5,58 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-01 — /saves New Franchise is a dead click (branch `cursor/saves-new-franchise-a065`)
+
+GM UX production sit (save `GM UX PR25 0901`): New Franchise on `/saves`
+did nothing. They typed `/new` to start a second franchise. The Start
+Over card already called `router.push("/new")` and `app/new/page.tsx`
+exists.
+
+**Diagnosis.** The click reached `/new`. Button was not covered,
+pointer-events were fine, and Shell did not bounce the route. The
+failure is what `/new` renders *with a loaded save*: Shell only
+auto-shows `NewGameScreen` when `!state`, so `/new` nested the picker
+under the current franchise chrome. Continue (the existing save) sat
+in view; Start Franchise sat at y≈1035 in a 900px viewport — below
+the fold. Same chrome after a typed `/new`; the address-bar path at
+least looked like a new page, so they scrolled. Existing saves were
+never wiped.
+
+**Change.** Shell treats `/new` as the new-franchise screen even when
+a save is loaded (chrome off; `onDone` still `replace("/")`). The
+Start Over control is a real `/new` link. Start Franchise sits on the
+New Franchise card header so it stays on screen under Continue.
+IndexedDB saves stay; `newGame` / POSITION_VALUE / cpuProspectView /
+CONTENDER_PULL / GUARANTEE_PULL / sim-pause toast / draft toast / Hub
+Sim are untouched.
+
+Regression: `lib/view/newGameRoute.test.ts` (gate `newgame`) plus a
+`/saves` → `/new` check in `scripts/e2e.mjs` after franchise create
+(picker in view, existing save still listed, chrome gone).
+
+File cluster: `newGameRoute.ts` + test, `Shell.tsx`, `NewGameScreen.tsx`,
+`saves/page.tsx`, `Button` `href`, e2e, gate/package.json wiring, this
+note.
+
+### Gate (`nproc`=4)
+
+Fast: all 11 harnesses exit 0 (`newgame` included). Three inherited
+single-seed metric reds — leave them; same family as PR #26 / #27 / #28:
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
+```
+
+Playwright against a built `next start` (`PW_CHROMIUM` = full Chrome):
+`/saves` New Franchise → `/new`, Start Franchise in view at 1440 /
+1024 / 390, Continue still lists the save, chrome off, Continue
+returns to the hub, `/saves` still has the franchise. Direct `/new`
+unchanged.
+
+---
+
 ## 2026-09-01 — Sim-entire-draft toast undercounts (branch `cursor/draft-sim-toast-count-b459`)
 
 Playtest leftover from PR #20: after “Sim entire draft” the Shell toast

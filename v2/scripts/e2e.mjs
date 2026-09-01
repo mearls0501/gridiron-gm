@@ -84,6 +84,41 @@ async function main() {
   if (!hasHub) fail("hub did not appear after creating a franchise");
   else console.log("  ok    franchise created, hub rendered");
 
+  // Sit leftover: /saves New Franchise looked wired (router.push("/new")) but
+  // Shell kept the loaded-franchise chrome, so the picker sat below the fold.
+  await page.goto(BASE + "/saves", { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  const newFran = page.getByRole("link", { name: /^New Franchise$/ });
+  const newFranBtn = page.getByRole("button", { name: /^New Franchise$/ });
+  const newFranCtl = (await newFran.count()) ? newFran : newFranBtn;
+  if (!(await newFranCtl.count())) fail("/saves has no New Franchise control");
+  else {
+    await newFranCtl.click();
+    await page.waitForTimeout(500);
+    const landed = await page.evaluate(() => {
+      const start = [...document.querySelectorAll("button")].find((b) =>
+        /Start Franchise/i.test(b.textContent || "")
+      );
+      const r = start?.getBoundingClientRect();
+      return {
+        path: location.pathname,
+        hasPicker: /Pick the team/i.test(document.body.innerText),
+        hasStart: !!start,
+        startInView: !!(r && r.top < window.innerHeight && r.bottom > 0),
+        keepSave: /Continue|My Franchise/i.test(document.body.innerText),
+        stillInChrome: /Saved Franchises|Cap Space/i.test(document.body.innerText),
+      };
+    });
+    if (landed.path !== "/new") fail(`/saves New Franchise stayed on ${landed.path}`);
+    else if (!landed.hasPicker || !landed.hasStart) fail("/saves New Franchise did not show the new-franchise UI");
+    else if (!landed.startInView) fail("/saves New Franchise reached /new but Start Franchise is below the fold");
+    else if (!landed.keepSave) fail("/saves New Franchise dropped the existing save");
+    else if (landed.stillInChrome) fail("/saves New Franchise kept the loaded-franchise chrome on /new");
+    else console.log("  ok    /saves New Franchise reaches /new with the loaded save kept");
+  }
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+
   // Laptop/tablet leftover: nowrap + overflow-x-auto half-cut Front Office
   // and hid League. Wrap so every NAV label is fully on-screen.
   const NAV_LABELS = [

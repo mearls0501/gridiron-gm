@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect } from "react";
 import { useGame } from "@/lib/store/game";
 import { toastDismissApplies } from "@/lib/store/simToast";
+import { showNewGameScreen } from "@/lib/view/newGameRoute";
 import { computeRecords, recordString, teamCap, formatMoney } from "@/lib/core/select";
 import { cx, TeamMark } from "./ui";
 import { NewGameScreen } from "./NewGameScreen";
@@ -49,6 +50,7 @@ export const PHASE_LABEL: Record<string, string> = {
 export function Shell({ children }: { children: ReactNode }) {
   const { state, hydrated, bootstrap, toast, error, setToast, setError } = useGame();
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     void bootstrap();
@@ -71,7 +73,9 @@ export function Shell({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!state) return <NewGameScreen />;
+  if (!state || showNewGameScreen(pathname, true)) {
+    return <NewGameScreen onDone={() => router.replace("/")} />;
+  }
 
   const team = state.teams[state.userTeamId];
   const rec = computeRecords(state).get(team.id)!;

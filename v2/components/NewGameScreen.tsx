@@ -72,7 +72,24 @@ export function NewGameScreen({ onDone }: { onDone?: () => void } = {}) {
           </Card>
         )}
 
-        <Card title="New Franchise" subtitle="Pick the team you want to run.">
+        <Card
+          title="New Franchise"
+          subtitle="Pick the team you want to run."
+          actions={
+            <Button
+              variant="primary"
+              disabled={busy || seedInvalid}
+              onClick={() =>
+                void startNew({
+                  userTeamId: teamId, name, seed: parsedSeed,
+                  settings: { firingEnabled: firing },
+                }).then(onDone)
+              }
+            >
+              {busy ? "Building the league…" : "Start Franchise"}
+            </Button>
+          }
+        >
           <label className="block mb-4">
             <span className="text-xs text-[var(--color-muted)]">Franchise name</span>
             <input
@@ -163,20 +180,6 @@ export function NewGameScreen({ onDone }: { onDone?: () => void } = {}) {
           </div>
 
           <div className="flex items-center gap-2 mt-5">
-            <Button
-              variant="primary"
-              size="lg"
-              disabled={busy || seedInvalid}
-              onClick={() =>
-                void startNew({
-                  userTeamId: teamId, name, seed: parsedSeed,
-                  settings: { firingEnabled: firing },
-                }).then(onDone)
-              }
-            >
-              {busy ? "Building the league…" : "Start Franchise"}
-            </Button>
-
             <label className="text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] cursor-pointer px-3 py-2">
               {importing ? "Importing…" : "Import save"}
               <input
