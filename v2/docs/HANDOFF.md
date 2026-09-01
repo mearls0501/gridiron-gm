@@ -33,7 +33,7 @@ gate/package.json wiring, this note.
 
 ### Gate (`nproc`=4)
 
-Fast: harnesses exit 0 (`simmenu` included). Three inherited
+Fast: all 12 harnesses exit 0 (`simmenu` included). Three inherited
 single-seed metric reds — leave them; same family as PR #26 / #27 /
 #28 / #29:
 
