@@ -25,6 +25,12 @@ import {
   TradeOffer,
 } from "@/lib/core/types";
 import {
+  CLOSED_WINDOW_ACTIONS,
+  incomingOfferAccept,
+  incomingOfferReject,
+  proposeTradeControl,
+} from "@/lib/view/tradeWindow";
+import {
   Button,
   Card,
   Cell,
@@ -140,6 +146,10 @@ export default function TradesPage() {
   }
 
   function accept(offer: TradeOffer) {
+    if (!incomingOfferAccept(open).enabled) {
+      setOfferError({ id: offer.id, reason: "The trade window is closed." });
+      return;
+    }
     let failed = "";
     apply((s) => {
       const res = acceptOffer(s, offer.id);
@@ -181,8 +191,12 @@ export default function TradesPage() {
     }
   }
 
-  const canPropose =
-    open && !!proposal && proposal.check.ok && proposal.verdict.accept;
+  const acceptBtn = incomingOfferAccept(open);
+  const rejectBtn = incomingOfferReject();
+  const proposeBtn = proposeTradeControl(
+    open,
+    !!proposal && proposal.check.ok && proposal.verdict.accept,
+  );
 
   return (
     <div className="space-y-4">
@@ -223,8 +237,7 @@ export default function TradesPage() {
           <div className="flex items-start gap-3">
             <Pill tone="bad">Closed</Pill>
             <p className="text-sm text-[var(--color-muted)]">
-              {closedReason} Nothing on this page can be accepted or proposed until it
-              reopens.
+              {closedReason} {CLOSED_WINDOW_ACTIONS}
             </p>
           </div>
         </Card>
@@ -266,14 +279,20 @@ export default function TradesPage() {
                     <div className="ml-auto flex items-center gap-2 shrink-0">
                       <Button
                         size="sm"
-                        variant="primary"
+                        variant={acceptBtn.variant}
                         onClick={() => accept(offer)}
-                        disabled={!open}
-                        title={open ? undefined : "The trade window is closed"}
+                        disabled={!acceptBtn.enabled}
+                        className={!acceptBtn.enabled ? "opacity-40 cursor-not-allowed" : undefined}
+                        title={acceptBtn.enabled ? undefined : "The trade window is closed"}
                       >
                         Accept
                       </Button>
-                      <Button size="sm" variant="danger" onClick={() => reject(offer)}>
+                      <Button
+                        size="sm"
+                        variant={rejectBtn.variant}
+                        onClick={() => reject(offer)}
+                        disabled={!rejectBtn.enabled}
+                      >
                         Reject
                       </Button>
                     </div>
@@ -396,10 +415,10 @@ export default function TradesPage() {
               )}
               <Button
                 size="sm"
-                variant={canPropose ? "primary" : "default"}
+                variant={proposeBtn.variant}
                 onClick={propose}
-                disabled={!canPropose}
-                className={!canPropose ? "opacity-40 cursor-not-allowed" : undefined}
+                disabled={!proposeBtn.enabled}
+                className={!proposeBtn.enabled ? "opacity-40 cursor-not-allowed" : undefined}
                 title={
                   !open
                     ? "The trade window is closed"
