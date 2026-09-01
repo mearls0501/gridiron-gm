@@ -55,6 +55,7 @@ interface Step {
 const FAST: Step[] = [
   { name: "typecheck",   cmd: "npx", args: ["tsc", "--noEmit"],                    exitGates: true },
   { name: "simtoast",    cmd: "npx", args: ["tsx", "lib/store/simToast.test.ts"],  exitGates: true },
+  { name: "drafttoast",  cmd: "npx", args: ["tsx", "lib/view/draftToast.test.ts"], exitGates: true },
   { name: "determinism", cmd: "npx", args: ["tsx", "scripts/determinism.ts", "2"], exitGates: true },
   { name: "verify",      cmd: "npx", args: ["tsx", "scripts/verify.ts", "3"],      exitGates: true },
   { name: "sweep",       cmd: "npx", args: ["tsx", "scripts/sweep.ts", "5", "2"],  exitGates: true },
@@ -70,6 +71,7 @@ const FAST: Step[] = [
 const FULL: Step[] = [
   { name: "typecheck",   cmd: "npx", args: ["tsc", "--noEmit"],                    exitGates: true },
   { name: "simtoast",    cmd: "npx", args: ["tsx", "lib/store/simToast.test.ts"],  exitGates: true },
+  { name: "drafttoast",  cmd: "npx", args: ["tsx", "lib/view/draftToast.test.ts"], exitGates: true },
   { name: "determinism", cmd: "npx", args: ["tsx", "scripts/determinism.ts", "3"], exitGates: true },
   { name: "verify",      cmd: "npx", args: ["tsx", "scripts/verify.ts", "10"],     exitGates: true },
   { name: "sweep",       cmd: "npx", args: ["tsx", "scripts/sweep.ts", "25", "2"], exitGates: true },

@@ -5,6 +5,44 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-01 — Sim-entire-draft toast undercounts (branch `cursor/draft-sim-toast-count-b459`)
+
+Playtest leftover from PR #20: after “Sim entire draft” the Shell toast
+said “201 picks made” (also seen as 190) while the Prospects Left
+subtitle read “224 of 224 picks made.” The draft finished; the toast
+lied. Shows up when the GM has already filled some slots, then sims
+the rest.
+
+**Diagnosis.** Confirmed. `simAll()` in `app/draft/page.tsx` counted
+`after − before` filled slots — remaining on this click. The header
+uses `d.picks.filter(p => p.playerId !== null).length of d.picks.length`.
+`simToMe()` uses `onClock − before` the same way; that path says
+“more picks” / “you are on the clock” and is not this leftover.
+
+**Change.** Toast uses the same filled-slot count as the header.
+Copy shape stays: `Draft complete — N picks made, X in your class`.
+Regression: `lib/view/draftToast.test.ts` (gate `drafttoast`) — the
+201/224 playtest fixture, plus a live mid-board `simEntireDraft`.
+
+File cluster: `lib/view/draftToast.ts`, the page `simAll()` call, the
+test, gate/package.json wiring, this note. `simEntireDraft`, clock
+trades, UDFA, POSITION_VALUE, cpuBoardValue, cpuProspectView,
+CONTENDER_PULL, GUARANTEE_PULL, and the #26 sim-pause toast path
+untouched.
+
+### Gate (`nproc`=4)
+
+Fast: all 10 harnesses exit 0 (`drafttoast` included). Three inherited
+single-seed metric reds — leave them; same family as PR #26 / #27:
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
+```
+
+---
+
 ## 2026-09-01 — nav clips Front Office / League at ~1024px (branch `cursor/nav-clip-1024-91c0`)
 
 Playtest leftover (GM Playtest Hub 0831): the last two NAV items — Front
