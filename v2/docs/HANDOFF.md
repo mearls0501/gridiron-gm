@@ -24,17 +24,19 @@ never wiped.
 
 **Change.** Shell treats `/new` as the new-franchise screen even when
 a save is loaded (chrome off; `onDone` still `replace("/")`). The
-Start Over control is a real `/new` link. IndexedDB saves stay;
-`newGame` / POSITION_VALUE / cpuProspectView / CONTENDER_PULL /
-GUARANTEE_PULL / sim-pause toast / draft toast / Hub Sim are
-untouched.
+Start Over control is a real `/new` link. Start Franchise sits on the
+New Franchise card header so it stays on screen under Continue.
+IndexedDB saves stay; `newGame` / POSITION_VALUE / cpuProspectView /
+CONTENDER_PULL / GUARANTEE_PULL / sim-pause toast / draft toast / Hub
+Sim are untouched.
 
 Regression: `lib/view/newGameRoute.test.ts` (gate `newgame`) plus a
 `/saves` → `/new` check in `scripts/e2e.mjs` after franchise create
 (picker in view, existing save still listed, chrome gone).
 
-File cluster: `newGameRoute.ts` + test, `Shell.tsx`, `saves/page.tsx`,
-`Button` `href`, e2e, gate/package.json wiring, this note.
+File cluster: `newGameRoute.ts` + test, `Shell.tsx`, `NewGameScreen.tsx`,
+`saves/page.tsx`, `Button` `href`, e2e, gate/package.json wiring, this
+note.
 
 ### Gate (`nproc`=4)
 
