@@ -38,8 +38,9 @@ gate/package.json, this note.
 
 ### Gate (`nproc`=4)
 
-Fast: run after the change. Three inherited single-seed metric reds
-— leave them; same family as PR #26 / #27 / #28 / #29 / #30:
+Fast: all 13 harnesses exit 0 (`tradewindow` included). Three inherited
+single-seed metric reds — leave them; same family as PR #26 / #27 /
+#28 / #29 / #30:
 
 ```
 FAIL  leverage.wrongSign     1     expected <= 0
