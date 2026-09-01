@@ -38,6 +38,12 @@ FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
 FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
 ```
 
+`node scripts/e2e.mjs` against a built `next start` (`PW_CHROMIUM` = full
+Chrome): **E2E PASSED**. Nav check after franchise create: every NAV
+label including Front Office and League fully on-screen at 1024 and
+768. Measured wrap: at 1024 those two sit on row 2 (16–106 / 108–174);
+at 1440 they stay on the single row.
+
 ---
 
 ## 2026-09-01 — bulk-sim silent first pause (branch `cursor/bulk-sim-silent-abort-5f01`)
