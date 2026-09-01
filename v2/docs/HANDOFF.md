@@ -5,6 +5,46 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-01 — Hub Sim menu stays open on click-away / Esc (branch `cursor/hub-sim-menu-dismiss-f004`)
+
+GM UX production sit (save `GM UX PR25 0901`): the Hub Sim ▾ dropdown
+stayed open after click-away and Escape. Not blocking #25; leftover.
+Choosing Through the Playoffs / a SimOption still ran the sim.
+
+**Diagnosis.** Confirmed on the Hub control in `app/page.tsx`. `simMenu`
+toggles only from the Sim button. `runSim` already calls
+`setSimMenu(false)` then `simTo`. There is no overlay and no document
+`pointerdown` / `keydown` listener, so outside clicks and Esc never
+reach a close handler.
+
+**Change.** While open, pointerdown outside the Sim control or Escape
+closes the menu. A pointer inside the control is not a dismiss, so a
+SimOption click still runs that sim. simTo / pauseOn / simToast,
+draft toast, /new chrome, POSITION_VALUE, cpuProspectView,
+CONTENDER_PULL, GUARANTEE_PULL, and roster-short are untouched.
+
+Regression: `lib/view/simMenu.test.ts` (gate `simmenu`) — click-away
+and Esc dismiss; inside-control pointer does not. `scripts/e2e.mjs`
+repeats both dismisses after Start the Season, without running a
+bulk sim.
+
+File cluster: `simMenu.ts` + test, Hub `page.tsx` listeners, e2e,
+gate/package.json wiring, this note.
+
+### Gate (`nproc`=4)
+
+Fast: all 12 harnesses exit 0 (`simmenu` included). Three inherited
+single-seed metric reds — leave them; same family as PR #26 / #27 /
+#28 / #29:
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
+```
+
+---
+
 ## 2026-09-01 — /saves New Franchise is a dead click (branch `cursor/saves-new-franchise-a065`)
 
 GM UX production sit (save `GM UX PR25 0901`): New Franchise on `/saves`

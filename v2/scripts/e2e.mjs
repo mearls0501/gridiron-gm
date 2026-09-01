@@ -163,6 +163,32 @@ async function main() {
   await checkPage("[start season] /");
   console.log("  ok    season started");
 
+  // Sit leftover: Hub Sim ▾ stayed open after click-away and Esc.
+  const simMenuBtn = page.getByRole("button", { name: /^Sim/ }).filter({ hasNotText: /Round|Week/ });
+  if (!(await simMenuBtn.count())) fail("hub has no Sim menu after season start");
+  else {
+    await simMenuBtn.click();
+    await page.waitForTimeout(150);
+    const opened = await page.getByText("Through the Playoffs").count();
+    if (!opened) fail("Sim menu did not open");
+    else {
+      await page.locator("h1").first().click();
+      await page.waitForTimeout(150);
+      if (await page.getByText("Through the Playoffs").count()) {
+        fail("Sim menu stayed open after click-away");
+      }
+      await simMenuBtn.click();
+      await page.waitForTimeout(150);
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(150);
+      if (await page.getByText("Through the Playoffs").count()) {
+        fail("Sim menu stayed open after Escape");
+      } else {
+        console.log("  ok    Hub Sim menu dismisses on click-away and Esc");
+      }
+    }
+  }
+
   // ---- Play the regular season ---------------------------------------------
   let weeks = 0;
   for (let i = 0; i < 25; i++) {

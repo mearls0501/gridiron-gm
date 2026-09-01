@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useGame } from "@/lib/store/game";
+import { shouldDismissSimMenu } from "@/lib/view/simMenu";
 import { PHASE_LABEL } from "@/components/Shell";
 import {
   Button, Card, Cell, Empty, OvrBadge, Pill, PlayerLink, PosBadge, Row, Stat, Table, TeamMark, cx,
@@ -50,6 +51,30 @@ export default function Hub() {
   const [confirming, setConfirming] = useState(false);
   const [simMenu, setSimMenu] = useState(false);
   const [simming, setSimming] = useState(false);
+  const simMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!simMenu) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const insideControl = !!(
+        simMenuRef.current &&
+        e.target instanceof Node &&
+        simMenuRef.current.contains(e.target)
+      );
+      if (shouldDismissSimMenu({ type: e.type, insideControl })) setSimMenu(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (shouldDismissSimMenu({ type: e.type, key: e.key, insideControl: true })) {
+        setSimMenu(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [simMenu]);
 
   // The sim runs synchronously in one store apply; the timeout lets the
   // "Simming…" label paint before the main thread goes heads-down.
@@ -162,7 +187,7 @@ export default function Hub() {
             ) : (
               <>
                 {(state.phase === "regular" || state.phase === "playoffs") && (
-                  <div className="relative">
+                  <div className="relative" ref={simMenuRef}>
                     <Button
                       size="lg"
                       disabled={busy || simming}
