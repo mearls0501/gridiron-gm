@@ -5,6 +5,35 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-01 — nav clips Front Office / League at ~1024px (branch `cursor/nav-clip-1024-91c0`)
+
+Playtest leftover (GM Playtest Hub 0831): the last two NAV items — Front
+Office and League — were unusable at laptop width. Not the roster-short
+clipboard leftover, and not the bulk-sim toast (PR #26).
+
+**Diagnosis.** Measured after a franchise load. Header and the
+`max-w-[1400px]` wrap are `overflow: visible`. Cap / Saves / Settings sit
+on the team row above the nav, not in it. The nav is its own
+`flex` + `nowrap` + `overflow-x-auto` row: content 1090px, client 992px
+at 1024 (viewport minus `px-4`). Front Office straddles the right edge
+(948–1039); League is fully off-screen (1041–1106). Overlay scrollbar
+height is 0 — scroll exists, no cue. Same overflow at 1100 (League only)
+and through 768 (Trades onward).
+
+**Change.** `flex-wrap` on the shell `<nav>`, drop `overflow-x-auto`.
+Labels stay `whitespace-nowrap` so a chip wraps as a unit. No routes
+dropped, no new page, Hub body untouched.
+
+File cluster: `components/Shell.tsx`, a 1024/768 check in
+`scripts/e2e.mjs` after franchise create, this note.
+
+### Gate (`nproc`=4)
+
+Fast: pending in this packet. Inherited single-seed reds left alone
+unless they move.
+
+---
+
 ## 2026-09-01 — bulk-sim silent first pause (branch `cursor/bulk-sim-silent-abort-5f01`)
 
 Playtest leftover (GM Draft QA 0831): Hub Sim → Through the Playoffs stopped
