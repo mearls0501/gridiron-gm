@@ -84,6 +84,35 @@ async function main() {
   if (!hasHub) fail("hub did not appear after creating a franchise");
   else console.log("  ok    franchise created, hub rendered");
 
+  // Laptop/tablet leftover: nowrap + overflow-x-auto half-cut Front Office
+  // and hid League. Wrap so every NAV label is fully on-screen.
+  const NAV_LABELS = [
+    "Hub", "This Week", "Roster", "Depth Chart", "Schedule", "Standings",
+    "Stats", "Records", "Playoffs", "Free Agency", "Trades", "Draft",
+    "Finances", "Front Office", "League",
+  ];
+  for (const width of [1024, 768]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.waitForTimeout(120);
+    const problemsAt = await page.evaluate((labels) => {
+      const nav = document.querySelector("header nav");
+      if (!nav) return ["no header nav"];
+      const found = [...nav.querySelectorAll("a")].map((a) => a.textContent.trim());
+      const missing = labels.filter((l) => !found.includes(l)).map((l) => `missing ${l}`);
+      const vw = window.innerWidth;
+      const clipped = [...nav.querySelectorAll("a")]
+        .filter((a) => {
+          const r = a.getBoundingClientRect();
+          return r.right > vw + 1 || r.left < -1 || r.width < 8;
+        })
+        .map((a) => `clipped ${a.textContent.trim()}`);
+      return [...missing, ...clipped];
+    }, NAV_LABELS);
+    if (problemsAt.length) fail(`nav @${width}: ${problemsAt.join(", ")}`);
+    else console.log(`  ok    nav fully visible at ${width}px`);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+
   await visitAll("[preseason]");
 
   // ---- Start the season -----------------------------------------------------

@@ -121,7 +121,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <nav className="flex gap-0.5 overflow-x-auto -mb-px">
+          <nav className="flex flex-wrap gap-0.5 -mb-px">
             {NAV.map((n) => {
               const active = n.href === "/" ? pathname === "/" : pathname.startsWith(n.href);
               return (
