@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect } from "react";
 import { useGame } from "@/lib/store/game";
+import { toastDismissApplies } from "@/lib/store/simToast";
 import { computeRecords, recordString, teamCap, formatMoney } from "@/lib/core/select";
 import { cx, TeamMark } from "./ui";
 import { NewGameScreen } from "./NewGameScreen";
@@ -55,7 +56,10 @@ export function Shell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2600);
+    const shown = toast;
+    const t = setTimeout(() => {
+      if (toastDismissApplies(shown, useGame.getState().toast)) setToast(null);
+    }, 2600);
     return () => clearTimeout(t);
   }, [toast, setToast]);
 
