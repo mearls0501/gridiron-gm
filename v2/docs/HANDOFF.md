@@ -5,6 +5,50 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-01 — bulk-sim silent first pause (branch `cursor/bulk-sim-silent-abort-5f01`)
+
+Playtest leftover (GM Draft QA 0831): Hub Sim → Through the Playoffs stopped
+after Week 1 with no toast. The second pause (Week 2 injury) showed
+`Simulation paused — a starter went down.` Pause-toggle hitboxes were PR #22;
+this is the missing why-copy.
+
+**Diagnosis.** Week-1 `advance` returns `Week 1 complete` — not `""`. `simTo`
+already built the pause string. `apply()` only nulls a falsy return, so a
+normal first-week injury/offer was not toast:null from empty `last`.
+
+The silent abort is Shell's 2600ms dismiss. `simTo` is sync and can block
+past a timer armed for the previous toast (`2026 season started`, Franchise
+created/loaded). When the stack clears, that overdue timer calls
+`setToast(null)` and wipes the pause copy. The second click has no stale
+timer, so it shows. pauseOn still only gates interrupts.
+
+**Change.** Dismiss applies only if the armed toast is still current.
+`formatSimPauseToast` keeps `Simulation paused — {reason}.` when `last` is
+empty, so apply cannot write toast:null on a pause. Regression:
+`lib/store/simToast.test.ts` (gate `simtoast`).
+
+File cluster: `lib/store/simToast.ts`, `lib/store/game.ts`,
+`components/Shell.tsx`, the test, this note. No sim engine, no pauseOn
+semantics, no draft 201/224 path.
+
+### Gate (`nproc`=4)
+
+Fast: all 9 harnesses exit 0 (`simtoast` included). Three inherited
+single-seed metric reds — byte-identical to current main (PR #25):
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
+```
+
+Playwright against a built `next start` (`PW_CHROMIUM` = full Chrome),
+seed 1, Start the Season then immediately Through the Playoffs:
+first toast `Simulation paused — a starter went down. (Week 1 complete)`;
+second pause still shows.
+
+---
+
 ## 2026-08-31 — Hub week-0 division rank (branch `task/327-hub-week0-rank`)
 
 Same leftover as PR #11, different surface. League already hid 1–7 seeds

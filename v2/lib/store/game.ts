@@ -6,6 +6,7 @@ import { newGame, NewGameOptions } from "../core/newGame";
 import { advance as advanceSeason } from "../core/season/engine";
 import { advanceOffseason } from "../core/offseason";
 import { saveGame, loadGame, listSaves, lastSaveId, deleteSave } from "./save";
+import { formatSimPauseToast } from "./simToast";
 
 /**
  * Single store holding the whole franchise.
@@ -184,7 +185,7 @@ export const useGame = create<Store>((set, get) => ({
           break;
         }
       }
-      if (paused) return `Simulation paused — ${paused}. (${last})`;
+      if (paused) return formatSimPauseToast(paused, last);
       switch (target) {
         case "deadline":
           return s.phase === "regular" ? `Simmed to Week ${s.week} — the trade deadline` : last;
