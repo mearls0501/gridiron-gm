@@ -41,9 +41,9 @@ export function Card({
 }
 
 export function Button({
-  children, onClick, variant = "default", size = "md", disabled, title, type = "button", className,
+  children, onClick, href, variant = "default", size = "md", disabled, title, type = "button", className,
 }: {
-  children: ReactNode; onClick?: () => void;
+  children: ReactNode; onClick?: () => void; href?: string;
   variant?: "default" | "primary" | "ghost" | "danger";
   size?: "sm" | "md" | "lg";
   disabled?: boolean; title?: string; type?: "button" | "submit"; className?: string;
@@ -55,16 +55,24 @@ export function Button({
     danger: "bg-transparent hover:bg-[#3a1d1d] border-[#4a2626] text-[var(--color-bad)]",
   };
   const sizes = { sm: "px-2.5 py-1 text-xs", md: "px-3.5 py-1.5 text-sm", lg: "px-5 py-2.5 text-sm" };
+  const cls = cx(
+    "border rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer",
+    variants[variant], sizes[size], className
+  );
+  if (href && !disabled) {
+    return (
+      <Link href={href} title={title} className={cx("inline-block", cls)} onClick={onClick}>
+        {children}
+      </Link>
+    );
+  }
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={cx(
-        "border rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer",
-        variants[variant], sizes[size], className
-      )}
+      className={cls}
     >
       {children}
     </button>
