@@ -39,6 +39,7 @@ import { describeAsset } from "@/lib/core/trades";
 import { boardGrade, consensusGrade, gradeContext, prospectReports, prospectTraits } from "@/lib/core/scouting-reports";
 import { enterDraft, simEntireDraft, simToUserPick } from "@/lib/core/offseason";
 import { capHit, formatMoney, playerMap, rosterCount } from "@/lib/core/select";
+import { simEntireDraftToast } from "@/lib/view/draftToast";
 import { POSITIONS, Player, Position, ROSTER_LIMIT, ScoutingMethod } from "@/lib/core/types";
 import {
   Bar,
@@ -323,14 +324,8 @@ export default function DraftPage() {
     apply((s) => {
       const live = s.draft;
       if (!live) return "There is no draft in progress.";
-      const before = live.picks.filter((p) => p.playerId !== null).length;
       simEntireDraft(s);
-      const after = live.picks.filter((p) => p.playerId !== null).length;
-      const classSize = live.picks.filter(
-        (p) => p.teamId === s.userTeamId && p.playerId !== null
-      ).length;
-      const made = after - before;
-      return `Draft complete — ${made} pick${made === 1 ? "" : "s"} made, ${classSize} in your class`;
+      return simEntireDraftToast(live.picks, s.userTeamId);
     });
   }
 
