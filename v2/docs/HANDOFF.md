@@ -40,14 +40,20 @@ note.
 
 ### Gate (`nproc`=4)
 
-Fast: run after the change. Three inherited single-seed metric reds
-— leave them:
+Fast: all 11 harnesses exit 0 (`newgame` included). Three inherited
+single-seed metric reds — leave them; same family as PR #26 / #27 / #28:
 
 ```
 FAIL  leverage.wrongSign     1     expected <= 0
 FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
 FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
 ```
+
+Playwright against a built `next start` (`PW_CHROMIUM` = full Chrome):
+`/saves` New Franchise → `/new`, Start Franchise in view at 1440 /
+1024 / 390, Continue still lists the save, chrome off, Continue
+returns to the hub, `/saves` still has the franchise. Direct `/new`
+unchanged.
 
 ---
 
