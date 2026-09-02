@@ -20,8 +20,8 @@ import {
   POSITION_GROUP,
   POSITIONS,
   Player,
-  ROSTER_LIMIT,
 } from "@/lib/core/types";
+import { rosterCapView } from "@/lib/view/rosterCap";
 import {
   Bar,
   Button,
@@ -111,8 +111,8 @@ export default function RosterPage() {
   const teamId = state.userTeamId;
   const team = state.teams[teamId];
   const cap = teamCap(state, teamId);
-  const count = rosterCount(state, teamId);
   const issues = rosterIssues(state, teamId);
+  const clip = rosterCapView(state, teamId);
 
   function toggleSort(k: SortKey) {
     if (k === sortKey) {
@@ -147,8 +147,9 @@ export default function RosterPage() {
       const t = s.teams[s.userTeamId];
       if (!t.depthChartManual) autoSortDepthChart(s, t);
       const after = rosterCount(s, s.userTeamId);
-      if (after === before) return `Roster already at ${after}/${ROSTER_LIMIT}`;
-      return `Roster filled: ${before} → ${after}/${ROSTER_LIMIT}`;
+      const capNow = rosterCapView(s, s.userTeamId);
+      if (after === before) return `Roster already at ${after}/${capNow.cap}`;
+      return `Roster filled: ${before} → ${after}/${capNow.cap}`;
     });
     setConfirmId(null);
   }
@@ -170,9 +171,9 @@ export default function RosterPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat
           label="Roster"
-          value={`${count}/${ROSTER_LIMIT}`}
-          sub={count === ROSTER_LIMIT ? "Legal roster" : count > ROSTER_LIMIT ? `${count - ROSTER_LIMIT} over` : `${ROSTER_LIMIT - count} short`}
-          tone={count === ROSTER_LIMIT ? "good" : "warn"}
+          value={clip.label}
+          sub={clip.sub}
+          tone={clip.tone}
         />
         <Stat
           label="Cap Space"
@@ -188,6 +189,19 @@ export default function RosterPage() {
           tone={cap.dead > 0 ? "warn" : undefined}
         />
       </div>
+
+      {clip.cutdown && (
+        <Card
+          title="Cutdown"
+          subtitle={`${clip.label} camp roster — cut ${clip.overSeason} to reach the 53-man season roster`}
+        >
+          <p className="text-sm text-[var(--color-muted)]">
+            Training camp may hold up to {clip.cap}. Release players below to cut, or keep them
+            through Start the Season — CPU clubs auto-cut then, and leftover extras on this
+            club are cut with them. Hub Auto-fix is not required.
+          </p>
+        </Card>
+      )}
 
       {issues.length > 0 && (
         <Card title="Roster issues" subtitle="These must be resolved before the season can be simulated">

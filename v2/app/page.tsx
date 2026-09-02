@@ -20,6 +20,7 @@ import { describeAsset } from "@/lib/core/trades";
 import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weatherLabel } from "@/lib/core/types";
 import { SeasonReviewPanels, SeasonReviewSummary } from "@/components/SeasonReview";
 import { presentSeasonReview } from "@/lib/view/seasonReview";
+import { hubCampCutdownCopy, rosterCapView } from "@/lib/view/rosterCap";
 import { PRIVATE_VISIT_CAP, calendarView } from "@/lib/core/scouting";
 
 /** One row in the Sim dropdown. */
@@ -97,6 +98,7 @@ export default function Hub() {
     const bye = isOnBye(state, team.id);
     const injured = injuredPlayers(state, team.id);
     const issues = rosterIssues(state, team.id);
+    const clip = rosterCapView(state, team.id);
     const div = divisionStandings(state, team.division);
     const divRank = seasonHasResults(state)
       ? div.findIndex((r) => r.teamId === team.id) + 1
@@ -118,11 +120,11 @@ export default function Hub() {
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
     const lastResults = weekGames(state, Math.max(1, state.week - 1)).filter((g) => g.played);
-    return { team, rec, cap, next, bye, injured, issues, div, divRank, roster, topPerformers, lastResults };
+    return { team, rec, cap, next, bye, injured, issues, clip, div, divRank, roster, topPerformers, lastResults };
   }, [state]);
 
   if (!state || !derived) return null;
-  const { team, rec, cap, next, bye, injured, issues, divRank, roster, topPerformers } = derived;
+  const { team, rec, cap, next, bye, injured, issues, clip, divRank, roster, topPerformers } = derived;
   const cal = calendarView(state);
   const offers = state.tradeOffers ?? [];
 
@@ -240,7 +242,7 @@ export default function Hub() {
               <div className="text-xs text-[var(--color-muted)] mt-0.5">
                 {state.phase === "offseason-final" && issues.some((i) => i.kind === "underLimit")
                   ? "Roster is short of 53. Sign players before the season opens — cutdown is for clubs over the limit."
-                  : step.description}
+                  : hubCampCutdownCopy(clip) ?? step.description}
               </div>
               {isRecap && recap && (
                 <SeasonReviewSummary state={state} view={recap} />
@@ -276,7 +278,11 @@ export default function Hub() {
                   return "Roster and cap brought back into compliance";
                 })
               }
-              title="Signs, releases and renegotiates until you are at 53 players and under the cap"
+              title={
+                clip.camp
+                  ? `Signs, releases and renegotiates until you are at ${ROSTER_LIMIT}–${clip.cap} players and under the cap`
+                  : "Signs, releases and renegotiates until you are at 53 players and under the cap"
+              }
             >
               Auto-fix
             </Button>
@@ -357,9 +363,9 @@ export default function Hub() {
         />
         <Stat
           label="Roster"
-          value={`${rosterCount(state, team.id)}/${ROSTER_LIMIT}`}
-          sub={`${injured.length} injured`}
-          tone={rosterCount(state, team.id) !== ROSTER_LIMIT ? "warn" : undefined}
+          value={clip.label}
+          sub={clip.cutdown ? clip.sub : `${injured.length} injured`}
+          tone={clip.tone === "warn" ? "warn" : undefined}
         />
         <Stat
           label="Point Diff"

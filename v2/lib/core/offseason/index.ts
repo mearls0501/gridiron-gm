@@ -1,7 +1,7 @@
 import { Rng } from "../rng";
 import { refreshDepthCharts } from "../generate";
 import { clearDeadCap } from "../select";
-import { GameState, Phase } from "../types";
+import { GameState, Phase, ROSTER_LIMIT } from "../types";
 import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
 import { cpuResign, expireContracts, reconcileRoster, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
@@ -199,9 +199,11 @@ export function finalizeOffseason(state: GameState): void {
 
   // CPU housekeeping first, then the user's team, so the user gets the last
   // word on their own roster but never starts a season with an illegal one.
+  // Explicit 53: this call is the cutdown, and the phase is still
+  // offseason-final (camp ceiling 90) until the calendar rolls below.
   for (const t of state.teams) {
     if (t.id === state.userTeamId) continue;
-    reconcileRoster(state, t.id, rng);
+    reconcileRoster(state, t.id, rng, ROSTER_LIMIT);
     // Then spend up to the league floor. Deliberately not applied to the user's
     // club: how much of their own cap they use is their decision, not ours.
     spendToFloor(state, t.id, rng);
@@ -211,9 +213,9 @@ export function finalizeOffseason(state: GameState): void {
     // them. It does mean a headless run leaves the user's club stale, which is
     // the same known bias `checkParity` already corrects for.
     upgradeRoster(state, t.id, rng);
-    reconcileRoster(state, t.id, rng);
+    reconcileRoster(state, t.id, rng, ROSTER_LIMIT);
   }
-  reconcileRoster(state, state.userTeamId, rng);
+  reconcileRoster(state, state.userTeamId, rng, ROSTER_LIMIT);
 
   // Roll the calendar.
   state.season += 1;

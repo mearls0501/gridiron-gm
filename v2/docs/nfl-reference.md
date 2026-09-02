@@ -444,6 +444,10 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   about three league-wide in-game events a season, over half costing no time —
   rather than tuned toward a figure. The MECHANISM was the gap worth closing;
   the rate is a guess and is labelled one.
+- **Training-camp roster cap (90).** Added 2026-09-02. Not in T/D/S/P. The
+  published NFL training-camp holding limit is 90 before the single cut to 53
+  (`docs/front-office-design-2026-07-28.md`). No dataset here enumerates camp
+  headcount. Ungated; the number is the published rule, not a computed target.
 
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 

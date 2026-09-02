@@ -850,8 +850,24 @@ export const SALARY_CAP_BASE = 255_000_000;
 export const CAP_GROWTH = 0.06;
 export const LEAGUE_MINIMUM = 795_000;
 export const ROSTER_LIMIT = 53;
+/**
+ * Training-camp holding cap. Published NFL camp roster is 90 before the
+ * single cut to 53 (`docs/front-office-design-2026-07-28.md`). Not computed
+ * from a dataset in `docs/nfl-reference.md` — see §4 and HANDOFF.
+ */
+export const CAMP_ROSTER_LIMIT = 90;
 export const REGULAR_SEASON_WEEKS = 18;
 export const GAMES_PER_TEAM = 17;
+
+/** Draft weekend through cutdown: clubs may hold a camp roster. */
+export function isCampPhase(phase: Phase): boolean {
+  return phase === "offseason-draft" || phase === "offseason-final";
+}
+
+/** Phase ceiling: 90 in camp, 53 once the season roster is locked. */
+export function rosterLimit(phase: Phase): number {
+  return isCampPhase(phase) ? CAMP_ROSTER_LIMIT : ROSTER_LIMIT;
+}
 
 export function salaryCap(season: number, startSeason: number): number {
   return Math.round(SALARY_CAP_BASE * Math.pow(1 + CAP_GROWTH, season - startSeason));

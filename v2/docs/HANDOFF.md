@@ -5,6 +5,66 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-02 — training-camp roster then cutdown to 53 (branch `cursor/camp-cutdown-53-9b30`)
+
+Matt unparked the post-draft hole from GM Playtest year 0901: draft + UDFA
+sat at 60/53 and −$10.3M, with Hub Auto-fix (`reconcileRoster`) as the only
+cutdown. `/roster` had no short/over clipboard. Real camp is ~90 then one
+cut to 53 (`docs/front-office-design-2026-07-28.md`). Cutdown *trades*
+already exist (`runCutdownTrades`); this packet is roster *size*.
+
+**Diagnosis.** Confirmed. `ROSTER_LIMIT` is 53 in every phase.
+`fillRoster` / `reconcileRoster` / `signPlayer` clamped to 53 immediately.
+Draft and UDFA used `ROSTER_LIMIT + 20` (73) as a slack hack, not a camp
+cap. `rosterIssues` flagged anything over 53, so Hub Auto-fix appeared
+after draft. `/roster` rendered `count/53`. `finalizeOffseason` already
+called `reconcileRoster` for every club — that is the cutdown — but the
+phase is still `offseason-final` when it runs, so a phase-aware default
+would have left them at 90. IR, practice squad, and live play-calling
+are not in this packet.
+
+**90.** Not in `docs/nfl-reference.md` T/D/S/P. The published NFL camp
+holding limit is 90 (design doc 2026-07-28). Per invariant 7 the axis
+stays ungated; §4 records that. Do not invent a different number.
+
+**Change.** `CAMP_ROSTER_LIMIT = 90` and `rosterLimit(phase)`: 90 during
+`offseason-draft` / `offseason-final`, 53 otherwise. `fillRoster` fills
+shorts to 53 and trims only above the phase ceiling. `reconcileRoster`
+accepts 53–ceiling. `finalizeOffseason` passes `ROSTER_LIMIT` so Start
+the Season still cuts every club, user and CPU, to 53. User can cut on
+`/roster` (clipboard: e.g. 78/90, N over the 53-man season roster — cut
+or keep). Hub Auto-fix no longer fires for a legal camp over-53.
+`signPlayer` and the draft/UDFA hold use the phase / camp ceiling.
+One `state.players` array. Seeded RNG only. No new dependencies.
+
+Untouched: POSITION_VALUE, cpuBoardValue, cpuProspectView,
+CONTENDER_PULL, GUARANTEE_PULL, CARRY_SHARE, askingPrice/negotiatedApy,
+sim-pause toast, draft toast, /new chrome, Hub Sim menu, closed-window
+Accept, PR #9, R1 QB never-start, pass-record volume, tradesPerSeason.
+
+Regression: `lib/view/rosterCap.test.ts` (gate `rostercap`) — camp 90 vs
+season 53, clipboard copy, camp fill/reconcile do not dump to 53, user
+cut, live draft+UDFA sits over 53, finalize brings all 32 to 53.
+
+File cluster: `types.ts` (`CAMP_ROSTER_LIMIT`, `rosterLimit`),
+`select.ts` (`rosterIssues`), `contracts.ts` / `offseason/index.ts` /
+`draft.ts`, `lib/view/rosterCap.ts` + test, `/roster` + Hub + draft
+stat, gate/package.json, nfl-reference §4, this note.
+
+### Gate (`nproc`=4)
+
+Fast: all 14 harnesses exit 0 (`rostercap` included). Three inherited
+single-seed metric reds — leave them; same family as PR #26 / #27 /
+#28 / #29 / #30 / #31:
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.leadRecYds  2062   expected 1615.80 +/-400
+FAIL  statcheck.rb5RushYds  1327   expected 1191 +/-95
+```
+
+---
+
 ## 2026-09-01 — closed-window Accept still looks live (branch `cursor/trade-window-accept-27c1`)
 
 GM Playtest year 0901 (Boston, Week 10): `/trades` banner said the
