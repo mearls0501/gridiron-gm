@@ -8,6 +8,7 @@ import { divisionStandings, seasonHasResults } from "./standings";
 import { passerRating } from "./stats";
 import { playerName } from "../ratings";
 import { PRIVATE_VISIT_CAP, calendarView } from "../scouting";
+import { gamedayInactiveView } from "../inactives";
 
 /**
  * The weekly briefing: one deterministic digest of what just happened and
@@ -219,6 +220,21 @@ function buildActionItems(state: GameState): { action: ActionItem[]; review: str
       href: "/roster",
       urgent: issue.kind !== "underLimit",
     });
+  }
+
+  if (
+    (state.phase === "regular" || state.phase === "playoffs") &&
+    !isOnBye(state, state.userTeamId)
+  ) {
+    const gameday = gamedayInactiveView(state, state.userTeamId);
+    if (gameday.stillNeed > 0) {
+      action.push({
+        label: `Declare ${gameday.stillNeed} more gameday inactive${gameday.stillNeed > 1 ? "s" : ""}`,
+        detail: `${gameday.cap} actives this week${gameday.eightOl ? " (8 OL)" : ""}. Injured on the 53 already count.`,
+        href: "/week",
+        urgent: true,
+      });
+    }
   }
 
   const cap = teamCap(state, state.userTeamId);

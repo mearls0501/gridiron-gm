@@ -5,6 +5,65 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-02 — gameday inactives / sit-him (branch `cursor/gameday-inactives-8621`)
+
+Matt unparked the leftover after camp and IR/PS: "live play-calling / sit-him".
+This packet is sit-him only. Before Play Week the GM can scratch healthy
+players for that game. They stay on the 53, take no snaps, and the depth
+chart still decides who among the actives plays. CPU clubs declare too.
+
+**Diagnosis.** Confirmed. `healthyRosterFor` / `buildStarters` / `nextAvailable`
+skipped injured, IR, and PS. They did not skip a healthy GM scratch. `/week`
+only offered "Set the Depth Chart". No inactive list, no Sit button, no
+47/48 gameday cap. Coach `passBias` / `aggression` already exist and are
+not this packet.
+
+**47 / 48.** From `docs/front-office-design-2026-07-28.md` Part 5: regular
+season **47 actives, or 48 with 8 offensive linemen**. Same source as
+`CAMP_ROSTER_LIMIT = 90` and PS 16. Not in T/D/S/P. Recorded in
+`nfl-reference.md` §4 as an ungated published rule. OL is OT/OG/C via
+`POSITION_GROUP`. Inactive count = 53 minus that cap (6, or 5 with 8 OL
+on the 53).
+
+**Injured vs sit.** A man with `injuryWeeks > 0` already misses the game
+and still occupies a 53 slot unless on IR. He **counts toward the inactive
+requirement** without a Sit click — do not double-count. Sitting him is
+allowed and does not add a second credit. Sitting more healthy scratches
+than the floor is allowed. Sitting the last healthy-and-active body at a
+position is refused.
+
+**Change.** Optional `Team.inactives?: number[]` (missing = nobody sat).
+`/week` Sit / Activate. Sim skips sat ids the same way it skips IR/PS.
+CPU (and a short user list) auto-sit extras at kickoff, preferring bodies
+beyond `ROTATION` then lowest OVR, so the play mix is not retuned.
+Box score records `inactives` with 0 snaps (not a season-stat row — games
+do not increment). List clears after the week / playoff round. Seeded RNG
+only. No new dependencies. 53 / camp 90 / IR / PS unchanged.
+
+**Leftover.** No snap-by-snap play-calling, run/pass buttons, formations,
+or a Madden play-caller. Coach `passBias` / `aggression` stay. That half
+of "live play-calling / sit-him" stays leftover.
+
+Untouched: POSITION_VALUE, cpuBoardValue, cpuProspectView, CONTENDER_PULL,
+GUARANTEE_PULL, CARRY_SHARE, WEEKLY_TABLE / POSITION_DURATION /
+POSITION_RISK, PR #9, `docs/baselines.json`.
+
+Regression: `lib/core/inactives.test.ts` (gate `inactives`) — sit a starter,
+0 snaps, backup plays; 53 unchanged; list clears after the week; CPU clubs
+declare; 47 vs 48-with-8-OL; injured count toward the cap; last healthy
+at a position refused; old saves missing the field.
+
+File cluster: `types.ts` (cap + `Team.inactives` + box field),
+`inactives.ts` + test, `sim/game.ts` (skip sits), `season/engine.ts` /
+`playoffs.ts` (declare / clear), briefing + `/week` + box score,
+gate/package.json, nfl-reference §4, this note.
+
+### Gate (`nproc`=4)
+
+*(filled after `npm run gate`)*
+
+---
+
 ## 2026-09-02 — IR and 16-man practice squad (branch `cursor/ir-practice-squad-39ba`)
 
 Matt unparked the hole after camp (PR #32): an ACL still occupied a 53 slot,

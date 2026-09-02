@@ -11,6 +11,7 @@ import { recordGame } from "./records";
 import { applyGameWear, healWeek, healthySet } from "./injuries";
 import { freeActiveSlot } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
+import { clearInactives, declareGamedayInactives } from "../inactives";
 
 /**
  * Postseason.
@@ -140,6 +141,14 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   // in January and nobody recovered between week 18 and the final.
   const healthyBefore = healthySet(state);
 
+  const dressing = new Set<number>();
+  for (const g of games) {
+    if (g.played) continue;
+    dressing.add(g.homeId);
+    dressing.add(g.awayId);
+  }
+  declareGamedayInactives(state, dressing);
+
   for (const g of games) {
     if (g.played) continue;
 
@@ -205,6 +214,7 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   autoDesignateIr(state);
   tickIrGames(state, played);
   autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
+  clearInactives(state);
 
   // Advance the bracket.
   if (ps.round === "SB") {

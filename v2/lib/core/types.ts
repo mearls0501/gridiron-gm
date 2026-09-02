@@ -334,6 +334,11 @@ export interface Team {
    * saves start the season with a full allotment.
    */
   irReturnsUsed?: number;
+  /**
+   * Week-scoped gameday sits (player ids). Missing = nobody sat, so older
+   * saves load. Still on the 53; cleared after the game.
+   */
+  inactives?: number[];
 }
 
 /**
@@ -435,6 +440,8 @@ export interface BoxScore {
   quarters: { home: number[]; away: number[] };
   scoringPlays: ScoringPlay[];
   players: PlayerGameStat[];
+  /** Declared inactives this game. Missing on older boxes. Not season-stat rows. */
+  inactives?: number[];
 }
 
 export type PlayoffRound = "WC" | "DIV" | "CONF" | "SB";
@@ -881,6 +888,14 @@ export const PRACTICE_SQUAD_LIMIT = 16;
 export const IR_RETURN_DESIGNATIONS = 8;
 export const IR_MIN_GAMES = 4;
 export const PS_ELEVATIONS_PER_PLAYER = 3;
+/**
+ * Gameday active cap. Published rule from
+ * `docs/front-office-design-2026-07-28.md` Part 5: 47, or 48 with 8 OL
+ * (OT/OG/C) on the 53. Not in T/D/S/P — see `docs/nfl-reference.md` §4.
+ */
+export const GAMEDAY_ACTIVE_LIMIT = 47;
+export const GAMEDAY_ACTIVE_LIMIT_EIGHT_OL = 48;
+export const GAMEDAY_OL_FOR_EXTRA = 8;
 export const REGULAR_SEASON_WEEKS = 18;
 export const GAMES_PER_TEAM = 17;
 
