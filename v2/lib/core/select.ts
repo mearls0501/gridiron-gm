@@ -1,6 +1,6 @@
 import {
   GameState, Player, Position, Team, TeamRecord, Contract,
-  ROSTER_LIMIT, salaryCap,
+  ROSTER_LIMIT, rosterLimit, salaryCap,
 } from "./types";
 
 /**
@@ -228,12 +228,13 @@ export interface RosterIssue {
 export function rosterIssues(state: GameState, teamId: number): RosterIssue[] {
   const issues: RosterIssue[] = [];
   const n = rosterCount(state, teamId);
+  const hold = rosterLimit(state.phase);
 
-  if (n > ROSTER_LIMIT) {
+  if (n > hold) {
     issues.push({
       kind: "overLimit",
-      message: `Roster over the limit: ${n}/${ROSTER_LIMIT}`,
-      detail: `Release ${n - ROSTER_LIMIT} player${n - ROSTER_LIMIT === 1 ? "" : "s"}.`,
+      message: `Roster over the limit: ${n}/${hold}`,
+      detail: `Release ${n - hold} player${n - hold === 1 ? "" : "s"}.`,
     });
   } else if (n < ROSTER_LIMIT) {
     issues.push({

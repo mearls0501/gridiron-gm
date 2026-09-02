@@ -38,9 +38,10 @@ import {
 import { describeAsset } from "@/lib/core/trades";
 import { boardGrade, consensusGrade, gradeContext, prospectReports, prospectTraits } from "@/lib/core/scouting-reports";
 import { enterDraft, simEntireDraft, simToUserPick } from "@/lib/core/offseason";
-import { capHit, formatMoney, playerMap, rosterCount } from "@/lib/core/select";
+import { capHit, formatMoney, playerMap } from "@/lib/core/select";
 import { simEntireDraftToast } from "@/lib/view/draftToast";
-import { POSITIONS, Player, Position, ROSTER_LIMIT, ScoutingMethod } from "@/lib/core/types";
+import { POSITIONS, Player, Position, ScoutingMethod } from "@/lib/core/types";
+import { rosterCapView } from "@/lib/view/rosterCap";
 import {
   Bar,
   Button,
@@ -399,8 +400,8 @@ export default function DraftPage() {
             />
             <Stat
               label="Roster"
-              value={`${rosterCount(state, teamId)}/${ROSTER_LIMIT}`}
-              sub="Rookies count against the limit"
+              value={rosterCapView(state, teamId).label}
+              sub="Rookies count against the camp cap"
             />
             <Stat
               label="Draft Opens"

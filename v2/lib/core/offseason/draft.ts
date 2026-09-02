@@ -2,8 +2,8 @@ import { Rng, clamp } from "../rng";
 import { makeContract, makePlayer } from "../generate";
 import { POSITION_VALUE } from "../ratings";
 import {
-  DraftPick, DraftState, GameState, LEAGUE_MINIMUM, Player, Position,
-  POSITION_TARGET, POSITIONS, ROSTER_LIMIT, STARTERS,
+  CAMP_ROSTER_LIMIT, DraftPick, DraftState, GameState, LEAGUE_MINIMUM, Player, Position,
+  POSITION_TARGET, POSITIONS, STARTERS,
 } from "../types";
 import { positionCount, rosterCount } from "../select";
 import { draftOrder } from "../season/standings";
@@ -414,7 +414,7 @@ export function cpuPick(state: GameState, rng: Rng): void {
   if (!pick) return;
 
   const pool = availableProspects(state, d.season);
-  if (pool.length === 0 || rosterCount(state, pick.teamId) >= ROSTER_LIMIT + 20) {
+  if (pool.length === 0 || rosterCount(state, pick.teamId) >= CAMP_ROSTER_LIMIT) {
     d.onClock += 1;
     if (d.onClock >= d.picks.length) d.complete = true;
     return;
@@ -453,11 +453,12 @@ export function runFullDraft(state: GameState, rng: Rng): void {
 /**
  * How many priority signings one club makes in the minutes after pick 224.
  *
- * Real clubs sign 10-15 UDFAs — into 90-man camps that cut back to 53. v2 has
- * no 90-man roster, so the chase is capped at the men a club's board says can
- * genuinely compete for a place: every signing that plays a down becomes
- * permanent save history (the record book keeps played careers forever), and
- * an appetite of 6 pushed the 20-season save past its 10 MB quota.
+ * Real clubs sign 10-15 UDFAs — into 90-man camps that cut back to 53. The
+ * chase is still capped at the men a club's board says can genuinely compete
+ * for a place: every signing that plays a down becomes permanent save history
+ * (the record book keeps played careers forever), and an appetite of 6 pushed
+ * the 20-season save past its 10 MB quota. The camp ceiling is 90; this
+ * function does not fill to it.
  */
 export const UDFA_SIGNINGS_MAX = 4;
 
@@ -486,7 +487,7 @@ export function signUdfa(state: GameState, teamId: number, playerId: number, rng
   if (udfaSignedCount(state, teamId) >= UDFA_SIGNINGS_MAX) return false;
   const p = state.players.find((x) => x.id === playerId);
   if (!p || !p.prospect || p.teamId !== null) return false;
-  if (rosterCount(state, teamId) >= ROSTER_LIMIT + 20) return false;
+  if (rosterCount(state, teamId) >= CAMP_ROSTER_LIMIT) return false;
 
   p.teamId = teamId;
   p.prospect = false;
@@ -523,7 +524,7 @@ export function runUdfaChase(state: GameState, rng: Rng): number {
     let any = false;
     for (const teamId of order) {
       if ((signedCount.get(teamId) ?? 0) >= UDFA_SIGNINGS_MAX) continue;
-      if (rosterCount(state, teamId) >= ROSTER_LIMIT + 20) continue;
+      if (rosterCount(state, teamId) >= CAMP_ROSTER_LIMIT) continue;
       const best = cpuTopOfBoard(state, teamId, pool(), 60);
       if (!best) continue;
       // Camp-body threshold: a club only burns a priority call on a man its

@@ -2,6 +2,7 @@ import { Rng, clamp } from "../rng";
 import { defaultGuaranteedYears, makeContract, makePlayer, marketApy } from "../generate";
 import {
   GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player, ROSTER_LIMIT, Position, POSITION_MIN,
+  rosterLimit,
 } from "../types";
 import { addDeadCap, capHit, deadMoney, positionCount, rosterCount, startSeason, teamCap } from "../select";
 import { POSITION_VALUE } from "../ratings";
@@ -94,8 +95,9 @@ export function signPlayer(
   if (!p) return { ok: false, reason: "No such player" };
   if (p.retired) return { ok: false, reason: "Player has retired" };
   if (p.teamId !== null) return { ok: false, reason: "Player is already under contract" };
-  if (rosterCount(state, teamId) >= ROSTER_LIMIT) {
-    return { ok: false, reason: `Roster is full (${ROSTER_LIMIT}). Release someone first.` };
+  const hold = rosterLimit(state.phase);
+  if (rosterCount(state, teamId) >= hold) {
+    return { ok: false, reason: `Roster is full (${hold}). Release someone first.` };
   }
 
   const yrs = clamp(Math.round(years), 1, 6);
@@ -306,11 +308,13 @@ function signAtMarket(state: GameState, teamId: number, p: Player, rng: Rng): vo
   p.contract = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
 }
 
-export function fillRoster(state: GameState, teamId: number, rng: Rng): void {
+export function fillRoster(
+  state: GameState, teamId: number, rng: Rng, limit = rosterLimit(state.phase)
+): void {
   // 1. Position minimums first.
   for (const pos of Object.keys(POSITION_MIN) as Position[]) {
     while (positionCount(state, teamId, pos) < POSITION_MIN[pos]) {
-      if (rosterCount(state, teamId) >= ROSTER_LIMIT) {
+      if (rosterCount(state, teamId) >= limit) {
         // Cut the worst player at an over-stocked position to make room.
         if (!cutWorstSurplus(state, teamId, pos)) break;
       }
@@ -320,7 +324,8 @@ export function fillRoster(state: GameState, teamId: number, rng: Rng): void {
     }
   }
 
-  // 2. Fill remaining slots with the best available.
+  // 2. Fill remaining slots with the best available. Floor is always 53 —
+  // camp may hold more, but a short club still needs a season roster.
   let guard = 0;
   while (rosterCount(state, teamId) < ROSTER_LIMIT && guard++ < 120) {
     let pick = bestAffordable(state, teamId, null);
@@ -331,9 +336,9 @@ export function fillRoster(state: GameState, teamId: number, rng: Rng): void {
     signAtMarket(state, teamId, pick, rng);
   }
 
-  // 3. Trim if over.
+  // 3. Trim only above the phase ceiling (90 in camp, 53 once the season locks).
   guard = 0;
-  while (rosterCount(state, teamId) > ROSTER_LIMIT && guard++ < 120) {
+  while (rosterCount(state, teamId) > limit && guard++ < 120) {
     if (!cutWorstSurplus(state, teamId, null)) break;
   }
 }
@@ -668,14 +673,16 @@ export function enforceCap(state: GameState, teamId: number): void {
  * `fillRoster` once leaves teams over the cap, which is exactly what the
  * verification harness caught.
  */
-export function reconcileRoster(state: GameState, teamId: number, rng: Rng): void {
+export function reconcileRoster(
+  state: GameState, teamId: number, rng: Rng, limit = rosterLimit(state.phase)
+): void {
   for (let pass = 0; pass < 8; pass++) {
     enforceCap(state, teamId);
-    fillRoster(state, teamId, rng);
+    fillRoster(state, teamId, rng, limit);
 
     const cap = teamCap(state, teamId);
     const count = rosterCount(state, teamId);
-    if (cap.space >= 0 && count === ROSTER_LIMIT) return;
+    if (cap.space >= 0 && count >= ROSTER_LIMIT && count <= limit) return;
   }
 
   // Last resort: replace the most expensive cuttable contracts with minimum
@@ -699,5 +706,5 @@ export function reconcileRoster(state: GameState, teamId: number, rng: Rng): voi
       text: `${state.teams[teamId].abbr} restructured ${target.firstName} ${target.lastName} (${target.pos}) to the league minimum — forced by the cap, was $${(was / 1e6).toFixed(1)}M`,
     });
   }
-  fillRoster(state, teamId, rng);
+  fillRoster(state, teamId, rng, limit);
 }
