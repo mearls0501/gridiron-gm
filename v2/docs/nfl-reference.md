@@ -472,6 +472,12 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   playoff clubs dress at most 47, or 48 when the 53 includes 8 offensive
   linemen (OT/OG/C). Inactive count is 53 minus that cap. Ungated published
   rule.
+- **This-week play-calling (call sheet / Play-the-Game).** Added 2026-09-02.
+  Not in T/D/S/P. The GM override uses the same units as coach `passBias`
+  (−1 run … +1 pass) and `aggression` (0–100) already in `simulateGame`.
+  It is a player control, not a measured league rate. No new mix target
+  and no formation tree — the play loop has down / toGo / yardLine /
+  passBias / aggression and a victory kneel, nothing else. Ungated.
 
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 

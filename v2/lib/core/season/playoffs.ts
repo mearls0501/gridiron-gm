@@ -12,6 +12,7 @@ import { applyGameWear, healWeek, healthySet } from "./injuries";
 import { freeActiveSlot } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
+import { clearCallSheets, userSimOpts } from "../callSheet";
 import { resolveWaivers } from "../waivers";
 
 /**
@@ -168,14 +169,14 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
       state.log.length = logMark;
     };
 
-    let result = simulateGame(state, g, rng);
+    let result = simulateGame(state, g, rng, userSimOpts(state, g));
 
     // Playoff games cannot tie. Replay until decided — the old build threw here
     // and deadlocked the bracket with no recovery path.
     let guard = 0;
     while (result.homeScore === result.awayScore && guard++ < 20) {
       restore();
-      result = simulateGame(state, g, rng);
+      result = simulateGame(state, g, rng, userSimOpts(state, g));
     }
     if (result.homeScore === result.awayScore) {
       // Astronomically unlikely; break the tie deterministically by seed.
@@ -217,6 +218,7 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   tickIrGames(state, played);
   autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
   clearInactives(state);
+  clearCallSheets(state);
 
   // Advance the bracket.
   if (ps.round === "SB") {
