@@ -1,3 +1,6 @@
+import { tradeWindowOpen } from "../core/trades";
+import { GameState } from "../core/types";
+
 /**
  * /trades incoming-offer controls.
  *
@@ -5,6 +8,9 @@
  * `variant="primary"` when disabled; Propose switches to `default` plus
  * extra opacity, so Accept still looked like a live blue button after
  * the deadline. Reject may clear a stale offer; it cannot complete one.
+ *
+ * Bulk-sim pause uses the same Accept-enabled predicate: a leftover after
+ * the deadline is not a new call the GM can take.
  */
 
 export const CLOSED_WINDOW_ACTIONS =
@@ -17,6 +23,14 @@ export function incomingOfferAccept(windowOpen: boolean): {
   return windowOpen
     ? { enabled: true, variant: "primary" }
     : { enabled: false, variant: "default" };
+}
+
+/** True only when a NEW incoming offer arrived and Accept is still live. */
+export function incomingOfferPausesSim(state: GameState, offersBefore: number): boolean {
+  return (
+    incomingOfferAccept(tradeWindowOpen(state)).enabled &&
+    (state.tradeOffers ?? []).length > offersBefore
+  );
 }
 
 export function incomingOfferReject(): {

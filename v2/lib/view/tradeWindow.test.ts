@@ -9,11 +9,15 @@
  */
 import assert from "node:assert/strict";
 import { newGame } from "../core/newGame";
-import { acceptOffer, rejectOffer, tradeWindowOpen } from "../core/trades";
-import { TRADE_DEADLINE_WEEK, TradeOffer } from "../core/types";
+import { acceptOffer, generateUserOffers, rejectOffer, tradeWindowOpen } from "../core/trades";
+import { defaultSettings, TRADE_DEADLINE_WEEK, TradeOffer } from "../core/types";
+import { startRegularSeason } from "../core/season/engine";
+import { Rng } from "../core/rng";
+import { runSimTo } from "../store/simTo";
 import {
   CLOSED_WINDOW_ACTIONS,
   incomingOfferAccept,
+  incomingOfferPausesSim,
   incomingOfferReject,
   proposeTradeControl,
 } from "./tradeWindow";
@@ -127,3 +131,73 @@ assert.match(
 }
 
 console.log("ok    tradeWindow — closed-window incoming offer is not a live Accept");
+
+function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
+  const cur = st.settings ?? defaultSettings();
+  st.settings = {
+    ...cur,
+    pauseOn: { tradeOffer: true, injuredStarter: false, milestone: false },
+  };
+}
+
+// After week 9, generateUserOffers must not grow the inbox. Leftover stays
+// for Reject — do not auto-delete it here.
+{
+  const st = newGame({ seed: 1 });
+  st.phase = "regular";
+  st.week = TRADE_DEADLINE_WEEK + 1;
+  const { offer } = plantIncoming(st);
+  const before = (st.tradeOffers ?? []).length;
+  assert.equal(before, 1);
+  generateUserOffers(st, new Rng(1), 2);
+  assert.equal((st.tradeOffers ?? []).length, before, "closed window must not append incoming offers");
+  assert.equal(st.tradeOffers?.some((o) => o.id === offer.id), true, "leftover stays for Reject");
+  assert.equal(incomingOfferPausesSim(st, before), false, "leftover is not a new Accept-able call");
+  assert.equal(incomingOfferPausesSim(st, 0), false, "even a length bump after the deadline does not pause");
+}
+
+// Open window: a newly arrived offer still pauses bulk sim.
+{
+  const st = newGame({ seed: 1 });
+  st.phase = "regular";
+  st.week = 8;
+  st.tradeOffers = [];
+  generateUserOffers(st, new Rng(1), 1);
+  assert.ok((st.tradeOffers?.length ?? 0) >= 1, "week 8 can still put an offer on the table");
+  assert.equal(incomingOfferPausesSim(st, 0), true, "new offer during the window still pauses");
+}
+
+// Week 10 leftover + simTo seasonEnd / champion: do not stop for that leftover.
+{
+  const st = newGame({ seed: 1 });
+  startRegularSeason(st);
+  st.week = TRADE_DEADLINE_WEEK + 1;
+  tradeOnlyPause(st);
+  plantIncoming(st);
+  assert.equal(st.week, 10);
+  assert.equal(incomingOfferPausesSim(st, (st.tradeOffers ?? []).length), false);
+
+  const seasonEnd = runSimTo(st, "seasonEnd");
+  assert.ok(
+    !/trade offer/i.test(seasonEnd),
+    `seasonEnd must not pause on leftover, got: ${seasonEnd}`,
+  );
+  assert.equal(st.phase, "playoffs", "seasonEnd lands on the playoff field");
+}
+
+{
+  const st = newGame({ seed: 1 });
+  startRegularSeason(st);
+  st.week = TRADE_DEADLINE_WEEK + 1;
+  tradeOnlyPause(st);
+  plantIncoming(st);
+
+  const champ = runSimTo(st, "champion");
+  assert.ok(
+    !/trade offer/i.test(champ),
+    `champion must not pause on leftover, got: ${champ}`,
+  );
+  assert.ok(st.phase.startsWith("offseason"), "Through the Playoffs hands off to the offseason");
+}
+
+console.log("ok    tradeWindow — leftover after deadline does not pause bulk sim");

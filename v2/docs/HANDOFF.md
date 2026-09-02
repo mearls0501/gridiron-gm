@@ -5,6 +5,37 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-02 — leftover offer after deadline must not pause bulk sim (branch `cursor/bulk-sim-deadline-offers-43cb`)
+
+GM Playtest year 0902 (Denver, Week 10): banner said the window is
+closed, Accept grey like Propose (PR #31), Reject live, DET leftover
+still on the table. Through the Playoffs still paused on that leftover.
+
+**Diagnosis.** Hypothesis 1 is already closed at the generator:
+`generateUserOffers` returns `[]` when `!tradeWindowOpen`, so a Week 10
+call does not grow the inbox (leftover stays for Reject). Hypothesis 2
+was the live gap: `simTo` paused on any `tradeOffers.length` increase
+with no Accept-enabled check. After week 9 Accept is dead, so a leftover
+— or any post-deadline append — is not a new call the GM can take.
+
+**Change.** `incomingOfferPausesSim` uses the same predicate as Accept
+(`incomingOfferAccept(tradeWindowOpen)`). `runSimTo` only pauses on a
+new offer while that is enabled. `generateUserOffers` still does not
+append after the deadline. Leftovers are not auto-deleted.
+
+Untouched: waivers, rosterStatus, inactives, camp, contracts cutdown,
+POSITION_VALUE, cpuBoardValue, cpuProspectView, CONTENDER_PULL,
+GUARANTEE_PULL, CARRY_SHARE, PR #9, `docs/baselines.json`.
+
+Regression: `lib/view/tradeWindow.test.ts` (gate `tradewindow`) — Week 10
+leftover: generate does not grow the list; seasonEnd / champion do not
+pause for it; a new offer in week 8 still pauses.
+
+File cluster: `tradeWindow.ts` + test, `lib/store/simTo.ts`,
+`lib/store/game.ts` (delegates), this note.
+
+---
+
 ## 2026-09-02 — gameday inactives / sit-him (branch `cursor/gameday-inactives-8621`)
 
 Matt unparked the leftover after camp and IR/PS: "live play-calling / sit-him".
