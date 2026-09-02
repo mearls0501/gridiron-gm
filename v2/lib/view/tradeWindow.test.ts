@@ -167,13 +167,14 @@ function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
   assert.equal(incomingOfferPausesSim(st, 0), true, "new offer during the window still pauses");
 }
 
-// Week 10 leftover + simTo seasonEnd / champion: do not stop for that leftover.
+// Week 10 leftover + simTo seasonEnd: do not stop for that leftover, and
+// do not wipe the inbox. Accept stays dead; Reject still clears.
 {
   const st = newGame({ seed: 1 });
   startRegularSeason(st);
   st.week = TRADE_DEADLINE_WEEK + 1;
   tradeOnlyPause(st);
-  plantIncoming(st);
+  const { offer } = plantIncoming(st);
   assert.equal(st.week, 10);
   assert.equal(incomingOfferPausesSim(st, (st.tradeOffers ?? []).length), false);
 
@@ -183,6 +184,21 @@ function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
     `seasonEnd must not pause on leftover, got: ${seasonEnd}`,
   );
   assert.equal(st.phase, "playoffs", "seasonEnd lands on the playoff field");
+  assert.equal(
+    st.tradeOffers?.some((o) => o.id === offer.id),
+    true,
+    "bulk sim must leave the leftover on the table",
+  );
+  const accept = incomingOfferAccept(tradeWindowOpen(st));
+  assert.equal(accept.enabled, false, "Accept stays dead after the deadline");
+  const closed = acceptOffer(st, offer.id);
+  assert.equal(closed.ok, false);
+  rejectOffer(st, offer.id);
+  assert.equal(
+    st.tradeOffers?.some((o) => o.id === offer.id),
+    false,
+    "Reject still clears the leftover",
+  );
 }
 
 {
