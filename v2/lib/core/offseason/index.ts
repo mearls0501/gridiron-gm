@@ -3,6 +3,7 @@ import { refreshDepthCharts } from "../generate";
 import { clearDeadCap } from "../select";
 import { GameState, Phase, ROSTER_LIMIT } from "../types";
 import { foldPracticeSquad, resetSeasonRosterFlags } from "../rosterStatus";
+import { resolveWaivers } from "../waivers";
 import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
 import { cpuResign, expireContracts, reconcileRoster, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
@@ -261,6 +262,7 @@ export function finalizeOffseason(state: GameState): void {
  * Returns a human-readable description of what just happened.
  */
 export function advanceOffseason(state: GameState): string {
+  resolveWaivers(state);
   switch (state.phase) {
     case "offseason-recap":
       runRecap(state);

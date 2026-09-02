@@ -13,6 +13,9 @@ import {
   teamRoster,
 } from "@/lib/core/select";
 import { cutPlayer, reconcileRoster } from "@/lib/core/offseason/contracts";
+import {
+  submitWaiverClaim, userHasClaim, waiverWindowLabel, waiverWire, withdrawWaiverClaim,
+} from "@/lib/core/waivers";
 import { autoSortDepthChart } from "@/lib/core/generate";
 import { Rng } from "@/lib/core/rng";
 import { playerName } from "@/lib/core/ratings";
@@ -25,7 +28,7 @@ import {
 import { isActiveRoster } from "@/lib/core/select";
 import {
   activateFromIr, canActivateFromIr, canDesignateIr, canElevateFromPs, canPlaceOnPs,
-  designateIr, elevateFromPs, placeOnPs,
+  designateIr, elevateFromPs,
 } from "@/lib/core/rosterStatus";
 import { rosterCapView } from "@/lib/view/rosterCap";
 import {
@@ -100,6 +103,7 @@ export default function RosterPage() {
   const active = useMemo(() => roster.filter(isActiveRoster), [roster]);
   const irList = useMemo(() => roster.filter((p) => p.status === "ir"), [roster]);
   const psList = useMemo(() => roster.filter((p) => p.status === "ps"), [roster]);
+  const wire = useMemo(() => (state ? waiverWire(state) : []), [state, rev]);
 
   const rows = useMemo<Player[]>(() => {
     const q = query.trim().toLowerCase();
@@ -139,7 +143,7 @@ export default function RosterPage() {
       if (!res.ok) return res.reason ?? "That player could not be released.";
       const t = s.teams[s.userTeamId];
       if (!t.depthChartManual) autoSortDepthChart(s, t);
-      return `Released ${name} — ${formatMoney(res.dead)} dead money, ${formatMoney(res.savings)} saved`;
+      return `Waived ${name} — other clubs may claim him before this club can stash him`;
     });
     setConfirmId(null);
   }
@@ -209,15 +213,62 @@ export default function RosterPage() {
         />
       </div>
 
+      {wire.length > 0 && (
+        <Card
+          title="Waivers"
+          subtitle={`${wire.length} on the wire · ${waiverWindowLabel(state)} Inverse standings — worse record claims first. No cash bid.`}
+          padded={false}
+        >
+          <Table head={["Player", "Pos", "OVR", "From", ""]}>
+            {wire.map(({ entry, player: p }) => {
+              const from = state.teams[entry.originalTeamId];
+              const mine = entry.originalTeamId === teamId;
+              const submitted = userHasClaim(entry, teamId);
+              return (
+                <Row key={p.id}>
+                  <Cell align="left"><PlayerLink p={p} className="font-medium" /></Cell>
+                  <Cell><PosBadge pos={p.pos} /></Cell>
+                  <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                  <Cell>{from?.abbr ?? "—"}</Cell>
+                  <Cell>
+                    {mine ? (
+                      <span className="text-[11px] text-[var(--color-muted)]">
+                        Your waive — if unclaimed, this club may stash him on the PS
+                      </span>
+                    ) : submitted ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => move((s) => withdrawWaiverClaim(s, p.id), `Withdrew claim on ${playerName(p)}`)}
+                      >
+                        Withdraw
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => move((s) => submitWaiverClaim(s, p.id), `Claim submitted on ${playerName(p)}`)}
+                      >
+                        Claim
+                      </Button>
+                    )}
+                  </Cell>
+                </Row>
+              );
+            })}
+          </Table>
+        </Card>
+      )}
+
       {clip.cutdown && (
         <Card
           title="Cutdown"
           subtitle={`${clip.label} camp roster — cut ${clip.overSeason} to reach the 53-man season roster`}
         >
           <p className="text-sm text-[var(--color-muted)]">
-            Training camp may hold up to {clip.cap}. Release players below to cut, stash extras
-            on the practice squad, or keep them through Start the Season — leftover extras may
-            land on this club&apos;s 16-man practice squad instead of only becoming free agents.
+            Training camp may hold up to {clip.cap}. Release or Place on PS below — both
+            go to waivers first. If nobody claims him, this club may stash him on its
+            16-man practice squad. Start the Season still locks the active 53.
             Hub Auto-fix is not required.
           </p>
         </Card>
@@ -370,7 +421,10 @@ export default function RosterPage() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => move((s) => placeOnPs(s, p.id), `Placed ${playerName(p)} on the practice squad`)}
+                            onClick={() => move((s) => {
+                              const res = cutPlayer(s, p.id);
+                              return res.ok ? { ok: true } : { ok: false, reason: res.reason };
+                            }, `Waived ${playerName(p)} — if unclaimed he can land on this club's practice squad`)}
                           >
                             Place on PS
                           </Button>

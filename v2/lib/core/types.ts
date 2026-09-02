@@ -813,6 +813,18 @@ export const GAME_RECORD_LABEL: Record<GameRecordKey, string> = {
   ints: "Interceptions", fgm: "Field goals made", longFg: "Longest field goal",
 };
 
+/**
+ * One waived player awaiting the next claim window. Still on `state.players`
+ * with `teamId` null; not a free agent until the window closes unclaimed
+ * and the original club cannot stash him on its practice squad.
+ */
+export interface WaiverClaim {
+  playerId: number;
+  originalTeamId: number;
+  /** Clubs that have submitted a claim. Missing = none. */
+  claims?: number[];
+}
+
 export const STATE_VERSION = 1;
 
 export interface GameState {
@@ -840,6 +852,12 @@ export interface GameState {
   playoffs: PlayoffState | null;
   draft: DraftState | null;
   fa: FaState | null;
+  /**
+   * Players currently on waivers. Missing = nobody, so older saves load.
+   * Everyone still lives on `players` (invariant 4); this list is ids +
+   * the club that waived them.
+   */
+  waivers?: WaiverClaim[];
 
   /** The user's scouting intel + war-room board for the current class. */
   scouting?: ScoutingState;

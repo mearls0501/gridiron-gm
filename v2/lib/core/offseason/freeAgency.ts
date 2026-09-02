@@ -4,7 +4,7 @@ import { POSITION_VALUE } from "../ratings";
 import {
   FaBid, FaState, GameState, LEAGUE_MINIMUM, Player, POSITION_TARGET, Position, ROSTER_LIMIT,
 } from "../types";
-import { capHit, positionCount, rosterCount, teamCap } from "../select";
+import { capHit, isOnWaivers, positionCount, rosterCount, teamCap } from "../select";
 import { askingPrice, negotiatedApy, suggestedYears } from "./contracts";
 import {
   FrontOffice, Posture, SPEND_FLOOR, evaluate, frontOffice, targetSpend, teamOutlook,
@@ -77,7 +77,7 @@ export function liveBids(state: GameState): FaBid[] {
   if (!state.fa) return [];
   const free = new Set<number>();
   for (const p of state.players) {
-    if (p.teamId === null && !p.retired && !p.prospect) free.add(p.id);
+    if (p.teamId === null && !p.retired && !p.prospect && !isOnWaivers(state, p.id)) free.add(p.id);
   }
   return state.fa.bids.filter((b) => free.has(b.playerId));
 }
@@ -132,7 +132,7 @@ function placeCpuBids(state: GameState, rng: Rng, round: number): void {
   if (fa.complete) return;
 
   const pool = state.players
-    .filter((p) => p.teamId === null && !p.retired && !p.prospect)
+    .filter((p) => p.teamId === null && !p.retired && !p.prospect && !isOnWaivers(state, p.id))
     .sort((a, b) => a.id - b.id);
 
   if (pool.length === 0) return;
@@ -577,7 +577,7 @@ export function resolveFaWave(state: GameState, rng: Rng, round: number): WaveOu
 
 export function faPool(state: GameState): Player[] {
   return state.players
-    .filter((p) => p.teamId === null && !p.retired && !p.prospect)
+    .filter((p) => p.teamId === null && !p.retired && !p.prospect && !isOnWaivers(state, p.id))
     .sort((a, b) => {
       const va = userVeteranView(state, a).ovr;
       const vb = userVeteranView(state, b).ovr;

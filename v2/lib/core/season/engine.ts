@@ -11,6 +11,7 @@ import { generateUserOffers, runCpuTrades } from "../trades";
 import { freeActiveSlot } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
+import { resolveWaivers } from "../waivers";
 
 /**
  * Share of in-season trade activity by distance from the deadline, derived
@@ -30,6 +31,7 @@ const TRADE_WEEK_WEIGHTS = [0.40, 0.18, 0.11, 0.07, 0.06, 0.05, 0.045, 0.04, 0.0
  */
 
 export function startRegularSeason(state: GameState): void {
+  resolveWaivers(state);
   const rng = new Rng(state.rngState);
   state.games = generateSchedule(state, rng);
   state.phase = "regular";
@@ -46,6 +48,7 @@ export function startRegularSeason(state: GameState): void {
 
 /** Simulate every unplayed game in the current week. */
 export function simulateWeek(state: GameState): void {
+  resolveWaivers(state);
   const rng = new Rng(state.rngState);
   refreshDepthCharts(state);
 

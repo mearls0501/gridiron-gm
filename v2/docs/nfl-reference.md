@@ -454,7 +454,18 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   +1 international PS slot. Elevations are 3 per player everywhere, including
   playoffs. The 6-vested-veteran PS cap is omitted: `yearsPro` is not an
   accrued-season count, and inventing one would be a new career-accrual system.
-  Cuts stash to PS or FA with no waiver wire. Ungated published rules.
+  Ungated published rules.
+- **Waiver wire.** Added 2026-09-02. Not in T/D/S/P — there is no waiver
+  table in those datasets. Design doc Part 5
+  (`docs/front-office-design-2026-07-28.md`): everyone cut passes through
+  waivers before you can stash him. The NFL does not bid cash on waivers;
+  priority is the cost. Claim order is inverse standings (worse record
+  first), using the existing `leagueStandings` / `compareTeamsCore` sort —
+  no Super Bowl exception, no invented 24-hour clock. The game has no
+  wall-clock; one claim window resolves at the next sim step (Play Week,
+  Start the Season during cutdown, or the preseason→season advance for
+  cutdown leftovers). Unclaimed: original club may PS-stash if under 16,
+  else FA. Claiming club gets the contract as-is. Ungated.
 - **Gameday actives (47, or 48 with 8 OL).** Added 2026-09-02. Not in T/D/S/P.
   Same calendar source as the 90-man camp and PS 16 notes
   (`docs/front-office-design-2026-07-28.md` Part 5). Regular-season and
