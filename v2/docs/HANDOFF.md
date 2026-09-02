@@ -34,6 +34,20 @@ pause for it; a new offer in week 8 still pauses.
 File cluster: `tradeWindow.ts` + test, `lib/store/simTo.ts`,
 `lib/store/game.ts` (delegates), this note.
 
+### Gate (`nproc`=4)
+
+Fast: all 16 harnesses exit 0 (`tradewindow` included). Two inherited
+single-seed metric reds — leave them; same family as PR #26–#34. Do not
+touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.qb10PassYds  3697  expected 4028 +/-322
+```
+
+Browser: Week 10 Denver leftover (DET), Accept dead / Reject live,
+Through the Playoffs reached Season Review without pausing on the offer.
+
 ---
 
 ## 2026-09-02 — gameday inactives / sit-him (branch `cursor/gameday-inactives-8621`)
