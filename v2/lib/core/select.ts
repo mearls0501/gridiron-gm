@@ -31,10 +31,31 @@ export function teamRoster(state: GameState, teamId: number): Player[] {
   return state.players.filter((p) => p.teamId === teamId && !p.retired && !p.prospect);
 }
 
+/** Missing `status` is active — old saves and new signings. */
+export function isActiveRoster(p: Player): boolean {
+  return p.status !== "ir" && p.status !== "ps";
+}
+
 export function rosterCount(state: GameState, teamId: number): number {
   let n = 0;
   for (const p of state.players) {
-    if (p.teamId === teamId && !p.retired && !p.prospect) n++;
+    if (p.teamId === teamId && !p.retired && !p.prospect && isActiveRoster(p)) n++;
+  }
+  return n;
+}
+
+export function irCount(state: GameState, teamId: number): number {
+  let n = 0;
+  for (const p of state.players) {
+    if (p.teamId === teamId && !p.retired && !p.prospect && p.status === "ir") n++;
+  }
+  return n;
+}
+
+export function practiceSquadCount(state: GameState, teamId: number): number {
+  let n = 0;
+  for (const p of state.players) {
+    if (p.teamId === teamId && !p.retired && !p.prospect && p.status === "ps") n++;
   }
   return n;
 }
@@ -50,7 +71,7 @@ export function draftClass(state: GameState, season: number): Player[] {
 export function positionCount(state: GameState, teamId: number, pos: Position): number {
   let n = 0;
   for (const p of state.players) {
-    if (p.teamId === teamId && p.pos === pos && !p.retired && !p.prospect) n++;
+    if (p.teamId === teamId && p.pos === pos && !p.retired && !p.prospect && isActiveRoster(p)) n++;
   }
   return n;
 }

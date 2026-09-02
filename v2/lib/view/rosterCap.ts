@@ -1,4 +1,4 @@
-import { rosterCount } from "../core/select";
+import { irCount, practiceSquadCount, rosterCount } from "../core/select";
 import { GameState, ROSTER_LIMIT, isCampPhase, rosterLimit } from "../core/types";
 
 /**
@@ -15,6 +15,8 @@ export interface RosterCapView {
   overCap: number;
   overSeason: number;
   short: number;
+  ir: number;
+  ps: number;
   label: string;
   sub: string;
   tone: "good" | "warn";
@@ -28,6 +30,8 @@ export function rosterCapView(state: GameState, teamId: number): RosterCapView {
   const overCap = Math.max(0, count - cap);
   const overSeason = camp ? Math.max(0, count - ROSTER_LIMIT) : 0;
   const short = Math.max(0, ROSTER_LIMIT - count);
+  const ir = irCount(state, teamId);
+  const ps = practiceSquadCount(state, teamId);
 
   let sub: string;
   if (overCap > 0) {
@@ -52,6 +56,8 @@ export function rosterCapView(state: GameState, teamId: number): RosterCapView {
     overCap,
     overSeason,
     short,
+    ir,
+    ps,
     label: `${count}/${cap}`,
     sub,
     tone,
@@ -61,5 +67,5 @@ export function rosterCapView(state: GameState, teamId: number): RosterCapView {
 
 export function hubCampCutdownCopy(view: RosterCapView): string | null {
   if (!view.cutdown) return null;
-  return `Camp roster ${view.label}. Cut ${view.overSeason} on /roster before the season, or Start the Season will auto-cut.`;
+  return `Camp roster ${view.label}. Cut ${view.overSeason} on /roster before the season, or Start the Season will auto-cut to 53 (extras may land on the practice squad).`;
 }

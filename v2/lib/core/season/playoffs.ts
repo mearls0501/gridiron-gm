@@ -1,7 +1,7 @@
 import { Rng } from "../rng";
 import { simulateGame } from "../sim/game";
 import {
-  Conference, Game, GameState, PlayoffRound, PlayoffSeed, PlayoffState,
+  Conference, Game, GameState, PlayoffRound, PlayoffSeed, PlayoffState, ROSTER_LIMIT,
 } from "../types";
 import { computeSeeds } from "./standings";
 import { FRANCHISES } from "../names";
@@ -9,6 +9,9 @@ import { makeConditions } from "../weather";
 import { applyGameStats } from "./stats";
 import { recordGame } from "./records";
 import { applyGameWear, healWeek, healthySet } from "./injuries";
+import { fillRoster } from "../offseason/contracts";
+import { autoDesignateIr, tickIrGames } from "../rosterStatus";
+import { rosterCount } from "../select";
 
 /**
  * Postseason.
@@ -194,6 +197,18 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   // league is already home.
   applyGameWear(state, healthyBefore, rng);
   healWeek(state);
+  const played = new Set<number>();
+  for (const g of games) {
+    if (!g.played) continue;
+    played.add(g.homeId);
+    played.add(g.awayId);
+  }
+  autoDesignateIr(state);
+  tickIrGames(state, played);
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    if (rosterCount(state, t.id) < ROSTER_LIMIT) fillRoster(state, t.id, rng);
+  }
 
   // Advance the bracket.
   if (ps.round === "SB") {

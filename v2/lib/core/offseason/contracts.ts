@@ -1,10 +1,11 @@
 import { Rng, clamp } from "../rng";
 import { defaultGuaranteedYears, makeContract, makePlayer, marketApy } from "../generate";
 import {
-  GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player, ROSTER_LIMIT, Position, POSITION_MIN,
-  rosterLimit,
+  GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player, PRACTICE_SQUAD_LIMIT, ROSTER_LIMIT,
+  Position, POSITION_MIN, rosterLimit,
 } from "../types";
-import { addDeadCap, capHit, deadMoney, positionCount, rosterCount, startSeason, teamCap } from "../select";
+import { addDeadCap, capHit, deadMoney, isActiveRoster, positionCount, practiceSquadCount, rosterCount, startSeason, teamCap } from "../select";
+import { clearRosterSlot, placeOnPs } from "../rosterStatus";
 import { POSITION_VALUE } from "../ratings";
 import { evaluate, frontOffice, targetSpend, teamOutlook, SPEND_FLOOR, payroll } from "../frontOffice";
 
@@ -41,6 +42,7 @@ export function expireContracts(state: GameState): Player[] {
       if (p.teamId !== null) {
         expiring.push(p);
         p.teamId = null;
+        clearRosterSlot(p);
       }
     }
   }
@@ -67,6 +69,7 @@ export function cutPlayer(state: GameState, playerId: number): CutResult {
   addDeadCap(state, teamId, dead);
   p.teamId = null;
   p.contract = null;
+  clearRosterSlot(p);
 
   state.log.push({
     season: state.season,
@@ -123,6 +126,7 @@ export function signPlayer(
 
   p.teamId = teamId;
   p.contract = contract;
+  clearRosterSlot(p);
   state.log.push({
     season: state.season,
     week: state.week,
@@ -306,10 +310,12 @@ function signAtMarket(state: GameState, teamId: number, p: Player, rng: Rng): vo
   const yrs = apy <= LEAGUE_MINIMUM * 1.25 ? 1 : suggestedYears(p);
   p.teamId = teamId;
   p.contract = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
+  clearRosterSlot(p);
 }
 
 export function fillRoster(
-  state: GameState, teamId: number, rng: Rng, limit = rosterLimit(state.phase)
+  state: GameState, teamId: number, rng: Rng,
+  limit = rosterLimit(state.phase), stashPs = false,
 ): void {
   // 1. Position minimums first.
   for (const pos of Object.keys(POSITION_MIN) as Position[]) {
@@ -337,8 +343,12 @@ export function fillRoster(
   }
 
   // 3. Trim only above the phase ceiling (90 in camp, 53 once the season locks).
+  // Cutdown stash: extras go to the 16-man PS before FA. No waivers.
   guard = 0;
   while (rosterCount(state, teamId) > limit && guard++ < 120) {
+    if (stashPs && practiceSquadCount(state, teamId) < PRACTICE_SQUAD_LIMIT) {
+      if (moveWorstSurplus(state, teamId, null, "ps")) continue;
+    }
     if (!cutWorstSurplus(state, teamId, null)) break;
   }
 }
@@ -366,8 +376,14 @@ export function fillRoster(
  * its own pick.
  */
 function cutWorstSurplus(state: GameState, teamId: number, protectPos: Position | null): boolean {
+  return moveWorstSurplus(state, teamId, protectPos, "cut");
+}
+
+function moveWorstSurplus(
+  state: GameState, teamId: number, protectPos: Position | null, dest: "cut" | "ps"
+): boolean {
   const roster = state.players.filter(
-    (p) => p.teamId === teamId && !p.retired && !p.prospect
+    (p) => p.teamId === teamId && !p.retired && !p.prospect && isActiveRoster(p)
   );
   const candidates = roster.filter((p) => {
     if (protectPos && p.pos === protectPos) return false;
@@ -378,6 +394,10 @@ function cutWorstSurplus(state: GameState, teamId: number, protectPos: Position 
     evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season);
   const target = candidates.sort((a, b) => worth(a) - worth(b))[0];
   if (!target) return false;
+  if (dest === "ps") {
+    const res = placeOnPs(state, target.id);
+    return res.ok;
+  }
   cutPlayer(state, target.id);
   return true;
 }
@@ -560,7 +580,7 @@ export function upgradeRoster(state: GameState, teamId: number, rng: Rng): numbe
   while (swaps < MAX_UPGRADES) {
     const space = teamCap(state, teamId).space;
     const roster = state.players.filter(
-      (p) => p.teamId === teamId && !p.retired && !p.prospect && p.contract
+      (p) => p.teamId === teamId && !p.retired && !p.prospect && p.contract && isActiveRoster(p)
     );
 
     // The weakest man at each position, by the club's own valuation.
@@ -650,7 +670,7 @@ export function enforceCap(state: GameState, teamId: number): void {
     );
     // Cut the player whose cap hit buys the least ability, protecting minimums.
     const candidates = roster
-      .filter((p) => positionCount(state, teamId, p.pos) > POSITION_MIN[p.pos])
+      .filter((p) => !isActiveRoster(p) || positionCount(state, teamId, p.pos) > POSITION_MIN[p.pos])
       .map((p) => ({
         p,
         savings: capHit(p.contract) - deadMoney(p.contract),
@@ -674,11 +694,12 @@ export function enforceCap(state: GameState, teamId: number): void {
  * verification harness caught.
  */
 export function reconcileRoster(
-  state: GameState, teamId: number, rng: Rng, limit = rosterLimit(state.phase)
+  state: GameState, teamId: number, rng: Rng,
+  limit = rosterLimit(state.phase), stashPs = false,
 ): void {
   for (let pass = 0; pass < 8; pass++) {
     enforceCap(state, teamId);
-    fillRoster(state, teamId, rng, limit);
+    fillRoster(state, teamId, rng, limit, stashPs);
 
     const cap = teamCap(state, teamId);
     const count = rosterCount(state, teamId);
@@ -706,5 +727,5 @@ export function reconcileRoster(
       text: `${state.teams[teamId].abbr} restructured ${target.firstName} ${target.lastName} (${target.pos}) to the league minimum — forced by the cap, was $${(was / 1e6).toFixed(1)}M`,
     });
   }
-  fillRoster(state, teamId, rng, limit);
+  fillRoster(state, teamId, rng, limit, stashPs);
 }

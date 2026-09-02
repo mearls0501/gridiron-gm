@@ -5,6 +5,64 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-02 — IR and 16-man practice squad (branch `cursor/ir-practice-squad-39ba`)
+
+Matt unparked the hole after camp (PR #32): an ACL still occupied a 53 slot,
+Hub showed "N injured", and Auto-fix / fill could not replace him without a
+cut. Cutdown leftovers went to FA only. `/roster` had no IR/PS sections.
+
+**Diagnosis.** Confirmed. `injuryWeeks` / `injuredPlayers` / `WEEKLY_TABLE`
+already exist. `rosterCount` counted every `teamId === club && !retired &&
+!prospect`. Zero IR / practice-squad hits in v2. No second collection —
+status flag on the Player (invariant 4).
+
+**Sizes.** From `docs/front-office-design-2026-07-28.md` Part 5, same source
+as `CAMP_ROSTER_LIMIT = 90`. Not in T/D/S/P. Recorded in `nfl-reference.md`
+§4 as ungated published rules: PS **16** (no +1 international), IR **8
+return designations** / **min 4 games**, **3 elevations** per player
+everywhere (including playoffs). 6-vested-veteran PS cap omitted —
+`yearsPro` is not accrued seasons; inventing that would be a new
+career-accrual system.
+
+**Change.** Optional `Player.status` `"ir" | "ps"` (missing = active).
+`rosterCount` / `positionCount` / `rosterCapView` / `rosterIssues` /
+`signPlayer` / `fillRoster` / `reconcileRoster` count active bodies only.
+`/roster` Designate IR, Activate from IR, Place on PS, Elevate from PS.
+Hub injury line is out-on-the-53, plus an IR count. CPU auto-IRs its own
+players in regular/playoffs when remaining `injuryWeeks >= 4` and a return
+designation remains; then fills the 53. After `finalizeOffseason` cutdown,
+extras may land on that club's PS up to 16 instead of only FA. Last year's
+PS fold back into the 53 pool at the next cutdown. Seeded RNG only. No new
+dependencies. `JSON.stringify` round-trip. Injury tables untouched.
+
+**Leftover.** No waiver wire / claim market (design doc says cuts pass
+waivers; this packet stashes without them). No 47/48 gameday actives. No
+camp-to-90 UDFA fill. No 6-vet PS cap.
+
+Untouched: POSITION_VALUE, cpuBoardValue, cpuProspectView, CONTENDER_PULL,
+GUARANTEE_PULL, CARRY_SHARE, WEEKLY_TABLE / POSITION_DURATION /
+POSITION_RISK, PR #9, R1 QB never-start, pass-record volume,
+`tails.milestonesOff`, `docs/baselines.json`.
+
+Regression: `lib/core/rosterStatus.test.ts` (gate `irps`) — injured-on-53
+counts until designated; IR frees a slot and sign-replacement succeeds; PS
+does not count against 53; elevate burns one of 3; return-from-IR respects
+min 4 games / designation cap; `finalizeOffseason` locks every club's
+**active** count at 53; camp 90 still works.
+
+File cluster: `types.ts` (status + sizes), `select.ts` (`isActiveRoster`,
+counts), `rosterStatus.ts` + test, `contracts.ts` / `offseason/index.ts`,
+`season/engine.ts` / `playoffs.ts`, `sim/game.ts` (skip IR/PS), `trades.ts`
+(active-only 53 math), `/roster` + Hub, `rosterCap.ts`, gate/package.json,
+nfl-reference §4, this note.
+
+### Gate
+
+Pending this packet's run. Inherited fast-gate reds stay:
+`leverage.wrongSign`, `statcheck.leadRecYds`, `statcheck.rb5RushYds`.
+
+---
+
 ## 2026-09-02 — training-camp roster then cutdown to 53 (branch `cursor/camp-cutdown-53-9b30`)
 
 Matt unparked the post-draft hole from GM Playtest year 0901: draft + UDFA

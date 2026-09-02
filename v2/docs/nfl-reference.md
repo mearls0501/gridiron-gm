@@ -448,6 +448,13 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   published NFL training-camp holding limit is 90 before the single cut to 53
   (`docs/front-office-design-2026-07-28.md`). No dataset here enumerates camp
   headcount. Ungated; the number is the published rule, not a computed target.
+- **Practice squad (16) and IR (8 return designations, min 4 games, 3
+  elevations).** Added 2026-09-02. Not in T/D/S/P. Same calendar source as the
+  90-man camp note (`docs/front-office-design-2026-07-28.md` Part 5). Skip the
+  +1 international PS slot. Elevations are 3 per player everywhere, including
+  playoffs. The 6-vested-veteran PS cap is omitted: `yearsPro` is not an
+  accrued-season count, and inventing one would be a new career-accrual system.
+  Cuts stash to PS or FA with no waiver wire. Ungated published rules.
 
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 

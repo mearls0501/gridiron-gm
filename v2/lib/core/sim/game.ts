@@ -94,7 +94,8 @@ const blankPlayerStat = blankPlayerGameStat;
  */
 function healthyRosterFor(state: GameState, team: Team): Player[] {
   return state.players.filter(
-    (p) => p.teamId === team.id && !p.retired && !p.prospect && p.injuryWeeks <= 0
+    (p) => p.teamId === team.id && !p.retired && !p.prospect && p.injuryWeeks <= 0 &&
+      p.status !== "ir" && p.status !== "ps"
   );
 }
 
@@ -110,7 +111,8 @@ function buildStarters(
 
     for (const id of team.depthChart[posKey] ?? []) {
       const p = byId.get(id);
-      if (p && p.teamId === team.id && !p.retired && p.injuryWeeks <= 0) {
+      if (p && p.teamId === team.id && !p.retired && p.injuryWeeks <= 0 &&
+          p.status !== "ir" && p.status !== "ps") {
         chosen.push(p);
         if (chosen.length >= need) break;
       }
@@ -484,6 +486,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
   const nextAvailable = (ctx: Ctx, pos: Position, unit: Player[]): Player | undefined => {
     const usable = (p: Player | undefined): p is Player =>
       !!p && p.teamId === ctx.team.id && !p.retired && p.injuryWeeks <= 0 &&
+      p.status !== "ir" && p.status !== "ps" &&
       !ctx.out.has(p.id) && !unit.includes(p);
 
     for (const id of ctx.team.depthChart[pos] ?? []) {

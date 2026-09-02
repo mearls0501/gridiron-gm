@@ -17,10 +17,16 @@ import { autoSortDepthChart } from "@/lib/core/generate";
 import { Rng } from "@/lib/core/rng";
 import { playerName } from "@/lib/core/ratings";
 import {
+  GameState,
   POSITION_GROUP,
   POSITIONS,
   Player,
 } from "@/lib/core/types";
+import { isActiveRoster } from "@/lib/core/select";
+import {
+  activateFromIr, canActivateFromIr, canDesignateIr, canElevateFromPs, canPlaceOnPs,
+  designateIr, elevateFromPs, placeOnPs,
+} from "@/lib/core/rosterStatus";
 import { rosterCapView } from "@/lib/view/rosterCap";
 import {
   Bar,
@@ -91,10 +97,13 @@ export default function RosterPage() {
     // rev changes on every mutation; the state object itself is mutated in place.
     [state, rev]
   );
+  const active = useMemo(() => roster.filter(isActiveRoster), [roster]);
+  const irList = useMemo(() => roster.filter((p) => p.status === "ir"), [roster]);
+  const psList = useMemo(() => roster.filter((p) => p.status === "ps"), [roster]);
 
   const rows = useMemo<Player[]>(() => {
     const q = query.trim().toLowerCase();
-    const filtered = roster.filter((p) => {
+    const filtered = active.filter((p) => {
       if (group !== "All" && POSITION_GROUP[p.pos] !== group) return false;
       if (q && !playerName(p).toLowerCase().includes(q) && !p.pos.toLowerCase().includes(q)) return false;
       return true;
@@ -104,7 +113,7 @@ export default function RosterPage() {
       const c = compare(a, b, sortKey);
       return c !== 0 ? c * dir : a.id - b.id;
     });
-  }, [roster, group, query, sortKey, sortDir]);
+  }, [active, group, query, sortKey, sortDir]);
 
   if (!state) return null;
 
@@ -133,6 +142,16 @@ export default function RosterPage() {
       return `Released ${name} — ${formatMoney(res.dead)} dead money, ${formatMoney(res.savings)} saved`;
     });
     setConfirmId(null);
+  }
+
+  function move(fn: (s: GameState) => { ok: boolean; reason?: string }, ok: string) {
+    apply((s) => {
+      const res = fn(s);
+      if (!res.ok) return res.reason ?? "That move could not be completed.";
+      const t = s.teams[s.userTeamId];
+      if (!t.depthChartManual) autoSortDepthChart(s, t);
+      return ok;
+    });
   }
 
   function autoFill() {
@@ -172,7 +191,7 @@ export default function RosterPage() {
         <Stat
           label="Roster"
           value={clip.label}
-          sub={clip.sub}
+          sub={clip.ir || clip.ps ? `${clip.sub} · ${clip.ir} IR · ${clip.ps} PS` : clip.sub}
           tone={clip.tone}
         />
         <Stat
@@ -196,9 +215,10 @@ export default function RosterPage() {
           subtitle={`${clip.label} camp roster — cut ${clip.overSeason} to reach the 53-man season roster`}
         >
           <p className="text-sm text-[var(--color-muted)]">
-            Training camp may hold up to {clip.cap}. Release players below to cut, or keep them
-            through Start the Season — CPU clubs auto-cut then, and leftover extras on this
-            club are cut with them. Hub Auto-fix is not required.
+            Training camp may hold up to {clip.cap}. Release players below to cut, stash extras
+            on the practice squad, or keep them through Start the Season — leftover extras may
+            land on this club&apos;s 16-man practice squad instead of only becoming free agents.
+            Hub Auto-fix is not required.
           </p>
         </Card>
       )}
@@ -224,8 +244,8 @@ export default function RosterPage() {
       )}
 
       <Card
-        title={`${team.city} ${team.name} Roster`}
-        subtitle={`${rows.length} of ${roster.length} players shown`}
+        title={`${team.city} ${team.name} Active Roster`}
+        subtitle={`${rows.length} of ${active.length} active shown · ${clip.label}`}
         actions={
           <Button variant="primary" size="sm" onClick={autoFill} title="Sign the best available free agents until the roster is legal">
             Auto-fill roster
@@ -259,7 +279,7 @@ export default function RosterPage() {
           )}
         </div>
 
-        {roster.length === 0 ? (
+        {active.length === 0 ? (
           <Empty
             title="No players on the roster"
             hint="Every player has been released or the franchise has not been stocked yet. Auto-fill signs the best available free agents up to the 53-man limit."
@@ -336,14 +356,105 @@ export default function RosterPage() {
                         </Button>
                       </div>
                     ) : (
-                      <Button size="sm" variant="ghost" onClick={() => setConfirmId(p.id)}>
-                        Release
-                      </Button>
+                      <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                        {canDesignateIr(p) && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => move((s) => designateIr(s, p.id), `Designated ${playerName(p)} to IR`)}
+                          >
+                            Designate IR
+                          </Button>
+                        )}
+                        {canPlaceOnPs(state, p) && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => move((s) => placeOnPs(s, p.id), `Placed ${playerName(p)} on the practice squad`)}
+                          >
+                            Place on PS
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={() => setConfirmId(p.id)}>
+                          Release
+                        </Button>
+                      </div>
                     )}
                   </Cell>
                 </Row>
               );
             })}
+          </Table>
+        )}
+      </Card>
+
+      <Card
+        title="Injured Reserve"
+        subtitle={`${irList.length} on IR · does not count against ${clip.cap}`}
+        padded={false}
+      >
+        {irList.length === 0 ? (
+          <Empty title="No one on injured reserve" hint="Designate a player out at least 4 games to free a 53-man slot." />
+        ) : (
+          <Table head={["Player", "Pos", "OVR", "Injury", "Games", ""]}>
+            {irList.map((p) => (
+              <Row key={p.id}>
+                <Cell align="left"><PlayerLink p={p} className="font-medium" /></Cell>
+                <Cell><PosBadge pos={p.pos} /></Cell>
+                <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                <Cell>
+                  {p.injuryWeeks > 0 ? (
+                    <Pill tone="bad">{p.injuryDesc ?? "Injured"} · {p.injuryWeeks}w</Pill>
+                  ) : (
+                    <span className="text-[var(--color-faint)]">Healthy</span>
+                  )}
+                </Cell>
+                <Cell>{p.irGames ?? 0}</Cell>
+                <Cell>
+                  {canActivateFromIr(state, p) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => move((s) => activateFromIr(s, p.id), `Activated ${playerName(p)} from IR`)}
+                    >
+                      Activate from IR
+                    </Button>
+                  )}
+                </Cell>
+              </Row>
+            ))}
+          </Table>
+        )}
+      </Card>
+
+      <Card
+        title="Practice Squad"
+        subtitle={`${psList.length} of 16 · does not count against ${clip.cap}`}
+        padded={false}
+      >
+        {psList.length === 0 ? (
+          <Empty title="Practice squad is empty" hint="Place extras here after cutdown, or during the season, instead of only releasing them." />
+        ) : (
+          <Table head={["Player", "Pos", "OVR", "Elevations", ""]}>
+            {psList.map((p) => (
+              <Row key={p.id}>
+                <Cell align="left"><PlayerLink p={p} className="font-medium" /></Cell>
+                <Cell><PosBadge pos={p.pos} /></Cell>
+                <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                <Cell>{p.psElevations ?? 0} / 3</Cell>
+                <Cell>
+                  {canElevateFromPs(state, p) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => move((s) => elevateFromPs(s, p.id), `Elevated ${playerName(p)} from the practice squad`)}
+                    >
+                      Elevate from PS
+                    </Button>
+                  )}
+                </Cell>
+              </Row>
+            ))}
           </Table>
         )}
       </Card>
