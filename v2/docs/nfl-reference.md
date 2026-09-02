@@ -455,6 +455,12 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   playoffs. The 6-vested-veteran PS cap is omitted: `yearsPro` is not an
   accrued-season count, and inventing one would be a new career-accrual system.
   Cuts stash to PS or FA with no waiver wire. Ungated published rules.
+- **Gameday actives (47, or 48 with 8 OL).** Added 2026-09-02. Not in T/D/S/P.
+  Same calendar source as the 90-man camp and PS 16 notes
+  (`docs/front-office-design-2026-07-28.md` Part 5). Regular-season and
+  playoff clubs dress at most 47, or 48 when the 53 includes 8 offensive
+  linemen (OT/OG/C). Inactive count is 53 minus that cap. Ungated published
+  rule.
 
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 

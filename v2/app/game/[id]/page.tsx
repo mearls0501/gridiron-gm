@@ -413,6 +413,29 @@ export default function GamePage() {
             </div>
           ))
         )}
+        {(() => {
+          const scratches = (box.inactives ?? [])
+            .map((id) => players.get(id))
+            .filter((p): p is NonNullable<typeof p> => !!p && p.teamId === t.id);
+          if (scratches.length === 0) return null;
+          return (
+            <div className="border-t border-[var(--color-line-soft)]">
+              <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+                Inactive · 0 snaps
+              </div>
+              <div className="divide-y divide-[var(--color-line-soft)]">
+                {scratches.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                    <PosBadge pos={p.pos} />
+                    <PlayerLink p={p} className="min-w-0" />
+                    <Pill>inactive</Pill>
+                    <span className="ml-auto text-xs text-[var(--color-muted)] tnum">0 snaps</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </Card>
     );
   }

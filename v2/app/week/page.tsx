@@ -7,6 +7,13 @@ import { Button, Card, Empty, Pill, PosBadge, cx } from "@/components/ui";
 import { PHASE_LABEL } from "@/components/Shell";
 import { buildBriefing } from "@/lib/core/season/briefing";
 import { OFFSEASON_STEPS } from "@/lib/core/offseason";
+import { isActiveRoster, teamRoster } from "@/lib/core/select";
+import { playerName } from "@/lib/core/ratings";
+import { POSITIONS } from "@/lib/core/types";
+import {
+  activateFromInactive, canSit, gamedayInactiveView, isSat, sitPlayer,
+} from "@/lib/core/inactives";
+import { isOnBye } from "@/lib/core/season/engine";
 
 /**
  * The weekly briefing: what just happened, what needs your decision, and
@@ -16,6 +23,7 @@ import { OFFSEASON_STEPS } from "@/lib/core/offseason";
 export default function WeekPage() {
   const state = useGame((s) => s.state);
   const rev = useGame((s) => s.rev);
+  const apply = useGame((s) => s.apply);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const b = useMemo(() => (state ? buildBriefing(state) : null), [state, rev]);
@@ -181,12 +189,76 @@ export default function WeekPage() {
                 )}
               </div>
             </div>
-            <div className="pt-2">
+            <div className="pt-2 flex flex-wrap gap-2">
               <Link href="/depth-chart"><Button size="sm">Set the Depth Chart</Button></Link>
             </div>
           </div>
         </Card>
       )}
+
+      {/* ---- Gameday inactives -------------------------------------------- */}
+      {state && (state.phase === "regular" || state.phase === "playoffs") &&
+        !isOnBye(state, state.userTeamId) && (() => {
+          const gameday = gamedayInactiveView(state, state.userTeamId);
+          const team = state.teams[state.userTeamId];
+          const actives = teamRoster(state, state.userTeamId)
+            .filter(isActiveRoster)
+            .sort((a, b) => POSITIONS.indexOf(a.pos) - POSITIONS.indexOf(b.pos) || b.ovr - a.ovr);
+          return (
+            <Card
+              title="Gameday Inactives"
+              subtitle={`${gameday.cap} actives this week${gameday.eightOl ? ` · 8 OL (${gameday.ol})` : ` · ${gameday.ol} OL`} · sit at least ${gameday.need}. Injured on the 53 already count.`}
+              padded={false}
+            >
+              <div className="px-4 py-2.5 text-xs text-[var(--color-muted)] border-b border-[var(--color-line-soft)]">
+                {gameday.injured} injured · {gameday.sat} sat · {gameday.credited} of {gameday.need} required
+                {gameday.stillNeed > 0
+                  ? ` — declare ${gameday.stillNeed} more, or Play Week will scratch extras.`
+                  : " — cap met. Sitting more healthy scratches is allowed."}
+              </div>
+              <div className="divide-y divide-[var(--color-line-soft)]">
+                {actives.map((p) => {
+                  const sat = isSat(team, p.id);
+                  return (
+                    <div key={p.id} className="flex items-center gap-2 px-4 py-2 text-sm">
+                      <PosBadge pos={p.pos} />
+                      <span className="font-medium min-w-0 truncate">{playerName(p)}</span>
+                      <span className="text-xs text-[var(--color-faint)] tnum">{p.ovr}</span>
+                      {p.injuryWeeks > 0 && <Pill tone="warn">out</Pill>}
+                      {sat && <Pill tone="accent">inactive</Pill>}
+                      <span className="ml-auto">
+                        {sat ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => apply((s) => {
+                              const res = activateFromInactive(s, p.id);
+                              return res.ok ? `Activated ${playerName(p)}` : (res.reason ?? "Could not activate");
+                            })}
+                          >
+                            Activate
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={!canSit(state, p) && p.injuryWeeks <= 0}
+                            onClick={() => apply((s) => {
+                              const res = sitPlayer(s, p.id);
+                              return res.ok ? `Sat ${playerName(p)}` : (res.reason ?? "Could not sit");
+                            })}
+                          >
+                            Sit
+                          </Button>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          );
+        })()}
 
       {/* ---- Your injury report -------------------------------------------- */}
       {b.injuries.length > 0 && (

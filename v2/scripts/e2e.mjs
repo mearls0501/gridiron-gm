@@ -13,7 +13,7 @@ import { chromium } from "playwright";
 const BASE = process.argv[2] ?? "http://127.0.0.1:3000";
 
 const ROUTES = [
-  "/", "/roster", "/depth-chart", "/schedule", "/standings", "/stats",
+  "/", "/roster", "/week", "/depth-chart", "/schedule", "/standings", "/stats",
   "/records", "/playoffs", "/free-agency", "/draft", "/finances", "/league", "/saves",
 ];
 
@@ -162,6 +162,15 @@ async function main() {
   }
   await checkPage("[start season] /");
   console.log("  ok    season started");
+
+  await page.goto(BASE + "/week", { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  const weekTxt = await page.evaluate(() => document.body.innerText);
+  if (!/Gameday Inactives/.test(weekTxt) || !/\bSit\b/.test(weekTxt)) {
+    fail("week missing gameday inactives / Sit");
+  } else {
+    console.log("  ok    /week shows gameday inactives");
+  }
 
   // Sit leftover: Hub Sim ▾ stayed open after click-away and Esc.
   const simMenuBtn = page.getByRole("button", { name: /^Sim/ }).filter({ hasNotText: /Round|Week/ });

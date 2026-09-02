@@ -10,6 +10,7 @@ import { applyGameWear, healWeek, healthySet, rollWeeklyInjuries } from "./injur
 import { generateUserOffers, runCpuTrades } from "../trades";
 import { freeActiveSlot } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
+import { clearInactives, declareGamedayInactives } from "../inactives";
 
 /**
  * Share of in-season trade activity by distance from the deadline, derived
@@ -51,6 +52,13 @@ export function simulateWeek(state: GameState): void {
   const games = state.games.filter(
     (g) => g.season === state.season && g.week === state.week && !g.played && g.playoffRound === null
   );
+
+  const dressing = new Set<number>();
+  for (const g of games) {
+    dressing.add(g.homeId);
+    dressing.add(g.awayId);
+  }
+  declareGamedayInactives(state, dressing);
 
   // Who was fit at kickoff, so anything that turns serious during the games can
   // be charged against the player's durability afterwards.
@@ -95,6 +103,7 @@ export function simulateWeek(state: GameState): void {
     played.add(g.awayId);
   }
   applyCpuIrAndFill(state, played);
+  clearInactives(state);
 
   // The phones stay on until the deadline, but September is quiet and the
   // deadline week is a frenzy: real in-season trades put ~3-4% of the year's
