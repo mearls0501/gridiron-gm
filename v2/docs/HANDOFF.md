@@ -30,10 +30,14 @@ career-accrual system.
 `/roster` Designate IR, Activate from IR, Place on PS, Elevate from PS.
 Hub injury line is out-on-the-53, plus an IR count. CPU auto-IRs its own
 players in regular/playoffs when remaining `injuryWeeks >= 4` and a return
-designation remains; then fills the 53. After `finalizeOffseason` cutdown,
-extras may land on that club's PS up to 16 instead of only FA. Last year's
-PS fold back into the 53 pool at the next cutdown. Seeded RNG only. No new
-dependencies. `JSON.stringify` round-trip. Injury tables untouched.
+designation remains. The slot stays open so a replacement can be signed
+(CPU does not auto-sign — that fill shifted the stream and parked healthy
+starters). CPU auto-activates when healthy and 4 games are served, freeing
+a 53 slot onto PS first if someone else filled. After `finalizeOffseason`
+cutdown, extras may land on that club's PS up to 16 instead of only FA.
+Last year's PS fold back into the 53 pool at the next cutdown. Seeded RNG
+only. No new dependencies. `JSON.stringify` round-trip. Injury tables
+untouched.
 
 **Leftover.** No waiver wire / claim market (design doc says cuts pass
 waivers; this packet stashes without them). No 47/48 gameday actives. No
@@ -56,10 +60,22 @@ counts), `rosterStatus.ts` + test, `contracts.ts` / `offseason/index.ts`,
 (active-only 53 math), `/roster` + Hub, `rosterCap.ts`, gate/package.json,
 nfl-reference §4, this note.
 
-### Gate
+### Gate (`nproc`=4)
 
-Pending this packet's run. Inherited fast-gate reds stay:
-`leverage.wrongSign`, `statcheck.leadRecYds`, `statcheck.rb5RushYds`.
+Fast: all 15 harnesses exit 0 (`irps` included; `verify` 348/348 after
+CPU return-from-IR). Metric reds — do not touch baselines. Inherited
+`leverage.wrongSign` and `statcheck.rb5RushYds` stay. `leadRecYds` did
+not trip this seed. `qb5` / `qb10` / `wr10` are the same single-seed
+family already written in this file (wr10 retired as never a defect;
+qb5 is to be read at 60 seeds, not the fast seed):
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.qb5PassYds  4123   expected 4497 +/-360
+FAIL  statcheck.qb10PassYds 3592   expected 4028 +/-322
+FAIL  statcheck.rb5RushYds  1324   expected 1191 +/-95
+FAIL  statcheck.wr10RecYds  1069   expected 1208 +/-97
+```
 
 ---
 
