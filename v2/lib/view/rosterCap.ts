@@ -67,5 +67,5 @@ export function rosterCapView(state: GameState, teamId: number): RosterCapView {
 
 export function hubCampCutdownCopy(view: RosterCapView): string | null {
   if (!view.cutdown) return null;
-  return `Camp roster ${view.label}. Cut ${view.overSeason} on /roster before the season, or Start the Season will auto-cut to 53 (extras may land on the practice squad).`;
+  return `Camp roster ${view.label}. Cut ${view.overSeason} on /roster before the season, or Start the Season will auto-cut to 53 (extras pass waivers; unclaimed may land on the practice squad).`;
 }

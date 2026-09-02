@@ -60,8 +60,15 @@ export function practiceSquadCount(state: GameState, teamId: number): number {
   return n;
 }
 
+/** Missing `state.waivers` is an empty wire — older saves load. */
+export function isOnWaivers(state: GameState, playerId: number): boolean {
+  return !!state.waivers?.some((w) => w.playerId === playerId);
+}
+
 export function freeAgents(state: GameState): Player[] {
-  return state.players.filter((p) => p.teamId === null && !p.retired && !p.prospect);
+  return state.players.filter(
+    (p) => p.teamId === null && !p.retired && !p.prospect && !isOnWaivers(state, p.id)
+  );
 }
 
 export function draftClass(state: GameState, season: number): Player[] {

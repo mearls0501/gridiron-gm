@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "tsx lib/store/simToast.test.ts && tsx lib/view/draftToast.test.ts && tsx lib/view/newGameRoute.test.ts && tsx lib/view/simMenu.test.ts && tsx lib/view/tradeWindow.test.ts && tsx lib/view/rosterCap.test.ts && tsx lib/core/rosterStatus.test.ts && tsx lib/core/inactives.test.ts",
+    "test": "tsx lib/store/simToast.test.ts && tsx lib/view/draftToast.test.ts && tsx lib/view/newGameRoute.test.ts && tsx lib/view/simMenu.test.ts && tsx lib/view/tradeWindow.test.ts && tsx lib/view/rosterCap.test.ts && tsx lib/core/rosterStatus.test.ts && tsx lib/core/inactives.test.ts && tsx lib/core/waivers.test.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

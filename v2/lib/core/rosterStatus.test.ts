@@ -12,9 +12,10 @@ import {
   enterDraft, finalizeOffseason, runUdfaChase, simEntireDraft,
 } from "./offseason";
 import { askingPrice, fillRoster, freeActiveSlot, reconcileRoster, signPlayer } from "./offseason/contracts";
+import { resolveWaivers } from "./waivers";
 import { makeContract } from "./generate";
 import { Rng } from "./rng";
-import { isActiveRoster, practiceSquadCount, rosterCount, rosterIssues } from "./select";
+import { isActiveRoster, isOnWaivers, practiceSquadCount, rosterCount, rosterIssues } from "./select";
 import {
   CAMP_ROSTER_LIMIT, IR_MIN_GAMES, IR_RETURN_DESIGNATIONS, LEAGUE_MINIMUM,
   PRACTICE_SQUAD_LIMIT, PS_ELEVATIONS_PER_PLAYER, ROSTER_LIMIT,
@@ -205,7 +206,7 @@ function cheapestFa(st: ReturnType<typeof newGame>) {
   assert.equal(cpu.status, "ir", "8th return used: place still works, activate does not");
 }
 
-// Cutdown stash: extras land on PS (up to 16) instead of only FA.
+// Cutdown extras hit waivers first; unclaimed stash to PS (up to 16).
 {
   const st = newGame({ seed: 11 });
   st.phase = "offseason-final";
@@ -213,11 +214,22 @@ function cheapestFa(st: ReturnType<typeof newGame>) {
   const rng = new Rng(st.rngState);
   for (let i = 0; i < 7; i++) {
     fas[i].teamId = st.userTeamId;
+    fas[i].pos = "WR";
+    fas[i].ovr = 20;
+    fas[i].pot = 20;
+    fas[i].age = 29;
+    fas[i].draftedRound = null;
     fas[i].contract = makeContract(rng, LEAGUE_MINIMUM, 1, st.season, 0);
   }
   assert.equal(rosterCount(st, st.userTeamId), 60);
   reconcileRoster(st, st.userTeamId, rng, ROSTER_LIMIT, true);
   assert.equal(rosterCount(st, st.userTeamId), ROSTER_LIMIT);
+  assert.equal(practiceSquadCount(st, st.userTeamId), 0, "cutdown extras wait on waivers");
+  assert.equal((st.waivers ?? []).length, 7);
+  for (const w of st.waivers ?? []) {
+    assert.equal(isOnWaivers(st, w.playerId), true);
+  }
+  resolveWaivers(st);
   assert.equal(practiceSquadCount(st, st.userTeamId), 7);
   st.rngState = rng.state;
 }

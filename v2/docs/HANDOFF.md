@@ -5,6 +5,68 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-02 — waiver wire (branch `cursor/waiver-wire-232b`)
+
+PR #33 leftover: design doc Part 5 says everyone cut passes through waivers
+before you can stash him. Cuts and Place on PS dumped straight to FA or the
+cutter's 16-man PS.
+
+**Diagnosis.** Confirmed. `cutPlayer` nulled the contract, charged dead
+money, and set `teamId` null (immediate FA). `placeOnPs` and cutdown
+`moveWorstSurplus` dest `"ps"` wrote `status: "ps"` on the spot. User
+Place on PS from `/roster` skipped the wire. Elevate from PS and IR
+designate are not cuts — left alone.
+
+**Claim window.** No waiver table in `docs/nfl-reference.md` T/D/S/P.
+Recorded in §4 as ungated. The game has no wall-clock; one claim window
+resolves at the next sim step (Play Week, Start the Season during
+cutdown, or the preseason→season advance for cutdown leftovers). Claim
+order is inverse standings (worse record first) via existing
+`leagueStandings` / `compareTeamsCore` — no Super Bowl exception, no
+cash bid. Priority is the cost. Claiming club gets the contract as-is.
+
+**Change.** Optional `state.waivers?: { playerId, originalTeamId,
+claims? }[]` (missing = nobody). Still one `state.players` array.
+`cutPlayer` and cutdown extras go to waivers first; Place on PS from
+`/roster` is the same waive. User Claim on the `/roster` desk (Hub
+points there). CPU clubs claim by need (open 53 slot or a worse body
+they would cut) using `evaluate` + `draftCapitalHold`, seeded RNG only
+for the rest of the advance. Unclaimed: original club PS-stashes if
+under 16, else FA (dead money then). `finalizeOffseason` still locks
+active 53. Old saves load.
+
+**Leftover.** No 6-vet PS cap, no international PS slot, no 90-man
+UDFA fill, no snap play-calling. CPU still does not auto-sign an IR
+replacement.
+
+Untouched: POSITION_VALUE, cpuBoardValue, cpuProspectView,
+CONTENDER_PULL, GUARANTEE_PULL, CARRY_SHARE, WEEKLY_TABLE, askingPrice
+true-OVR invert, PR #9, `docs/baselines.json`.
+
+Regression: `lib/core/waivers.test.ts` (gate `waivers`) — cut →
+waivers not FA; claim to the claiming club's 53; unclaimed stash to
+original PS; Place on PS hits waivers; old saves; inverse standings.
+
+File cluster: `types.ts` (`WaiverClaim`), `select.ts` (`isOnWaivers`,
+FA filter), `waivers.ts` + test, `contracts.ts` (cut / cutdown dest),
+`season/engine.ts` / `playoffs.ts` / `offseason/index.ts` (resolve on
+the next step), `freeAgency.ts` (skip the wire), `/roster` desk + Hub
+pointer, `rosterCap.ts`, gate/package.json, nfl-reference §4, this note.
+
+### Gate (`nproc`=4)
+
+Fast: all 17 harnesses exit 0 (`waivers` included; `verify` 3 seasons).
+Three inherited single-seed metric reds — leave them; same family as
+PR #26–#34. Do not touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.qb5PassYds  3929   expected 4497 +/-360
+FAIL  statcheck.wr10RecYds  1067   expected 1208 +/-97
+```
+
+---
+
 ## 2026-09-02 — leftover incoming offer survives bulk sim (branch `cursor/leftover-trade-inbox-5466`)
 
 GM Playtest pause 0902 (Boston): Week 10 leftover LA offer, Accept

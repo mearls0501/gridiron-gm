@@ -4,8 +4,8 @@ import {
   GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player, PRACTICE_SQUAD_LIMIT, ROSTER_LIMIT,
   Position, POSITION_MIN, rosterLimit,
 } from "../types";
-import { addDeadCap, capHit, deadMoney, isActiveRoster, positionCount, practiceSquadCount, rosterCount, startSeason, teamCap } from "../select";
-import { clearRosterSlot, placeOnPs } from "../rosterStatus";
+import { capHit, deadMoney, isActiveRoster, isOnWaivers, positionCount, practiceSquadCount, rosterCount, startSeason, teamCap } from "../select";
+import { clearRosterSlot } from "../rosterStatus";
 import { POSITION_VALUE } from "../ratings";
 import { evaluate, frontOffice, targetSpend, teamOutlook, SPEND_FLOOR, payroll } from "../frontOffice";
 
@@ -66,16 +66,18 @@ export function cutPlayer(state: GameState, playerId: number): CutResult {
   const dead = deadMoney(p.contract);
   const savings = capHit(p.contract) - dead;
 
-  addDeadCap(state, teamId, dead);
   p.teamId = null;
-  p.contract = null;
   clearRosterSlot(p);
+  if (!state.waivers) state.waivers = [];
+  if (!state.waivers.some((w) => w.playerId === p.id)) {
+    state.waivers.push({ playerId: p.id, originalTeamId: teamId });
+  }
 
   state.log.push({
     season: state.season,
     week: state.week,
     kind: "transaction",
-    text: `${state.teams[teamId].abbr} released ${p.firstName} ${p.lastName} (${p.pos}) — ${dead > 0 ? `$${(dead / 1e6).toFixed(1)}M dead money` : "no dead money"}`,
+    text: `${state.teams[teamId].abbr} waived ${p.firstName} ${p.lastName} (${p.pos})`,
   });
 
   return { ok: true, dead, savings };
@@ -98,6 +100,7 @@ export function signPlayer(
   if (!p) return { ok: false, reason: "No such player" };
   if (p.retired) return { ok: false, reason: "Player has retired" };
   if (p.teamId !== null) return { ok: false, reason: "Player is already under contract" };
+  if (isOnWaivers(state, p.id)) return { ok: false, reason: "Player is on waivers." };
   const hold = rosterLimit(state.phase);
   if (rosterCount(state, teamId) >= hold) {
     return { ok: false, reason: `Roster is full (${hold}). Release someone first.` };
@@ -290,7 +293,7 @@ function bestAffordable(
 
   let best: Player | null = null;
   for (const p of state.players) {
-    if (p.teamId !== null || p.retired || p.prospect) continue;
+    if (p.teamId !== null || p.retired || p.prospect || isOnWaivers(state, p.id)) continue;
     if (pos !== null && p.pos !== pos) continue;
     if (best && p.ovr <= best.ovr) continue;
     if (askingPrice(state, p) > budget) continue;
@@ -343,7 +346,7 @@ export function fillRoster(
   }
 
   // 3. Trim only above the phase ceiling (90 in camp, 53 once the season locks).
-  // Cutdown stash: extras go to the 16-man PS before FA. No waivers.
+  // Cutdown extras go to waivers; unclaimed may stash to the 16-man PS.
   guard = 0;
   while (rosterCount(state, teamId) > limit && guard++ < 120) {
     if (stashPs && practiceSquadCount(state, teamId) < PRACTICE_SQUAD_LIMIT) {
@@ -402,10 +405,6 @@ function moveWorstSurplus(
     evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season);
   const target = candidates.sort((a, b) => worth(a) - worth(b))[0];
   if (!target) return false;
-  if (dest === "ps") {
-    const res = placeOnPs(state, target.id);
-    return res.ok;
-  }
   cutPlayer(state, target.id);
   return true;
 }
@@ -462,7 +461,7 @@ export function spendToFloor(state: GameState, teamId: number, rng: Rng): void {
     let bestGain = 0;
 
     for (const fa of state.players) {
-      if (fa.teamId !== null || fa.retired || fa.prospect) continue;
+      if (fa.teamId !== null || fa.retired || fa.prospect || isOnWaivers(state, fa.id)) continue;
       const out = worstAt.get(fa.pos);
       if (!out) continue;
       const gain = fa.ovr - out.ovr;
@@ -604,7 +603,7 @@ export function upgradeRoster(state: GameState, teamId: number, rng: Rng): numbe
     let bestGain = UPGRADE_MARGIN;
 
     for (const fa of state.players) {
-      if (fa.teamId !== null || fa.retired || fa.prospect) continue;
+      if (fa.teamId !== null || fa.retired || fa.prospect || isOnWaivers(state, fa.id)) continue;
       const out = worstAt.get(fa.pos);
       if (!out) continue;
       const gain = val(fa) - held(out);

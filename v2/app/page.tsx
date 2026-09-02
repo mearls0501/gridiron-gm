@@ -258,6 +258,13 @@ export default function Hub() {
                 {state.phase === "offseason-final" && (
                   <Link href="/roster"><Button size="sm">Review the Roster</Button></Link>
                 )}
+                {(state.waivers?.length ?? 0) > 0 && (
+                  <Link href="/roster">
+                    <Button size="sm" variant="ghost">
+                      {state.waivers!.length} on waivers — claim on /roster
+                    </Button>
+                  </Link>
+                )}
               </div>
             </div>
           </div>
@@ -316,6 +323,23 @@ export default function Hub() {
               );
             })}
           </div>
+        </Card>
+      )}
+
+      {(state.waivers?.length ?? 0) > 0 && (
+        <Card
+          title="Waivers"
+          subtitle={`${state.waivers!.length} player${state.waivers!.length === 1 ? "" : "s"} on the wire`}
+          actions={
+            <Link href="/roster">
+              <Button size="sm">Claim on /roster</Button>
+            </Link>
+          }
+        >
+          <p className="text-sm text-[var(--color-muted)]">
+            Cuts pass waivers before a practice-squad stash or free agency. Inverse
+            standings — worse record claims first. No cash bid.
+          </p>
         </Card>
       )}
 

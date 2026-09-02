@@ -12,6 +12,7 @@ import { applyGameWear, healWeek, healthySet } from "./injuries";
 import { freeActiveSlot } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
+import { resolveWaivers } from "../waivers";
 
 /**
  * Postseason.
@@ -125,6 +126,7 @@ export function buildRoundGames(state: GameState): Game[] {
 }
 
 export function simulatePlayoffRound(state: GameState, rng: Rng): void {
+  resolveWaivers(state);
   const ps = state.playoffs;
   if (!ps || ps.complete) return;
 
