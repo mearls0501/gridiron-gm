@@ -5,7 +5,7 @@ import {
   Position, ROSTER_LIMIT, STARTERS, TRADE_DEADLINE_WEEK, TradeAsset, TradeOffer,
 } from "./types";
 import {
-  addDeadCap, capHit, deadMoney, positionCount, rosterCount, teamCap, teamRoster,
+  addDeadCap, capHit, deadMoney, isActiveRoster, positionCount, rosterCount, teamCap, teamRoster,
 } from "./select";
 import { Posture, REPLACEMENT_OVR, evaluate, frontOffice, teamOutlook } from "./frontOffice";
 import { askingPrice } from "./offseason/contracts";
@@ -298,8 +298,16 @@ export function checkTrade(state: GameState, offer: TradeOffer): TradeCheck {
     [offer.fromTeamId, offer.give, offer.get],
     [offer.toTeamId, offer.get, offer.give],
   ] as [number, TradeAsset[], TradeAsset[]][]) {
-    const leaving = out.filter((a) => a.kind === "player").length;
-    const arriving = incoming.filter((a) => a.kind === "player").length;
+    const leaving = out.filter((a) => {
+      if (a.kind !== "player") return false;
+      const p = state.players.find((x) => x.id === a.playerId);
+      return !!p && isActiveRoster(p);
+    }).length;
+    const arriving = incoming.filter((a) => {
+      if (a.kind !== "player") return false;
+      const p = state.players.find((x) => x.id === a.playerId);
+      return !!p && isActiveRoster(p);
+    }).length;
     const after = rosterCount(state, teamId) - leaving + arriving;
     // Offseason rosters sit over 53 after the draft and the UDFA chase;
     // finalize's cutdown brings them back. Blocking those deals is why the
@@ -316,11 +324,13 @@ export function checkTrade(state: GameState, offer: TradeOffer): TradeCheck {
       for (const a of out) {
         if (a.kind !== "player") continue;
         const p = state.players.find((x) => x.id === a.playerId)!;
+        if (!isActiveRoster(p)) continue;
         delta.set(p.pos, (delta.get(p.pos) ?? 0) - 1);
       }
       for (const a of incoming) {
         if (a.kind !== "player") continue;
         const p = state.players.find((x) => x.id === a.playerId)!;
+        if (!isActiveRoster(p)) continue;
         delta.set(p.pos, (delta.get(p.pos) ?? 0) + 1);
       }
       for (const [pos, d] of delta) {
@@ -648,7 +658,11 @@ export function proposeTrade(
     ...give.filter((a): a is Extract<TradeAsset, { kind: "player" }> => a.kind === "player").map((a) => a.playerId),
   ]);
   if (
-    rosterCount(state, fromTeamId) - give.filter((a) => a.kind === "player").length + 1 > ROSTER_LIMIT
+    rosterCount(state, fromTeamId) - give.filter((a) => {
+      if (a.kind !== "player") return false;
+      const p = state.players.find((x) => x.id === a.playerId);
+      return !!p && isActiveRoster(p);
+    }).length + 1 > ROSTER_LIMIT
     && !state.phase.startsWith("offseason")
   ) {
     const chip = pickDepthChip(state, fromTeamId, rng, except);

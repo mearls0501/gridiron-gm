@@ -9,7 +9,7 @@ import {
   Button, Card, Cell, Empty, OvrBadge, Pill, PlayerLink, PosBadge, Row, Stat, Table, TeamMark, cx,
 } from "@/components/ui";
 import {
-  computeRecords, recordString, formatMoney, teamCap, rosterCount, rosterIssues,
+  computeRecords, recordString, formatMoney, teamCap, rosterCount, rosterIssues, irCount,
 } from "@/lib/core/select";
 import { userNextGame, isOnBye, injuredPlayers, weekGames } from "@/lib/core/season/engine";
 import { divisionStandings, seasonHasResults } from "@/lib/core/season/standings";
@@ -97,6 +97,7 @@ export default function Hub() {
     const next = userNextGame(state);
     const bye = isOnBye(state, team.id);
     const injured = injuredPlayers(state, team.id);
+    const onIr = irCount(state, team.id);
     const issues = rosterIssues(state, team.id);
     const clip = rosterCapView(state, team.id);
     const div = divisionStandings(state, team.division);
@@ -120,11 +121,11 @@ export default function Hub() {
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
     const lastResults = weekGames(state, Math.max(1, state.week - 1)).filter((g) => g.played);
-    return { team, rec, cap, next, bye, injured, issues, clip, div, divRank, roster, topPerformers, lastResults };
+    return { team, rec, cap, next, bye, injured, onIr, issues, clip, div, divRank, roster, topPerformers, lastResults };
   }, [state]);
 
   if (!state || !derived) return null;
-  const { team, rec, cap, next, bye, injured, issues, clip, divRank, roster, topPerformers } = derived;
+  const { team, rec, cap, next, bye, injured, onIr, issues, clip, divRank, roster, topPerformers } = derived;
   const cal = calendarView(state);
   const offers = state.tradeOffers ?? [];
 
@@ -488,9 +489,9 @@ export default function Hub() {
         </Card>
 
         {/* ---- Injuries ----------------------------------------------------- */}
-        <Card title="Injury Report" subtitle={`${injured.length} player${injured.length === 1 ? "" : "s"} out`} className="lg:col-span-1" padded={false}>
+        <Card title="Injury Report" subtitle={`${injured.length} out on the 53${onIr ? ` · ${onIr} on IR` : ""}`} className="lg:col-span-1" padded={false}>
           {injured.length === 0 ? (
-            <Empty title="Everyone's healthy" />
+            <Empty title={onIr > 0 ? `${onIr} on IR` : "Everyone's healthy"} />
           ) : (
             <Table head={["Player", "Injury", "Wks"]}>
               {injured.slice(0, 8).map((p) => (

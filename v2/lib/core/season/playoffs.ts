@@ -9,6 +9,8 @@ import { makeConditions } from "../weather";
 import { applyGameStats } from "./stats";
 import { recordGame } from "./records";
 import { applyGameWear, healWeek, healthySet } from "./injuries";
+import { freeActiveSlot } from "../offseason/contracts";
+import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 
 /**
  * Postseason.
@@ -194,6 +196,15 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   // league is already home.
   applyGameWear(state, healthyBefore, rng);
   healWeek(state);
+  const played = new Set<number>();
+  for (const g of games) {
+    if (!g.played) continue;
+    played.add(g.homeId);
+    played.add(g.awayId);
+  }
+  autoDesignateIr(state);
+  tickIrGames(state, played);
+  autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
 
   // Advance the bracket.
   if (ps.round === "SB") {

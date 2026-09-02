@@ -243,6 +243,17 @@ export interface Player {
   injuryWeeks: number;     // 0 = healthy
   injuryDesc: string | null;
 
+  /**
+   * Roster slot. Missing = active, so saves written before IR/PS still load.
+   * IR and practice-squad stay on `state.players` (invariant 4) and do not
+   * count against 53 or the camp 90.
+   */
+  status?: "ir" | "ps";
+  /** Games spent on the current IR stint. Missing = 0. */
+  irGames?: number;
+  /** Practice-squad elevations used this season (max 3). Missing = 0. */
+  psElevations?: number;
+
   stats: SeasonStatLine[];
   careerAwards: string[];
 }
@@ -318,6 +329,11 @@ export interface Team {
   defScheme?: string;
   /** Dead money charged to this season from cuts. Reset at the season rollover. */
   deadCap: number;
+  /**
+   * IR return designations used this season (max 8). Missing = 0 so older
+   * saves start the season with a full allotment.
+   */
+  irReturnsUsed?: number;
 }
 
 /**
@@ -856,6 +872,15 @@ export const ROSTER_LIMIT = 53;
  * from a dataset in `docs/nfl-reference.md` — see §4 and HANDOFF.
  */
 export const CAMP_ROSTER_LIMIT = 90;
+/**
+ * Practice-squad size, IR return designations, IR minimum, and elevations.
+ * Published NFL rules from `docs/front-office-design-2026-07-28.md` Part 5,
+ * not computed from T/D/S/P. See `docs/nfl-reference.md` §4.
+ */
+export const PRACTICE_SQUAD_LIMIT = 16;
+export const IR_RETURN_DESIGNATIONS = 8;
+export const IR_MIN_GAMES = 4;
+export const PS_ELEVATIONS_PER_PLAYER = 3;
 export const REGULAR_SEASON_WEEKS = 18;
 export const GAMES_PER_TEAM = 17;
 

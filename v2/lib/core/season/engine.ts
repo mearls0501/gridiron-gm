@@ -8,6 +8,8 @@ import { recordGame } from "./records";
 import { initPlayoffs, simulatePlayoffRound } from "./playoffs";
 import { applyGameWear, healWeek, healthySet, rollWeeklyInjuries } from "./injuries";
 import { generateUserOffers, runCpuTrades } from "../trades";
+import { freeActiveSlot } from "../offseason/contracts";
+import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 
 /**
  * Share of in-season trade activity by distance from the deadline, derived
@@ -33,6 +35,7 @@ export function startRegularSeason(state: GameState): void {
   state.week = 1;
   state.playoffs = null;
   refreshDepthCharts(state);
+  applyCpuIrAndFill(state);
   state.rngState = rng.state;
   state.log.push({
     season: state.season, week: 1, kind: "system",
@@ -86,6 +89,12 @@ export function simulateWeek(state: GameState): void {
   applyGameWear(state, healthyBefore, rng);
   healWeek(state);
   rollWeeklyInjuries(state, games, rng);
+  const played = new Set<number>();
+  for (const g of games) {
+    played.add(g.homeId);
+    played.add(g.awayId);
+  }
+  applyCpuIrAndFill(state, played);
 
   // The phones stay on until the deadline, but September is quiet and the
   // deadline week is a frenzy: real in-season trades put ~3-4% of the year's
@@ -191,6 +200,12 @@ export function isOnBye(state: GameState, teamId: number, week = state.week): bo
 
 export function injuredPlayers(state: GameState, teamId: number): Player[] {
   return state.players
-    .filter((p) => p.teamId === teamId && p.injuryWeeks > 0 && !p.retired)
+    .filter((p) => p.teamId === teamId && p.injuryWeeks > 0 && !p.retired && p.status !== "ir" && p.status !== "ps")
     .sort((a, b) => b.injuryWeeks - a.injuryWeeks);
+}
+
+function applyCpuIrAndFill(state: GameState, played?: Set<number>): void {
+  autoDesignateIr(state);
+  if (played) tickIrGames(state, played);
+  autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
 }

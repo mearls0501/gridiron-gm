@@ -243,6 +243,12 @@ async function main() {
   // ---- A player page --------------------------------------------------------
   await page.goto(BASE + "/roster", { waitUntil: "networkidle" });
   await page.waitForTimeout(400);
+  const rosterTxt = await page.evaluate(() => document.body.innerText);
+  if (!/Injured Reserve/.test(rosterTxt) || !/Practice Squad/.test(rosterTxt)) {
+    fail("roster missing IR / practice-squad sections");
+  } else {
+    console.log("  ok    roster shows IR and practice squad");
+  }
   const playerLink = page.locator('a[href^="/player/"]').first();
   if (await playerLink.count()) {
     await playerLink.click();

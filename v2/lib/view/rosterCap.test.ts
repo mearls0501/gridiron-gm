@@ -70,7 +70,7 @@ function attachExtras(st: ReturnType<typeof newGame>, n: number): void {
   assert.equal(camp.overSeason, 7);
   assert.equal(camp.overCap, 0);
   assert.match(camp.sub, /7 over the 53-man season roster — cut or keep/);
-  assert.equal(hubCampCutdownCopy(camp), "Camp roster 60/90. Cut 7 on /roster before the season, or Start the Season will auto-cut.");
+  assert.equal(hubCampCutdownCopy(camp), "Camp roster 60/90. Cut 7 on /roster before the season, or Start the Season will auto-cut to 53 (extras may land on the practice squad).");
   assert.equal(rosterIssues(st, st.userTeamId).filter((i) => i.kind === "overLimit").length, 0,
     "60/90 camp is not an illegal roster — Auto-fix must not be the only path");
 
