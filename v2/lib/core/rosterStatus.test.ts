@@ -188,6 +188,23 @@ function cheapestFa(st: ReturnType<typeof newGame>) {
   st.rngState = rng.state;
 }
 
+// Return designations gate activate, not the IR place. CPU still IRs after 8.
+{
+  const st = newGame({ seed: 12 });
+  st.phase = "regular";
+  const cpuId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  st.teams[cpuId].irReturnsUsed = IR_RETURN_DESIGNATIONS;
+  const cpu = clubPlayers(st, cpuId).sort((a, b) => a.ovr - b.ovr)[0];
+  cpu.injuryWeeks = 10;
+  autoDesignateIr(st);
+  assert.equal(cpu.status, "ir");
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT - 1);
+  cpu.injuryWeeks = 0;
+  cpu.irGames = IR_MIN_GAMES;
+  autoActivateFromIr(st, () => true);
+  assert.equal(cpu.status, "ir", "8th return used: place still works, activate does not");
+}
+
 // Cutdown stash: extras land on PS (up to 16) instead of only FA.
 {
   const st = newGame({ seed: 11 });

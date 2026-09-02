@@ -171,14 +171,14 @@ export function tickIrGames(state: GameState, teamIds: Iterable<number>): void {
 
 /**
  * CPU clubs only. User IR is a /roster decision. Requires remaining
- * injuryWeeks at the 4-game minimum and a return designation left.
+ * injuryWeeks at the 4-game minimum. Return designations gate activate,
+ * not the place — a late-season ACL still leaves the 53 after the 8th return.
  */
 export function autoDesignateIr(state: GameState): void {
   if (state.phase !== "regular" && state.phase !== "playoffs") return;
   for (const p of state.players) {
     if (p.teamId === null || p.teamId === state.userTeamId) continue;
     if (!canDesignateIr(p)) continue;
-    if (irReturnsRemaining(state, p.teamId) <= 0) continue;
     designateIr(state, p.id);
   }
 }

@@ -491,7 +491,7 @@ export default function Hub() {
         {/* ---- Injuries ----------------------------------------------------- */}
         <Card title="Injury Report" subtitle={`${injured.length} out on the 53${onIr ? ` · ${onIr} on IR` : ""}`} className="lg:col-span-1" padded={false}>
           {injured.length === 0 ? (
-            <Empty title="Everyone's healthy" />
+            <Empty title={onIr > 0 ? `${onIr} on IR` : "Everyone's healthy"} />
           ) : (
             <Table head={["Player", "Injury", "Wks"]}>
               {injured.slice(0, 8).map((p) => (

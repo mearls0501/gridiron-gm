@@ -28,12 +28,15 @@ career-accrual system.
 `rosterCount` / `positionCount` / `rosterCapView` / `rosterIssues` /
 `signPlayer` / `fillRoster` / `reconcileRoster` count active bodies only.
 `/roster` Designate IR, Activate from IR, Place on PS, Elevate from PS.
-Hub injury line is out-on-the-53, plus an IR count. CPU auto-IRs its own
-players in regular/playoffs when remaining `injuryWeeks >= 4` and a return
-designation remains. The slot stays open so a replacement can be signed
-(CPU does not auto-sign — that fill shifted the stream and parked healthy
-starters). CPU auto-activates when healthy and 4 games are served, freeing
-a 53 slot onto PS first if someone else filled. After `finalizeOffseason`
+Hub injury line is out-on-the-53, plus an IR count; the empty 53-out list
+says “N on IR”, not “Everyone’s healthy”, when someone is on IR. CPU
+auto-IRs its own players in regular/playoffs when remaining
+`injuryWeeks >= 4` — designations gate **activate**, not the IR place, so
+a late-season ACL still leaves the 53 after the 8th return. The slot
+stays open so a replacement can be signed (CPU does not auto-sign — that
+fill shifted the stream and parked healthy starters). CPU auto-activates
+when healthy, 4 games are served, and a designation remains, freeing a
+53 slot onto PS first if someone else filled. After `finalizeOffseason`
 cutdown, extras may land on that club's PS up to 16 instead of only FA.
 Last year's PS fold back into the 53 pool at the next cutdown. Seeded RNG
 only. No new dependencies. `JSON.stringify` round-trip. Injury tables
@@ -51,8 +54,9 @@ POSITION_RISK, PR #9, R1 QB never-start, pass-record volume,
 Regression: `lib/core/rosterStatus.test.ts` (gate `irps`) — injured-on-53
 counts until designated; IR frees a slot and sign-replacement succeeds; PS
 does not count against 53; elevate burns one of 3; return-from-IR respects
-min 4 games / designation cap; `finalizeOffseason` locks every club's
-**active** count at 53; camp 90 still works.
+min 4 games / designation cap; CPU still designates a 10-week injury after
+`irReturnsUsed = 8`; `finalizeOffseason` locks every club's **active**
+count at 53; camp 90 still works.
 
 File cluster: `types.ts` (status + sizes), `select.ts` (`isActiveRoster`,
 counts), `rosterStatus.ts` + test, `contracts.ts` / `offseason/index.ts`,
