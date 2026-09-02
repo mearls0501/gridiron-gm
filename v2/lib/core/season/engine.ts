@@ -127,7 +127,6 @@ export function simulateWeek(state: GameState): void {
       generateUserOffers(state, tradeRng, 1);
     }
   } else if (state.week === TRADE_DEADLINE_WEEK + 1) {
-    state.tradeOffers = [];
     state.log.push({
       season: state.season, week: state.week, kind: "system",
       text: "The trade deadline has passed.",

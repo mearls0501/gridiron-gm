@@ -5,6 +5,36 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-02 — leftover incoming offer survives bulk sim (branch `cursor/leftover-trade-inbox-5466`)
+
+GM Playtest pause 0902 (Boston): Week 10 leftover LA offer, Accept
+dead, Through the Playoffs did not pause (PR #36 PASS). By Week 13
+the leftover was gone ("No offers right now") so Reject was unverified.
+
+**Diagnosis.** Confirmed. `simulateWeek` wiped `state.tradeOffers = []`
+on `week === TRADE_DEADLINE_WEEK + 1`. PR #31/#36 said leftovers stay
+for Reject. `generateUserOffers` already returns `[]` when the window
+is shut, so the wipe was not needed to stop new offers. Offseason
+rollover still clears the inbox for the new league year.
+
+**Change.** Removed the post-deadline wipe. Kept the "trade deadline
+has passed" log. Pause predicate (PR #36) untouched — Through the
+Playoffs still must not stop on a leftover. Accept stays dead. Reject
+still clears.
+
+Untouched: waivers, IR/PS, inactives, camp, POSITION_VALUE,
+cpuBoardValue, cpuProspectView, CONTENDER_PULL, GUARANTEE_PULL,
+CARRY_SHARE, PR #9, auto-expire, `docs/baselines.json`.
+
+Regression: `lib/view/tradeWindow.test.ts` (gate `tradewindow`) —
+plant leftover, `startRegularSeason` + week 10, `runSimTo` seasonEnd:
+leftover id still present; Accept still disabled; Reject still removes
+it. Existing pause assertions stay.
+
+File cluster: `season/engine.ts`, `tradeWindow.test.ts`, this note.
+
+---
+
 ## 2026-09-02 — leftover offer after deadline must not pause bulk sim (branch `cursor/bulk-sim-deadline-offers-43cb`)
 
 GM Playtest year 0902 (Denver, Week 10): banner said the window is
