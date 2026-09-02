@@ -1,7 +1,7 @@
 import { Rng } from "../rng";
 import { simulateGame } from "../sim/game";
 import {
-  Conference, Game, GameState, PlayoffRound, PlayoffSeed, PlayoffState, ROSTER_LIMIT,
+  Conference, Game, GameState, PlayoffRound, PlayoffSeed, PlayoffState,
 } from "../types";
 import { computeSeeds } from "./standings";
 import { FRANCHISES } from "../names";
@@ -9,9 +9,8 @@ import { makeConditions } from "../weather";
 import { applyGameStats } from "./stats";
 import { recordGame } from "./records";
 import { applyGameWear, healWeek, healthySet } from "./injuries";
-import { fillRoster, freeActiveSlot } from "../offseason/contracts";
+import { freeActiveSlot } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
-import { rosterCount } from "../select";
 
 /**
  * Postseason.
@@ -206,10 +205,6 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   autoDesignateIr(state);
   tickIrGames(state, played);
   autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
-  for (const t of state.teams) {
-    if (t.id === state.userTeamId) continue;
-    if (rosterCount(state, t.id) < ROSTER_LIMIT) fillRoster(state, t.id, rng);
-  }
 
   // Advance the bracket.
   if (ps.round === "SB") {

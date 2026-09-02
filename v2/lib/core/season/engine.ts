@@ -2,15 +2,14 @@ import { Rng } from "../rng";
 import { simulateGame } from "../sim/game";
 import { refreshDepthCharts } from "../generate";
 import { generateSchedule } from "../schedule";
-import { GameState, Player, REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK } from "../types";
+import { GameState, Player, REGULAR_SEASON_WEEKS, TRADE_DEADLINE_WEEK } from "../types";
 import { applyGameStats } from "./stats";
 import { recordGame } from "./records";
 import { initPlayoffs, simulatePlayoffRound } from "./playoffs";
 import { applyGameWear, healWeek, healthySet, rollWeeklyInjuries } from "./injuries";
 import { generateUserOffers, runCpuTrades } from "../trades";
-import { fillRoster, freeActiveSlot } from "../offseason/contracts";
+import { freeActiveSlot } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
-import { rosterCount } from "../select";
 
 /**
  * Share of in-season trade activity by distance from the deadline, derived
@@ -36,7 +35,7 @@ export function startRegularSeason(state: GameState): void {
   state.week = 1;
   state.playoffs = null;
   refreshDepthCharts(state);
-  applyCpuIrAndFill(state, rng);
+  applyCpuIrAndFill(state);
   state.rngState = rng.state;
   state.log.push({
     season: state.season, week: 1, kind: "system",
@@ -95,7 +94,7 @@ export function simulateWeek(state: GameState): void {
     played.add(g.homeId);
     played.add(g.awayId);
   }
-  applyCpuIrAndFill(state, rng, played);
+  applyCpuIrAndFill(state, played);
 
   // The phones stay on until the deadline, but September is quiet and the
   // deadline week is a frenzy: real in-season trades put ~3-4% of the year's
@@ -205,12 +204,8 @@ export function injuredPlayers(state: GameState, teamId: number): Player[] {
     .sort((a, b) => b.injuryWeeks - a.injuryWeeks);
 }
 
-function applyCpuIrAndFill(state: GameState, rng: Rng, played?: Set<number>): void {
+function applyCpuIrAndFill(state: GameState, played?: Set<number>): void {
   autoDesignateIr(state);
   if (played) tickIrGames(state, played);
   autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
-  for (const t of state.teams) {
-    if (t.id === state.userTeamId) continue;
-    if (rosterCount(state, t.id) < ROSTER_LIMIT) fillRoster(state, t.id, rng);
-  }
 }
