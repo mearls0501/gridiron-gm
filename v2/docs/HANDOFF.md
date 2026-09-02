@@ -53,8 +53,9 @@ stat, gate/package.json, nfl-reference §4, this note.
 
 ### Gate (`nproc`=4)
 
-Fast: pending this packet. Three inherited single-seed metric reds —
-leave them; same family as PR #26 / #27 / #28 / #29 / #30 / #31:
+Fast: all 14 harnesses exit 0 (`rostercap` included). Three inherited
+single-seed metric reds — leave them; same family as PR #26 / #27 /
+#28 / #29 / #30 / #31:
 
 ```
 FAIL  leverage.wrongSign     1     expected <= 0
