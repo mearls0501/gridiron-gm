@@ -183,6 +183,24 @@ export function autoDesignateIr(state: GameState): void {
   }
 }
 
+/**
+ * CPU return: healthy, 4 games served, designation left. Caller must free
+ * a 53 slot first when the club is already full.
+ */
+export function autoActivateFromIr(state: GameState, freeSlot: (teamId: number) => boolean): void {
+  if (state.phase !== "regular" && state.phase !== "playoffs") return;
+  for (const p of state.players) {
+    if (p.teamId === null || p.teamId === state.userTeamId) continue;
+    if (p.status !== "ir") continue;
+    if (p.injuryWeeks > 0) continue;
+    if ((p.irGames ?? 0) < IR_MIN_GAMES) continue;
+    if (irReturnsRemaining(state, p.teamId) <= 0) continue;
+    const hold = rosterLimit(state.phase);
+    if (rosterCount(state, p.teamId) >= hold && !freeSlot(p.teamId)) continue;
+    activateFromIr(state, p.id);
+  }
+}
+
 export function rosterSlotLabel(p: Player): string {
   if (p.status === "ir") return "IR";
   if (p.status === "ps") return "PS";

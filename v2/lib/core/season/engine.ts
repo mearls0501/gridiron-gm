@@ -8,8 +8,8 @@ import { recordGame } from "./records";
 import { initPlayoffs, simulatePlayoffRound } from "./playoffs";
 import { applyGameWear, healWeek, healthySet, rollWeeklyInjuries } from "./injuries";
 import { generateUserOffers, runCpuTrades } from "../trades";
-import { fillRoster } from "../offseason/contracts";
-import { autoDesignateIr, tickIrGames } from "../rosterStatus";
+import { fillRoster, freeActiveSlot } from "../offseason/contracts";
+import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 import { rosterCount } from "../select";
 
 /**
@@ -208,6 +208,7 @@ export function injuredPlayers(state: GameState, teamId: number): Player[] {
 function applyCpuIrAndFill(state: GameState, rng: Rng, played?: Set<number>): void {
   autoDesignateIr(state);
   if (played) tickIrGames(state, played);
+  autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
   for (const t of state.teams) {
     if (t.id === state.userTeamId) continue;
     if (rosterCount(state, t.id) < ROSTER_LIMIT) fillRoster(state, t.id, rng);

@@ -11,7 +11,7 @@ import { newGame } from "./newGame";
 import {
   enterDraft, finalizeOffseason, runUdfaChase, simEntireDraft,
 } from "./offseason";
-import { askingPrice, fillRoster, reconcileRoster, signPlayer } from "./offseason/contracts";
+import { askingPrice, fillRoster, freeActiveSlot, reconcileRoster, signPlayer } from "./offseason/contracts";
 import { makeContract } from "./generate";
 import { Rng } from "./rng";
 import { isActiveRoster, practiceSquadCount, rosterCount, rosterIssues } from "./select";
@@ -21,8 +21,8 @@ import {
 } from "./types";
 import { rosterCapView } from "../view/rosterCap";
 import {
-  activateFromIr, autoDesignateIr, canDesignateIr, designateIr, elevateFromPs,
-  foldPracticeSquad, placeOnPs, resetSeasonRosterFlags, tickIrGames,
+  activateFromIr, autoActivateFromIr, autoDesignateIr, canDesignateIr, designateIr,
+  elevateFromPs, foldPracticeSquad, placeOnPs, resetSeasonRosterFlags, tickIrGames,
 } from "./rosterStatus";
 
 function clubPlayers(st: ReturnType<typeof newGame>, teamId: number) {
@@ -174,6 +174,18 @@ function cheapestFa(st: ReturnType<typeof newGame>) {
   assert.equal(user.status, undefined);
   assert.equal(cpu.status, "ir");
   assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT - 1);
+
+  const rng = new Rng(st.rngState);
+  fillRoster(st, cpuId, rng);
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT);
+  cpu.injuryWeeks = 0;
+  cpu.injuryDesc = null;
+  cpu.irGames = IR_MIN_GAMES;
+  autoActivateFromIr(st, (id) => freeActiveSlot(st, id));
+  assert.equal(isActiveRoster(cpu), true);
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT);
+  assert.equal(user.status, undefined);
+  st.rngState = rng.state;
 }
 
 // Cutdown stash: extras land on PS (up to 16) instead of only FA.

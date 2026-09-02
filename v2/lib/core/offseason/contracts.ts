@@ -379,6 +379,14 @@ function cutWorstSurplus(state: GameState, teamId: number, protectPos: Position 
   return moveWorstSurplus(state, teamId, protectPos, "cut");
 }
 
+/** Open one active slot so a CPU return from IR can land. PS first, then cut. */
+export function freeActiveSlot(state: GameState, teamId: number): boolean {
+  if (practiceSquadCount(state, teamId) < PRACTICE_SQUAD_LIMIT) {
+    if (moveWorstSurplus(state, teamId, null, "ps")) return true;
+  }
+  return cutWorstSurplus(state, teamId, null);
+}
+
 function moveWorstSurplus(
   state: GameState, teamId: number, protectPos: Position | null, dest: "cut" | "ps"
 ): boolean {

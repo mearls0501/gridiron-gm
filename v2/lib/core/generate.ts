@@ -409,9 +409,11 @@ export function autoSortDepthChart(state: GameState, team: Team): void {
 
   for (const pos of POSITIONS) {
     byPos[pos].sort((a, b) => {
-      // Injured players fall to the bottom but stay on the chart.
-      const ai = a.injuryWeeks > 0 ? 1 : 0;
-      const bi = b.injuryWeeks > 0 ? 1 : 0;
+      // Injured, IR, and PS fall to the bottom but stay on the chart.
+      const slot = (p: Player) =>
+        p.status === "ir" || p.status === "ps" ? 2 : p.injuryWeeks > 0 ? 1 : 0;
+      const ai = slot(a);
+      const bi = slot(b);
       if (ai !== bi) return ai - bi;
       if (b.ovr !== a.ovr) return b.ovr - a.ovr;
       return a.id - b.id; // stable
