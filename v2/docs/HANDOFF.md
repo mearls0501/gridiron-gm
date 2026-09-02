@@ -60,7 +60,14 @@ gate/package.json, nfl-reference §4, this note.
 
 ### Gate (`nproc`=4)
 
-*(filled after `npm run gate`)*
+Fast: all 16 harnesses exit 0 (`inactives` included). Two inherited
+single-seed metric reds — leave them; same family as PR #26–#33. Do not
+touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.qb10PassYds  3697  expected 4028 +/-322
+```
 
 ---
 
