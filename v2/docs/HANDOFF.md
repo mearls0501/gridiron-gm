@@ -5,6 +5,31 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-03 — Hub franchise-tag card named the wrong player (branch `cursor/hub-tag-card-own-club-e2c3`)
+
+Playtest chain 0903: Kansas City tagged Dax Hernandez (EDGE, $28.1M).
+The player page was right. The Hub "Franchise Tag" card named Jace
+Hill (LB, $16.1M) — another club's tag.
+
+**Cause.** The card did `players.find(p => isFranchiseTagged(state, p.id))`.
+That helper is player-only (no `teamId`). With 32 clubs tagging, it
+returns whichever tagged player appears first in `state.players`.
+`expireContracts` skipping any tagged player is correct as-is;
+`isTagExtensionEligible` already re-checks `tag.teamId === p.teamId`.
+
+**Fix.** Display only. `clubFranchiseTaggedPlayer` reads this club's
+tag record (`season` + `teamId`) and looks up that `playerId`.
+`isFranchiseTagged` signature unchanged.
+
+Regression: two clubs tag different players; each club's lookup is
+its own man, not the league-wide first. Existing franchise-tag /
+fifth-year / tag-extension tests stay.
+
+File cluster: `contracts.ts` helper + Hub card + `franchiseTag.test.ts`,
+this note.
+
+---
+
 ## 2026-09-03 — July 15 tag extension (branch `cursor/july-15-extension-a2ee`)
 
 Named leftover in the #42 HANDOFF note: the July 15 extension was
