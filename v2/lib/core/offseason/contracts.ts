@@ -23,12 +23,112 @@ export function contractYearsRemainingAfterRollover(p: Player): number {
   return Math.max(0, p.contract.yearsRemaining - 1);
 }
 
+/** Players whose deals expire when this offseason's FA wave opens. */
+export function expiringPlayers(state: GameState, teamId: number): Player[] {
+  const out: Player[] = [];
+  for (const p of state.players) {
+    if (p.teamId !== teamId || p.retired || p.prospect || !p.contract) continue;
+    if (p.contract.yearsRemaining !== 1) continue;
+    out.push(p);
+  }
+  return out;
+}
+
+export function clubHasFranchiseTag(state: GameState, teamId: number): boolean {
+  return !!state.franchiseTags?.some((t) => t.season === state.season && t.teamId === teamId);
+}
+
+export function isFranchiseTagged(state: GameState, playerId: number): boolean {
+  return !!state.franchiseTags?.some((t) => t.season === state.season && t.playerId === playerId);
+}
+
+/**
+ * Exclusive franchise-tag tender: greater of the average of the top five
+ * cap hits at the position or 120% of this player's current hit.
+ * Published CBA shape; see `docs/nfl-reference.md` §4.
+ */
+export function franchiseTagSalary(state: GameState, p: Player): number {
+  const lastYear = p.contract ? capHit(p.contract) : LEAGUE_MINIMUM;
+  const hits: number[] = [];
+  for (const x of state.players) {
+    if (x.retired || x.prospect || x.pos !== p.pos || !x.contract) continue;
+    const h = capHit(x.contract);
+    if (h > 0) hits.push(h);
+  }
+  hits.sort((a, b) => b - a);
+  const top = hits.slice(0, 5);
+  const avg = top.length ? Math.round(top.reduce((a, b) => a + b, 0) / top.length) : lastYear;
+  return Math.max(LEAGUE_MINIMUM, Math.max(avg, Math.round(lastYear * 1.2)));
+}
+
+/** Apply this club's one exclusive tag for the year. Same cap block as Sign. */
+export function applyFranchiseTag(
+  state: GameState, teamId: number, playerId: number, rng: Rng
+): SignResult {
+  if (clubHasFranchiseTag(state, teamId)) {
+    return { ok: false, reason: "This club has already used its franchise tag this year." };
+  }
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p) return { ok: false, reason: "No such player" };
+  if (p.retired) return { ok: false, reason: "Player has retired" };
+  if (p.teamId !== teamId) return { ok: false, reason: "Player is not on this roster" };
+  if (!p.contract || p.contract.yearsRemaining !== 1) {
+    return { ok: false, reason: "Only a player entering free agency can be tagged." };
+  }
+
+  const currentHit = capHit(p.contract);
+  const apy = franchiseTagSalary(state, p);
+  const contract = makeContract(rng, apy, 1, state.season, defaultGuaranteedYears(apy, 1));
+  const hit = capHit(contract);
+  const cap = teamCap(state, teamId);
+  const available = cap.space + currentHit;
+  if (hit > available) {
+    return {
+      ok: false,
+      reason: `Not enough cap space. That tender costs $${(hit / 1e6).toFixed(1)}M against $${(available / 1e6).toFixed(1)}M available.`,
+    };
+  }
+
+  p.contract = contract;
+  if (!state.franchiseTags) state.franchiseTags = [];
+  state.franchiseTags.push({ season: state.season, teamId, playerId: p.id });
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "transaction",
+    text: `${state.teams[teamId].abbr} franchise-tagged ${p.firstName} ${p.lastName} (${p.pos}) — 1yr / $${(apy / 1e6).toFixed(1)}M`,
+  });
+  return { ok: true };
+}
+
+/**
+ * Each CPU club may apply at most one exclusive tag on this window.
+ * Ranks by evaluate / posture; must fit the cap. User club is skipped.
+ */
+export function runCpuFranchiseTags(state: GameState, rng: Rng): void {
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    if (clubHasFranchiseTag(state, t.id)) continue;
+    const { posture } = teamOutlook(state, t.id);
+    const ranked = expiringPlayers(state, t.id).slice().sort(
+      (a, b) =>
+        evaluate(state, t.id, b, posture, POSITION_VALUE[b.pos]) -
+        evaluate(state, t.id, a, posture, POSITION_VALUE[a.pos])
+    );
+    for (const p of ranked) {
+      if (evaluate(state, t.id, p, posture, POSITION_VALUE[p.pos]) <= 0) continue;
+      if (applyFranchiseTag(state, t.id, p.id, rng).ok) break;
+    }
+  }
+}
+
 /** Roll every contract forward one season. Returns players who hit free agency. */
 export function expireContracts(state: GameState): Player[] {
   const expiring: Player[] = [];
 
   for (const p of state.players) {
     if (p.retired || p.prospect || !p.contract) continue;
+    if (isFranchiseTagged(state, p.id)) continue;
 
     p.contract.yearsRemaining -= 1;
     p.contract.baseSalary = p.contract.baseSalary.slice(1);

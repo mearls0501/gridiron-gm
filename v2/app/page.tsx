@@ -9,12 +9,15 @@ import {
   Button, Card, Cell, Empty, OvrBadge, Pill, PlayerLink, PosBadge, Row, Stat, Table, TeamMark, cx,
 } from "@/components/ui";
 import {
-  computeRecords, recordString, formatMoney, teamCap, rosterCount, rosterIssues, irCount,
+  capHit, computeRecords, formatMoney, irCount, recordString, rosterCount, rosterIssues, teamCap,
 } from "@/lib/core/select";
 import { userNextGame, isOnBye, injuredPlayers, weekGames } from "@/lib/core/season/engine";
 import { divisionStandings, seasonHasResults } from "@/lib/core/season/standings";
 import { currentLine } from "@/lib/core/season/stats";
-import { OFFSEASON_STEPS, reconcileRoster } from "@/lib/core/offseason";
+import {
+  applyFranchiseTag, clubHasFranchiseTag, expiringPlayers, franchiseTagSalary,
+  isFranchiseTagged, OFFSEASON_STEPS, reconcileRoster,
+} from "@/lib/core/offseason";
 import { Rng } from "@/lib/core/rng";
 import { describeAsset } from "@/lib/core/trades";
 import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weatherLabel } from "@/lib/core/types";
@@ -249,6 +252,11 @@ export default function Hub() {
                 <SeasonReviewSummary state={state} view={recap} />
               )}
               <div className="flex gap-2 mt-2">
+                {state.phase === "offseason-tag" && (
+                  <span className="text-xs text-[var(--color-muted)]">
+                    Tag one name below, or Continue to let the window close.
+                  </span>
+                )}
                 {state.phase === "offseason-fa" && (
                   <Link href="/free-agency"><Button size="sm">Go to Free Agency</Button></Link>
                 )}
@@ -270,6 +278,65 @@ export default function Hub() {
           </div>
         )}
       </Card>
+
+      {state.phase === "offseason-tag" && (() => {
+        const tagged = clubHasFranchiseTag(state, team.id);
+        const taggedPlayer = tagged
+          ? state.players.find((p) => isFranchiseTagged(state, p.id))
+          : null;
+        const names = expiringPlayers(state, team.id)
+          .slice()
+          .sort((a, b) => b.ovr - a.ovr);
+        return (
+          <Card
+            title="Franchise Tag"
+            subtitle="One exclusive tag this year. Tagged player stays on a 1-year tender and is not in that FA wave."
+          >
+            {tagged && taggedPlayer ? (
+              <p className="text-sm">
+                {taggedPlayer.firstName} {taggedPlayer.lastName} ({taggedPlayer.pos}) is
+                tagged — {formatMoney(capHit(taggedPlayer.contract))} this year.
+                Continue to open free agency.
+              </p>
+            ) : names.length === 0 ? (
+              <p className="text-sm text-[var(--color-muted)]">
+                Nobody on this club is entering free agency. Continue to open the market.
+              </p>
+            ) : (
+              <Table head={["Player", "Pos", "Age", "Tender", ""]}>
+                {names.map((p) => {
+                  const tender = franchiseTagSalary(state, p);
+                  return (
+                    <Row key={p.id}>
+                      <Cell align="left"><PlayerLink p={p} /></Cell>
+                      <Cell><PosBadge pos={p.pos} /></Cell>
+                      <Cell>{p.age}</Cell>
+                      <Cell>{formatMoney(tender)}</Cell>
+                      <Cell>
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            apply((s) => {
+                              const rng = new Rng(s.rngState);
+                              const r = applyFranchiseTag(s, s.userTeamId, p.id, rng);
+                              s.rngState = rng.state;
+                              return r.ok
+                                ? `${p.firstName} ${p.lastName} is franchise-tagged`
+                                : r.reason;
+                            })
+                          }
+                        >
+                          Tag
+                        </Button>
+                      </Cell>
+                    </Row>
+                  );
+                })}
+              </Table>
+            )}
+          </Card>
+        );
+      })()}
 
       {/* ---- Alerts -------------------------------------------------------- */}
       {issues.length > 0 && (

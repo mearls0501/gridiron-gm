@@ -42,6 +42,7 @@ export const PHASE_LABEL: Record<string, string> = {
   regular: "Regular Season",
   playoffs: "Playoffs",
   "offseason-recap": "Season Review",
+  "offseason-tag": "Franchise Tag",
   "offseason-fa": "Free Agency",
   "offseason-draft": "Draft",
   "offseason-final": "Roster Cutdown",

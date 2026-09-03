@@ -36,7 +36,7 @@ function attachExtras(st: ReturnType<typeof newGame>, n: number): void {
 // Phase ceiling: 90 in camp, 53 everywhere else.
 {
   const camp: Phase[] = ["offseason-draft", "offseason-final"];
-  const season: Phase[] = ["preseason", "regular", "playoffs", "offseason-recap", "offseason-fa"];
+  const season: Phase[] = ["preseason", "regular", "playoffs", "offseason-recap", "offseason-tag", "offseason-fa"];
   for (const p of camp) {
     assert.equal(isCampPhase(p), true, p);
     assert.equal(rosterLimit(p), CAMP_ROSTER_LIMIT);

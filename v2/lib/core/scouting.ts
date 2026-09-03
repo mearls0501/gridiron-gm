@@ -443,6 +443,7 @@ export function windowFloor(state: GameState): ScoutingWindow {
     case "playoffs":
       return "filmFocus";
     case "offseason-recap":
+    case "offseason-tag":
       return "allStar";
     case "offseason-fa":
       return "combine";
@@ -466,6 +467,7 @@ export function windowCeiling(state: GameState): ScoutingWindow {
     case "playoffs":
       return "filmFocus";
     case "offseason-recap":
+    case "offseason-tag":
       return "allStar";
     case "offseason-fa":
       return "privateVisits";

@@ -5,6 +5,55 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-03 — franchise-tag window (branch `cursor/franchise-tag-window-6a80`)
+
+Matt unparked the leftover between Recap and FA. Hub said Continue to
+Free Agency. `advanceOffseason` for `offseason-recap` ran `runRecap`
+then `runFreeAgencyOpen` → `expireContracts`, which nulled every
+expiring deal and dumped him to FA. CPU `cpuResign` got first crack.
+No franchise-tag / transition / exclusive code existed.
+
+**Diagnosis.** Confirmed. Recap set `offseason-fa` and opened the
+market in the same call. The user never sat Part 5's decision: tag,
+extend, or let him walk.
+
+**Change.** New `offseason-tag` phase after Recap, before the FA
+board is live. User may apply one exclusive franchise tag for the
+year or skip. Tagged player stays on the club on a 1-year tender
+and is not in that FA wave. One tag per club per year. CPU clubs
+tag at most one on the same window, via evaluate / cap / posture.
+Tender is the published CBA shape — greater of the top-five cap
+hits at the position or 120% of last year's hit — and must fit
+the cap (Tag blocked with a reason, same as Sign). Headless
+`advanceOffseason` is Recap → CPU tags → (next call) expire + FA.
+Old saves missing `franchiseTags` load. Hub copy and the one-call
+advance both honor the phase.
+
+Skipped: non-exclusive / transition / July 15 extension deadline /
+fifth-year option / 6-vet PS cap / international PS slot. No
+24-hour clock. askingPrice / negotiatedApy stay on true OVR.
+
+**Leftover.** No 6-vet PS cap, no international PS slot.
+askingPrice true-OVR invert stays leftover. No Madden formation
+tree or play art.
+
+Untouched: POSITION_VALUE, cpuBoardValue, cpuProspectView,
+CONTENDER_PULL, GUARANTEE_PULL, CARRY_SHARE, WEEKLY_TABLE /
+POSITION_DURATION / POSITION_RISK, askingPrice / negotiatedApy,
+PR #9, `docs/baselines.json`.
+
+Regression: `lib/core/franchiseTag.test.ts` (gate `franchisetag`) —
+tag keeps him off FA and on the 53 with a 1-year hit; second tag
+that year is refused; skip expires him into FA; CPU tags at most
+one and stay under the cap; headless recap→FA still opens a market.
+Existing resign / FA tests stay.
+
+File cluster: `offseason/index.ts` + `contracts.ts` (tag + expire
+skip) + Hub desk + `franchiseTag.test.ts`, types / Shell / scouting
+window, nfl-reference §4, this note.
+
+---
+
 ## 2026-09-02 — waiver claim-chain settle (branch `cursor/waiver-chain-settle-64a3`)
 
 GM Roster campfill 0902 (Boston): after Start the Season, preseason

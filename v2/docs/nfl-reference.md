@@ -484,6 +484,17 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   playoff clubs dress at most 47, or 48 when the 53 includes 8 offensive
   linemen (OT/OG/C). Inactive count is 53 minus that cap. Ungated published
   rule.
+- **Franchise tag (exclusive, one per club per year).** Added 2026-09-03.
+  Not in T/D/S/P. Same calendar source as camp 90 / PS 16 / IR / waivers
+  (`docs/front-office-design-2026-07-28.md` Part 5): ~Feb 17–Mar 3, one
+  tag per club per year. Exclusive only — non-exclusive, transition, and
+  the July 15 extension deadline are omitted so they do not widen the
+  cluster. Fifth-year option is a different packet. Tender is the
+  published CBA shape: greater of the average of the top five cap hits
+  at that position (existing `capHit` machinery) or 120% of last year's
+  hit. Must fit the cap; Tag is blocked with a reason, same as Sign.
+  One window, then FA opens — the game has no wall-clock. Ungated
+  published rule.
 - **This-week play-calling (call sheet / Play-the-Game).** Added 2026-09-02.
   Not in T/D/S/P. The GM override uses the same units as coach `passBias`
   (−1 run … +1 pass) and `aggression` (0–100) already in `simulateGame`.
