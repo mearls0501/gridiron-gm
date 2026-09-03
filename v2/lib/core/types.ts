@@ -860,6 +860,17 @@ export interface FranchiseTag {
   playerId: number;
 }
 
+/**
+ * Fifth-year option decision this league year. Missing list = nobody
+ * decided, so older saves load. One decision per eligible R1 per window.
+ */
+export interface FifthYearOption {
+  season: number;
+  teamId: number;
+  playerId: number;
+  pickedUp: boolean;
+}
+
 export const STATE_VERSION = 1;
 
 export interface GameState {
@@ -898,6 +909,11 @@ export interface GameState {
    * saves load. One per club per season; expireContracts skips these.
    */
   franchiseTags?: FranchiseTag[];
+  /**
+   * Fifth-year option decisions for a league year. Missing = none, so
+   * older saves load. One per eligible first-rounder per season.
+   */
+  fifthYearOptions?: FifthYearOption[];
 
   /** The user's scouting intel + war-room board for the current class. */
   scouting?: ScoutingState;

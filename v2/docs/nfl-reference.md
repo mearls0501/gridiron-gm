@@ -489,12 +489,31 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   (`docs/front-office-design-2026-07-28.md` Part 5): ~Feb 17–Mar 3, one
   tag per club per year. Exclusive only — non-exclusive, transition, and
   the July 15 extension deadline are omitted so they do not widen the
-  cluster. Fifth-year option is a different packet. Tender is the
-  published CBA shape: greater of the average of the top five cap hits
-  at that position (existing `capHit` machinery) or 120% of last year's
-  hit. Must fit the cap; Tag is blocked with a reason, same as Sign.
-  One window, then FA opens — the game has no wall-clock. Ungated
-  published rule.
+  cluster. Tender is the published CBA shape: greater of the average of
+  the top five cap hits at that position (existing `capHit` machinery)
+  or 120% of last year's hit. Must fit the cap; Tag is blocked with a
+  reason, same as Sign. One window, then FA opens — the game has no
+  wall-clock. Ungated published rule.
+- **Fifth-year option (first-rounders only).** Added 2026-09-03. Not in
+  T/D/S/P. Same calendar source as the franchise tag
+  (`docs/front-office-design-2026-07-28.md` Part 5): post-draft, May 1
+  of the player's fourth season. The game has no wall-clock; the desk
+  sits on the existing camp / cutdown Hub (`offseason-final`), not on
+  the tag window and not as a sixth phase. Eligibility is
+  `draftedRound === 1`, still on the original 4-year rookie deal
+  (`years === 4`, `signedSeason === draftClassSeason`), one year
+  remaining. `yearsPro` is seasons elapsed, not accrued — no vest is
+  invented. Rounds 2–7 and UDFAs have no option. Pick up appends a
+  guaranteed 5th year; Decline / skip leaves the 4-year path so he
+  hits FA after year 4. One decision per eligible player per window.
+  Tender uses existing `capHit` averages, not a hardcoded fantasy APY
+  and not the exclusive franchise tag: picks 1–10 average the top ten
+  at the position (transition-shaped); picks 11–32 average the 3rd
+  through 20th. Pro Bowl escalators are omitted — the repo has
+  `draftedPick` but no Pro Bowl flag. Must fit the cap; Pick up is
+  blocked with a Sign-shaped reason. CPU clubs may pick up the
+  eligible R1s they can afford via evaluate / cap / posture; the user
+  club is not auto-picked. Ungated published rule.
 - **This-week play-calling (call sheet / Play-the-Game).** Added 2026-09-02.
   Not in T/D/S/P. The GM override uses the same units as coach `passBias`
   (−1 run … +1 pass) and `aggression` (0–100) already in `simulateGame`.
