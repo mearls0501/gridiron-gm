@@ -52,6 +52,26 @@ File cluster: `offseason/contracts.ts` + Hub card +
 `tagExtension.test.ts`, types / `enterCampAfterDraft`,
 nfl-reference §4, this note.
 
+### Gate (`nproc`=4)
+
+Fast: all 21 harnesses exit 0 (`tagextension`, `franchisetag`,
+`fifthyearoption`, `verify` 3 seasons, `sweep` included). Two
+inherited single-seed metric reds — leave them; same family and
+the same two numbers the fifth-year packet recorded. Do not
+touch `docs/baselines.json`. Careers/FA volume was not retuned.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
+
+Browser: planted an expiring OT on the tag window (Nico Wilson II,
+same year-0 plant as #42). Tag → FA → draft → camp. Hub shows
+the extension desk (5yr / $21.4M). Auto-fix for camp cap, then
+Extend → 5-year deal, no longer a tag-year rental. Skip on a
+second plant (Antonio Jacoby) → plays the tag year. Start the
+Season → 2027 preseason, 53/53 both paths.
+
 ## 2026-09-03 — fifth-year option (branch `cursor/fifth-year-option-8e2c`)
 
 Named leftover in the #42 HANDOFF note: "Fifth-year option is a different
