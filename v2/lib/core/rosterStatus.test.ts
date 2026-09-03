@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import {
-  enterDraft, finalizeOffseason, runUdfaChase, simEntireDraft,
+  enterDraft, enterCampAfterDraft, finalizeOffseason, simEntireDraft,
 } from "./offseason";
 import { askingPrice, fillRoster, freeActiveSlot, reconcileRoster, signPlayer } from "./offseason/contracts";
 import { resolveWaivers } from "./waivers";
@@ -240,12 +240,11 @@ function cheapestFa(st: ReturnType<typeof newGame>) {
   enterDraft(st);
   simEntireDraft(st);
   const rng = new Rng(st.rngState);
-  runUdfaChase(st, rng);
+  enterCampAfterDraft(st, rng);
   st.rngState = rng.state;
-  st.phase = "offseason-final";
 
   const userN = rosterCount(st, st.userTeamId);
-  assert.ok(userN > ROSTER_LIMIT, `user camp roster ${userN} should sit over 53`);
+  assert.ok(userN > 60, `user camp roster ${userN} should sit well above 53 toward 90`);
   assert.ok(userN <= CAMP_ROSTER_LIMIT);
   assert.equal(rosterIssues(st, st.userTeamId).filter((i) => i.kind === "overLimit").length, 0);
 
@@ -271,9 +270,13 @@ function cheapestFa(st: ReturnType<typeof newGame>) {
     fas[i].contract = makeContract(rng, LEAGUE_MINIMUM, 1, st.season, 0);
   }
   fillRoster(st, st.userTeamId, rng);
-  assert.equal(rosterCount(st, st.userTeamId), 60, "camp fill must not trim to 53");
+  const afterFill = rosterCount(st, st.userTeamId);
+  assert.ok(afterFill >= 60, `camp fill trimmed to ${afterFill}`);
+  assert.ok(afterFill <= CAMP_ROSTER_LIMIT);
   reconcileRoster(st, st.userTeamId, rng);
-  assert.equal(rosterCount(st, st.userTeamId), 60, "camp reconcile must not dump to 53");
+  const afterRec = rosterCount(st, st.userTeamId);
+  assert.ok(afterRec >= 60, `camp reconcile dumped to ${afterRec}`);
+  assert.ok(afterRec <= CAMP_ROSTER_LIMIT);
   assert.equal(practiceSquadCount(st, st.userTeamId), 0, "camp reconcile does not stash to PS");
   st.rngState = rng.state;
 }

@@ -10,9 +10,10 @@
 import assert from "node:assert/strict";
 import { newGame } from "../core/newGame";
 import {
-  enterDraft, finalizeOffseason, runUdfaChase, simEntireDraft,
+  enterDraft, enterCampAfterDraft, finalizeOffseason, simEntireDraft,
 } from "../core/offseason";
 import { askingPrice, cutPlayer, fillRoster, reconcileRoster, signPlayer } from "../core/offseason/contracts";
+import { signUdfa, UDFA_SIGNINGS_MAX } from "../core/offseason/draft";
 import { makeContract } from "../core/generate";
 import { Rng } from "../core/rng";
 import { rosterCount, rosterIssues } from "../core/select";
@@ -82,22 +83,27 @@ function attachExtras(st: ReturnType<typeof newGame>, n: number): void {
 }
 
 // fillRoster / reconcileRoster in camp do not dump a 60-man club to 53.
+// Camp fill may grow toward 90 from the street; it must not cut down.
 {
   const st = newGame({ seed: 2 });
   st.phase = "offseason-final";
   attachExtras(st, 7);
   const rng = new Rng(st.rngState);
   fillRoster(st, st.userTeamId, rng);
-  assert.equal(rosterCount(st, st.userTeamId), 60, "camp fill must not trim to 53");
+  const afterFill = rosterCount(st, st.userTeamId);
+  assert.ok(afterFill >= 60, `camp fill trimmed to ${afterFill}`);
+  assert.ok(afterFill <= CAMP_ROSTER_LIMIT, `camp fill ${afterFill} over 90`);
   reconcileRoster(st, st.userTeamId, rng);
-  assert.equal(rosterCount(st, st.userTeamId), 60, "camp reconcile must not dump to 53");
+  const afterRec = rosterCount(st, st.userTeamId);
+  assert.ok(afterRec >= 60, `camp reconcile dumped to ${afterRec}`);
+  assert.ok(afterRec <= CAMP_ROSTER_LIMIT);
   st.rngState = rng.state;
 
   const extra = st.players.find((p) => p.teamId === st.userTeamId && !p.retired && !p.prospect);
   assert.ok(extra);
   const cut = cutPlayer(st, extra.id);
   assert.equal(cut.ok, true);
-  assert.equal(rosterCount(st, st.userTeamId), 59);
+  assert.equal(rosterCount(st, st.userTeamId), afterRec - 1);
 }
 
 // Season reconcile still locks 53.
@@ -129,25 +135,35 @@ function attachExtras(st: ReturnType<typeof newGame>, n: number): void {
   assert.equal(rosterCount(st, st.userTeamId), 54);
 }
 
-// Live path: draft + UDFA sits over 53 in camp; cutdown brings every club to 53.
+// Live path: draft + UDFA + camp fill sits toward 90; cutdown still locks 53.
 {
   const st = newGame({ seed: 1 });
   enterDraft(st);
   simEntireDraft(st);
   const rng = new Rng(st.rngState);
-  runUdfaChase(st, rng);
+  const leftover = st.players.filter((p) => p.prospect && p.teamId === null);
+  assert.ok(leftover.length >= 5, "need undrafted names for the board-cap check");
+  for (let i = 0; i < UDFA_SIGNINGS_MAX; i++) {
+    assert.equal(signUdfa(st, st.userTeamId, leftover[i].id, rng), true, `UDFA ${i + 1} should sign`);
+  }
+  assert.equal(signUdfa(st, st.userTeamId, leftover[UDFA_SIGNINGS_MAX].id, rng), false,
+    "board Sign stays capped at 4");
+  assert.equal(UDFA_SIGNINGS_MAX, 4);
+  enterCampAfterDraft(st, rng);
   st.rngState = rng.state;
-  st.phase = "offseason-final";
 
   const userN = rosterCount(st, st.userTeamId);
-  assert.ok(userN > ROSTER_LIMIT, `user camp roster ${userN} should sit over 53`);
+  assert.ok(userN > 60, `user camp roster ${userN} should sit well above 53 toward 90`);
   assert.ok(userN <= CAMP_ROSTER_LIMIT, `user camp roster ${userN} over 90`);
+  assert.ok(userN !== 43 && userN !== 53, `user camp stuck at ${userN}`);
   assert.equal(rosterIssues(st, st.userTeamId).filter((i) => i.kind === "overLimit").length, 0);
 
   const over = st.teams.filter((t) => rosterCount(st, t.id) > ROSTER_LIMIT).length;
-  assert.ok(over > 0, "CPU clubs should also sit over 53 after draft + UDFA");
+  assert.equal(over, 32, "every club should sit over 53 after camp fill");
   for (const t of st.teams) {
-    assert.ok(rosterCount(st, t.id) <= CAMP_ROSTER_LIMIT, `${t.abbr} over camp cap`);
+    const n = rosterCount(st, t.id);
+    assert.ok(n > 60, `${t.abbr} camp ${n} not toward 90`);
+    assert.ok(n <= CAMP_ROSTER_LIMIT, `${t.abbr} over camp cap`);
   }
 
   const clip = rosterCapView(st, st.userTeamId);
@@ -157,6 +173,7 @@ function attachExtras(st: ReturnType<typeof newGame>, n: number): void {
   assert.equal(clip.label, `${userN}/90`);
 
   finalizeOffseason(st);
+  assert.ok((st.waivers ?? []).length > 0, "cutdown extras must hit waivers");
   for (const t of st.teams) {
     assert.equal(rosterCount(st, t.id), ROSTER_LIMIT, `${t.abbr} after cutdown`);
   }
