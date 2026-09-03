@@ -22,12 +22,15 @@ preseason→regular call) claimed into that dump and left the
 claim-cuts (~100) sitting. Not a second market.
 
 **Change.** `settleWaivers` loops `resolveWaivers` until the chain
-is empty (each iteration is still one window). Called at the end of
-`finalizeOffseason` and from `startRegularSeason` / the Start the
-Season advance. Play Week stays one window. Cutdown extras still
-hit waivers first. User claims are awarded, not wiped. Reject /
-Withdraw unchanged. Bulk-sim does not pause on the wire. Sit desk,
-IR/PS, CPU IR fill, call sheet, camp 90, UDFA cap 4 stay.
+stops moving (each iteration is still one window). Called at the
+end of `finalizeOffseason` and from `startRegularSeason` / the
+Start the Season advance. Play Week stays one window. Cutdown
+extras still hit waivers first. CPU will not claim or PS-stash a
+body that does not fit the cap; unclaimed who cannot be released
+without breaking the books stay on a leftover desk. User claims
+are awarded, not wiped. Reject / Withdraw unchanged. Bulk-sim
+does not pause on the wire. Sit desk, IR/PS, CPU IR fill, call
+sheet, camp 90, UDFA cap 4 stay.
 
 **Leftover.** No 6-vet PS cap, no international PS slot.
 askingPrice true-OVR invert stays leftover. No Madden formation

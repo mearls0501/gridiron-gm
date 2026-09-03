@@ -1,5 +1,5 @@
 import { GameState, Player, POSITION_MIN, PRACTICE_SQUAD_LIMIT, rosterLimit, WaiverClaim } from "./types";
-import { addDeadCap, deadMoney, getPlayer, positionCount, practiceSquadCount, rosterCount } from "./select";
+import { addDeadCap, capHit, deadMoney, getPlayer, positionCount, practiceSquadCount, rosterCount, teamCap } from "./select";
 import { placeOnPs, clearRosterSlot } from "./rosterStatus";
 import { compareTeamsCore, leagueStandings } from "./season/standings";
 import { evaluate, teamOutlook } from "./frontOffice";
@@ -127,11 +127,17 @@ function wantsClaim(state: GameState, teamId: number, p: Player, entry: WaiverCl
 
 function awardClaim(state: GameState, teamId: number, p: Player): boolean {
   const hold = rosterLimit(state.phase);
+  const incoming = capHit(p.contract);
   if (rosterCount(state, teamId) >= hold) {
     if (teamId === state.userTeamId) return false;
     const worse = worseSurplus(state, teamId, p);
     if (!worse) return false;
+    // Cut first, then the incoming hit must still fit. Dead money on the
+    // cut lands when he clears, not here.
+    if (teamCap(state, teamId).space + capHit(worse.contract) < incoming) return false;
     cutPlayer(state, worse.id);
+  } else if (teamId !== state.userTeamId && teamCap(state, teamId).space < incoming) {
+    return false;
   }
   if (rosterCount(state, teamId) >= hold) return false;
   p.teamId = teamId;
@@ -146,24 +152,38 @@ function awardClaim(state: GameState, teamId: number, p: Player): boolean {
 }
 
 function stashOrFreeAgent(state: GameState, p: Player, originalTeamId: number): void {
-  if (practiceSquadCount(state, originalTeamId) < PRACTICE_SQUAD_LIMIT) {
+  const hit = capHit(p.contract);
+  const space = teamCap(state, originalTeamId).space;
+  if (
+    practiceSquadCount(state, originalTeamId) < PRACTICE_SQUAD_LIMIT &&
+    space >= hit
+  ) {
     p.teamId = originalTeamId;
     clearRosterSlot(p);
     const parked = placeOnPs(state, p.id);
     if (parked.ok) return;
   }
   const dead = deadMoney(p.contract);
-  addDeadCap(state, originalTeamId, dead);
-  p.contract = null;
-  p.teamId = null;
-  clearRosterSlot(p);
-  state.log.push({
-    season: state.season,
-    week: state.week,
-    kind: "transaction",
-    text: `${p.firstName} ${p.lastName} (${p.pos}) cleared waivers and became a free agent` +
-      (dead > 0 ? ` — $${(dead / 1e6).toFixed(1)}M dead money` : ""),
-  });
+  if (space >= dead) {
+    addDeadCap(state, originalTeamId, dead);
+    p.contract = null;
+    p.teamId = null;
+    clearRosterSlot(p);
+    state.log.push({
+      season: state.season,
+      week: state.week,
+      kind: "transaction",
+      text: `${p.firstName} ${p.lastName} (${p.pos}) cleared waivers and became a free agent` +
+        (dead > 0 ? ` — $${(dead / 1e6).toFixed(1)}M dead money` : ""),
+    });
+    return;
+  }
+  // Cannot stash or eat the dead money. Leave him on the next window so
+  // the club stays legal. Settle stops when this set stops moving.
+  if (!state.waivers) state.waivers = [];
+  if (!state.waivers.some((w) => w.playerId === p.id)) {
+    state.waivers.push({ playerId: p.id, originalTeamId });
+  }
 }
 
 /**
@@ -195,14 +215,21 @@ export function resolveWaivers(state: GameState): void {
 }
 
 /**
- * Close windows until claim-cuts stop producing a next window.
+ * Close windows until claim-cuts stop producing a next window, or
+ * the leftover set cannot move without breaking a club's cap.
  * Each call is still one snapshot; cuts made to open a claim slot
  * land on the next iteration, not this one. Bound is a chain cap,
  * not a league rate.
  */
 export function settleWaivers(state: GameState): void {
+  let prev = "";
   for (let i = 0; i < 64; i++) {
-    if (!(state.waivers ?? []).length) return;
+    const ids = (state.waivers ?? []).map((w) => w.playerId).sort((a, b) => a - b).join(",");
+    if (!ids || ids === prev) {
+      if ((state.waivers ?? []).length === 0) delete state.waivers;
+      return;
+    }
+    prev = ids;
     resolveWaivers(state);
   }
 }

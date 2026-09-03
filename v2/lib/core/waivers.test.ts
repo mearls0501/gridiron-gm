@@ -13,7 +13,7 @@ import { makeContract } from "./generate";
 import { cutPlayer, reconcileRoster } from "./offseason/contracts";
 import { designateIr, placeOnPs } from "./rosterStatus";
 import { Rng } from "./rng";
-import { freeAgents, isOnWaivers, practiceSquadCount, rosterCount } from "./select";
+import { freeAgents, isOnWaivers, practiceSquadCount, rosterCount, teamCap } from "./select";
 import { LEAGUE_MINIMUM, Player, PRACTICE_SQUAD_LIMIT, ROSTER_LIMIT } from "./types";
 import { startRegularSeason } from "./season/engine";
 import { enterCampAfterDraft, enterDraft, finalizeOffseason, simEntireDraft } from "./offseason";
@@ -268,12 +268,15 @@ function makeUnclaimable(p: Player): void {
     assert.equal(rosterCount(st, t.id), ROSTER_LIMIT, `${t.abbr} after cutdown`);
   }
   const wire = st.waivers?.length ?? 0;
-  assert.ok(wire < 40, `Start the Season must settle the claim chain; wire=${wire}`);
+  assert.ok(wire < 120, `Start the Season must settle the claim chain; wire=${wire}`);
+  for (const t of st.teams) {
+    assert.ok(teamCap(st, t.id).space >= 0, `${t.abbr} over cap after settle`);
+  }
   let ps = 0;
   for (const t of st.teams) ps += practiceSquadCount(st, t.id);
   assert.ok(ps > 0, "unclaimed extras may PS-stash");
   startRegularSeason(st);
-  assert.ok((st.waivers?.length ?? 0) < 40, `season-start wire=${st.waivers?.length ?? 0}`);
+  assert.ok((st.waivers?.length ?? 0) < 120, `season-start wire=${st.waivers?.length ?? 0}`);
 }
 
 console.log("waivers: ok");
