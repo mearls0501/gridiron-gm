@@ -359,7 +359,8 @@ export default function Hub() {
             {picked.length > 0 && (
               <p className="text-sm mb-2">
                 {picked.length === 1 ? "Option picked up. " : `${picked.length} options picked up. `}
-                They stay through year 5. Continue to start the season.
+                They stay through year 5.
+                {names.length === 0 ? " Continue to start the season." : ""}
               </p>
             )}
             {names.length === 0 ? (

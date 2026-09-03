@@ -63,6 +63,13 @@ FAIL  leverage.wrongSign     1     expected <= 0
 FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
 ```
 
+Browser: planted two first-rounders on a camp (`offseason-final`) save
+the way #42 planted an expiring OT — year 0 has no year-4 R1.
+Hub shows the option desk (Isiah Garcia, pick 4, $4.03M; Nico Wilson II,
+pick 18, $13.9M). Pick up → Garcia is 2 years left of a 5-year deal.
+Decline → Wilson stays 1 of a 4-year deal. Start the Season → 2027
+preseason, 53/53.
+
 ---
 
 ## 2026-09-03 — franchise-tag window (branch `cursor/franchise-tag-window-6a80`)
