@@ -15,11 +15,11 @@ import {
   positionsOfNeed,
   quoteMoveUp,
   rookieContract,
-  runUdfaChase,
   signUdfa,
   udfaSignedCount,
   userPicks,
 } from "@/lib/core/offseason/draft";
+import { enterCampAfterDraft } from "@/lib/core/offseason";
 import {
   METHOD_LABEL,
   PRIVATE_VISIT_CAP,
@@ -287,7 +287,7 @@ export default function DraftPage() {
   function finishUdfa() {
     apply((s) => {
       const rng = new Rng(s.rngState);
-      const n = runUdfaChase(s, rng);
+      const n = enterCampAfterDraft(s, rng);
       s.rngState = rng.state;
       return `The league chases the rest — ${n} priority free agents signed around the league.`;
     });

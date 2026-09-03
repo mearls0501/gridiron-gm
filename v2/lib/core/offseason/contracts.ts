@@ -1,8 +1,8 @@
 import { Rng, clamp } from "../rng";
 import { defaultGuaranteedYears, makeContract, makePlayer, marketApy } from "../generate";
 import {
-  GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player, PRACTICE_SQUAD_LIMIT, ROSTER_LIMIT,
-  Position, POSITION_MIN, rosterLimit,
+  CAMP_ROSTER_LIMIT, GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player, PRACTICE_SQUAD_LIMIT,
+  ROSTER_LIMIT, Position, POSITION_MIN, rosterLimit,
 } from "../types";
 import { capHit, deadMoney, isActiveRoster, isOnWaivers, positionCount, practiceSquadCount, rosterCount, startSeason, teamCap } from "../select";
 import { clearRosterSlot } from "../rosterStatus";
@@ -333,8 +333,8 @@ export function fillRoster(
     }
   }
 
-  // 2. Fill remaining slots with the best available. Floor is always 53 —
-  // camp may hold more, but a short club still needs a season roster.
+  // 2. Season floor. Generate only here — a short club still needs 53,
+  // even in camp. The board cap of 4 is not this floor.
   let guard = 0;
   while (rosterCount(state, teamId) < ROSTER_LIMIT && guard++ < 120) {
     let pick = bestAffordable(state, teamId, null);
@@ -345,7 +345,18 @@ export function fillRoster(
     signAtMarket(state, teamId, pick, rng);
   }
 
-  // 3. Trim only above the phase ceiling (90 in camp, 53 once the season locks).
+  // 3. Camp extras: fill toward the phase ceiling from the street. Do not
+  // generate bodies — if the pool is empty, sit short of 90.
+  if (limit > ROSTER_LIMIT) {
+    guard = 0;
+    while (rosterCount(state, teamId) < limit && guard++ < 200) {
+      const pick = bestAffordable(state, teamId, null);
+      if (!pick) break;
+      signAtMarket(state, teamId, pick, rng);
+    }
+  }
+
+  // 4. Trim only above the phase ceiling (90 in camp, 53 once the season locks).
   // Cutdown extras go to waivers; unclaimed may stash to the 16-man PS.
   guard = 0;
   while (rosterCount(state, teamId) > limit && guard++ < 120) {
@@ -353,6 +364,32 @@ export function fillRoster(
       if (moveWorstSurplus(state, teamId, null, "ps")) continue;
     }
     if (!cutWorstSurplus(state, teamId, null)) break;
+  }
+}
+
+/**
+ * After the priority UDFA window: every club (user and CPU) fills toward
+ * 90 from street FA / remaining undrafted. Round-robin so one club cannot
+ * empty the pool. Does not generate replacements above 53. Does not raise
+ * the board cap of 4.
+ */
+export function fillCampRosters(state: GameState, rng: Rng): void {
+  for (const t of state.teams) {
+    const n = rosterCount(state, t.id);
+    fillRoster(state, t.id, rng, Math.max(ROSTER_LIMIT, n));
+  }
+  let guard = 0;
+  while (guard++ < CAMP_ROSTER_LIMIT) {
+    const order = rng.shuffle(state.teams.map((t) => t.id));
+    let any = false;
+    for (const teamId of order) {
+      if (rosterCount(state, teamId) >= CAMP_ROSTER_LIMIT) continue;
+      const pick = bestAffordable(state, teamId, null);
+      if (!pick) continue;
+      signAtMarket(state, teamId, pick, rng);
+      any = true;
+    }
+    if (!any) break;
   }
 }
 

@@ -5,7 +5,7 @@ import { GameState, Phase, ROSTER_LIMIT } from "../types";
 import { foldPracticeSquad, resetSeasonRosterFlags } from "../rosterStatus";
 import { resolveWaivers } from "../waivers";
 import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
-import { cpuResign, expireContracts, reconcileRoster, spendToFloor, upgradeRoster } from "./contracts";
+import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
 import { ensureScouting, pruneScouting } from "../scouting";
@@ -187,6 +187,18 @@ export function simEntireDraft(state: GameState): void {
 }
 
 /**
+ * Close the priority UDFA window and enter camp. Remaining undrafted
+ * hit the street; every club fills toward 90. Board cap of 4 is unchanged.
+ */
+export function enterCampAfterDraft(state: GameState, rng: Rng): number {
+  const n = runUdfaChase(state, rng);
+  if (state.draft) convertUndrafted(state, state.draft.season);
+  fillCampRosters(state, rng);
+  state.phase = "offseason-final";
+  return n;
+}
+
+/**
  * Close out the offseason: undrafted players hit the pool, every roster is
  * brought to a legal 53 under the cap, and the calendar rolls to next season.
  */
@@ -279,13 +291,12 @@ export function advanceOffseason(state: GameState): string {
 
     case "offseason-draft": {
       simEntireDraft(state);
-      // The chase after the last pick. Interactive signings happen in the
-      // draft room before this runs; it signs for CPU clubs only and is
-      // idempotent, so the phase count harnesses loop on is unchanged.
+      // Priority chase (CPU only, board cap of 4), then street-FA /
+      // remaining-undrafted fill toward 90. User Sign on the board
+      // stays at UDFA_SIGNINGS_MAX. Idempotent if the room already closed.
       const rng = new Rng(state.rngState);
-      runUdfaChase(state, rng);
+      enterCampAfterDraft(state, rng);
       state.rngState = rng.state;
-      state.phase = "offseason-final";
       return "Draft complete";
     }
 

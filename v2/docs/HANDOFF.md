@@ -5,6 +5,70 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-02 — camp-to-90 fill after draft (branch `cursor/camp-90-fill-cc0c`)
+
+Matt unparked the leftover named in camp 90 (#32), IR/PS (#33),
+waivers (#35), and play-calling (#38): after draft + UDFA the user
+club sat 43/90. Camp may HOLD 90. It did not FILL toward 90.
+
+**Diagnosis.** Confirmed. `CAMP_ROSTER_LIMIT` and `rosterLimit(phase)`
+let camp sit at 90. `fillRoster` still filled shorts only to 53 and
+trimmed only above the phase ceiling. `runUdfaChase` / user Sign stay
+capped at `UDFA_SIGNINGS_MAX` (4) — that is the board rule, not the
+camp holding limit. CPU chase is ~4 a club. Nobody converted the
+remaining class (`CAMP_POOL` exists to fill 90-man camps) or signed
+street FA after the priority window. Hub Auto-fix was still not the
+cutdown; Start the Season already passed `ROSTER_LIMIT`.
+
+**Change.** After the priority chase, remaining undrafted hit the
+street (`convertUndrafted`) and `fillCampRosters` fills every club
+(user and CPU) toward 90 from that pool, round-robin, seeded RNG.
+`fillRoster` still floors shorts to 53 (may generate) and now fills
+toward the phase ceiling from the street only — empty pool sits short
+of 90, no generated camp extras. `UDFA_SIGNINGS_MAX` stays 4.
+`finalizeOffseason` still locks active 53; extras still hit waivers
+first. Auto-fix is not the cutdown. User can still cut on `/roster`.
+One `state.players` array. Old saves load. No new FA market; askingPrice
+/ negotiatedApy / CONTENDER_PULL / GUARANTEE_PULL untouched.
+
+**Leftover.** No 6-vet PS cap, no international PS slot. CPU still
+does not auto-sign an IR replacement. askingPrice true-OVR invert
+stays leftover. No Madden formation tree or play art.
+
+Untouched: POSITION_VALUE, cpuBoardValue, cpuProspectView,
+CONTENDER_PULL, GUARANTEE_PULL, CARRY_SHARE, WEEKLY_TABLE /
+POSITION_DURATION / POSITION_RISK, PR #9, `docs/baselines.json`.
+
+Regression: `lib/view/rosterCap.test.ts` (gate `rostercap`) — board
+Sign disables at 4; after draft+UDFA+fill, user and CPU sit well
+above 53 toward 90; finalize still 53/53; cutdown extras on waivers.
+`rosterStatus.test.ts` live path uses the same camp entry.
+
+File cluster: `contracts.ts` (`fillRoster` toward-ceiling, `fillCampRosters`),
+`offseason/index.ts` (`enterCampAfterDraft`), draft room Finish,
+`rosterCap.test.ts` / `rosterStatus.test.ts`, this note.
+
+### Gate (`nproc`=4)
+
+Fast: all 18 harnesses exit 0 (`rostercap` included; `verify` 3 seasons).
+Three inherited single-seed metric reds — leave them; same family as
+PR #26–#38, and the same three numbers the play-calling packet recorded.
+Do not touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.qb5PassYds  3929   expected 4497 +/-360
+FAIL  statcheck.wr10RecYds  1067   expected 1208 +/-97
+```
+
+Browser: New Franchise → season → Finish the Draft. Post-draft
+`/roster` **68/90** with the cutdown clipboard (15 over 53 — cut or
+keep). Not 43/90, not stuck at 53. Start the Season → **53/53**;
+cutdown extras on the wire (league-wide waivers). User Sign still
+caps at 4 on the board (rostercap).
+
+---
+
 ## 2026-09-02 — this-week call sheet / Play-the-Game (branch `cursor/play-the-game-a077`)
 
 Matt unparked the leftover half of "live play-calling / sit-him" after
