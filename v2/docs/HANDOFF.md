@@ -5,6 +5,60 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-03 — fifth-year option (branch `cursor/fifth-year-option-8e2c`)
+
+Named leftover in the #42 HANDOFF note: "Fifth-year option is a different
+packet." `rookieContract` already signs every drafted player to a 4-year
+deal. Search was empty. After year 4 the R1 hit FA like everyone else.
+
+**Diagnosis.** Confirmed. Part 5 of `docs/front-office-design-2026-07-28.md`:
+post-draft, "fifth-year option by May 1 of year 4" — the option bet.
+Same ungated published-rule pattern as camp 90 / PS 16 / IR / waivers /
+franchise tag.
+
+**Change.** Desk on the existing camp Hub (`offseason-final`), not a
+sixth phase and not the tag window. Eligible: first-rounder
+(`draftedRound === 1`) still on the original 4-year rookie deal, one
+year remaining. Pick up appends a guaranteed 5th year at a published
+CBA-shaped tender (slot: top-10 = top-ten `capHit` average;
+11–32 = 3rd–20th). Decline / skip: the 4-year path unchanged. One
+decision per eligible player per window. CPU picks up on
+`enterCampAfterDraft` via evaluate / cap / posture; user club skipped.
+Old saves missing `fifthYearOptions` load.
+
+Skipped: 6-vet PS cap / international PS slot / Pro Bowl escalators
+(no Pro Bowl flag) / non-exclusive / transition / July 15 extension.
+No 24-hour clock. askingPrice / negotiatedApy stay on true OVR.
+
+**Leftover.** No 6-vet PS cap, no international PS slot.
+askingPrice true-OVR invert stays leftover. No Madden formation
+tree or play art. Pro Bowl escalators omitted on purpose.
+
+Untouched: POSITION_VALUE, cpuBoardValue, cpuProspectView,
+CONTENDER_PULL, GUARANTEE_PULL, CARRY_SHARE, WEEKLY_TABLE /
+POSITION_DURATION / POSITION_RISK, askingPrice / negotiatedApy,
+PR #9, `docs/baselines.json`.
+
+Regression: `lib/core/fifthYearOption.test.ts` (gate `fifthyearoption`) —
+R1 with 1 year left can be picked up and then has a 5th year / does
+not expire after that 4th season; Decline expires after year 4 as
+today; R2 has no option; cap block; CPU does not auto-pick the user
+club; headless draft→camp still reaches cutdown. Existing franchise-
+tag / resign / FA tests stay.
+
+File cluster: `offseason/contracts.ts` + Hub card +
+`fifthYearOption.test.ts`, types / `enterCampAfterDraft`,
+nfl-reference §4, this note.
+
+### Gate (`nproc`=4)
+
+Fast: run after the edit. Inherited single-seed reds
+(`leverage.wrongSign`, `statcheck.wr10RecYds` on one seed) stay —
+do not chase, do not edit baselines. Careers/FA volume was not
+retuned; report if they move.
+
+---
+
 ## 2026-09-03 — franchise-tag window (branch `cursor/franchise-tag-window-6a80`)
 
 Matt unparked the leftover between Recap and FA. Hub said Continue to

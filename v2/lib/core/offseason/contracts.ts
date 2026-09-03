@@ -122,6 +122,143 @@ export function runCpuFranchiseTags(state: GameState, rng: Rng): void {
   }
 }
 
+export function fifthYearOptionDecided(state: GameState, playerId: number): boolean {
+  return !!state.fifthYearOptions?.some((o) => o.season === state.season && o.playerId === playerId);
+}
+
+/**
+ * First-rounder still on the original 4-year rookie deal, one year
+ * remaining (entering year 4). Rounds 2–7 and UDFAs have no option.
+ * `yearsPro` is seasons elapsed, not accrued; do not invent a vest.
+ */
+export function isFifthYearOptionEligible(state: GameState, p: Player): boolean {
+  if (p.retired || p.prospect || p.teamId === null || !p.contract) return false;
+  if (p.draftedRound !== 1 || p.draftClassSeason === null) return false;
+  if (p.contract.years !== 4 || p.contract.yearsRemaining !== 1) return false;
+  if (p.contract.signedSeason !== p.draftClassSeason) return false;
+  if (fifthYearOptionDecided(state, p.id)) return false;
+  return true;
+}
+
+export function fifthYearOptionPlayers(state: GameState, teamId: number): Player[] {
+  const out: Player[] = [];
+  for (const p of state.players) {
+    if (p.teamId !== teamId) continue;
+    if (isFifthYearOptionEligible(state, p)) out.push(p);
+  }
+  return out;
+}
+
+/**
+ * Fifth-year option tender. Slot split on `draftedPick` using existing
+ * `capHit` averages — picks 1–10: top ten at the position (transition-
+ * shaped); picks 11–32: 3rd through 20th. Not the exclusive franchise
+ * tag (top five or 120%). Pro Bowl escalators omitted; no Pro Bowl flag.
+ * See `docs/nfl-reference.md` §4.
+ */
+export function fifthYearOptionSalary(state: GameState, p: Player): number {
+  const lastYear = p.contract ? capHit(p.contract) : LEAGUE_MINIMUM;
+  const hits: number[] = [];
+  for (const x of state.players) {
+    if (x.retired || x.prospect || x.pos !== p.pos || !x.contract) continue;
+    const h = capHit(x.contract);
+    if (h > 0) hits.push(h);
+  }
+  hits.sort((a, b) => b - a);
+  const pick = p.draftedPick ?? 33;
+  const slice = pick <= 10 ? hits.slice(0, 10) : hits.slice(2, 20);
+  const avg = slice.length ? Math.round(slice.reduce((a, b) => a + b, 0) / slice.length) : lastYear;
+  return Math.max(LEAGUE_MINIMUM, avg);
+}
+
+function recordFifthYearOption(
+  state: GameState, teamId: number, playerId: number, pickedUp: boolean
+): void {
+  if (!state.fifthYearOptions) state.fifthYearOptions = [];
+  state.fifthYearOptions.push({ season: state.season, teamId, playerId, pickedUp });
+}
+
+/** Pick up the fifth-year option. Appends a guaranteed year-5 at the tender. */
+export function applyFifthYearOption(
+  state: GameState, teamId: number, playerId: number
+): SignResult {
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p) return { ok: false, reason: "No such player" };
+  if (p.retired) return { ok: false, reason: "Player has retired" };
+  if (p.teamId !== teamId) return { ok: false, reason: "Player is not on this roster" };
+  if (fifthYearOptionDecided(state, playerId)) {
+    return { ok: false, reason: "This club has already decided this player's fifth-year option." };
+  }
+  if (!isFifthYearOptionEligible(state, p) || !p.contract) {
+    return { ok: false, reason: "Only a first-rounder entering year 4 of his rookie deal has a fifth-year option." };
+  }
+
+  const tender = fifthYearOptionSalary(state, p);
+  const cap = teamCap(state, teamId);
+  if (tender > cap.space) {
+    return {
+      ok: false,
+      reason: `Not enough cap space. That tender costs $${(tender / 1e6).toFixed(1)}M against $${(cap.space / 1e6).toFixed(1)}M available.`,
+    };
+  }
+
+  p.contract.years += 1;
+  p.contract.yearsRemaining += 1;
+  p.contract.baseSalary = [...p.contract.baseSalary, tender];
+  p.contract.guaranteedYears = p.contract.yearsRemaining;
+  recordFifthYearOption(state, teamId, p.id, true);
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "transaction",
+    text: `${state.teams[teamId].abbr} picked up the fifth-year option on ${p.firstName} ${p.lastName} (${p.pos}) — yr 5 / $${(tender / 1e6).toFixed(1)}M`,
+  });
+  return { ok: true };
+}
+
+/** Decline. The 4-year deal runs out as today; he hits FA after year 4. */
+export function declineFifthYearOption(
+  state: GameState, teamId: number, playerId: number
+): SignResult {
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p) return { ok: false, reason: "No such player" };
+  if (p.teamId !== teamId) return { ok: false, reason: "Player is not on this roster" };
+  if (fifthYearOptionDecided(state, playerId)) {
+    return { ok: false, reason: "This club has already decided this player's fifth-year option." };
+  }
+  if (!isFifthYearOptionEligible(state, p)) {
+    return { ok: false, reason: "Only a first-rounder entering year 4 of his rookie deal has a fifth-year option." };
+  }
+  recordFifthYearOption(state, teamId, p.id, false);
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "transaction",
+    text: `${state.teams[teamId].abbr} declined the fifth-year option on ${p.firstName} ${p.lastName} (${p.pos})`,
+  });
+  return { ok: true };
+}
+
+/**
+ * CPU clubs may pick up every eligible R1 they can afford on this
+ * window, via evaluate / cap / posture. User club is skipped.
+ */
+export function runCpuFifthYearOptions(state: GameState): void {
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    const { posture } = teamOutlook(state, t.id);
+    const ranked = fifthYearOptionPlayers(state, t.id).slice().sort(
+      (a, b) =>
+        evaluate(state, t.id, b, posture, POSITION_VALUE[b.pos]) -
+        evaluate(state, t.id, a, posture, POSITION_VALUE[a.pos])
+    );
+    for (const p of ranked) {
+      if (evaluate(state, t.id, p, posture, POSITION_VALUE[p.pos]) <= 0) continue;
+      applyFifthYearOption(state, t.id, p.id);
+    }
+  }
+}
+
 /** Roll every contract forward one season. Returns players who hit free agency. */
 export function expireContracts(state: GameState): Player[] {
   const expiring: Player[] = [];

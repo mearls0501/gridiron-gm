@@ -15,7 +15,8 @@ import { userNextGame, isOnBye, injuredPlayers, weekGames } from "@/lib/core/sea
 import { divisionStandings, seasonHasResults } from "@/lib/core/season/standings";
 import { currentLine } from "@/lib/core/season/stats";
 import {
-  applyFranchiseTag, clubHasFranchiseTag, expiringPlayers, franchiseTagSalary,
+  applyFifthYearOption, applyFranchiseTag, clubHasFranchiseTag, declineFifthYearOption,
+  expiringPlayers, fifthYearOptionPlayers, fifthYearOptionSalary, franchiseTagSalary,
   isFranchiseTagged, OFFSEASON_STEPS, reconcileRoster,
 } from "@/lib/core/offseason";
 import { Rng } from "@/lib/core/rng";
@@ -257,6 +258,11 @@ export default function Hub() {
                     Tag one name below, or Continue to let the window close.
                   </span>
                 )}
+                {state.phase === "offseason-final" && (
+                  <span className="text-xs text-[var(--color-muted)]">
+                    Pick up or Decline a fifth-year option below, or Continue with none.
+                  </span>
+                )}
                 {state.phase === "offseason-fa" && (
                   <Link href="/free-agency"><Button size="sm">Go to Free Agency</Button></Link>
                 )}
@@ -328,6 +334,80 @@ export default function Hub() {
                         >
                           Tag
                         </Button>
+                      </Cell>
+                    </Row>
+                  );
+                })}
+              </Table>
+            )}
+          </Card>
+        );
+      })()}
+
+      {state.phase === "offseason-final" && (() => {
+        const names = fifthYearOptionPlayers(state, team.id)
+          .slice()
+          .sort((a, b) => b.ovr - a.ovr);
+        const picked = (state.fifthYearOptions ?? []).filter(
+          (o) => o.season === state.season && o.teamId === team.id && o.pickedUp
+        );
+        return (
+          <Card
+            title="Fifth-Year Option"
+            subtitle="First-rounders entering year 4 of the rookie deal. Pick up a guaranteed 5th year, or Decline and he hits FA after year 4."
+          >
+            {picked.length > 0 && (
+              <p className="text-sm mb-2">
+                {picked.length === 1 ? "Option picked up. " : `${picked.length} options picked up. `}
+                They stay through year 5. Continue to start the season.
+              </p>
+            )}
+            {names.length === 0 ? (
+              <p className="text-sm text-[var(--color-muted)]">
+                {picked.length > 0
+                  ? "No other first-rounder is eligible."
+                  : "No first-rounder is eligible for a fifth-year option. Continue to camp/cutdown."}
+              </p>
+            ) : (
+              <Table head={["Player", "Pos", "Age", "Tender", ""]}>
+                {names.map((p) => {
+                  const tender = fifthYearOptionSalary(state, p);
+                  return (
+                    <Row key={p.id}>
+                      <Cell align="left"><PlayerLink p={p} /></Cell>
+                      <Cell><PosBadge pos={p.pos} /></Cell>
+                      <Cell>{p.age}</Cell>
+                      <Cell>{formatMoney(tender)}</Cell>
+                      <Cell>
+                        <div className="flex gap-1 justify-end">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              apply((s) => {
+                                const r = applyFifthYearOption(s, s.userTeamId, p.id);
+                                return r.ok
+                                  ? `${p.firstName} ${p.lastName} fifth-year option picked up`
+                                  : r.reason;
+                              })
+                            }
+                          >
+                            Pick up
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              apply((s) => {
+                                const r = declineFifthYearOption(s, s.userTeamId, p.id);
+                                return r.ok
+                                  ? `${p.firstName} ${p.lastName} fifth-year option declined`
+                                  : r.reason;
+                              })
+                            }
+                          >
+                            Decline
+                          </Button>
+                        </div>
                       </Cell>
                     </Row>
                   );
