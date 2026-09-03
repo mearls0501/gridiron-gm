@@ -61,6 +61,12 @@ FAIL  statcheck.qb5PassYds  3929   expected 4497 +/-360
 FAIL  statcheck.wr10RecYds  1067   expected 1208 +/-97
 ```
 
+Browser: New Franchise → season → Finish the Draft. Post-draft
+`/roster` **68/90** with the cutdown clipboard (15 over 53 — cut or
+keep). Not 43/90, not stuck at 53. Start the Season → **53/53**;
+cutdown extras on the wire (league-wide waivers). User Sign still
+caps at 4 on the board (rostercap).
+
 ---
 
 ## 2026-09-02 — this-week call sheet / Play-the-Game (branch `cursor/play-the-game-a077`)
