@@ -52,6 +52,24 @@ File cluster: `offseason/index.ts` + `contracts.ts` (tag + expire
 skip) + Hub desk + `franchiseTag.test.ts`, types / Shell / scouting
 window, nfl-reference §4, this note.
 
+### Gate (`nproc`=4)
+
+Fast: all 19 harnesses exit 0 (`franchisetag`, `verify` 3 seasons,
+`sweep` included). Two inherited single-seed metric reds — leave
+them; same family and the same two numbers the waiver-chain packet
+recorded. Do not touch `docs/baselines.json`. Careers/FA volume
+was not retuned.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
+
+Browser: planted an expiring OT (Nico Wilson II) on a Season Review
+save — year 0 has almost nobody expiring as a starter. Hub after
+Recap shows the tag desk. Tag → search on `/free-agency` is empty.
+Skip → he is on the board (OT, asking $20.8M). Continue to FA works.
+
 ---
 
 ## 2026-09-02 — waiver claim-chain settle (branch `cursor/waiver-chain-settle-64a3`)
