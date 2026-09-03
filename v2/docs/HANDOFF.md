@@ -54,8 +54,21 @@ nfl-reference §4, this note.
 
 ### Gate (`nproc`=4)
 
-Fast: pending at this note. Inherited single-seed metric reds stay.
-Do not touch `docs/baselines.json`.
+Fast: all 18 harnesses exit 0 (`waivers`, `rostercap`, `verify` 3
+seasons, `sweep` included). Two inherited single-seed metric reds
+— leave them; same family as PR #26–#40. `qb5` did not trip this
+seed. Do not touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
+
+Browser: New Franchise → Through the Playoffs → Finish the Draft.
+`/roster` **69/90** with the cutdown clipboard. Camp wire **22**;
+Claim and Withdraw work. Start the Season → **53/53**. Hub waiver
+card **106 on the wire** (cap-stuck leftover, not the 800-name
+dump). Inverse standings / no cash bid copy unchanged.
 
 ---
 
