@@ -468,10 +468,16 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   priority is the cost. Claim order is inverse standings (worse record
   first), using the existing `leagueStandings` / `compareTeamsCore` sort —
   no Super Bowl exception, no invented 24-hour clock. The game has no
-  wall-clock; one claim window resolves at the next sim step (Play Week,
-  Start the Season during cutdown, or the preseason→season advance for
-  cutdown leftovers). Unclaimed: original club may PS-stash if under 16,
-  else FA. Claiming club gets the contract as-is. Ungated.
+  wall-clock; Play Week is one claim window. Start the Season (cutdown)
+  and the preseason→season advance close the current window and keep
+  resolving claim-cut windows in that same advance until the chain
+  settles or the remaining names cannot be claimed, stashed, or released
+  without putting a club over the cap — leftover stays on the desk
+  rather than blowing the books. The desk is not the whole camp dump
+  (~32 clubs × extras). Cutdown extras still pass waivers before PS or
+  FA. Unclaimed: original club may PS-stash if under 16 and the hit
+  fits, else FA if the dead money fits, else leftover on the next
+  window. Claiming club gets the contract as-is. Ungated.
 - **Gameday actives (47, or 48 with 8 OL).** Added 2026-09-02. Not in T/D/S/P.
   Same calendar source as the 90-man camp and PS 16 notes
   (`docs/front-office-design-2026-07-28.md` Part 5). Regular-season and

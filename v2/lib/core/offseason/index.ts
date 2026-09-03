@@ -3,7 +3,7 @@ import { refreshDepthCharts } from "../generate";
 import { clearDeadCap } from "../select";
 import { GameState, Phase, ROSTER_LIMIT } from "../types";
 import { foldPracticeSquad, resetSeasonRosterFlags } from "../rosterStatus";
-import { resolveWaivers } from "../waivers";
+import { settleWaivers } from "../waivers";
 import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
 import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
@@ -267,6 +267,11 @@ export function finalizeOffseason(state: GameState): void {
     season: state.season, week: 0, kind: "system",
     text: `${state.season} preseason begins.`,
   });
+
+  // Cutdown extras already hit the wire above. Close that window and the
+  // claim-cut chain in this advance so the preseason desk is not the
+  // whole camp dump. Play Week stays one window.
+  settleWaivers(state);
 }
 
 /**
@@ -274,7 +279,7 @@ export function finalizeOffseason(state: GameState): void {
  * Returns a human-readable description of what just happened.
  */
 export function advanceOffseason(state: GameState): string {
-  resolveWaivers(state);
+  settleWaivers(state);
   switch (state.phase) {
     case "offseason-recap":
       runRecap(state);
