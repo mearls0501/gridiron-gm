@@ -14,8 +14,8 @@ import { Rng } from "./rng";
 import { capHit, freeAgents, isActiveRoster, rosterCount, teamCap } from "./select";
 import { LEAGUE_MINIMUM, Player, ROSTER_LIMIT } from "./types";
 import {
-  applyFranchiseTag, clubHasFranchiseTag, expireContracts, expiringPlayers,
-  franchiseTagSalary, runCpuFranchiseTags,
+  applyFranchiseTag, clubFranchiseTaggedPlayer, clubHasFranchiseTag, expireContracts,
+  expiringPlayers, franchiseTagSalary, isFranchiseTagged, runCpuFranchiseTags,
 } from "./offseason/contracts";
 import { advanceOffseason, faPool } from "./offseason";
 
@@ -160,4 +160,39 @@ function plantExpiring(st: ReturnType<typeof newGame>, teamId: number): Player {
   assert.ok(st.fa, "market opened");
   assert.ok(faPool(st).length > 0, "FA pool is not empty");
   assert.ok(freeAgents(st).length > 0);
+}
+
+// Two clubs tag different players the same season: each club's lookup
+// resolves to ITS OWN tagged player, not the first league-wide match.
+{
+  const st = newGame({ seed: 9 });
+  const otherId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  const ours = plantExpiring(st, st.userTeamId);
+  const theirs = plantExpiring(st, otherId);
+  assert.notEqual(ours.id, theirs.id);
+  const rng = new Rng(st.rngState);
+  assert.equal(applyFranchiseTag(st, otherId, theirs.id, rng).ok, true);
+  assert.equal(applyFranchiseTag(st, st.userTeamId, ours.id, rng).ok, true);
+
+  const oursLookup = clubFranchiseTaggedPlayer(st, st.userTeamId);
+  const theirsLookup = clubFranchiseTaggedPlayer(st, otherId);
+  assert.ok(oursLookup);
+  assert.ok(theirsLookup);
+  assert.equal(oursLookup!.id, ours.id, "user club must resolve its own tag");
+  assert.equal(theirsLookup!.id, theirs.id, "other club must resolve its own tag");
+  assert.notEqual(oursLookup!.id, theirsLookup!.id);
+
+  // The old Hub card used players.find(isFranchiseTagged). Put the other
+  // club's man first in the array so that path would name the wrong player.
+  const theirsIdx = st.players.findIndex((p) => p.id === theirs.id);
+  const oursIdx = st.players.findIndex((p) => p.id === ours.id);
+  if (theirsIdx > oursIdx) {
+    const [moved] = st.players.splice(theirsIdx, 1);
+    st.players.splice(oursIdx, 0, moved);
+  }
+  const leagueFirst = st.players.find((p) => isFranchiseTagged(st, p.id));
+  assert.ok(leagueFirst);
+  assert.equal(leagueFirst!.id, theirs.id, "league-wide find hits the other club");
+  assert.notEqual(leagueFirst!.id, ours.id);
+  assert.equal(clubFranchiseTaggedPlayer(st, st.userTeamId)!.id, ours.id);
 }

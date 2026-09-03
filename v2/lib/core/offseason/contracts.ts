@@ -42,6 +42,13 @@ export function isFranchiseTagged(state: GameState, playerId: number): boolean {
   return !!state.franchiseTags?.some((t) => t.season === state.season && t.playerId === playerId);
 }
 
+/** This club's tagged player this season, or null. Team-scoped — not the first league-wide tag. */
+export function clubFranchiseTaggedPlayer(state: GameState, teamId: number): Player | null {
+  const tag = state.franchiseTags?.find((t) => t.season === state.season && t.teamId === teamId);
+  if (!tag) return null;
+  return state.players.find((p) => p.id === tag.playerId) ?? null;
+}
+
 /**
  * Exclusive franchise-tag tender: greater of the average of the top five
  * cap hits at the position or 120% of this player's current hit.

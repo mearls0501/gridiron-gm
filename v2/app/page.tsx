@@ -15,9 +15,9 @@ import { userNextGame, isOnBye, injuredPlayers, weekGames } from "@/lib/core/sea
 import { divisionStandings, seasonHasResults } from "@/lib/core/season/standings";
 import { currentLine } from "@/lib/core/season/stats";
 import {
-  applyFifthYearOption, applyFranchiseTag, applyTagExtension, clubHasFranchiseTag,
+  applyFifthYearOption, applyFranchiseTag, applyTagExtension, clubFranchiseTaggedPlayer,
   declineFifthYearOption, expiringPlayers, fifthYearOptionPlayers, fifthYearOptionSalary,
-  franchiseTagSalary, isFranchiseTagged, OFFSEASON_STEPS, reconcileRoster,
+  franchiseTagSalary, OFFSEASON_STEPS, reconcileRoster,
   skipTagExtension, tagExtensionPlayers, tagExtensionTerms,
 } from "@/lib/core/offseason";
 import { Rng } from "@/lib/core/rng";
@@ -287,10 +287,7 @@ export default function Hub() {
       </Card>
 
       {state.phase === "offseason-tag" && (() => {
-        const tagged = clubHasFranchiseTag(state, team.id);
-        const taggedPlayer = tagged
-          ? state.players.find((p) => isFranchiseTagged(state, p.id))
-          : null;
+        const taggedPlayer = clubFranchiseTaggedPlayer(state, team.id);
         const names = expiringPlayers(state, team.id)
           .slice()
           .sort((a, b) => b.ovr - a.ovr);
@@ -299,7 +296,7 @@ export default function Hub() {
             title="Franchise Tag"
             subtitle="One exclusive tag this year. Tagged player stays on a 1-year tender and is not in that FA wave."
           >
-            {tagged && taggedPlayer ? (
+            {taggedPlayer ? (
               <p className="text-sm">
                 {taggedPlayer.firstName} {taggedPlayer.lastName} ({taggedPlayer.pos}) is
                 tagged — {formatMoney(capHit(taggedPlayer.contract))} this year.
