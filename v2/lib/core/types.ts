@@ -871,6 +871,17 @@ export interface FifthYearOption {
   pickedUp: boolean;
 }
 
+/**
+ * July 15 tag-year extension decision. Missing list = nobody decided,
+ * so older saves load. One attempt per tagged player per window.
+ */
+export interface TagExtension {
+  season: number;
+  teamId: number;
+  playerId: number;
+  extended: boolean;
+}
+
 export const STATE_VERSION = 1;
 
 export interface GameState {
@@ -914,6 +925,11 @@ export interface GameState {
    * older saves load. One per eligible first-rounder per season.
    */
   fifthYearOptions?: FifthYearOption[];
+  /**
+   * July 15 tag-year extension decisions. Missing = none, so older
+   * saves load. One per tagged player per season.
+   */
+  tagExtensions?: TagExtension[];
 
   /** The user's scouting intel + war-room board for the current class. */
   scouting?: ScoutingState;

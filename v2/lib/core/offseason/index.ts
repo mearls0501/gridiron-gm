@@ -5,7 +5,7 @@ import { GameState, Phase, ROSTER_LIMIT } from "../types";
 import { foldPracticeSquad, resetSeasonRosterFlags } from "../rosterStatus";
 import { settleWaivers } from "../waivers";
 import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
-import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, runCpuFifthYearOptions, runCpuFranchiseTags, spendToFloor, upgradeRoster } from "./contracts";
+import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, runCpuFifthYearOptions, runCpuFranchiseTags, runCpuTagExtensions, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
 import { ensureScouting, pruneScouting } from "../scouting";
@@ -61,7 +61,7 @@ export const OFFSEASON_STEPS: Record<string, OffseasonStep> = {
   "offseason-final": {
     phase: "offseason-final",
     title: "Roster Cutdown",
-    description: "Fifth-year option on the desk, then get to 53 and under the cap.",
+    description: "Fifth-year option and tagged-player extension on the desk, then get to 53 and under the cap.",
     action: "Start the Season",
   },
 };
@@ -203,6 +203,7 @@ export function enterCampAfterDraft(state: GameState, rng: Rng): number {
   fillCampRosters(state, rng);
   state.phase = "offseason-final";
   runCpuFifthYearOptions(state);
+  runCpuTagExtensions(state, rng);
   return n;
 }
 

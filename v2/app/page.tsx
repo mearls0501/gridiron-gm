@@ -15,9 +15,10 @@ import { userNextGame, isOnBye, injuredPlayers, weekGames } from "@/lib/core/sea
 import { divisionStandings, seasonHasResults } from "@/lib/core/season/standings";
 import { currentLine } from "@/lib/core/season/stats";
 import {
-  applyFifthYearOption, applyFranchiseTag, clubHasFranchiseTag, declineFifthYearOption,
-  expiringPlayers, fifthYearOptionPlayers, fifthYearOptionSalary, franchiseTagSalary,
-  isFranchiseTagged, OFFSEASON_STEPS, reconcileRoster,
+  applyFifthYearOption, applyFranchiseTag, applyTagExtension, clubHasFranchiseTag,
+  declineFifthYearOption, expiringPlayers, fifthYearOptionPlayers, fifthYearOptionSalary,
+  franchiseTagSalary, isFranchiseTagged, OFFSEASON_STEPS, reconcileRoster,
+  skipTagExtension, tagExtensionPlayers, tagExtensionTerms,
 } from "@/lib/core/offseason";
 import { Rng } from "@/lib/core/rng";
 import { describeAsset } from "@/lib/core/trades";
@@ -260,7 +261,7 @@ export default function Hub() {
                 )}
                 {state.phase === "offseason-final" && (
                   <span className="text-xs text-[var(--color-muted)]">
-                    Pick up or Decline a fifth-year option below, or Continue with none.
+                    Fifth-year option and tagged-player extension are on the desk below, or Continue.
                   </span>
                 )}
                 {state.phase === "offseason-fa" && (
@@ -334,6 +335,82 @@ export default function Hub() {
                         >
                           Tag
                         </Button>
+                      </Cell>
+                    </Row>
+                  );
+                })}
+              </Table>
+            )}
+          </Card>
+        );
+      })()}
+
+      {state.phase === "offseason-final" && (() => {
+        const tagged = tagExtensionPlayers(state, team.id)
+          .slice()
+          .sort((a, b) => b.ovr - a.ovr);
+        const extended = (state.tagExtensions ?? []).filter(
+          (e) => e.season === state.season && e.teamId === team.id && e.extended
+        );
+        return (
+          <Card
+            title="Tag Extension"
+            subtitle="July 15 window. Convert the 1-year tender to a multi-year deal, or Skip and he plays the tag year."
+          >
+            {extended.length > 0 && (
+              <p className="text-sm mb-2">
+                Extended. He is no longer a tag-year rental.
+                {tagged.length === 0 ? " Continue to start the season." : ""}
+              </p>
+            )}
+            {tagged.length === 0 ? (
+              <p className="text-sm text-[var(--color-muted)]">
+                {extended.length > 0
+                  ? "No other tagged player is waiting on an extension."
+                  : "Nobody on this club is on a franchise tag. Continue to camp/cutdown."}
+              </p>
+            ) : (
+              <Table head={["Player", "Pos", "Age", "Deal", ""]}>
+                {tagged.map((p) => {
+                  const terms = tagExtensionTerms(state, team.id, p);
+                  return (
+                    <Row key={p.id}>
+                      <Cell align="left"><PlayerLink p={p} /></Cell>
+                      <Cell><PosBadge pos={p.pos} /></Cell>
+                      <Cell>{p.age}</Cell>
+                      <Cell>{terms.years}yr / {formatMoney(terms.apy)}</Cell>
+                      <Cell>
+                        <div className="flex gap-1 justify-end">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              apply((s) => {
+                                const rng = new Rng(s.rngState);
+                                const r = applyTagExtension(s, s.userTeamId, p.id, rng);
+                                s.rngState = rng.state;
+                                return r.ok
+                                  ? `${p.firstName} ${p.lastName} extended — ${terms.years}yr`
+                                  : r.reason;
+                              })
+                            }
+                          >
+                            Extend
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              apply((s) => {
+                                const r = skipTagExtension(s, s.userTeamId, p.id);
+                                return r.ok
+                                  ? `${p.firstName} ${p.lastName} plays the tag year`
+                                  : r.reason;
+                              })
+                            }
+                          >
+                            Skip
+                          </Button>
+                        </div>
                       </Cell>
                     </Row>
                   );

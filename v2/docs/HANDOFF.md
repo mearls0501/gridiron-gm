@@ -5,6 +5,73 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-03 — July 15 tag extension (branch `cursor/july-15-extension-a2ee`)
+
+Named leftover in the #42 HANDOFF note: the July 15 extension was
+skipped so it would not widen the tag cluster. A tagged player sat
+on a 1-year tender with no way to convert it to a multi-year deal
+before camp.
+
+**Diagnosis.** Confirmed. Part 5 of `docs/front-office-design-2026-07-28.md`:
+"Tag, extend, or let him walk" and "Extension deadline July 15".
+Search was empty — no extend path on the tender. Same ungated
+published-rule pattern as camp 90 / PS 16 / IR / waivers /
+franchise tag / fifth-year.
+
+**Change.** Desk on the existing camp Hub (`offseason-final`), next
+to the fifth-year option card, not a sixth phase and not the tag
+window. Eligible: in `franchiseTags` for this `season`, still on
+that club on the 1-year tender. Extend replaces the tender with a
+multi-year deal via `negotiatedApy` / `makeContract` / cap block
+(Sign-shaped reason). Skip / Continue: he plays the tag year. One
+attempt per tagged player. CPU extends on `enterCampAfterDraft`
+via evaluate / cap / posture; user club skipped. Old saves
+missing `tagExtensions` load.
+
+Skipped: 6-vet PS cap / international PS slot / non-exclusive /
+transition / askingPrice true-OVR invert. No 24-hour clock.
+askingPrice / negotiatedApy stay on true OVR.
+
+**Leftover.** No 6-vet PS cap, no international PS slot.
+askingPrice true-OVR invert stays leftover. No Madden formation
+tree or play art. Non-exclusive / transition omitted on purpose.
+
+Untouched: POSITION_VALUE, cpuBoardValue, cpuProspectView,
+CONTENDER_PULL, GUARANTEE_PULL, CARRY_SHARE, WEEKLY_TABLE /
+POSITION_DURATION / POSITION_RISK, askingPrice / negotiatedApy,
+PR #9, `docs/baselines.json`.
+
+Regression: `lib/core/tagExtension.test.ts` (gate `tagextension`) —
+tagged player can be extended to years > 1 and stays off the next
+FA; skip stays on the 1-year tender; nobody tagged → empty desk,
+camp still advances; cap block; CPU does not auto-extend the user
+club; headless recap→tag→FA→draft→camp still reaches cutdown.
+Existing franchise-tag / fifth-year / FA tests stay.
+
+File cluster: `offseason/contracts.ts` + Hub card +
+`tagExtension.test.ts`, types / `enterCampAfterDraft`,
+nfl-reference §4, this note.
+
+### Gate (`nproc`=4)
+
+Fast: all 21 harnesses exit 0 (`tagextension`, `franchisetag`,
+`fifthyearoption`, `verify` 3 seasons, `sweep` included). Two
+inherited single-seed metric reds — leave them; same family and
+the same two numbers the fifth-year packet recorded. Do not
+touch `docs/baselines.json`. Careers/FA volume was not retuned.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
+
+Browser: planted an expiring OT on the tag window (Nico Wilson II,
+same year-0 plant as #42). Tag → FA → draft → camp. Hub shows
+the extension desk (5yr / $21.4M). Auto-fix for camp cap, then
+Extend → 5-year deal, no longer a tag-year rental. Skip on a
+second plant (Antonio Jacoby) → plays the tag year. Start the
+Season → 2027 preseason, 53/53 both paths.
+
 ## 2026-09-03 — fifth-year option (branch `cursor/fifth-year-option-8e2c`)
 
 Named leftover in the #42 HANDOFF note: "Fifth-year option is a different
