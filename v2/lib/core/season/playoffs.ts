@@ -9,6 +9,7 @@ import { makeConditions } from "../weather";
 import { applyGameStats } from "./stats";
 import { recordGame } from "./records";
 import { applyGameWear, healWeek, healthySet } from "./injuries";
+import { fillCpuIrReplacements } from "../irFill";
 import { freeActiveSlot } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
@@ -214,7 +215,9 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
     played.add(g.homeId);
     played.add(g.awayId);
   }
+  const fillRng = new Rng(rng.int(1, 0x7ffffffe));
   autoDesignateIr(state);
+  fillCpuIrReplacements(state, fillRng);
   tickIrGames(state, played);
   autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
   clearInactives(state);

@@ -12,13 +12,15 @@ import {
   enterDraft, enterCampAfterDraft, finalizeOffseason, simEntireDraft,
 } from "./offseason";
 import { askingPrice, fillRoster, freeActiveSlot, reconcileRoster, signPlayer } from "./offseason/contracts";
+import { fillCpuIrReplacements } from "./irFill";
+import { startRegularSeason, simulateWeek } from "./season/engine";
 import { resolveWaivers } from "./waivers";
 import { makeContract } from "./generate";
 import { Rng } from "./rng";
 import { isActiveRoster, isOnWaivers, practiceSquadCount, rosterCount, rosterIssues } from "./select";
 import {
   CAMP_ROSTER_LIMIT, IR_MIN_GAMES, IR_RETURN_DESIGNATIONS, LEAGUE_MINIMUM,
-  PRACTICE_SQUAD_LIMIT, PS_ELEVATIONS_PER_PLAYER, ROSTER_LIMIT,
+  PRACTICE_SQUAD_LIMIT, PS_ELEVATIONS_PER_PLAYER, POSITIONS, ROSTER_LIMIT, STARTERS,
 } from "./types";
 import { rosterCapView } from "../view/rosterCap";
 import {
@@ -34,6 +36,15 @@ function cheapestFa(st: ReturnType<typeof newGame>) {
   return st.players
     .filter((p) => p.teamId === null && !p.retired && !p.prospect)
     .sort((a, b) => a.ovr - b.ovr)[0];
+}
+
+function starterIds(st: ReturnType<typeof newGame>, teamId: number): number[] {
+  const chart = st.teams[teamId].depthChart;
+  const ids: number[] = [];
+  for (const pos of POSITIONS) {
+    ids.push(...(chart[pos] ?? []).slice(0, STARTERS[pos]));
+  }
+  return ids;
 }
 
 // Missing status is active. JSON round-trip keeps the optional field.
@@ -293,6 +304,112 @@ function cheapestFa(st: ReturnType<typeof newGame>) {
   resetSeasonRosterFlags(st);
   assert.equal(p.psElevations, undefined);
   assert.equal(st.teams[st.userTeamId].irReturnsUsed, undefined);
+}
+
+// CPU IR replacement: fill the open 53; do not sit a healthy starter; skip the user.
+{
+  const st = newGame({ seed: 21 });
+  st.phase = "regular";
+  const cpuId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  const user = clubPlayers(st, st.userTeamId).sort((a, b) => a.ovr - b.ovr)[0];
+  user.injuryWeeks = 10;
+  const cpu = clubPlayers(st, cpuId).sort((a, b) => a.ovr - b.ovr)[0];
+  cpu.injuryWeeks = 10;
+  const healthy = starterIds(st, cpuId).filter((id) => id !== cpu.id);
+  autoDesignateIr(st);
+  assert.equal(user.status, undefined);
+  assert.equal(cpu.status, "ir");
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT - 1);
+  assert.equal(rosterCount(st, st.userTeamId), ROSTER_LIMIT);
+
+  const parent = new Rng(st.rngState);
+  const controlParent = new Rng(st.rngState);
+  void new Rng(controlParent.int(1, 0x7ffffffe));
+  const fillChild = new Rng(parent.int(1, 0x7ffffffe));
+  fillCpuIrReplacements(st, fillChild);
+  assert.equal(parent.state, controlParent.state, "fill lives on the child stream");
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT);
+  assert.equal(cpu.status, "ir");
+  assert.equal(rosterCount(st, st.userTeamId), ROSTER_LIMIT, "user was never designated");
+  for (const id of healthy) {
+    const p = st.players.find((x) => x.id === id)!;
+    assert.equal(p.teamId, cpuId, `${p.lastName} left the club`);
+    assert.equal(isActiveRoster(p), true, `${p.lastName} was sat/waived to make IR room`);
+    assert.equal(isOnWaivers(st, id), false);
+  }
+
+  designateIr(st, user.id);
+  const afterUser = rosterCount(st, st.userTeamId);
+  const rng2 = new Rng(st.rngState);
+  fillCpuIrReplacements(st, rng2);
+  assert.equal(rosterCount(st, st.userTeamId), afterUser, "user still signs their own replacement");
+  assert.equal(user.status, "ir");
+}
+
+// Elevate from that club's PS into the IR slot when one is sitting there.
+{
+  const st = newGame({ seed: 22 });
+  st.phase = "regular";
+  const cpuId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  const parked = clubPlayers(st, cpuId).sort((a, b) => a.ovr - b.ovr)[0];
+  assert.equal(placeOnPs(st, parked.id).ok, true);
+  const injured = clubPlayers(st, cpuId).filter((p) => isActiveRoster(p)).sort((a, b) => a.ovr - b.ovr)[0];
+  injured.injuryWeeks = 10;
+  autoDesignateIr(st);
+  assert.equal(injured.status, "ir");
+  assert.equal(parked.status, "ps");
+  const rng = new Rng(st.rngState);
+  fillCpuIrReplacements(st, rng);
+  assert.equal(isActiveRoster(parked), true, "PS body should take the open 53 slot");
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT);
+  assert.ok((parked.psElevations ?? 0) >= 1);
+}
+
+// Activate-from-IR still frees a slot onto PS first if someone filled.
+{
+  const st = newGame({ seed: 23 });
+  st.phase = "regular";
+  const cpuId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  const cpu = clubPlayers(st, cpuId).sort((a, b) => a.ovr - b.ovr)[0];
+  cpu.injuryWeeks = 10;
+  autoDesignateIr(st);
+  const rng = new Rng(st.rngState);
+  fillCpuIrReplacements(st, rng);
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT);
+  cpu.injuryWeeks = 0;
+  cpu.injuryDesc = null;
+  cpu.irGames = IR_MIN_GAMES;
+  const psBefore = practiceSquadCount(st, cpuId);
+  autoActivateFromIr(st, (id) => freeActiveSlot(st, id));
+  assert.equal(isActiveRoster(cpu), true);
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT);
+  assert.ok(practiceSquadCount(st, cpuId) >= psBefore, "return parks the extra on PS first");
+}
+
+// simulateWeek: CPU 4+ week injury ends at 53 (replacement + IR). User designate stays open.
+{
+  const st = newGame({ seed: 24 });
+  startRegularSeason(st);
+  const cpuId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  const cpu = clubPlayers(st, cpuId).sort((a, b) => a.ovr - b.ovr)[0];
+  cpu.injuryWeeks = 10;
+  cpu.injuryDesc = "Torn ACL";
+  const healthy = starterIds(st, cpuId).filter((id) => id !== cpu.id);
+  const user = clubPlayers(st, st.userTeamId).sort((a, b) => a.ovr - b.ovr)[0];
+  user.injuryWeeks = 10;
+  user.injuryDesc = "Torn ACL";
+  assert.equal(designateIr(st, user.id).ok, true);
+  simulateWeek(st);
+  assert.equal(cpu.status, "ir");
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT, "CPU filled the IR slot");
+  assert.equal(user.status, "ir");
+  assert.equal(rosterCount(st, st.userTeamId), ROSTER_LIMIT - 1, "user slot stays open");
+  for (const id of healthy) {
+    const p = st.players.find((x) => x.id === id)!;
+    if (p.status === "ir") continue;
+    assert.equal(p.teamId, cpuId);
+    assert.equal(isActiveRoster(p), true, `${p.lastName} sat after CPU IR fill`);
+  }
 }
 
 console.log("irps: ok");

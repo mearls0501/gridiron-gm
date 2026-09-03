@@ -5,6 +5,69 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-02 — CPU IR replacement (branch `cursor/cpu-ir-replacement-1611`)
+
+Matt unparked the leftover named in IR/PS (#33) and every packet since:
+CPU Designate IR left the club under 53 for the rest of the injury.
+User already signs on `/roster` / FA. CPU could not.
+
+**Why it was parked.** A fill inside `applyCpuIrAndFill` (after
+`simulateWeek`) used the week's parent RNG and `fillRoster`, which
+cuts surplus to hit position mins on a full 53. That shifted the
+stream and parked healthy starters. Do not reintroduce that.
+
+**Diagnosis.** Confirmed. `applyCpuIrAndFill` already called
+`autoDesignateIr` then `freeActiveSlot` on activate. IR frees the
+slot; nothing signed into it on the CPU side. User is skipped on
+purpose.
+
+**Change.** After CPU designate, `fillCpuIrReplacements` (`irFill.ts`)
+elevates from that club's PS or street-signs via `fillOpenActiveSlots`
+(open slots only — no cut, no stash). Skips `state.userTeamId`.
+Child stream from one parent draw, same pattern as in-week trades, so
+signing cannot move the week's parent stream. Activate-from-IR still
+frees a slot onto PS first if someone filled. Own module so
+`contracts.ts` and `rosterStatus.ts` do not import each other for
+this. Seeded RNG only. No new dependencies. Old saves load.
+
+**Leftover.** No 6-vet PS cap, no international PS slot.
+askingPrice true-OVR invert stays leftover. No Madden formation
+tree or play art.
+
+Untouched: POSITION_VALUE, cpuBoardValue, cpuProspectView,
+CONTENDER_PULL, GUARANTEE_PULL, CARRY_SHARE, WEEKLY_TABLE /
+POSITION_DURATION / POSITION_RISK, askingPrice / negotiatedApy,
+PR #9, `docs/baselines.json`.
+
+Regression: `lib/core/rosterStatus.test.ts` (gate `irps`) — CPU
+designate → 53 without sitting a healthy starter; user designate
+does not auto-sign; parent stream matches a no-fill control;
+elevate from that club's PS; activate-from-IR parks the extra on
+PS; `simulateWeek` CPU 4+ week injury ends at 53, user slot stays
+open.
+
+File cluster: `irFill.ts`, `contracts.ts` (`fillOpenActiveSlots`
+only — no cut), `season/engine.ts` / `playoffs.ts` (child stream),
+`rosterStatus.test.ts`, nfl-reference §4, this note.
+
+### Gate (`nproc`=4)
+
+Fast: all 18 harnesses exit 0 (`irps` and `determinism` included;
+`verify` 3 seasons). Two inherited single-seed metric reds — leave
+them; same family as PR #26–#39. `qb5` did not trip this seed. Do
+not touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
+
+Browser: Start the Season → `/roster` **53/53**. `/week` Sit desk present.
+After Play Week, live save had 8 CPU clubs on IR, all **53** active
+(short=0). User Designate IR left **52/53** until they sign.
+
+---
+
 ## 2026-09-02 — camp-to-90 fill after draft (branch `cursor/camp-90-fill-cc0c`)
 
 Matt unparked the leftover named in camp 90 (#32), IR/PS (#33),
