@@ -5,7 +5,7 @@ import { GameState, Phase, ROSTER_LIMIT } from "../types";
 import { foldPracticeSquad, resetSeasonRosterFlags } from "../rosterStatus";
 import { settleWaivers } from "../waivers";
 import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
-import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, spendToFloor, upgradeRoster } from "./contracts";
+import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, runCpuFranchiseTags, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
 import { ensureScouting, pruneScouting } from "../scouting";
@@ -21,7 +21,7 @@ export * from "./progression";
 /**
  * Offseason orchestration.
  *
- * Four phases, each advanced by one call. Every phase leaves the save in a
+ * Five phases, each advanced by one call. Every phase leaves the save in a
  * valid, playable state — there is no half-completed rollover that can strand a
  * franchise with no active season.
  */
@@ -38,6 +38,12 @@ export const OFFSEASON_STEPS: Record<string, OffseasonStep> = {
     phase: "offseason-recap",
     title: "Season Review",
     description: "Awards, retirements, and player development for the year just finished.",
+    action: "Continue to the Franchise Tag",
+  },
+  "offseason-tag": {
+    phase: "offseason-tag",
+    title: "Franchise Tag",
+    description: "One exclusive tag this year. Tag him, or let the window close and he hits free agency.",
     action: "Continue to Free Agency",
   },
   "offseason-fa": {
@@ -82,7 +88,7 @@ export function runRecap(state: GameState): OffseasonReport {
   }
 
   state.rngState = rng.state;
-  state.phase = "offseason-fa";
+  state.phase = "offseason-tag";
   return report;
 }
 
@@ -113,6 +119,7 @@ export function runFreeAgencyOpen(state: GameState): void {
   openMarket(state);
 
   state.rngState = rng.state;
+  state.phase = "offseason-fa";
 }
 
 /** CPU clubs place the opening wave of bids. User club is not auto-bid for. */
@@ -281,12 +288,19 @@ export function finalizeOffseason(state: GameState): void {
 export function advanceOffseason(state: GameState): string {
   settleWaivers(state);
   switch (state.phase) {
-    case "offseason-recap":
+    case "offseason-recap": {
+      const rng = new Rng(state.rngState);
       runRecap(state);
+      runCpuFranchiseTags(state, rng);
+      state.rngState = rng.state;
+      return "Season review complete — franchise tag window is open";
+    }
+
+    case "offseason-tag":
       runFreeAgencyOpen(state);
       runOffseasonTrades(state);
       openFaBidding(state);
-      return "Season review complete — free agency is open";
+      return "Franchise tag window closed — free agency is open";
 
     case "offseason-fa":
       runAllFaWaves(state);

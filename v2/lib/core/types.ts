@@ -516,6 +516,7 @@ export type Phase =
   | "regular"
   | "playoffs"
   | "offseason-recap"   // retirements, progression, awards
+  | "offseason-tag"     // exclusive franchise tag, one per club
   | "offseason-fa"      // free agency
   | "offseason-draft"   // scouting + draft
   | "offseason-final";  // roster cleanup before rollover
@@ -849,6 +850,16 @@ export interface WaiverClaim {
   claims?: number[];
 }
 
+/**
+ * Exclusive franchise tag applied this league year. Missing list = nobody
+ * tagged, so older saves load. One per club per `season`.
+ */
+export interface FranchiseTag {
+  season: number;
+  teamId: number;
+  playerId: number;
+}
+
 export const STATE_VERSION = 1;
 
 export interface GameState {
@@ -882,6 +893,11 @@ export interface GameState {
    * the club that waived them.
    */
   waivers?: WaiverClaim[];
+  /**
+   * Exclusive franchise tags for a league year. Missing = none, so older
+   * saves load. One per club per season; expireContracts skips these.
+   */
+  franchiseTags?: FranchiseTag[];
 
   /** The user's scouting intel + war-room board for the current class. */
   scouting?: ScoutingState;
