@@ -339,6 +339,11 @@ export interface Team {
    * saves load. Still on the 53; cleared after the game.
    */
   inactives?: number[];
+  /**
+   * This-week play-calling sheet. Missing = coach passBias / aggression, so
+   * older saves load. Cleared after the week. CPU clubs never write one.
+   */
+  callSheet?: CallSheet;
 }
 
 /**
@@ -353,6 +358,25 @@ export interface StaffBudget {
   scouting: number;
   training: number;
   scheme: number;
+}
+
+/** One Play-the-Game snap for the user club. `"auto"` uses choosePass. */
+export type SnapCall = "run" | "pass" | "auto";
+
+/**
+ * GM this-game overrides. Same units as Coach.passBias / Coach.aggression —
+ * not a measured NFL rate. Missing fields leave the coach dials in place.
+ */
+export interface CallSheet {
+  /** -1 run-heavy … +1 pass-heavy. Missing = coach.passBias. */
+  passLean?: number;
+  /** 0–100. Missing = coach.aggression. */
+  aggression?: number;
+  /**
+   * Optional Play-the-Game list for the user club's offensive snaps.
+   * Consumed in order; leftover snaps use choosePass. Missing = Auto.
+   */
+  snaps?: SnapCall[];
 }
 
 export interface Coach {

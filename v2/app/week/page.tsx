@@ -14,6 +14,10 @@ import {
   activateFromInactive, canSit, gamedayInactiveView, isSat, sitPlayer,
 } from "@/lib/core/inactives";
 import { isOnBye } from "@/lib/core/season/engine";
+import {
+  AGGRESSION_AGGRESSIVE, AGGRESSION_CONSERVATIVE, PASS_LEAN_PASS, PASS_LEAN_RUN,
+  callSheetView, setCallSheet,
+} from "@/lib/core/callSheet";
 
 /**
  * The weekly briefing: what just happened, what needs your decision, and
@@ -24,6 +28,7 @@ export default function WeekPage() {
   const state = useGame((s) => s.state);
   const rev = useGame((s) => s.rev);
   const apply = useGame((s) => s.apply);
+  const advance = useGame((s) => s.advance);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const b = useMemo(() => (state ? buildBriefing(state) : null), [state, rev]);
@@ -191,10 +196,110 @@ export default function WeekPage() {
             </div>
             <div className="pt-2 flex flex-wrap gap-2">
               <Link href="/depth-chart"><Button size="sm">Set the Depth Chart</Button></Link>
+              <Link href="/play"><Button size="sm">Play the Game</Button></Link>
             </div>
           </div>
         </Card>
       )}
+
+      {/* ---- This week's call sheet --------------------------------------- */}
+      {state && (state.phase === "regular" || state.phase === "playoffs") &&
+        !isOnBye(state, state.userTeamId) && (() => {
+          const sheet = callSheetView(state.teams[state.userTeamId]);
+          const lean = sheet.passLean;
+          const agg = sheet.aggression;
+          return (
+            <Card
+              title="This Week's Call Sheet"
+              subtitle="Honored by Play Week and Auto. CPU games stay auto. Bulk-sim does not wait for snap clicks."
+            >
+              <div className="space-y-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+                    Run / pass lean
+                    <span className="ml-2 normal-case tracking-normal">
+                      coach {sheet.coachPassBias >= 0 ? "+" : ""}{sheet.coachPassBias.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant={lean === PASS_LEAN_RUN ? "primary" : "default"}
+                      onClick={() => apply((s) => {
+                        setCallSheet(s, { passLean: PASS_LEAN_RUN });
+                        return "Call sheet: run-heavy";
+                      })}
+                    >
+                      Run
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={lean == null ? "primary" : "default"}
+                      onClick={() => apply((s) => {
+                        setCallSheet(s, { passLean: undefined });
+                        return "Call sheet: coach mix";
+                      })}
+                    >
+                      Coach
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={lean === PASS_LEAN_PASS ? "primary" : "default"}
+                      onClick={() => apply((s) => {
+                        setCallSheet(s, { passLean: PASS_LEAN_PASS });
+                        return "Call sheet: pass-heavy";
+                      })}
+                    >
+                      Pass
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+                    4th-down aggression
+                    <span className="ml-2 normal-case tracking-normal">coach {sheet.coachAggression}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant={agg === AGGRESSION_CONSERVATIVE ? "primary" : "default"}
+                      onClick={() => apply((s) => {
+                        setCallSheet(s, { aggression: AGGRESSION_CONSERVATIVE });
+                        return "Call sheet: conservative 4th downs";
+                      })}
+                    >
+                      Conservative
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={agg == null ? "primary" : "default"}
+                      onClick={() => apply((s) => {
+                        setCallSheet(s, { aggression: undefined });
+                        return "Call sheet: coach 4th downs";
+                      })}
+                    >
+                      Coach
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={agg === AGGRESSION_AGGRESSIVE ? "primary" : "default"}
+                      onClick={() => apply((s) => {
+                        setCallSheet(s, { aggression: AGGRESSION_AGGRESSIVE });
+                        return "Call sheet: aggressive 4th downs";
+                      })}
+                    >
+                      Aggressive
+                    </Button>
+                  </div>
+                </div>
+                <div className="pt-1 flex flex-wrap gap-2">
+                  <Link href="/play"><Button size="sm" variant="primary">Play the Game</Button></Link>
+                  <Button size="sm" onClick={() => advance()}>Play Week</Button>
+                </div>
+              </div>
+            </Card>
+          );
+        })()}
 
       {/* ---- Gameday inactives -------------------------------------------- */}
       {state && (state.phase === "regular" || state.phase === "playoffs") &&

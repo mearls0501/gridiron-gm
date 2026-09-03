@@ -5,6 +5,71 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-02 — this-week call sheet / Play-the-Game (branch `cursor/play-the-game-a077`)
+
+Matt unparked the leftover half of "live play-calling / sit-him" after
+camp (#32), IR/PS (#33), sit-him (#34), and waivers (#35). Sit desk
+shipped. Play Week still auto-called every snap from coach `passBias` /
+`aggression`.
+
+**Diagnosis.** Confirmed. `lib/core/sim/game.ts` already has the play
+loop: down, toGo, yardLine, `choosePass` (`passBias` + Sunday
+`script.passLean`), `goForIt` (`aggression`), and a victory kneel.
+No formation tree, no play art, no Madden caller. The hole is
+GM-facing. CPU games and bulk-sim must stay a sync `simulateGame` —
+a snap UI in that loop would freeze Through the Playoffs.
+
+**Change.** Optional `Team.callSheet` (missing = coach dials, old
+saves load). `/week` Run / Coach / Pass lean and Conservative /
+Coach / Aggressive 4th downs. Play Week and Auto apply the sheet
+when `simulateGame` runs the user game via `effectiveCoach` — same
+units, no retune of default coach generation. Optional `/play`
+records user-club offensive snaps (Run / Pass / Coach this snap /
+let the coach finish) and Play Week replays them through
+`playCaller`. CPU games stay auto. Sheet and snaps clear after the
+week / playoff round, like inactives. Bye week: no call sheet, no
+`/play`. Seeded RNG only. No new dependencies. Sit desk, 47/48,
+IR/PS, waivers, camp 90, 53 lock stay.
+
+**Leftover.** No 6-vet PS cap, no international PS slot, no 90-man
+UDFA fill. CPU still does not auto-sign an IR replacement. No
+Madden formation tree or play art (the loop has none to expose).
+No timeout / clock / defensive-call buttons. No trick plays; a
+club still never benches a passer for playing badly.
+
+Untouched: POSITION_VALUE, cpuBoardValue, cpuProspectView,
+CONTENDER_PULL, GUARANTEE_PULL, CARRY_SHARE, WEEKLY_TABLE /
+POSITION_DURATION / POSITION_RISK, default coach `passBias` /
+`aggression`, PR #9, `docs/baselines.json`.
+
+Regression: `lib/core/callSheet.test.ts` (gate `callsheet`) — old
+save missing the field; pass-heavy vs Auto raises user pass
+attempts; run-heavy raises rush attempts; forced-pass snaps move
+the box; CPU-vs-CPU game unchanged; sheet clears after the week;
+sit a starter still 0 snaps; bye has no user game; live peek does
+not mutate the save; Through the Playoffs completes with a sheet
+set.
+
+File cluster: `types.ts` (`CallSheet`), `callSheet.ts` +
+`liveGame.ts` + test, `sim/game.ts` (effective coach + playCaller),
+`season/engine.ts` / `playoffs.ts` (opts / clear), `/week` + `/play`,
+gate/package.json, nfl-reference §4, this note.
+
+### Gate (`nproc`=4)
+
+Fast: all 18 harnesses exit 0 (`callsheet` included). Three inherited
+single-seed metric reds — leave them; same family as PR #26–#35, and
+the same three numbers the waiver packet recorded. Do not touch
+`docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.qb5PassYds  3929   expected 4497 +/-360
+FAIL  statcheck.wr10RecYds  1067   expected 1208 +/-97
+```
+
+---
+
 ## 2026-09-02 — waiver wire (branch `cursor/waiver-wire-232b`)
 
 PR #33 leftover: design doc Part 5 says everyone cut passes through waivers

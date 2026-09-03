@@ -7,6 +7,7 @@ import {
 import { CLEAR, HOME_FIELD, restEffect, weatherEffects } from "../weather";
 import { blankPlayerGameStat, blankTeamGameStats } from "../season/stats";
 import { isSat } from "../inactives";
+import { effectiveCoach, type SimOpts } from "../callSheet";
 
 /**
  * Drive-and-play simulation.
@@ -272,7 +273,7 @@ export interface SimResult {
   box: BoxScore;
 }
 
-export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult {
+export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimOpts): SimResult {
   const byId = new Map<number, Player>();
   for (const p of state.players) byId.set(p.id, p);
 
@@ -296,7 +297,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     }
     return {
       team,
-      coach: team.coach,
+      coach: effectiveCoach(team),
       starters,
       stats: blankTeamStats(),
       quarterPoints: [0, 0, 0, 0, 0],
@@ -1654,7 +1655,13 @@ export function simulateGame(state: GameState, game: Game, rng: Rng): SimResult 
     const isFourth = down === 4;
     if (isThird) off().stats.thirdDownAtt++;
 
-    const doPass = choosePass();
+    let call: "run" | "pass" | "auto" = "auto";
+    if (opts?.playCaller && off().team.id === state.userTeamId) {
+      call = opts.playCaller({
+        down, toGo, yardLine, quarter, clock, homeScore, awayScore, offenseIsHome,
+      });
+    }
+    const doPass = call === "pass" ? true : call === "run" ? false : choosePass();
     // Quarterback keeps it: sneaks in short yardage, designed runs for the
     // mobile ones. Without this, quarterbacks finished seasons with 0 carries.
     const qb0 = off().starters.QB[0];
