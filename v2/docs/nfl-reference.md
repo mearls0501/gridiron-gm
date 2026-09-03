@@ -454,7 +454,13 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   +1 international PS slot. Elevations are 3 per player everywhere, including
   playoffs. The 6-vested-veteran PS cap is omitted: `yearsPro` is not an
   accrued-season count, and inventing one would be a new career-accrual system.
-  Ungated published rules.
+  Ungated published rules. CPU clubs fill the opened 53 slot after
+  Designate IR (elevate from that club's PS, else street FA) on a child
+  RNG stream; the user club still signs its own replacement. Not a new
+  measured rate. CPU clubs fill the opened 53 slot after
+  Designate IR (elevate from that club's PS, else street FA) on a child
+  RNG stream; the user club still signs its own replacement. Not a new
+  measured rate.
 - **Waiver wire.** Added 2026-09-02. Not in T/D/S/P — there is no waiver
   table in those datasets. Design doc Part 5
   (`docs/front-office-design-2026-07-28.md`): everyone cut passes through

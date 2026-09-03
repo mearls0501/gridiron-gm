@@ -8,6 +8,7 @@ import { recordGame } from "./records";
 import { initPlayoffs, simulatePlayoffRound } from "./playoffs";
 import { applyGameWear, healWeek, healthySet, rollWeeklyInjuries } from "./injuries";
 import { generateUserOffers, runCpuTrades } from "../trades";
+import { fillCpuIrReplacements } from "../irFill";
 import { freeActiveSlot } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
@@ -39,7 +40,8 @@ export function startRegularSeason(state: GameState): void {
   state.week = 1;
   state.playoffs = null;
   refreshDepthCharts(state);
-  applyCpuIrAndFill(state);
+  const fillRng = new Rng(rng.int(1, 0x7ffffffe));
+  applyCpuIrAndFill(state, fillRng);
   state.rngState = rng.state;
   state.log.push({
     season: state.season, week: 1, kind: "system",
@@ -106,7 +108,8 @@ export function simulateWeek(state: GameState): void {
     played.add(g.homeId);
     played.add(g.awayId);
   }
-  applyCpuIrAndFill(state, played);
+  const fillRng = new Rng(rng.int(1, 0x7ffffffe));
+  applyCpuIrAndFill(state, fillRng, played);
   clearInactives(state);
   clearCallSheets(state);
 
@@ -217,8 +220,10 @@ export function injuredPlayers(state: GameState, teamId: number): Player[] {
     .sort((a, b) => b.injuryWeeks - a.injuryWeeks);
 }
 
-function applyCpuIrAndFill(state: GameState, played?: Set<number>): void {
+function applyCpuIrAndFill(state: GameState, rng: Rng, played?: Set<number>): void {
   autoDesignateIr(state);
+  // Child stream: signing must not move the week's parent draws (trades, next week).
+  fillCpuIrReplacements(state, rng);
   if (played) tickIrGames(state, played);
   autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
 }

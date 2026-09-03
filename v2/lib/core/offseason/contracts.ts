@@ -427,6 +427,30 @@ export function freeActiveSlot(state: GameState, teamId: number): boolean {
   return cutWorstSurplus(state, teamId, null);
 }
 
+/**
+ * Sign into open 53 slots only. Never cuts or stashes — IR already made the
+ * room. Position mins first, then any street / generated body up to 53.
+ */
+export function fillOpenActiveSlots(state: GameState, teamId: number, rng: Rng): void {
+  const hold = rosterLimit(state.phase);
+  for (const pos of Object.keys(POSITION_MIN) as Position[]) {
+    while (positionCount(state, teamId, pos) < POSITION_MIN[pos]) {
+      if (rosterCount(state, teamId) >= hold) break;
+      const pick = bestAffordable(state, teamId, pos) ?? generateReplacement(state, pos, rng);
+      signAtMarket(state, teamId, pick, rng);
+    }
+  }
+  let guard = 0;
+  while (rosterCount(state, teamId) < ROSTER_LIMIT && rosterCount(state, teamId) < hold && guard++ < 120) {
+    let pick = bestAffordable(state, teamId, null);
+    if (!pick) {
+      const pos = (Object.keys(POSITION_MIN) as Position[])[guard % 14];
+      pick = generateReplacement(state, pos, rng);
+    }
+    signAtMarket(state, teamId, pick, rng);
+  }
+}
+
 function moveWorstSurplus(
   state: GameState, teamId: number, protectPos: Position | null, dest: "cut" | "ps"
 ): boolean {
