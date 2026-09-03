@@ -259,6 +259,127 @@ export function runCpuFifthYearOptions(state: GameState): void {
   }
 }
 
+export function tagExtensionDecided(state: GameState, playerId: number): boolean {
+  return !!state.tagExtensions?.some((e) => e.season === state.season && e.playerId === playerId);
+}
+
+/**
+ * Tagged this season, still on that club on the 1-year tender.
+ * Not a fifth-year option and not an untagged veteran.
+ */
+export function isTagExtensionEligible(state: GameState, p: Player): boolean {
+  if (p.retired || p.prospect || p.teamId === null || !p.contract) return false;
+  if (!isFranchiseTagged(state, p.id)) return false;
+  const tag = state.franchiseTags?.find((t) => t.season === state.season && t.playerId === p.id);
+  if (!tag || tag.teamId !== p.teamId) return false;
+  if (p.contract.years !== 1 || p.contract.yearsRemaining !== 1) return false;
+  if (tagExtensionDecided(state, p.id)) return false;
+  return true;
+}
+
+export function tagExtensionPlayers(state: GameState, teamId: number): Player[] {
+  const out: Player[] = [];
+  for (const p of state.players) {
+    if (p.teamId !== teamId) continue;
+    if (isTagExtensionEligible(state, p)) out.push(p);
+  }
+  return out;
+}
+
+/** Multi-year terms for a tagged-player extension. True-OVR negotiatedApy. */
+export function tagExtensionTerms(state: GameState, teamId: number, p: Player): { years: number; apy: number } {
+  return { years: Math.max(2, suggestedYears(p)), apy: negotiatedApy(state, teamId, p, 1) };
+}
+
+function recordTagExtension(
+  state: GameState, teamId: number, playerId: number, extended: boolean
+): void {
+  if (!state.tagExtensions) state.tagExtensions = [];
+  state.tagExtensions.push({ season: state.season, teamId, playerId, extended });
+}
+
+/** Replace the 1-year tag tender with a multi-year deal. Same cap block as Sign. */
+export function applyTagExtension(
+  state: GameState, teamId: number, playerId: number, rng: Rng
+): SignResult {
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p) return { ok: false, reason: "No such player" };
+  if (p.retired) return { ok: false, reason: "Player has retired" };
+  if (p.teamId !== teamId) return { ok: false, reason: "Player is not on this roster" };
+  if (tagExtensionDecided(state, playerId)) {
+    return { ok: false, reason: "This club has already decided this player's tag-year extension." };
+  }
+  if (!isTagExtensionEligible(state, p) || !p.contract) {
+    return { ok: false, reason: "Only a tagged player on a 1-year tender can be extended." };
+  }
+
+  const currentHit = capHit(p.contract);
+  const { years: yrs, apy } = tagExtensionTerms(state, teamId, p);
+  const contract = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
+  const hit = capHit(contract);
+  const cap = teamCap(state, teamId);
+  const available = cap.space + currentHit;
+  if (hit > available) {
+    return {
+      ok: false,
+      reason: `Not enough cap space. That deal costs $${(hit / 1e6).toFixed(1)}M against $${(available / 1e6).toFixed(1)}M available.`,
+    };
+  }
+
+  p.contract = contract;
+  recordTagExtension(state, teamId, p.id, true);
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "transaction",
+    text: `${state.teams[teamId].abbr} extended ${p.firstName} ${p.lastName} (${p.pos}) — ${yrs}yr / $${(apy / 1e6).toFixed(1)}M per year`,
+  });
+  return { ok: true };
+}
+
+/** Skip. He plays the tag year on the 1-year tender. */
+export function skipTagExtension(
+  state: GameState, teamId: number, playerId: number
+): SignResult {
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p) return { ok: false, reason: "No such player" };
+  if (p.teamId !== teamId) return { ok: false, reason: "Player is not on this roster" };
+  if (tagExtensionDecided(state, playerId)) {
+    return { ok: false, reason: "This club has already decided this player's tag-year extension." };
+  }
+  if (!isTagExtensionEligible(state, p)) {
+    return { ok: false, reason: "Only a tagged player on a 1-year tender can be extended." };
+  }
+  recordTagExtension(state, teamId, p.id, false);
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "transaction",
+    text: `${state.teams[teamId].abbr} declined to extend ${p.firstName} ${p.lastName} (${p.pos}) — plays the tag year`,
+  });
+  return { ok: true };
+}
+
+/**
+ * CPU clubs may extend their own tagged man on this window, via
+ * evaluate / cap / posture. User club is skipped.
+ */
+export function runCpuTagExtensions(state: GameState, rng: Rng): void {
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    const { posture } = teamOutlook(state, t.id);
+    const ranked = tagExtensionPlayers(state, t.id).slice().sort(
+      (a, b) =>
+        evaluate(state, t.id, b, posture, POSITION_VALUE[b.pos]) -
+        evaluate(state, t.id, a, posture, POSITION_VALUE[a.pos])
+    );
+    for (const p of ranked) {
+      if (evaluate(state, t.id, p, posture, POSITION_VALUE[p.pos]) <= 0) continue;
+      applyTagExtension(state, t.id, p.id, rng);
+    }
+  }
+}
+
 /** Roll every contract forward one season. Returns players who hit free agency. */
 export function expireContracts(state: GameState): Player[] {
   const expiring: Player[] = [];

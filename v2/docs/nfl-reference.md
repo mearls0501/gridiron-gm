@@ -487,9 +487,10 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
 - **Franchise tag (exclusive, one per club per year).** Added 2026-09-03.
   Not in T/D/S/P. Same calendar source as camp 90 / PS 16 / IR / waivers
   (`docs/front-office-design-2026-07-28.md` Part 5): ~Feb 17–Mar 3, one
-  tag per club per year. Exclusive only — non-exclusive, transition, and
-  the July 15 extension deadline are omitted so they do not widen the
-  cluster. Tender is the published CBA shape: greater of the average of
+  tag per club per year.   Exclusive only — non-exclusive and transition are omitted so they
+  do not widen the cluster. The July 15 extension is a separate
+  camp-desk packet (see the July 15 block below). Tender is the
+  published CBA shape: greater of the average of
   the top five cap hits at that position (existing `capHit` machinery)
   or 120% of last year's hit. Must fit the cap; Tag is blocked with a
   reason, same as Sign. One window, then FA opens — the game has no
@@ -514,6 +515,21 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   blocked with a Sign-shaped reason. CPU clubs may pick up the
   eligible R1s they can afford via evaluate / cap / posture; the user
   club is not auto-picked. Ungated published rule.
+- **July 15 extension (tagged player, camp desk).** Added 2026-09-03.
+  Not in T/D/S/P. Same calendar source as the franchise tag
+  (`docs/front-office-design-2026-07-28.md` Part 5): tag in Feb, FA
+  in March, draft late April, tagged-player extension deadline July 15
+  (camp / OTAs). The game has no wall-clock; the desk sits on the
+  existing camp / cutdown Hub (`offseason-final`), next to the
+  fifth-year option, not on the tag window and not as a sixth phase.
+  Eligibility is a player in `franchiseTags` for this `season` still
+  on that club on the 1-year tender. Not a fifth-year option and not
+  an untagged veteran. Extend replaces the tender with a multi-year
+  deal via existing `negotiatedApy` / `makeContract` (true OVR; no
+  invert). Skip / Continue: he plays the tag year. One attempt per
+  tagged player. CPU clubs may extend via evaluate / cap / posture;
+  the user club is not auto-extended. Must fit the cap; Extend is
+  blocked with a Sign-shaped reason. Ungated published rule.
 - **This-week play-calling (call sheet / Play-the-Game).** Added 2026-09-02.
   Not in T/D/S/P. The GM override uses the same units as coach `passBias`
   (−1 run … +1 pass) and `aggression` (0–100) already in `simulateGame`.
