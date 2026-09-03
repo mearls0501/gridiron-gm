@@ -52,8 +52,15 @@ only — no cut), `season/engine.ts` / `playoffs.ts` (child stream),
 
 ### Gate (`nproc`=4)
 
-Fast: run after this note. Inherited single-seed metric reds stay.
-Do not touch `docs/baselines.json`.
+Fast: all 18 harnesses exit 0 (`irps` and `determinism` included;
+`verify` 3 seasons). Two inherited single-seed metric reds — leave
+them; same family as PR #26–#39. `qb5` did not trip this seed. Do
+not touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
 
 ---
 
