@@ -62,6 +62,10 @@ FAIL  leverage.wrongSign     1     expected <= 0
 FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
 ```
 
+Browser: Start the Season → `/roster` **53/53**. `/week` Sit desk present.
+After Play Week, live save had 8 CPU clubs on IR, all **53** active
+(short=0). User Designate IR left **52/53** until they sign.
+
 ---
 
 ## 2026-09-02 — camp-to-90 fill after draft (branch `cursor/camp-90-fill-cc0c`)
