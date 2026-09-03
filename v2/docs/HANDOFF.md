@@ -52,10 +52,16 @@ nfl-reference §4, this note.
 
 ### Gate (`nproc`=4)
 
-Fast: run after the edit. Inherited single-seed reds
-(`leverage.wrongSign`, `statcheck.wr10RecYds` on one seed) stay —
-do not chase, do not edit baselines. Careers/FA volume was not
-retuned; report if they move.
+Fast: all 20 harnesses exit 0 (`fifthyearoption`, `franchisetag`,
+`verify` 3 seasons, `sweep` included). Two inherited single-seed
+metric reds — leave them; same family and the same two numbers the
+franchise-tag packet recorded. Do not touch `docs/baselines.json`.
+Careers/FA volume was not retuned.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
 
 ---
 
