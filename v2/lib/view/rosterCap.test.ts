@@ -172,8 +172,12 @@ function attachExtras(st: ReturnType<typeof newGame>, n: number): void {
   assert.ok(clip.cutdown);
   assert.equal(clip.label, `${userN}/90`);
 
+  const extras = st.teams.reduce((n, t) => n + Math.max(0, rosterCount(st, t.id) - ROSTER_LIMIT), 0);
+  const logAt = st.log.length;
   finalizeOffseason(st);
-  assert.ok((st.waivers ?? []).length > 0, "cutdown extras must hit waivers");
+  const waived = st.log.slice(logAt).filter((e) => e.text.includes(" waived ")).length;
+  assert.ok(waived >= extras, `cutdown extras must hit waivers; waived=${waived} extras=${extras}`);
+  assert.ok((st.waivers?.length ?? 0) < 40, `Start the Season must settle the claim chain; wire=${st.waivers?.length ?? 0}`);
   for (const t of st.teams) {
     assert.equal(rosterCount(st, t.id), ROSTER_LIMIT, `${t.abbr} after cutdown`);
   }

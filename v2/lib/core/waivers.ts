@@ -10,9 +10,10 @@ import { cutPlayer, draftCapitalHold } from "./offseason/contracts";
  * Waiver wire.
  *
  * Design doc Part 5: everyone cut passes through waivers before you can stash
- * him. No cash bid — inverse standings is the cost. The window is one sim
- * step (Play Week, Start the Season during cutdown, or the preseason→season
- * advance for leftovers). See docs/nfl-reference.md §4.
+ * him. No cash bid — inverse standings is the cost. Play Week is one
+ * window. Start the Season and the preseason→season advance close the
+ * current window and keep resolving claim-cut windows in that same
+ * advance until the chain settles. See docs/nfl-reference.md §4.
  */
 
 export function waiverStandingSeason(state: GameState): number {
@@ -191,4 +192,17 @@ export function resolveWaivers(state: GameState): void {
   }
 
   if ((state.waivers ?? []).length === 0) delete state.waivers;
+}
+
+/**
+ * Close windows until claim-cuts stop producing a next window.
+ * Each call is still one snapshot; cuts made to open a claim slot
+ * land on the next iteration, not this one. Bound is a chain cap,
+ * not a league rate.
+ */
+export function settleWaivers(state: GameState): void {
+  for (let i = 0; i < 64; i++) {
+    if (!(state.waivers ?? []).length) return;
+    resolveWaivers(state);
+  }
 }

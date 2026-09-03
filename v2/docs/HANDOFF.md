@@ -5,6 +5,57 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-02 — waiver claim-chain settle (branch `cursor/waiver-chain-settle-64a3`)
+
+GM Roster campfill 0902 (Boston): after Start the Season, preseason
+was 53/53 Legal but the waivers desk showed hundreds on the wire
+(sit 588; seed 42 on current main dumped 809). Cutdown extras did
+hit waivers. Inverse standings, no cash bid. The desk was unusable.
+
+**Diagnosis.** Confirmed. `resolveWaivers` snapshots the current
+window so a club that cuts to make a claim slot puts that man on
+the NEXT window. `finalizeOffseason` dumped every club's camp extras
+onto one window and did not resolve it. Hub Start the Season
+(`advanceOffseason`) resolved the small camp window first, then
+dumped, and left the dump for preseason. One later resolve (the
+preseason→regular call) claimed into that dump and left the
+claim-cuts (~100) sitting. Not a second market.
+
+**Change.** `settleWaivers` loops `resolveWaivers` until the chain
+is empty (each iteration is still one window). Called at the end of
+`finalizeOffseason` and from `startRegularSeason` / the Start the
+Season advance. Play Week stays one window. Cutdown extras still
+hit waivers first. User claims are awarded, not wiped. Reject /
+Withdraw unchanged. Bulk-sim does not pause on the wire. Sit desk,
+IR/PS, CPU IR fill, call sheet, camp 90, UDFA cap 4 stay.
+
+**Leftover.** No 6-vet PS cap, no international PS slot.
+askingPrice true-OVR invert stays leftover. No Madden formation
+tree or play art.
+
+Untouched: POSITION_VALUE, cpuBoardValue, cpuProspectView,
+CONTENDER_PULL, GUARANTEE_PULL, CARRY_SHARE, WEEKLY_TABLE /
+POSITION_DURATION / POSITION_RISK, askingPrice / negotiatedApy,
+PR #9, `docs/baselines.json`.
+
+Regression: `lib/core/waivers.test.ts` (gate `waivers`) — claim-cut
+sits on the next window after one resolve and settle clears it;
+headless draft+camp+finalize: extras waived, after Start the Season
+the pending wire is not hundreds, 53 locked, unclaimed may PS-stash.
+Existing own-waive / inverse / withdraw stay. `rosterCap.test.ts`
+same live path.
+
+File cluster: `waivers.ts` (`settleWaivers`) + test, `offseason/index.ts`,
+`season/engine.ts` (`startRegularSeason` only), `rosterCap.test.ts`,
+nfl-reference §4, this note.
+
+### Gate (`nproc`=4)
+
+Fast: pending at this note. Inherited single-seed metric reds stay.
+Do not touch `docs/baselines.json`.
+
+---
+
 ## 2026-09-02 — CPU IR replacement (branch `cursor/cpu-ir-replacement-1611`)
 
 Matt unparked the leftover named in IR/PS (#33) and every packet since:

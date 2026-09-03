@@ -16,8 +16,9 @@ import { Rng } from "./rng";
 import { freeAgents, isOnWaivers, practiceSquadCount, rosterCount } from "./select";
 import { LEAGUE_MINIMUM, Player, PRACTICE_SQUAD_LIMIT, ROSTER_LIMIT } from "./types";
 import { startRegularSeason } from "./season/engine";
+import { enterCampAfterDraft, enterDraft, finalizeOffseason, simEntireDraft } from "./offseason";
 import {
-  resolveWaivers, submitWaiverClaim, waiverPriority, waiverWire, withdrawWaiverClaim,
+  resolveWaivers, settleWaivers, submitWaiverClaim, waiverPriority, waiverWire, withdrawWaiverClaim,
 } from "./waivers";
 
 function clubPlayers(st: ReturnType<typeof newGame>, teamId: number) {
@@ -225,6 +226,54 @@ function makeUnclaimable(p: Player): void {
   assert.equal(p.status, "ps");
   assert.equal(p.teamId, st.userTeamId);
   assert.equal(st.waivers, undefined);
+}
+
+// A club that cuts to make a claim slot puts that man on the NEXT window.
+// One resolve leaves him; settle closes the chain.
+{
+  const st = newGame({ seed: 10 });
+  st.phase = "regular";
+  st.week = 8;
+  const p = weakest(st, st.userTeamId);
+  p.pos = "WR";
+  p.ovr = 92;
+  p.pot = 92;
+  p.ceiling = 92;
+  assert.equal(cutPlayer(st, p.id).ok, true);
+  resolveWaivers(st);
+  assert.ok(p.teamId !== null && p.teamId !== st.userTeamId, "CPU claims the stud");
+  assert.ok((st.waivers ?? []).length >= 1, "claim-cut sits on the next window");
+  assert.equal((st.waivers ?? []).some((w) => w.playerId === p.id), false);
+  settleWaivers(st);
+  assert.equal(st.waivers, undefined);
+}
+
+// Headless draft + camp fill + Start the Season: extras hit waivers first,
+// then the claim-cut chain settles so the desk is not the whole dump.
+{
+  const st = newGame({ seed: 42 });
+  enterDraft(st);
+  simEntireDraft(st);
+  const rng = new Rng(st.rngState);
+  enterCampAfterDraft(st, rng);
+  st.rngState = rng.state;
+  const extras = st.teams.reduce((n, t) => n + Math.max(0, rosterCount(st, t.id) - ROSTER_LIMIT), 0);
+  assert.ok(extras > 200, `camp dump too small: extras=${extras}`);
+  const logAt = st.log.length;
+  finalizeOffseason(st);
+  const waived = st.log.slice(logAt).filter((e) => e.text.includes(" waived ")).length;
+  assert.ok(waived >= extras, `extras must hit waivers; waived=${waived} extras=${extras}`);
+  assert.equal(st.phase, "preseason");
+  for (const t of st.teams) {
+    assert.equal(rosterCount(st, t.id), ROSTER_LIMIT, `${t.abbr} after cutdown`);
+  }
+  const wire = st.waivers?.length ?? 0;
+  assert.ok(wire < 40, `Start the Season must settle the claim chain; wire=${wire}`);
+  let ps = 0;
+  for (const t of st.teams) ps += practiceSquadCount(st, t.id);
+  assert.ok(ps > 0, "unclaimed extras may PS-stash");
+  startRegularSeason(st);
+  assert.ok((st.waivers?.length ?? 0) < 40, `season-start wire=${st.waivers?.length ?? 0}`);
 }
 
 console.log("waivers: ok");
