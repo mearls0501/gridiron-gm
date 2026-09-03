@@ -28,6 +28,22 @@ fifth-year / tag-extension tests stay.
 File cluster: `contracts.ts` helper + Hub card + `franchiseTag.test.ts`,
 this note.
 
+### Gate (`nproc`=4)
+
+Fast: all 21 harnesses exit 0 (`franchisetag`, `fifthyearoption`,
+`tagextension`, `verify` 3 seasons, `sweep` included). Two inherited
+single-seed metric reds — leave them. Do not touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
+
+Browser: planted KC + BOS tags on the same window (year-0 plant).
+Old Hub card named BOS's Isiah Garcia (K) $11.7M. After the fix it
+names KC's Deion Kirkland II (RB) $13.4M. Player page matches: 1-year
+/ $13.4M. Around the League lists both tags.
+
 ---
 
 ## 2026-09-03 — July 15 tag extension (branch `cursor/july-15-extension-a2ee`)
