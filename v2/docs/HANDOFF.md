@@ -50,8 +50,16 @@ File cluster: `contracts.ts` (`fillRoster` toward-ceiling, `fillCampRosters`),
 
 ### Gate (`nproc`=4)
 
-Fast: pending at write-up. Inherited single-seed metric reds stay.
+Fast: all 18 harnesses exit 0 (`rostercap` included; `verify` 3 seasons).
+Three inherited single-seed metric reds — leave them; same family as
+PR #26–#38, and the same three numbers the play-calling packet recorded.
 Do not touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.qb5PassYds  3929   expected 4497 +/-360
+FAIL  statcheck.wr10RecYds  1067   expected 1208 +/-97
+```
 
 ---
 
