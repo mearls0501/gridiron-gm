@@ -333,7 +333,7 @@ export default function RosterPage() {
         {active.length === 0 ? (
           <Empty
             title="No players on the roster"
-            hint="Every player has been released or the franchise has not been stocked yet. Auto-fill signs the best available free agents up to the 53-man limit."
+            hint={`Every player has been released or the franchise has not been stocked yet. Auto-fill signs the best available free agents up to the ${clip.cap}-man limit.`}
             action={<Button variant="primary" onClick={autoFill}>Auto-fill roster</Button>}
           />
         ) : rows.length === 0 ? (

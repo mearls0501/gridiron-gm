@@ -169,6 +169,7 @@ export default function DraftPage() {
   if (!state) return null;
 
   const teamId = state.userTeamId;
+  const clip = rosterCapView(state, teamId);
   const cal = calendarView(state);
   const windowMethods = methodsForWindow(cal.window);
   const defaultMethod = windowMethods[0] ?? "film";
@@ -388,6 +389,12 @@ export default function DraftPage() {
               sub={`${cal.visitsRemaining} of ${PRIVATE_VISIT_CAP} visits left`}
               tone={cal.visitsRemaining === 0 ? "warn" : undefined}
             />
+            <Stat
+              label="Roster"
+              value={clip.label}
+              sub={clip.sub}
+              tone={clip.tone === "warn" ? "warn" : undefined}
+            />
           </>
         ) : (
           <>
@@ -400,8 +407,8 @@ export default function DraftPage() {
             />
             <Stat
               label="Roster"
-              value={rosterCapView(state, teamId).label}
-              sub="Rookies count against the camp cap"
+              value={clip.label}
+              sub={clip.camp ? clip.sub : "Rookies count against the camp cap"}
             />
             <Stat
               label="Draft Opens"

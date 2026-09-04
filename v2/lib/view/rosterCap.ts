@@ -38,10 +38,13 @@ export function rosterCapView(state: GameState, teamId: number): RosterCapView {
     sub = `${overCap} over the ${camp ? "camp" : "roster"} limit`;
   } else if (camp && overSeason > 0) {
     sub = `${overSeason} over the ${ROSTER_LIMIT}-man season roster — cut or keep`;
+  } else if (camp) {
+    const room = cap - count;
+    sub = room > 0
+      ? `Camp roster ${count}/${cap} — room for ${room} more`
+      : `At the ${cap}-man camp limit`;
   } else if (short > 0) {
     sub = `${short} short of ${ROSTER_LIMIT}`;
-  } else if (camp) {
-    sub = `At the ${ROSTER_LIMIT}-man season roster`;
   } else {
     sub = "Legal roster";
   }
@@ -68,4 +71,10 @@ export function rosterCapView(state: GameState, teamId: number): RosterCapView {
 export function hubCampCutdownCopy(view: RosterCapView): string | null {
   if (!view.cutdown) return null;
   return `Camp roster ${view.label}. Cut ${view.overSeason} on /roster before the season, or Start the Season will auto-cut to 53 (extras pass waivers; unclaimed may land on the practice squad).`;
+}
+
+/** Under the season floor during camp: holding copy is /90, not a bare /53. */
+export function hubCampFloorCopy(view: RosterCapView): string | null {
+  if (!view.camp || view.short <= 0) return null;
+  return `Camp roster ${view.label}. Sign players before the season opens — cutdown is for clubs over the season limit.`;
 }
