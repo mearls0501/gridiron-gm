@@ -5,6 +5,36 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-04 — chain-0903 waiver “hundreds” re-checked (accepted leftover)
+
+Playtest chain 0903 (Kansas City Stampede) flagged the waiver desk in
+the hundreds after rollover. Re-traced every dump onto `state.waivers`
+and every `resolveWaivers` / `settleWaivers` hook. No missed settle.
+The GM never sees the cutdown dump: `finalizeOffseason` dumps then
+settles in the same advance; Play Week stays one window.
+
+Headless seed 42 (same path as Hub `advance` / `advanceOffseason`):
+
+| step | wire |
+|---|---|
+| newGame / year-0 Start the Season | 0 |
+| draft → camp extras | 809 (camp desk itself 0–28) |
+| settle enter at finalize | 809 → **43** all cap-stuck, 53/53 |
+| Through the Playoffs → tag → FA → draft → camp extras 593 | camp desk **20** |
+| Start the Season (first rollover) | dump 654 → **56** all cap-stuck, 9 clubs |
+| startRegularSeason | **62** (IR-slot cuts after settle) |
+
+56–62 matches PR #41 residue (Hub 106 / sit ~102 / test `< 120`), not
+the ~800-name dump. Hub and `/roster` both print `state.waivers.length`.
+
+Year-2 Start the Season leftover **267** is the same cap-stuck rule
+(more clubs tight after another floor-spend year; settle 991→267 in 9
+iterations, not the 64-cap). Do not wipe claimable/cap-stuck bodies.
+
+No code change. `waivers.test.ts` still passes.
+
+---
+
 ## 2026-09-04 — draft/camp roster copy still said /53 (branch `cursor/camp-roster-copy-90-821f`)
 
 Playtest chain 0903 leftover: camp math is 90 (`rosterLimit` / PR #32) but
