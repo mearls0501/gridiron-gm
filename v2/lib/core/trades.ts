@@ -93,11 +93,25 @@ export function isSpentPick(
   state: GameState,
   pick: { season: number; round: number; originalTeamId: number }
 ): boolean {
+  // Prior-class rows are spent even when no draft is on the clock — otherwise
+  // leftover pickOwners from a missed prune stay listed as live inventory.
+  if (pick.season < state.season) return true;
   const d = state.draft;
   if (!d || d.season !== pick.season) return false;
   if (d.complete) return true;
   const slot = liveDraftSlot(state, pick);
   return slot != null && slot.playerId !== null;
+}
+
+/**
+ * Closed-window leftover is for Reject during the same regular season
+ * (and through the playoffs). Year rollover — Recap / tag / FA / camp /
+ * next preseason — drops those in-season offers so they cannot reopen.
+ */
+export function pruneStaleTradeInbox(state: GameState): void {
+  if (!state.tradeOffers?.length) return;
+  if (state.phase === "regular" || state.phase === "playoffs") return;
+  state.tradeOffers = state.tradeOffers.filter((o) => o.week > TRADE_DEADLINE_WEEK);
 }
 
 export function picksOwnedBy(state: GameState, teamId: number, season?: number): PickOwnership[] {
@@ -429,9 +443,13 @@ export function describeAsset(state: GameState, a: TradeAsset): string {
   }
   const owner = state.teams[a.originalTeamId];
   const origin = owner ? ` (${owner.abbr})` : "";
-  const slot = liveDraftSlot(state, a);
-  if (slot && slot.playerId === null) return `${a.season} #${slot.pick}${origin}`;
-  return `${a.season} R${a.round}${origin}`;
+  const pick = findPick(state, a);
+  if (!pick || isSpentPick(state, a)) {
+    return `${a.season} R${a.round}${origin} (used)`;
+  }
+  const slot = liveDraftSlot(state, pick);
+  if (slot && slot.playerId === null) return `${pick.season} #${slot.pick}${origin}`;
+  return `${pick.season} R${pick.round}${origin}`;
 }
 
 export function executeTrade(state: GameState, offer: TradeOffer): TradeCheck {
@@ -1006,6 +1024,7 @@ export function runCutdownTrades(state: GameState, rng: Rng, attempts = 120): nu
  * most a couple of live offers so the hub does not become a spam inbox.
  */
 export function generateUserOffers(state: GameState, rng: Rng, max = 2): TradeOffer[] {
+  pruneStaleTradeInbox(state);
   if (!tradeWindowOpen(state)) return [];
   ensurePickInventory(state);
   if (!state.tradeOffers) state.tradeOffers = [];

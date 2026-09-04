@@ -5,12 +5,25 @@
  * nothing can be accepted or proposed; Propose was dead; Accept on the
  * Kansas City offer stayed a live-looking primary button.
  *
+ * 2026-09-04: prior-year pick assets must not advertise as live, and
+ * leftover inbox must not survive year rollover into Recap / tag.
+ *
  * Run: npx tsx lib/view/tradeWindow.test.ts
  */
 import assert from "node:assert/strict";
 import { newGame } from "../core/newGame";
-import { acceptOffer, generateUserOffers, rejectOffer, tradeWindowOpen } from "../core/trades";
-import { defaultSettings, TRADE_DEADLINE_WEEK, TradeOffer } from "../core/types";
+import { advanceOffseason } from "../core/offseason";
+import {
+  acceptOffer,
+  checkTrade,
+  describeAsset,
+  generateUserOffers,
+  isSpentPick,
+  picksOwnedBy,
+  rejectOffer,
+  tradeWindowOpen,
+} from "../core/trades";
+import { defaultSettings, TRADE_DEADLINE_WEEK, TradeAsset, TradeOffer } from "../core/types";
 import { startRegularSeason } from "../core/season/engine";
 import { Rng } from "../core/rng";
 import { runSimTo } from "../store/simTo";
@@ -22,10 +35,14 @@ import {
   proposeTradeControl,
 } from "./tradeWindow";
 
-function plantIncoming(st: ReturnType<typeof newGame>): {
+function plantIncoming(
+  st: ReturnType<typeof newGame>,
+  pick?: { season: number },
+): {
   offer: TradeOffer;
   incomingId: number;
   outgoingId: number;
+  pickAsset?: TradeAsset;
 } {
   const user = st.userTeamId;
   const from = st.teams.find((t) => t.id !== user);
@@ -37,18 +54,31 @@ function plantIncoming(st: ReturnType<typeof newGame>): {
     (p) => p.teamId === user && !p.prospect && !p.retired,
   );
   assert.ok(incoming && outgoing, "need a player on each side");
+  const give: TradeAsset[] = [{ kind: "player", playerId: incoming.id }];
+  let pickAsset: TradeAsset | undefined;
+  if (pick) {
+    if (!st.pickOwners) st.pickOwners = [];
+    st.pickOwners.push({
+      season: pick.season,
+      round: 1,
+      originalTeamId: from.id,
+      teamId: from.id,
+    });
+    pickAsset = { kind: "pick", season: pick.season, round: 1, originalTeamId: from.id };
+    give.push(pickAsset);
+  }
   const offer: TradeOffer = {
     id: 99,
     fromTeamId: from.id,
     toTeamId: user,
-    give: [{ kind: "player", playerId: incoming.id }],
+    give,
     get: [{ kind: "player", playerId: outgoing.id }],
     season: st.season,
     week: TRADE_DEADLINE_WEEK,
     rationale: "leftover from deadline week",
   };
   st.tradeOffers = [offer];
-  return { offer, incomingId: incoming.id, outgoingId: outgoing.id };
+  return { offer, incomingId: incoming.id, outgoingId: outgoing.id, pickAsset };
 }
 
 assert.match(
@@ -214,6 +244,72 @@ function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
     `champion must not pause on leftover, got: ${champ}`,
   );
   assert.ok(st.phase.startsWith("offseason"), "Through the Playoffs hands off to the offseason");
+  assert.equal((st.tradeOffers ?? []).length, 0, "year rollover clears leftover at Recap");
 }
 
 console.log("ok    tradeWindow — leftover after deadline does not pause bulk sim");
+
+// Prior-year pick: inventory / describe / checkTrade agree it is dead.
+{
+  const st = newGame({ seed: 1 });
+  st.phase = "regular";
+  st.week = 8;
+  const priorYear = st.season - 1;
+  const { offer, pickAsset } = plantIncoming(st, { season: priorYear });
+  assert.ok(pickAsset && pickAsset.kind === "pick");
+  assert.equal(isSpentPick(st, pickAsset), true, "prior-year row is spent");
+  assert.equal(
+    picksOwnedBy(st, offer.fromTeamId).some((p) => p.season === priorYear),
+    false,
+    "inventory must not list a prior-year pick",
+  );
+  const label = describeAsset(st, pickAsset);
+  assert.match(label, /used|invalid/i, `dead pick must not advertise as live, got: ${label}`);
+  assert.ok(!label.includes(`${st.season} R`), "must not relabel a spent class as this year");
+
+  const check = checkTrade(st, offer);
+  assert.equal(check.ok, false, "checkTrade refuses a prior-year pick");
+  assert.match(check.reason ?? "", /used|exist/i);
+
+  const accepted = acceptOffer(st, offer.id);
+  assert.equal(accepted.ok, false, "Accept cannot complete a spent-pick leftover");
+
+  st.tradeOffers = [];
+  generateUserOffers(st, new Rng(1), 2);
+  for (const o of st.tradeOffers ?? []) {
+    for (const a of [...o.give, ...o.get]) {
+      if (a.kind !== "pick") continue;
+      assert.ok(a.season >= st.season, `generated offer advertised ${a.season} pick`);
+      assert.equal(isSpentPick(st, a), false);
+      const live = describeAsset(st, a);
+      assert.ok(live.startsWith(String(a.season)), `live label must use the pick year, got: ${live}`);
+      assert.ok(!/used|invalid/i.test(live), `live pick must not be marked used: ${live}`);
+    }
+  }
+
+  const current = (st.pickOwners ?? []).find((p) => p.season === st.season);
+  assert.ok(current, "current-year inventory exists");
+  const currentLabel = describeAsset(st, {
+    kind: "pick",
+    season: current.season,
+    round: current.round,
+    originalTeamId: current.originalTeamId,
+  });
+  assert.ok(currentLabel.startsWith(`${st.season}`), `current year label, got: ${currentLabel}`);
+  assert.ok(!/used|invalid/i.test(currentLabel));
+}
+
+// Recap → tag rollover clears a week-10 leftover. Same-season Reject path
+// is covered above; do not invent a mid-season auto-expire.
+{
+  const st = newGame({ seed: 1 });
+  st.phase = "offseason-recap";
+  const { offer } = plantIncoming(st);
+  assert.equal(st.tradeOffers?.some((o) => o.id === offer.id), true);
+  const msg = advanceOffseason(st);
+  assert.equal(st.phase, "offseason-tag", msg);
+  assert.equal((st.tradeOffers ?? []).length, 0, "tag window inbox is empty after rollover");
+  assert.equal(incomingOfferPausesSim(st, 0), false);
+}
+
+console.log("ok    tradeWindow — prior-year pick honesty and year-boundary inbox");

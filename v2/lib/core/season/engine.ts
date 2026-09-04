@@ -7,7 +7,7 @@ import { applyGameStats } from "./stats";
 import { recordGame } from "./records";
 import { initPlayoffs, simulatePlayoffRound } from "./playoffs";
 import { applyGameWear, healWeek, healthySet, rollWeeklyInjuries } from "./injuries";
-import { generateUserOffers, runCpuTrades } from "../trades";
+import { generateUserOffers, pruneStaleTradeInbox, runCpuTrades } from "../trades";
 import { fillCpuIrReplacements } from "../irFill";
 import { freeActiveSlot } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
@@ -175,6 +175,7 @@ export function advance(state: GameState): string {
 
       if (state.playoffs?.complete) {
         state.phase = "offseason-recap";
+        pruneStaleTradeInbox(state);
         return "Champion crowned";
       }
       state.week += 1;
