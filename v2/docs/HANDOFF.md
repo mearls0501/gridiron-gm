@@ -5,6 +5,14 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-04 — standing ROADMAP + ORCHESTRATION (docs only)
+
+Docs only — standing ROADMAP + ORCHESTRATION; AGENTS pointer; Phase 0
+waiver bullet matches #49 (cap-stuck residue, not a settle miss / not
+a wipe).
+
+---
+
 ## 2026-09-04 — chain-0903 waiver “hundreds” re-checked (accepted leftover)
 
 Playtest chain 0903 (Kansas City Stampede) flagged the waiver desk in
