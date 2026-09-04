@@ -42,7 +42,20 @@ clears, bulk sim does not pause.
 
 ### Gate (`nproc`=4)
 
-Fast after the edit. Inherited single-seed reds stay.
+Fast: all 21 harnesses exit 0 (`tradewindow`, `franchisetag`,
+`fifthyearoption`, `tagextension`, `verify` 3 seasons, `sweep`
+included). Two inherited single-seed metric reds — leave them. Do not
+touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
+
+Browser: planted Week-10 KC leftover (BOS, Patrick Taylor + **2026 R1**).
+Accept dead, Reject live; Reject → "No offers right now". Re-import,
+Through the Playoffs (no trade-offer pause) → Recap → tag. `/trades`
+inbox empty (0 waiting). Hub is Franchise Tag.
 
 ---
 
