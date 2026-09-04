@@ -15,15 +15,15 @@ import {
   rejectOffer,
   tradeWindowOpen,
 } from "@/lib/core/trades";
-import { capHit, formatMoney, rosterCount, teamRoster } from "@/lib/core/select";
+import { capHit, formatMoney, teamRoster } from "@/lib/core/select";
 import {
   PickOwnership,
   Player,
-  ROSTER_LIMIT,
   TRADE_DEADLINE_WEEK,
   TradeAsset,
   TradeOffer,
 } from "@/lib/core/types";
+import { rosterCapView } from "@/lib/view/rosterCap";
 import {
   CLOSED_WINDOW_ACTIONS,
   incomingOfferAccept,
@@ -223,7 +223,7 @@ export default function TradesPage() {
           />
           <Stat
             label="Roster"
-            value={`${rosterCount(state, userId)}/${ROSTER_LIMIT}`}
+            value={rosterCapView(state, userId).label}
             sub="Both clubs must stay legal"
           />
           <Stat

@@ -5,6 +5,40 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-04 — draft/camp roster copy still said /53 (branch `cursor/camp-roster-copy-90-821f`)
+
+Playtest chain 0903 leftover: camp math is 90 (`rosterLimit` / PR #32) but
+Hub Auto-fix, `rosterIssues`, `/roster` sub, trades, and the draft-phase
+clipboard still framed the holding limit as **/53**.
+
+**Fix.** Presentation only. Count copy uses `rosterCapView.label` /
+`rosterLimit(phase)` (90 in `offseason-draft` / `offseason-final`). 53
+stays on the cutdown clipboard (`hubCampCutdownCopy` / over-season sub)
+as the Start the Season target. `hubCampFloorCopy` replaces the Hub
+"short of 53" override. No roster math, cutdown, UDFA 4, or finalize
+change.
+
+Regression: `rosterCap.test.ts` — draft/camp holding copy is /90, not a
+bare /53; season still /53.
+
+### Gate (`nproc`=4)
+
+Fast: all 22 harnesses exit 0 (`rostercap` included). Two inherited
+single-seed metric reds — leave them. Do not touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
+
+Browser: New Franchise KC → Through the Playoffs → Draft. Hub / draft /
+`/roster` agreed **27/90** then camp **72/90** with the cutdown clipboard.
+Planted old `/roster` sub on a draft save: **53/90** + “At the 53-man
+season roster”. After: **53/90** + “Camp roster 53/90 — room for 37 more”.
+Start the Season → **53/53**.
+
+---
+
 ## 2026-09-04 — Team Leaders receiving named defenders (branch `cursor/receiving-leaders-filter-7684`)
 
 Playtest chain 0903, Kansas City Stampede: Hub Team Leaders (and `/stats` /

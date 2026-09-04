@@ -20,7 +20,7 @@ import { rosterCount, rosterIssues } from "../core/select";
 import {
   CAMP_ROSTER_LIMIT, LEAGUE_MINIMUM, Phase, ROSTER_LIMIT, isCampPhase, rosterLimit,
 } from "../core/types";
-import { hubCampCutdownCopy, rosterCapView } from "./rosterCap";
+import { hubCampCutdownCopy, hubCampFloorCopy, rosterCapView } from "./rosterCap";
 
 function attachExtras(st: ReturnType<typeof newGame>, n: number): void {
   const fas = st.players.filter((p) => p.teamId === null && !p.retired && !p.prospect);
@@ -47,6 +47,58 @@ function attachExtras(st: ReturnType<typeof newGame>, n: number): void {
   }
   assert.equal(CAMP_ROSTER_LIMIT, 90);
   assert.equal(ROSTER_LIMIT, 53);
+}
+
+// Draft / camp holding copy uses the phase ceiling (90), not a bare /53.
+// 53 is only the eventual season cutdown target on the clipboard.
+function assertHoldingIsPhaseCap(copy: string, cap: number, label: string): void {
+  assert.match(copy, new RegExp(`/${cap}(?!\\d)`), `${label} missing /${cap}: ${copy}`);
+  assert.doesNotMatch(copy, /\/53(?!\d)/, `${label} framed /53 as the holding limit: ${copy}`);
+}
+
+{
+  const st = newGame({ seed: 1 });
+  assert.equal(rosterCount(st, st.userTeamId), ROSTER_LIMIT);
+
+  for (const phase of ["offseason-draft", "offseason-final"] as Phase[]) {
+    st.phase = phase;
+    const clip = rosterCapView(st, st.userTeamId);
+    assert.equal(clip.cap, CAMP_ROSTER_LIMIT, phase);
+    assert.equal(clip.label, "53/90", phase);
+    assertHoldingIsPhaseCap(clip.label, CAMP_ROSTER_LIMIT, `${phase} label`);
+    assertHoldingIsPhaseCap(clip.sub, CAMP_ROSTER_LIMIT, `${phase} sub`);
+    assert.equal(hubCampCutdownCopy(clip), null, phase);
+    assert.equal(hubCampFloorCopy(clip), null, phase);
+    const issues = rosterIssues(st, st.userTeamId).filter((i) => i.kind === "underLimit");
+    assert.equal(issues.length, 0, phase);
+  }
+
+  st.phase = "offseason-final";
+  const extra = st.players.find((p) => p.teamId === st.userTeamId && !p.retired && !p.prospect);
+  assert.ok(extra);
+  extra.teamId = null;
+  extra.contract = null;
+  assert.equal(rosterCount(st, st.userTeamId), 52);
+
+  const shortCamp = rosterCapView(st, st.userTeamId);
+  assert.equal(shortCamp.label, "52/90");
+  assertHoldingIsPhaseCap(shortCamp.label, CAMP_ROSTER_LIMIT, "camp-short label");
+  assertHoldingIsPhaseCap(shortCamp.sub, CAMP_ROSTER_LIMIT, "camp-short sub");
+  const floor = hubCampFloorCopy(shortCamp);
+  assert.ok(floor);
+  assertHoldingIsPhaseCap(floor, CAMP_ROSTER_LIMIT, "hubCampFloorCopy");
+  assert.match(floor, /Camp roster 52\/90/);
+  const under = rosterIssues(st, st.userTeamId).find((i) => i.kind === "underLimit");
+  assert.ok(under);
+  assertHoldingIsPhaseCap(under.message, CAMP_ROSTER_LIMIT, "rosterIssues camp");
+
+  st.phase = "regular";
+  const shortSeason = rosterCapView(st, st.userTeamId);
+  assert.equal(shortSeason.label, "52/53");
+  assert.match(shortSeason.sub, /1 short of 53/);
+  const seasonIssue = rosterIssues(st, st.userTeamId).find((i) => i.kind === "underLimit");
+  assert.ok(seasonIssue);
+  assert.match(seasonIssue.message, /52\/53/);
 }
 
 // Clipboard: 60/90 in camp is legal; 60/53 in season is over.

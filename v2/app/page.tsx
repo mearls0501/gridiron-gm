@@ -9,7 +9,7 @@ import {
   Button, Card, Cell, Empty, OvrBadge, Pill, PlayerLink, PosBadge, Row, Stat, Table, TeamMark, cx,
 } from "@/components/ui";
 import {
-  capHit, computeRecords, formatMoney, irCount, recordString, rosterCount, rosterIssues, teamCap,
+  capHit, computeRecords, formatMoney, irCount, recordString, rosterIssues, teamCap,
 } from "@/lib/core/select";
 import { userNextGame, isOnBye, injuredPlayers, weekGames } from "@/lib/core/season/engine";
 import { divisionStandings, seasonHasResults } from "@/lib/core/season/standings";
@@ -24,7 +24,7 @@ import { describeAsset } from "@/lib/core/trades";
 import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weatherLabel } from "@/lib/core/types";
 import { SeasonReviewPanels, SeasonReviewSummary } from "@/components/SeasonReview";
 import { presentSeasonReview } from "@/lib/view/seasonReview";
-import { hubCampCutdownCopy, rosterCapView } from "@/lib/view/rosterCap";
+import { hubCampCutdownCopy, hubCampFloorCopy, rosterCapView } from "@/lib/view/rosterCap";
 import { teamLeaders } from "@/lib/view/teamLeaders";
 import { PRIVATE_VISIT_CAP, calendarView } from "@/lib/core/scouting";
 
@@ -234,9 +234,7 @@ export default function Hub() {
             <div className="bg-[var(--color-surface-2)] border border-[var(--color-line-soft)] rounded-lg px-3 py-2.5">
               <div className="text-xs font-medium">{step.title}</div>
               <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                {state.phase === "offseason-final" && issues.some((i) => i.kind === "underLimit")
-                  ? "Roster is short of 53. Sign players before the season opens — cutdown is for clubs over the limit."
-                  : hubCampCutdownCopy(clip) ?? step.description}
+                {hubCampFloorCopy(clip) ?? hubCampCutdownCopy(clip) ?? step.description}
               </div>
               {isRecap && recap && (
                 <SeasonReviewSummary state={state} view={recap} />
@@ -507,31 +505,20 @@ export default function Hub() {
           }
         >
           <div className="space-y-2">
-            {issues.map((i, n) => {
-              const shortDuringCutdown =
-                i.kind === "underLimit" && state.phase === "offseason-final";
-              const nNeed = ROSTER_LIMIT - rosterCount(state, team.id);
-              return (
+            {issues.map((i, n) => (
               <div key={n} className="flex items-start gap-2.5 text-sm">
                 <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-warn)] shrink-0" />
                 <div>
-                  <div>
-                    {shortDuringCutdown
-                      ? `Roster short of 53: ${rosterCount(state, team.id)}/${ROSTER_LIMIT}`
-                      : i.message}
-                  </div>
+                  <div>{i.message}</div>
                   <div className="text-xs text-[var(--color-muted)]">
-                    {shortDuringCutdown
-                      ? `Sign ${nNeed} more player${nNeed === 1 ? "" : "s"} before the season opens. Cutdown is for clubs over the limit.`
-                      : i.detail}
+                    {i.detail}
                   </div>
                 </div>
                 <Link href={i.kind === "overCap" ? "/finances" : "/roster"} className="ml-auto shrink-0">
                   <Button size="sm" variant="ghost">Fix</Button>
                 </Link>
               </div>
-              );
-            })}
+            ))}
           </div>
         </Card>
       )}

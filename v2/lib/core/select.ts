@@ -267,7 +267,7 @@ export function rosterIssues(state: GameState, teamId: number): RosterIssue[] {
   } else if (n < ROSTER_LIMIT) {
     issues.push({
       kind: "underLimit",
-      message: `Roster under the limit: ${n}/${ROSTER_LIMIT}`,
+      message: `Roster under the limit: ${n}/${hold}`,
       detail: `Sign ${ROSTER_LIMIT - n} more player${ROSTER_LIMIT - n === 1 ? "" : "s"}.`,
     });
   }
