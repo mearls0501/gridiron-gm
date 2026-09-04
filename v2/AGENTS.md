@@ -6,6 +6,9 @@ every human. It is short on purpose.
 **Picking the project back up after a break?** Read `docs/HANDOFF.md` first —
 it has where the work stands, what is still red and why, and what to do next.
 
+Standing plan: `docs/ROADMAP.md`. Parallel-agent dispatch: `docs/ORCHESTRATION.md`.
+Read the roadmap after this file and before HANDOFF when choosing what to ship next.
+
 This is a pro-football front-office simulation that runs entirely in the
 browser. No database, no backend, no API keys, no network. A save is one
 serializable JSON document in IndexedDB.
