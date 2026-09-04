@@ -21,6 +21,20 @@ because that board had the same any-position hole. No sim change.
 Regression: `lib/view/teamLeaders.test.ts` — planted LB/CB/S/EDGE with more
 `recYds` than a WR/TE/RB; receiving names the skill player (or empty).
 
+### Gate (`nproc`=4)
+
+Fast: all 22 harnesses exit 0 (`teamleaders` included). Two inherited
+single-seed metric reds — leave them. Do not touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
+
+Browser: year-0 plant on KC (Jamal Whitlock LB 912 recYds / James Miller
+WR 418). Old Hub named the LB `64 rec, 912 yds`. After: Receiving is
+the WR; Defense is the LB (88 tkl). `/stats` receiving is Miller only.
+
 ---
 
 ## 2026-09-04 — trade leftovers: prior-year pick + inbox past Recap (branch `cursor/trade-year-boundary-40f0`)
