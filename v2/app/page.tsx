@@ -13,7 +13,6 @@ import {
 } from "@/lib/core/select";
 import { userNextGame, isOnBye, injuredPlayers, weekGames } from "@/lib/core/season/engine";
 import { divisionStandings, seasonHasResults } from "@/lib/core/season/standings";
-import { currentLine } from "@/lib/core/season/stats";
 import {
   applyFifthYearOption, applyFranchiseTag, applyTagExtension, clubFranchiseTaggedPlayer,
   declineFifthYearOption, expiringPlayers, fifthYearOptionPlayers, fifthYearOptionSalary,
@@ -26,6 +25,7 @@ import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weath
 import { SeasonReviewPanels, SeasonReviewSummary } from "@/components/SeasonReview";
 import { presentSeasonReview } from "@/lib/view/seasonReview";
 import { hubCampCutdownCopy, rosterCapView } from "@/lib/view/rosterCap";
+import { teamLeaders } from "@/lib/view/teamLeaders";
 import { PRIVATE_VISIT_CAP, calendarView } from "@/lib/core/scouting";
 
 /** One row in the Sim dropdown. */
@@ -112,19 +112,7 @@ export default function Hub() {
     const roster = state.players.filter(
       (p) => p.teamId === team.id && !p.retired && !p.prospect
     );
-    const topPerformers = roster
-      .map((p) => ({ p, l: currentLine(p, state.season) }))
-      .filter((x) => x.l.games > 0)
-      .map((x) => ({
-        ...x,
-        score:
-          x.l.passYds * 0.04 + x.l.passTd * 4 - x.l.passInt * 2 +
-          x.l.rushYds * 0.06 + x.l.rushTd * 4 +
-          x.l.recYds * 0.055 + x.l.recTd * 4 +
-          x.l.sacks * 7 + x.l.ints * 8 + x.l.tackles * 0.4,
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5);
+    const topPerformers = teamLeaders(state, team.id);
     const lastResults = weekGames(state, Math.max(1, state.week - 1)).filter((g) => g.played);
     return { team, rec, cap, next, bye, injured, onIr, issues, clip, div, divRank, roster, topPerformers, lastResults };
   }, [state]);
@@ -763,26 +751,22 @@ export default function Hub() {
           {topPerformers.length === 0 ? (
             <Empty title="No games played yet" hint="Play a week to see who's producing." />
           ) : (
-            <Table head={["Player", "OVR", "Line"]}>
-              {topPerformers.map(({ p, l }) => {
-                const line =
-                  l.passAtt > 0 ? `${l.passYds} yds, ${l.passTd} TD, ${l.passInt} INT`
-                  : l.rushAtt > l.rec ? `${l.rushYds} yds, ${l.rushTd} TD`
-                  : l.rec > 0 ? `${l.rec} rec, ${l.recYds} yds, ${l.recTd} TD`
-                  : `${l.tackles} tkl, ${l.sacks} sk, ${l.ints} INT`;
-                return (
-                  <Row key={p.id}>
-                    <Cell align="left">
-                      <span className="flex items-center gap-2 min-w-0">
-                        <PosBadge pos={p.pos} />
-                        <PlayerLink p={p} className="truncate" />
-                      </span>
-                    </Cell>
-                    <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
-                    <Cell><span className="text-xs text-[var(--color-muted)]">{line}</span></Cell>
-                  </Row>
-                );
-              })}
+            <Table head={["Stat", "Player", "OVR", "Line"]}>
+              {topPerformers.map((row) => (
+                <Row key={row.kind}>
+                  <Cell align="left">
+                    <span className="text-xs text-[var(--color-muted)]">{row.label}</span>
+                  </Cell>
+                  <Cell align="left">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <PosBadge pos={row.player.pos} />
+                      <PlayerLink p={row.player} className="truncate" />
+                    </span>
+                  </Cell>
+                  <Cell><OvrBadge ovr={row.player.ovr} size="sm" /></Cell>
+                  <Cell><span className="text-xs text-[var(--color-muted)]">{row.text}</span></Cell>
+                </Row>
+              ))}
             </Table>
           )}
         </Card>

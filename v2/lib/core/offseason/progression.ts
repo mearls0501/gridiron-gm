@@ -1,7 +1,7 @@
 import { Rng, clamp } from "../rng";
 import { refreshOvr, relevantAttrs, POSITION_WEIGHTS } from "../ratings";
 import { AttrKey, GameState, Player, SeasonHistory } from "../types";
-import { currentLine } from "../season/stats";
+import { currentLine, isReceivingLeaderPos } from "../season/stats";
 import { healOffseason } from "../season/injuries";
 import { leagueStandings } from "../season/standings";
 import { computeRecords } from "../select";
@@ -310,7 +310,9 @@ export function recordSeasonHistory(state: GameState): SeasonHistory {
     leaders: {
       passYds: bestBy(state, (p) => lineOf(p)?.passYds ?? -Infinity),
       rushYds: bestBy(state, (p) => lineOf(p)?.rushYds ?? -Infinity),
-      recYds: bestBy(state, (p) => lineOf(p)?.recYds ?? -Infinity),
+      recYds: bestBy(state, (p) =>
+        isReceivingLeaderPos(p.pos) ? (lineOf(p)?.recYds ?? -Infinity) : -Infinity
+      ),
       sacks: bestBy(state, (p) => lineOf(p)?.sacks ?? -Infinity),
     },
   };

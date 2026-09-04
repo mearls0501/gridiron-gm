@@ -5,7 +5,7 @@ import { useGame } from "@/lib/store/game";
 import { GameState, Player, SeasonStatLine, Team } from "@/lib/core/types";
 import {
   leaders, LeaderKey, currentLine, passerRating, ypc, ypr, cmpPct, fgPct,
-  krAverage, prAverage, clockString,
+  krAverage, prAverage, clockString, isReceivingLeaderPos,
 } from "@/lib/core/season/stats";
 import {
   teamSeasonStats, TeamSeasonStats, perGame, pct, rankOf,
@@ -37,12 +37,13 @@ interface StatRow {
 function derive(
   state: GameState,
   value: (l: SeasonStatLine) => number,
-  opts: { teamId?: number; limit?: number } = {}
+  opts: { teamId?: number; limit?: number; eligible?: (p: Player) => boolean } = {}
 ): StatRow[] {
   const rows: StatRow[] = [];
   for (const p of state.players) {
     if (p.prospect) continue;
     if (opts.teamId !== undefined && p.teamId !== opts.teamId) continue;
+    if (opts.eligible && !opts.eligible(p)) continue;
     const line = p.stats.find((s) => s.season === state.season);
     if (!line) continue;
     const v = value(line);
@@ -298,6 +299,7 @@ export default function StatsPage() {
     const base = derive(state, cat.sortBy, {
       teamId: mine ? state.userTeamId : teamFilter === "ALL" ? undefined : teamFilter,
       limit: 100000,
+      eligible: playerTab === "receiving" ? (p) => isReceivingLeaderPos(p.pos) : undefined,
     });
     const sortCols = COLS[playerTab!];
     const sorted =

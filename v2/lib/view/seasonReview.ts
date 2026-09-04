@@ -1,5 +1,6 @@
 import { Game, GameState, Player, SeasonHistory, SeasonStatLine } from "../core/types";
 import { computeRecords, recordString } from "../core/select";
+import { isReceivingLeaderPos } from "../core/season/stats";
 
 /**
  * Read-only Season Review presenter.
@@ -148,7 +149,9 @@ function deriveLeaders(state: GameState, season: number): SeasonHistory["leaders
   return {
     passYds: bestBy(state, season, (p) => lineOf(p, season)?.passYds ?? -Infinity),
     rushYds: bestBy(state, season, (p) => lineOf(p, season)?.rushYds ?? -Infinity),
-    recYds: bestBy(state, season, (p) => lineOf(p, season)?.recYds ?? -Infinity),
+    recYds: bestBy(state, season, (p) =>
+      isReceivingLeaderPos(p.pos) ? (lineOf(p, season)?.recYds ?? -Infinity) : -Infinity
+    ),
     sacks: bestBy(state, season, (p) => lineOf(p, season)?.sacks ?? -Infinity),
   };
 }

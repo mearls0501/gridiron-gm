@@ -1,5 +1,5 @@
 import {
-  Game, GameState, Player, PlayerGameStat, SeasonStatLine, TeamGameStats,
+  Game, GameState, Player, PlayerGameStat, Position, SeasonStatLine, TeamGameStats,
 } from "../types";
 
 /**
@@ -161,6 +161,13 @@ export type LeaderKey =
   | "passYds" | "passTd" | "rushYds" | "rushTd" | "recYds" | "recTd"
   | "sacks" | "ints" | "tackles";
 
+/** WR/TE/RB — same skill group briefing.ts uses. Receiving boards only. */
+export const RECEIVING_LEADER_POS: readonly Position[] = ["WR", "TE", "RB"];
+
+export function isReceivingLeaderPos(pos: Position): boolean {
+  return pos === "WR" || pos === "TE" || pos === "RB";
+}
+
 export interface LeaderRow {
   player: Player;
   value: number;
@@ -170,9 +177,11 @@ export interface LeaderRow {
 export function leaders(
   state: GameState, key: LeaderKey, season = state.season, limit = 10
 ): LeaderRow[] {
+  const receiving = key === "recYds" || key === "recTd";
   const rows: LeaderRow[] = [];
   for (const p of state.players) {
     if (p.prospect) continue;
+    if (receiving && !isReceivingLeaderPos(p.pos)) continue;
     const line = p.stats.find((s) => s.season === season);
     if (!line) continue;
     const value = (line as unknown as Record<string, number>)[key] ?? 0;
