@@ -5,6 +5,47 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-04 — trade leftovers: prior-year pick + inbox past Recap (branch `cursor/trade-year-boundary-40f0`)
+
+Playtest chain 0903 (Kansas City Stampede): two leftovers after the
+#31/#36/#37 closed-window work.
+
+**(A) Stale pick label.** An offer listed a prior-class pick (2025/2026
+once the calendar had moved on). `isSpentPick` only looked at the live
+draft, so a leftover `pickOwners` row with `season < state.season`
+stayed inventory, generated into offers, and `describeAsset` printed
+it as live. `checkTrade` already refused it.
+
+**(B) Inbox into the next tag window.** PR #37 kept the leftover for
+same-season Reject and removed the week-10 wipe. The only
+`tradeOffers = []` was `finalizeOffseason` — after tag / FA / draft.
+Playoffs → Recap reopens the window (`phase.startsWith("offseason")`),
+so the week-9 leftover was still on `/trades` at the franchise-tag
+desk. Accept would have been live again.
+
+**Fix.** `isSpentPick` treats `pick.season < state.season` as spent
+(same filter as mid-draft spent slots). `describeAsset` / `picksOwnedBy`
+/ generation / `checkTrade` agree. `pruneStaleTradeInbox` drops
+in-season leftovers (week ≤ deadline) once phase is past regular /
+playoffs — hooked at Recap entry, `advanceOffseason`,
+`generateUserOffers`, and save migrate. Same-season leftover for
+Reject is unchanged; Through the Playoffs still does not pause.
+
+Untouched: POSITION_VALUE, cpuBoardValue, cpuProspectView,
+CONTENDER_PULL, GUARANTEE_PULL, CARRY_SHARE, WEEKLY_TABLE,
+askingPrice / negotiatedApy, PR #9, tag / fifth-year math, waivers,
+6-vet PS, `docs/baselines.json`.
+
+Regression: `tradeWindow.test.ts` — prior-year pick is used / refused;
+Recap → tag inbox empty; week-10 leftover still present, Reject
+clears, bulk sim does not pause.
+
+### Gate (`nproc`=4)
+
+Fast after the edit. Inherited single-seed reds stay.
+
+---
+
 ## 2026-09-03 — Hub franchise-tag card named the wrong player (branch `cursor/hub-tag-card-own-club-e2c3`)
 
 Playtest chain 0903: Kansas City tagged Dax Hernandez (EDGE, $28.1M).

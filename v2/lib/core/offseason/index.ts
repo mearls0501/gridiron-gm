@@ -9,7 +9,7 @@ import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, runCpuFif
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
 import { ensureScouting, pruneScouting } from "../scouting";
-import { ensurePickInventory, generateUserOffers, prunePickInventory, runCpuTrades, runDraftDayTrades } from "../trades";
+import { ensurePickInventory, generateUserOffers, prunePickInventory, pruneStaleTradeInbox, runCpuTrades, runDraftDayTrades } from "../trades";
 import { runHousekeeping } from "../housekeeping";
 import { refreshCpuStaff } from "../staff";
 
@@ -289,6 +289,7 @@ export function finalizeOffseason(state: GameState): void {
  */
 export function advanceOffseason(state: GameState): string {
   settleWaivers(state);
+  pruneStaleTradeInbox(state);
   switch (state.phase) {
     case "offseason-recap": {
       const rng = new Rng(state.rngState);
