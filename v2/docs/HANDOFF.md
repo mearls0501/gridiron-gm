@@ -5,6 +5,24 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-04 — Team Leaders receiving named defenders (branch `cursor/receiving-leaders-filter-7684`)
+
+Playtest chain 0903, Kansas City Stampede: Hub Team Leaders (and `/stats` /
+Season Review receiving) credited LBs/DBs with rec yards.
+
+**Cause.** Receiving boards sorted every player by `recYds`. Hub then picked a
+line by stat priority (`rec > 0` before tackles), so a defender with leftover
+targets rendered as WR production.
+
+**Fix.** Display filter only. Receiving leaders are WR/TE/RB (same skill group
+as briefing). Hub Team Leaders is one sit-class row each; rush uses QB/RB/WR/TE
+because that board had the same any-position hole. No sim change.
+
+Regression: `lib/view/teamLeaders.test.ts` — planted LB/CB/S/EDGE with more
+`recYds` than a WR/TE/RB; receiving names the skill player (or empty).
+
+---
+
 ## 2026-09-04 — trade leftovers: prior-year pick + inbox past Recap (branch `cursor/trade-year-boundary-40f0`)
 
 Playtest chain 0903 (Kansas City Stampede): two leftovers after the
