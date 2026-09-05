@@ -37,18 +37,49 @@ planted years render; 4 seasons + MVP / leader / championship qualify; 3
 seasons + MVP, ROY-only, and active stars do not; 8 seasons qualifies on
 tenure; another club's award does not count.
 
-### Gate (`nproc` pending)
+### Gate (`nproc`=4)
 
-Fast tier after implementation. Two inherited single-seed metric reds — leave
-them. Do not touch `docs/baselines.json`.
+Fast: all 23 harnesses exit 0 (`halloffame` included). Two inherited
+single-seed metric reds — leave them. Same two numbers as prior packets.
+Do not touch `docs/baselines.json`. Determinism emitted 2 metrics; no new
+draws (presentation only).
 
 ```
-(gate paste)
+  ok    typecheck      9s  0 metrics
+  ok    simtoast       3s  0 metrics
+  ok    drafttoast    16s  0 metrics
+  ok    newgame        3s  0 metrics
+  ok    simmenu        3s  0 metrics
+  ok    tradewindow   28s  0 metrics
+  ok    rostercap     66s  0 metrics
+  ok    teamleaders    5s  0 metrics
+  ok    irps          64s  0 metrics
+  ok    inactives     11s  0 metrics
+  ok    waivers       47s  0 metrics
+  ok    callsheet     48s  0 metrics
+  ok    franchisetag  11s  0 metrics
+  ok    fifthyearoption  55s  0 metrics
+  ok    tagextension  88s  0 metrics
+  ok    halloffame     7s  0 metrics
+  ok    determinism    6s  2 metrics
+  ok    verify       280s  2 metrics
+  ok    sweep        639s  0 metrics
+  ok    calibrate     61s  28 metrics
+  ok    statcheck     30s  23 metrics
+  ok    leverage      67s  3 metrics
+  ok    scout         16s  4 metrics
+
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97  (NFL ~1208)
+
+GATE FAIL  2 problems
 ```
 
-Browser: New Franchise → `/history` empty years and empty HoF with the rule
-printed. Plant two archived seasons + a four-year retiree MVP → years show,
-HoF lists him. `/records` and `/league` both link to `/history`.
+Browser: New Franchise (Boston Minutemen) → `/history` empty years and empty
+HoF with the rule printed. `/records` and `/league` both link to `/history`.
+Imported a planted save (2026–2028, one championship, David Ramirez 4 seasons
++ MVP + pass-yards lead) → years, timeline, and HoF list him. Old save shape
+loads (no new fields).
 
 ---
 
