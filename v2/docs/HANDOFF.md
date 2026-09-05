@@ -54,9 +54,12 @@ Unit test: same-seed scores / yards / play log identical; peek cache
 identity; live finish matches call-sheet replay; codec keeps the log;
 old box without `plays`/`drives` loads.
 
-**Browser.** New Franchise → Play the Game (`/play`) shows last-snap
-result + drive log + PBP; Play Week → `/game/[id]` shows drive chart
-and text play-by-play. Screenshots on the PR.
+**Browser.** New Franchise KC → Start the Season → `/play`. Run:
+"Montoya run for 8 yards". Pass: "Rutledge sacked for a loss of 7".
+Drive Log (2 possessions) + Play by Play (opening kickoff touchback
+and every snap). Coach finish → Play Week. `/game/8` KC 23–JAX 20:
+Drive Chart 22 possessions, Play by Play 171 snaps. CPU `/game/1`
+CIN–BOS: Drive Chart only (no snap log, by design).
 
 ---
 
