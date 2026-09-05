@@ -7,10 +7,9 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ## 2026-09-05 — draft published rules: slot scale + comps (branch `cursor/c-draft-published-rules-8a1e`)
 
-Packet C / Phase 0. Rebased onto `origin/main` @ `a4060ac7` (#55
-History nav, after #52 contract office / #51 HoF). Gate keeps
-`halloffame` + `contractoffice` + `draftrules`. `playbyplay` is not
-on this main.
+Packet C / Phase 0. Rebased onto `origin/main` @ `e03edb06` (#53
+Phase 1 play-by-play, after #55 / #52 / #51). Gate keeps
+`playbyplay` + `halloffame` + `contractoffice` + `draftrules`.
 
 Rookie deals were flat per round (`5.2 / 2.4 / … ×
 LEAGUE_MINIMUM`) so pick 1 signed the same APY as pick 32. The live draft
