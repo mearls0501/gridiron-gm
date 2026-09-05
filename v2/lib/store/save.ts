@@ -135,6 +135,8 @@ function migrate(state: GameState): GameState {
   }
   // Point-pool leftovers become a real calendar; does not crash old saves.
   ensureScouting(state);
+  // Contract office (extend / restructure) writes existing Contract fields
+  // only — signingBonus / baseSalary / bonusProrationYears. No backfill.
 
   if (state.version === STATE_VERSION) return state;
   state.version = STATE_VERSION;
