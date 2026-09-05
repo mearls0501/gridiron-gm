@@ -54,10 +54,48 @@ APY > pick-32 same round; planted UFA loss grows the board past 224;
 matched UFAs cancel; a cut is not a UFA; old save without `pickOwners`
 loads at 224; year-0 enterDraft stays 224.
 
-### Gate (`nproc` pending)
+### Gate (`nproc`=4)
 
-Fast tier after the change. Two inherited single-seed metric reds —
-leave them. Do not touch `docs/baselines.json`.
+Fast tier after the amplitude compress. All 23 harnesses exit 0
+(`rostercap`, `waivers`, `draftrules`, `determinism`, `verify`,
+`sweep` included). Two inherited single-seed metric reds — leave
+them. Do not touch `docs/baselines.json`.
+
+```
+  ok    typecheck     17s  0 metrics
+  ok    simtoast       2s  0 metrics
+  ok    drafttoast    16s  0 metrics
+  ok    newgame        2s  0 metrics
+  ok    simmenu        2s  0 metrics
+  ok    tradewindow   25s  0 metrics
+  ok    rostercap     58s  0 metrics
+  ok    teamleaders    4s  0 metrics
+  ok    irps          60s  0 metrics
+  ok    inactives     10s  0 metrics
+  ok    waivers       56s  0 metrics
+  ok    callsheet     47s  0 metrics
+  ok    franchisetag  10s  0 metrics
+  ok    fifthyearoption  56s  0 metrics
+  ok    tagextension  82s  0 metrics
+  ok    draftrules     7s  0 metrics
+  ok    determinism    5s  2 metrics
+  ok    verify       269s  2 metrics
+  ok    sweep        625s  0 metrics
+  ok    calibrate     61s  28 metrics
+  ok    statcheck     30s  23 metrics
+  ok    leverage      65s  3 metrics
+  ok    scout         16s  4 metrics
+
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97  (NFL ~1208)
+
+GATE FAIL  2 problems
+```
+
+Strike 1 (full OTC dollars): `rostercap` wire=125 plus the two
+inherited reds. Strike 2 (mean-preserving, amplitude 1.0):
+`rostercap` wire=130. Strike 3 not taken — amplitude 0.32 settled
+the claim chain. Do not chase `careers.r1QbSharePct`.
 
 ---
 
