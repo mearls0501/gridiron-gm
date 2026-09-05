@@ -52,7 +52,25 @@ CONTENDER_PULL / GUARANTEE_PULL / CARRY_SHARE, `docs/baselines.json`,
 **Phase hook.** None. The desk is always on `/finances`. Orchestrator
 does not need to wire `offseason/index.ts` or Shell.
 
-**Gate / Browser.** Pending first-pass after this note.
+### Gate (`nproc`=4)
+
+Fast: all 22 harnesses exit 0 (`contractoffice` included, 6s). Two
+inherited single-seed metric reds — leave them. Do not touch
+`docs/baselines.json`. Determinism clean (2 metrics).
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
+
+### Browser
+
+New Franchise KC seed 42 → `/finances`. Desk shows Extend /
+Restructure on every row. Restructure Travis Anderson II (S):
+this-year hit **$10.2M → $6.42M**, cap space **$41.6M → $45.3M**.
+Extend Andre Moore (QB): **3yr / $30.4M → 5yr / $42.8M**, cap
+space **$45.3M → $32.9M**. Table updated live. Recording:
+`finances-extend-restructure.mp4`.
 
 ---
 
