@@ -5,6 +5,10 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-05 — Shell History nav after #51
+
+Wired `{ href: "/history", label: "History" }` next to Records in Shell. `/history` already exists from #51.
+
 ## 2026-09-05 — contract office on /finances (branch `cursor/b-contract-office-b8b1`)
 
 Lane B, Phase 0/3 slice. Hub / briefing / `rosterIssues` already told the

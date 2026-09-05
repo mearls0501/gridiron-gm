@@ -28,6 +28,7 @@ const NAV = [
   { href: "/standings", label: "Standings" },
   { href: "/stats", label: "Stats" },
   { href: "/records", label: "Records" },
+  { href: "/history", label: "History" },
   { href: "/playoffs", label: "Playoffs" },
   { href: "/free-agency", label: "Free Agency" },
   { href: "/trades", label: "Trades" },
