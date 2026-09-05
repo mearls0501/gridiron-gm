@@ -37,9 +37,10 @@ CARRY_SHARE, `docs/baselines.json`. `scripts/` only for `gate.ts` test
 registration. No Shell / offseason nav hook — `/game/[id]` and `/play`
 already existed.
 
-**Gate (`nproc`=4).** Fast: all 23 harnesses exit 0 (`playbyplay`
-included). Two inherited single-seed metric reds — leave them. Same
-two numbers as main. Do not touch `docs/baselines.json`.
+**Gate (`nproc`=4).** Rebased onto `a4060ac` (#51+#52+#55). Fast: all
+25 harnesses exit 0 (`playbyplay` + `halloffame` + `contractoffice`).
+Two inherited single-seed metric reds — leave them. Same two numbers
+as main. Do not touch `docs/baselines.json`.
 
 ```
 FAIL  leverage.wrongSign     1     expected <= 0
