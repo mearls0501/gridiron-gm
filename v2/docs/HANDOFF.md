@@ -7,7 +7,12 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ## 2026-09-05 — draft published rules: slot scale + comps (branch `cursor/c-draft-published-rules-8a1e`)
 
-Packet C / Phase 0. Rookie deals were flat per round (`5.2 / 2.4 / … ×
+Packet C / Phase 0. Rebased onto `origin/main` @ `a4060ac7` (#55
+History nav, after #52 contract office / #51 HoF). Gate keeps
+`halloffame` + `contractoffice` + `draftrules`. `playbyplay` is not
+on this main.
+
+Rookie deals were flat per round (`5.2 / 2.4 / … ×
 LEAGUE_MINIMUM`) so pick 1 signed the same APY as pick 32. The live draft
 was 224 (7×32) against a real 254–262; `DRAFT_BOARD` was already 258
 prospects, but `buildDraftPicks` never created compensatory slots.
