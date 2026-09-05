@@ -15,6 +15,10 @@ import { playerMap } from "@/lib/core/select";
 import {
   Card, Cell, Empty, Pill, PlayerLink, PosBadge, Row, Stat, Table, TeamMark, cx,
 } from "@/components/ui";
+import {
+  clockLabel, downDistance, driveBar, drivePlays, driveResultLabel, driveResultTone,
+  formatPlay, quarterLabel, spotLabel,
+} from "@/lib/view/playByPlay";
 
 /**
  * Full box score for a single game.
@@ -27,19 +31,6 @@ import {
 /** Left-aligned header cell (Table right-aligns everything after column 0). */
 function L(label: string) {
   return <span className="block text-left">{label}</span>;
-}
-
-/** Clock is stored as seconds remaining in the quarter. */
-function clockLabel(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function quarterLabel(q: number): string {
-  if (q <= 4) return `Q${q}`;
-  return q === 5 ? "OT" : `OT${q - 4}`;
 }
 
 /** Rest is only worth mentioning when it is not an ordinary week. */
@@ -318,6 +309,10 @@ export default function GamePage() {
   const homeRest = conditions ? restLabel(conditions.homeRest) : null;
   const awayRest = conditions ? restLabel(conditions.awayRest) : null;
   const players = playerMap(state);
+  const nameOf = (id: number) => {
+    const p = players.get(id);
+    return p ? p.lastName : "";
+  };
   const userTeamId = state.userTeamId;
   const homeWon = game.homeScore > game.awayScore;
   const awayWon = game.awayScore > game.homeScore;
@@ -566,6 +561,95 @@ export default function GamePage() {
           </Table>
         )}
       </Card>
+
+      {(box.drives?.length || box.plays?.length) ? (
+        <Card
+          title="Drive Chart"
+          subtitle={box.drives ? `${box.drives.length} possessions` : "Built from the play log"}
+          padded={false}
+        >
+          {(box.drives ?? []).length === 0 ? (
+            <Empty title="No drives were recorded for this game." />
+          ) : (
+            <div className="divide-y divide-[var(--color-line-soft)]">
+              {(box.drives ?? []).map((d) => {
+                const t = state.teams[d.offenseId];
+                const bar = driveBar(d);
+                const tone = driveResultTone(d.result);
+                return (
+                  <div key={d.n} className={cx("px-3 py-2.5", d.offenseId === userTeamId && "bg-[var(--color-accent-dim)]/30")}>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-[11px] text-[var(--color-faint)] tnum w-6">{d.n}</span>
+                      <TeamMark team={t} size={18} />
+                      <span className="font-medium">{t.abbr}</span>
+                      <span className="text-[11px] text-[var(--color-muted)] tnum">
+                        {quarterLabel(d.q)} {clockLabel(d.clock)} · {spotLabel(d.startYl)}
+                      </span>
+                      <span className="ml-auto flex items-center gap-2">
+                        <span className="text-xs tnum text-[var(--color-muted)]">
+                          {d.plays} play{d.plays === 1 ? "" : "s"} · {d.yards > 0 ? "+" : ""}{d.yards}
+                        </span>
+                        <Pill tone={tone}>{driveResultLabel(d.result)}</Pill>
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-2 rounded-full bg-[var(--color-surface-3)] relative overflow-hidden">
+                      <div
+                        className="absolute inset-y-0 rounded-full opacity-80"
+                        style={{ left: `${bar.left}%`, width: `${bar.width}%`, background: t.primary }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      ) : null}
+
+      {box.plays && box.plays.length > 0 ? (
+        <Card title="Play by Play" subtitle={`${box.plays.length} snaps`} padded={false}>
+          <div className="divide-y divide-[var(--color-line-soft)] max-h-[32rem] overflow-y-auto">
+            {(box.drives ?? []).length > 0
+              ? (box.drives ?? []).map((d) => {
+                  const t = state.teams[d.offenseId];
+                  const snaps = drivePlays(box.plays!, d);
+                  return (
+                    <div key={`pbp-${d.n}`}>
+                      <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-[var(--color-faint)] bg-[var(--color-surface-2)] flex items-center gap-2">
+                        <TeamMark team={t} size={16} />
+                        Drive {d.n} · {t.abbr} · {driveResultLabel(d.result)}
+                      </div>
+                      {snaps.map((e, i) => (
+                        <div
+                          key={`${d.n}-${i}`}
+                          className={cx(
+                            "px-3 py-1.5 text-sm flex gap-3",
+                            e.offenseId === userTeamId && "bg-[var(--color-accent-dim)]/20"
+                          )}
+                        >
+                          <span className="text-[11px] text-[var(--color-faint)] tnum whitespace-nowrap w-16">
+                            {quarterLabel(e.q)} {clockLabel(e.clock)}
+                          </span>
+                          <span className="text-[11px] text-[var(--color-muted)] tnum whitespace-nowrap w-16">
+                            {downDistance(e)}
+                          </span>
+                          <span className="min-w-0 truncate">{formatPlay(e, nameOf)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })
+              : box.plays.map((e, i) => (
+                  <div key={i} className="px-3 py-1.5 text-sm flex gap-3">
+                    <span className="text-[11px] text-[var(--color-faint)] tnum whitespace-nowrap">
+                      {quarterLabel(e.q)} {clockLabel(e.clock)}
+                    </span>
+                    <span className="min-w-0 truncate">{formatPlay(e, nameOf)}</span>
+                  </div>
+                ))}
+          </div>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-2">
         <TeamPlayerStats t={away} />

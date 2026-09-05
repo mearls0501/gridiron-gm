@@ -5,6 +5,65 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-05 — Phase 1 play-by-play / game viewer (branch `cursor/a-play-by-play-viewer-feae`)
+
+Lane A. The engine already ran every snap; nothing on the GM side of the
+screen could read it. `/game/[id]` was a scoring summary. `/play` showed
+down/distance/score and never the snap you just called. `liveGame.ts`
+re-ran the game from a kickoff snapshot on every peek.
+
+**Diagnosis.** Confirmed. `sim/game.ts` has the play loop, scoring plays,
+and box — no structured event stream. `PlayOutcome` was internal only.
+`createLiveGame.peek()` always called `simulateGame`. Zero play-by-play
+types anywhere.
+
+**Change.** Observation only. `lib/core/sim/events.ts` is the emitter /
+drive builder. `simulateGame` emits after each outcome it already
+computed — no new `rng.*`, no retune. `PlayEvent` / `DriveSummary` are
+additive on `BoxScore`. User games persist the snap log; every game
+gets a drive list (save-size). `liveGame.peek()` returns a cached view;
+`call` / `finishAuto` still re-run from the kickoff snapshot so injuries
+do not stack. `/game/[id]` shows a drive chart and text PBP. `/play`
+shows the result of the snap you called plus a live drive log.
+
+**Leftover.** No Madden formation tree or play art. CPU boxes get a
+drive chart, not a full snap log. Opening kick is the engine's implied
+touchback (there is still no live opening kick). PAT / two-point stay
+on the scoring drive.
+
+**Untouched.** `draft.ts`, `contracts.ts`, `freeAgency.ts`, `scouting.ts`,
+`cpuBoardValue` / `POSITION_VALUE`, CONTENDER_PULL / GUARANTEE_PULL /
+CARRY_SHARE, `docs/baselines.json`. `scripts/` only for `gate.ts` test
+registration. No Shell / offseason nav hook — `/game/[id]` and `/play`
+already existed.
+
+**Gate (`nproc`=4).** Rebased onto `a4060ac` (#51+#52+#55). Fast: all
+25 harnesses exit 0 (`playbyplay` + `halloffame` + `contractoffice`).
+Two inherited single-seed metric reds — leave them. Same two numbers
+as main. Do not touch `docs/baselines.json`.
+
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
+
+All other calibrate / verify / statcheck / leverage metrics inside
+baseline. `determinism` clean (2 metrics). Zero new RNG — stream did
+not move.
+
+Unit test: same-seed scores / yards / play log identical; peek cache
+identity; live finish matches call-sheet replay; codec keeps the log;
+old box without `plays`/`drives` loads.
+
+**Browser.** New Franchise KC → Start the Season → `/play`. Run:
+"Montoya run for 8 yards". Pass: "Rutledge sacked for a loss of 7".
+Drive Log (2 possessions) + Play by Play (opening kickoff touchback
+and every snap). Coach finish → Play Week. `/game/8` KC 23–JAX 20:
+Drive Chart 22 possessions, Play by Play 171 snaps. CPU `/game/1`
+CIN–BOS: Drive Chart only (no snap log, by design).
+
+---
+
 ## 2026-09-05 — Shell History nav after #51
 
 Wired `{ href: "/history", label: "History" }` next to Records in Shell. `/history` already exists from #51.
