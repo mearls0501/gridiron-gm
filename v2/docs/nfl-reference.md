@@ -534,9 +534,16 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   The 2011 CBA replaced negotiated rookie deals with a slotted wage scale.
   Over The Cap publishes the yearly chart
   (https://overthecap.com/rookie-wage-scale). 2024 shares of that year's
-  $255.4M cap, used as the shape: pick 1 ≈ 3.864%, pick 32 ≈ 1.294%,
-  pick 33 ≈ 0.854%, tail ≈ 0.312% (league minimum / cap). The sim applies
-  those shares to the live `salaryCap` and floors at `LEAGUE_MINIMUM`.
+  $255.4M cap, used as the *shape*: pick 1 ≈ 3.864%, pick 32 ≈ 1.294%,
+  pick 33 ≈ 0.854%, tail ≈ 0.312% (league minimum / cap). Each 32-pick
+  band is then mean-preserving against the inherited round flats
+  (`5.2 / 2.4 / 1.5 / 1.15 / 1.0 / 0.95 / 0.9 × LEAGUE_MINIMUM`) so
+  league rookie spend stays in the old economy, and deviations from
+  that mean are compressed (`ROOKIE_SLOT_AMPLITUDE` 0.32) so year-0
+  cutdown leftover stays inside the inherited waiver-settlement band
+  (`rostercap` / `waivers` wire < 120). Full OTC dollars on pick 1
+  (~1.8× the old R1 flat) left the clubs that hold picks 1–16 —
+  already the tightest — with more veterans cap-stuck on the wire.
   Four-year term unchanged. Pick 1 is no longer pick 32. Ungated
   published rule — not a careers composition target.
 - **Compensatory draft picks (UFA net / tiers).** Added 2026-09-05. Not

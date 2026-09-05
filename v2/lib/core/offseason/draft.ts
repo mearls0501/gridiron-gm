@@ -218,6 +218,8 @@ const ROOKIE_R1_FIRST = 0.03864;
 const ROOKIE_R1_LAST = 0.01294;
 const ROOKIE_R2_FIRST = 0.00854;
 const ROOKIE_TAIL = 0.00312;
+/** Pre-slot-scale per-round APY as a multiple of LEAGUE_MINIMUM. */
+const ROOKIE_ROUND_FLAT = [0, 5.2, 2.4, 1.5, 1.15, 1.0, 0.95, 0.9];
 
 /** CBA-shaped cap share for an overall selection. */
 export function rookieSlotShare(overallPick: number): number {
@@ -230,16 +232,51 @@ export function rookieSlotShare(overallPick: number): number {
   return ROOKIE_R2_FIRST * Math.pow(ROOKIE_TAIL / ROOKIE_R2_FIRST, Math.pow(t, 0.85));
 }
 
+function overallRoundBand(overallPick: number): number {
+  return clamp(Math.ceil(Math.max(1, overallPick) / 32), 1, 7);
+}
+
+const ROOKIE_BAND_MEAN_SHARE: number[] = (() => {
+  const means = [0];
+  for (let rd = 1; rd <= 7; rd++) {
+    const lo = 32 * (rd - 1) + 1;
+    const hi = 32 * rd;
+    let s = 0;
+    for (let i = lo; i <= hi; i++) s += rookieSlotShare(i);
+    means.push(s / 32);
+  }
+  return means;
+})();
+
 /** Mid-round regular slot when a caller has only a round. */
 function midRoundOverall(round: number): number {
   const rd = clamp(Math.round(round), 1, 7);
   return 32 * (rd - 1) + 16;
 }
 
+/**
+ * How far a slot may deviate from the inherited round flat.
+ *
+ * Full OTC shape (1.0) is pick 1 ≈ 1.8× the old R1 flat. Year-0 cutdown
+ * leftover then sits past the inherited waiver-settlement band
+ * (`rostercap` / `waivers` wire < 120): the clubs that hold picks 1–16
+ * are already the tightest, and the extra year-1 hit leaves more
+ * veterans cap-stuck on the wire. 0 = old flats; 1 = full published
+ * ratio. The shape stays CBA (pick 1 > pick 32); only the amplitude
+ * is compressed. Ungated — not a careers target.
+ */
+const ROOKIE_SLOT_AMPLITUDE = 0.32;
+
 export function rookieSlotApy(state: GameState, overallPick: number): number {
   const cap = salaryCap(state.season, startSeason(state));
+  const rd = overallRoundBand(overallPick);
+  const target = Math.max(LEAGUE_MINIMUM, LEAGUE_MINIMUM * (ROOKIE_ROUND_FLAT[rd] ?? 0.9));
+  const meanShare = ROOKIE_BAND_MEAN_SHARE[rd] ?? ROOKIE_BAND_MEAN_SHARE[7];
   const raw = cap * rookieSlotShare(overallPick);
-  return Math.max(LEAGUE_MINIMUM, Math.round(raw / 10_000) * 10_000);
+  const shape = meanShare > 0 ? raw / (cap * meanShare) : 1;
+  const blended = 1 + ROOKIE_SLOT_AMPLITUDE * (shape - 1);
+  const scaled = target * blended;
+  return Math.max(LEAGUE_MINIMUM, Math.round(scaled / 10_000) * 10_000);
 }
 
 export function rookieContract(

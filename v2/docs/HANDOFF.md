@@ -18,18 +18,26 @@ prospects, but `buildDraftPicks` never created compensatory slots.
 ungated published-rule pattern as camp 90 / tag / fifth-year.
 
 **Change.** Per-pick rookie APY from the published 2011-CBA / Over The
-Cap slot shape (cap shares: pick 1 3.864%, pick 32 1.294%, then the
-R2-and-later decay), applied to the live cap and floored at
-`LEAGUE_MINIMUM`. Four-year term unchanged. Compensatory picks from
+Cap slot *shape* (cap shares: pick 1 3.864%, pick 32 1.294%, then the
+R2-and-later decay). Each 32-pick band is mean-preserving against
+the inherited round flats so league rookie spend stays in the old
+economy; deviations are compressed (`ROOKIE_SLOT_AMPLITUDE` 0.32)
+so year-0 cutdown leftover stays inside the inherited
+waiver-settlement band. Full OTC dollars (pick 1 ≈ $7.4–9.8M vs the
+old $4.13M flat) left picks-1–16 clubs — already the tightest —
+with more veterans cap-stuck and tripped `rostercap` / `waivers`
+(`wire` 125–130 vs `< 120`). Compressed year-0 APYs: pick 1 $5.19M
+> pick 32 $3.61M. Four-year term unchanged. Compensatory picks from
 the published UFA-net / APY-tier formula (losing UFAs minus signed
 UFAs, incoming cancels equal-or-worse tier, max 4 per club, Day 3
 only). Awarded onto `pickOwners` when the draft is built (unique
 `originalTeamId` ≥ 1000) and appended after the regular 32 in that
-round. Year-0 / no-FA drafts stay 224. Cuts, re-signs, and this
-class's rookies do not count. Assignment is deterministic — zero
-draws. CPU picks / clock trades on a comp slot use a child stream
-keyed `(seed, season, week, 'compPicks')` so the parent 224-pick
-loop does not move. Old saves missing `compensatory` load.
+round. Year-0 / no-FA drafts stay 224. After a real FA, seed 42
+grew to 261 picks / 37 comps (in the 254–262 band). Cuts, re-signs,
+and this class's rookies do not count. Assignment is deterministic
+— zero draws. CPU picks / clock trades on a comp slot use a child
+stream keyed `(seed, season, week, 'compPicks')` so the parent
+224-pick loop does not move. Old saves missing `compensatory` load.
 
 **Leftover.** No Rooney-Rule extra comps. No Pro Bowl / snap-share
 escalators on the real one-year-lag formula (new-club snaps have not
