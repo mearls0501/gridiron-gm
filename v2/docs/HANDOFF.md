@@ -5,6 +5,84 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-05 — Lane E: franchise history + Hall of Fame (branch `cursor/e-history-identity-796c`)
+
+Phase 4 / ORCHESTRATION Lane E. Presentation + derived views only.
+`recordSeasonHistory` was not rewritten and is not imported.
+
+**Diagnosis.** `SeasonHistory` already holds years, standings, awards, and
+league leaders. Retirees stay on `state.players`. Nothing read the archive as
+a franchise page, and there was no Hall of Fame. Jersey numbers are not on
+`Player`, so retired numbers were not invented.
+
+**Change.** `lib/core/hallOfFame.ts` is a read-only presenter. A retiree is a
+franchise legend when they played four seasons with this club (`stats` rows
+with `teamId` and `games > 0`) and at least one of: MVP / OPOY / DPOY, a
+championship, a league-leading season (pass / rush / rec / sacks), or eight
+seasons here. ROY alone does not qualify. Active players never qualify. No
+career-AV — those numbers are not on the save. `/history` shows the year
+table, a timeline of the same years, and the Hall of Fame (or an honest
+empty). `/records` and `/league` link in. Shell nav was not edited
+(orchestrator-owned); suggested hook: `{ href: "/history", label: "History" }`
+next to Records.
+
+**Leftover.** No jersey numbers, so no retired-number wall. No Shell link
+until the orchestrator wires it. Darnold path is a different Phase 4 packet.
+
+**Untouched.** `recordSeasonHistory` and callers, `sim/`, contracts, draft,
+scouting, baselines, Lane A/B/C files, `components/Shell.tsx`.
+
+Regression: `lib/core/hallOfFame.test.ts` (gate `halloffame`) — year-0 empty;
+planted years render; 4 seasons + MVP / leader / championship qualify; 3
+seasons + MVP, ROY-only, and active stars do not; 8 seasons qualifies on
+tenure; another club's award does not count.
+
+### Gate (`nproc`=4)
+
+Fast: all 23 harnesses exit 0 (`halloffame` included). Two inherited
+single-seed metric reds — leave them. Same two numbers as prior packets.
+Do not touch `docs/baselines.json`. Determinism emitted 2 metrics; no new
+draws (presentation only).
+
+```
+  ok    typecheck      9s  0 metrics
+  ok    simtoast       3s  0 metrics
+  ok    drafttoast    16s  0 metrics
+  ok    newgame        3s  0 metrics
+  ok    simmenu        3s  0 metrics
+  ok    tradewindow   28s  0 metrics
+  ok    rostercap     66s  0 metrics
+  ok    teamleaders    5s  0 metrics
+  ok    irps          64s  0 metrics
+  ok    inactives     11s  0 metrics
+  ok    waivers       47s  0 metrics
+  ok    callsheet     48s  0 metrics
+  ok    franchisetag  11s  0 metrics
+  ok    fifthyearoption  55s  0 metrics
+  ok    tagextension  88s  0 metrics
+  ok    halloffame     7s  0 metrics
+  ok    determinism    6s  2 metrics
+  ok    verify       280s  2 metrics
+  ok    sweep        639s  0 metrics
+  ok    calibrate     61s  28 metrics
+  ok    statcheck     30s  23 metrics
+  ok    leverage      67s  3 metrics
+  ok    scout         16s  4 metrics
+
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97  (NFL ~1208)
+
+GATE FAIL  2 problems
+```
+
+Browser: New Franchise (Boston Minutemen) → `/history` empty years and empty
+HoF with the rule printed. `/records` and `/league` both link to `/history`.
+Imported a planted save (2026–2028, one championship, David Ramirez 4 seasons
++ MVP + pass-yards lead) → years, timeline, and HoF list him. Old save shape
+loads (no new fields).
+
+---
+
 ## 2026-09-04 — standing ROADMAP + ORCHESTRATION (docs only)
 
 Docs only — standing ROADMAP + ORCHESTRATION; AGENTS pointer; Phase 0

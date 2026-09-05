@@ -241,6 +241,10 @@ export default function RecordsPage() {
           <h1 className="text-lg font-semibold">Record Book</h1>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">
             {subtitleFor[tab]} · through {state.season}
+            {" · "}
+            <Link href="/history" className="text-[var(--color-accent)] hover:underline">
+              Franchise History
+            </Link>
           </p>
         </div>
         <Tabs<Tab> value={tab} onChange={setTab} options={TABS} />
