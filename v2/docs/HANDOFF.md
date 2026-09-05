@@ -97,6 +97,20 @@ inherited reds. Strike 2 (mean-preserving, amplitude 1.0):
 `rostercap` wire=130. Strike 3 not taken — amplitude 0.32 settled
 the claim chain. Do not chase `careers.r1QbSharePct`.
 
+### Browser
+
+New Franchise → Kansas City Stampede → Start the Season → Through
+the Playoffs (4-12-1) → tag (none) → FA → Draft Room.
+
+- On the clock: **Round 1, pick 6 of 267** (43 comps; seed 42
+  headless was 261 / 37). Published UFA-net, not a composition
+  target.
+- Remaining picks include **R3 · #99 Comp**, **R3 · #103 Comp**,
+  **R3 · #111 Comp**, **R6 · #223 Comp** (club max 4).
+- Round 1 / pick 6 rookie deal preview: **about $4.35M against
+  this year's cap · 4 years** (cap hit of the slot-scaled deal;
+  old flat R1 was ~$4.13M APY for every first-rounder).
+
 ---
 
 ## 2026-09-05 — Phase 1 play-by-play / game viewer (branch `cursor/a-play-by-play-viewer-feae`)
