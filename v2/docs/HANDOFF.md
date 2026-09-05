@@ -54,9 +54,10 @@ does not need to wire `offseason/index.ts` or Shell.
 
 ### Gate (`nproc`=4)
 
-Fast: all 22 harnesses exit 0 (`contractoffice` included, 6s). Two
-inherited single-seed metric reds — leave them. Do not touch
-`docs/baselines.json`. Determinism clean (2 metrics).
+Fast: all 24 harnesses exit 0 after rebase onto #51 (`halloffame` +
+`contractoffice` both wired). Two inherited single-seed metric reds —
+leave them. Do not touch `docs/baselines.json`. Determinism clean
+(2 metrics).
 
 ```
 FAIL  leverage.wrongSign     1     expected <= 0
