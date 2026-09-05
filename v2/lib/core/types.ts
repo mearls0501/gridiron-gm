@@ -648,6 +648,8 @@ export interface DraftPick {
   teamId: number;        // current owner
   originalTeamId: number;
   playerId: number | null;
+  /** Set on compensatory slots. Missing = regular, so older saves load. */
+  compensatory?: boolean;
 }
 
 /**
@@ -666,6 +668,8 @@ export interface PickOwnership {
   originalTeamId: number;
   /** Who actually gets to make the pick. */
   teamId: number;
+  /** Compensatory award. Missing = regular 32×7 row. */
+  compensatory?: boolean;
 }
 
 /** How many draft classes ahead are tradeable. */
@@ -711,6 +715,11 @@ export interface DraftState {
   clockTrades?: number;
   /** Live trade-down offers for the user's current slot. Cleared on advance. */
   clockOffers?: TradeOffer[];
+  /**
+   * Child-stream state for compensatory-slot clock trades / CPU picks.
+   * Regular slots keep the parent stream. Missing = not started.
+   */
+  compRngState?: number;
 }
 
 // ---------------------------------------------------------------------------

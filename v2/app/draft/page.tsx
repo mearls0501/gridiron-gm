@@ -193,7 +193,7 @@ export default function DraftPage() {
   // Preview only — the Rng is constructed from a copy of the seed and never
   // written back, so rendering this cannot advance the league's random stream.
   const rookieCost = nextMine
-    ? capHit(rookieContract(state, nextMine.round, new Rng(state.rngState)))
+    ? capHit(rookieContract(state, nextMine.round, new Rng(state.rngState), nextMine.pick))
     : null;
 
   const recent = d
@@ -517,7 +517,7 @@ export default function DraftPage() {
                 <div className="flex flex-wrap gap-1.5">
                   {myUpcoming.map((p) => (
                     <Pill key={p.pick} tone={p.pick === onClock?.pick ? "accent" : "default"}>
-                      R{p.round} · #{p.pick}
+                      R{p.round} · #{p.pick}{p.compensatory ? " Comp" : ""}
                     </Pill>
                   ))}
                 </div>

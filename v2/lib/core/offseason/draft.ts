@@ -2,13 +2,13 @@ import { Rng, clamp } from "../rng";
 import { makeContract, makePlayer } from "../generate";
 import { POSITION_VALUE } from "../ratings";
 import {
-  CAMP_ROSTER_LIMIT, DraftPick, DraftState, GameState, LEAGUE_MINIMUM, Player, Position,
-  POSITION_TARGET, POSITIONS, STARTERS,
+  CAMP_ROSTER_LIMIT, DraftPick, DraftState, GameState, LEAGUE_MINIMUM, Player, PickOwnership,
+  Position, POSITION_TARGET, POSITIONS, salaryCap, STARTERS,
 } from "../types";
-import { positionCount, rosterCount } from "../select";
+import { positionCount, rosterCount, startSeason } from "../select";
 import { draftOrder } from "../season/standings";
 import { Posture, REPLACEMENT_OVR, frontOffice, teamOutlook } from "../frontOffice";
-import { ensurePickInventory, executeTrade, pickValue, picksOwnedBy } from "../trades";
+import { appendPickOwners, ensurePickInventory, executeTrade, pickValue, picksOwnedBy } from "../trades";
 import { TradeAsset, TradeOffer } from "../types";
 import { consensusScore, cpuExpectedView, cpuProspectView, generateProspectProfile, riskDiscount } from "../scouting";
 
@@ -25,11 +25,16 @@ const ROUNDS = 7;
 
 /**
  * The draft board: the men who will actually hear their names called.
- * Real drafts run 254-262 picks including compensatory selections; v2 has 224
- * (7 x 32, no comp picks), so a few dozen board-grade players go undrafted
- * every year as priority free agents, which is exactly what happens.
+ * Real drafts run 254-262 including compensatory selections. Regular slots
+ * are still 224 (7×32); compensatory awards append via the published UFA-net
+ * formula so the live board grows honestly. See nfl-reference.md §4.
  */
 export const DRAFT_BOARD = 258;
+
+/** originalTeamId base for compensatory rows — never a real club id. */
+export const COMP_PICK_ORIGIN = 1000;
+/** Published NFL cap: at most four compensatory selections per club. */
+export const COMP_PICKS_PER_CLUB = 4;
 
 /**
  * The camp pool: distinctly weaker bodies who fill out 90-man rosters and
@@ -201,6 +206,211 @@ export function spendScouting(state: GameState, _teamId: number, playerId: numbe
 }
 
 // ---------------------------------------------------------------------------
+// Rookie slot scale — 2011 CBA shape, ungated (nfl-reference.md §4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Over The Cap 2024 rookie wage scale as a share of that year's cap
+ * ($255.4M). Pick 1 is not pick 32. Applied to this league's live cap
+ * and floored at LEAGUE_MINIMUM. Not a careers target.
+ */
+const ROOKIE_R1_FIRST = 0.03864;
+const ROOKIE_R1_LAST = 0.01294;
+const ROOKIE_R2_FIRST = 0.00854;
+const ROOKIE_TAIL = 0.00312;
+
+/** CBA-shaped cap share for an overall selection. */
+export function rookieSlotShare(overallPick: number): number {
+  const n = Math.max(1, Math.round(overallPick));
+  if (n <= 32) {
+    const t = (n - 1) / 31;
+    return ROOKIE_R1_FIRST * Math.pow(ROOKIE_R1_LAST / ROOKIE_R1_FIRST, Math.pow(t, 0.72));
+  }
+  const t = Math.min(1, (n - 33) / 224);
+  return ROOKIE_R2_FIRST * Math.pow(ROOKIE_TAIL / ROOKIE_R2_FIRST, Math.pow(t, 0.85));
+}
+
+/** Mid-round regular slot when a caller has only a round. */
+function midRoundOverall(round: number): number {
+  const rd = clamp(Math.round(round), 1, 7);
+  return 32 * (rd - 1) + 16;
+}
+
+export function rookieSlotApy(state: GameState, overallPick: number): number {
+  const cap = salaryCap(state.season, startSeason(state));
+  const raw = cap * rookieSlotShare(overallPick);
+  return Math.max(LEAGUE_MINIMUM, Math.round(raw / 10_000) * 10_000);
+}
+
+export function rookieContract(
+  state: GameState, round: number, rng: Rng, overallPick?: number
+) {
+  const slot = overallPick ?? midRoundOverall(round);
+  const apy = rookieSlotApy(state, slot);
+  return makeContract(rng, apy, 4, state.season, 2);
+}
+
+// ---------------------------------------------------------------------------
+// Compensatory picks — UFA net / tiers, zero draws (nfl-reference.md §4)
+// ---------------------------------------------------------------------------
+
+export interface UfaMove {
+  playerId: number;
+  fromTeamId: number;
+  toTeamId: number;
+  apy: number;
+  tier: number;
+}
+
+function contractApy(p: Player): number {
+  const c = p.contract;
+  if (!c || c.years <= 0) return 0;
+  const base = c.baseSalary.reduce((a, b) => a + b, 0);
+  return Math.round((base + c.signingBonus) / c.years);
+}
+
+function lastClubThisSeason(p: Player, season: number): number | null {
+  const lines = p.stats.filter((s) => s.season === season && s.teamId != null);
+  const last = lines[lines.length - 1];
+  return last?.teamId ?? null;
+}
+
+function waivedThisOffseason(state: GameState, p: Player): boolean {
+  const needle = `waived ${p.firstName} ${p.lastName}`;
+  return state.log.some(
+    (e) => e.season === state.season && e.kind === "transaction" && e.text.includes(needle)
+  );
+}
+
+/**
+ * OTC-shaped APY tiers as a share of the live cap. Playing-time drop uses
+ * last season's games (the new-club snaps the real formula needs have not
+ * been played yet). Tiers start at 3 — no first- or second-round comps.
+ */
+export function compensatoryTier(apy: number, cap: number, games: number): number | null {
+  const share = apy / Math.max(1, cap);
+  let tier: number | null =
+    share >= 0.045 ? 3 :
+    share >= 0.030 ? 4 :
+    share >= 0.020 ? 5 :
+    share >= 0.0115 ? 6 :
+    share >= 0.0066 ? 7 :
+    null;
+  if (tier == null) return null;
+  if (games < 8) tier += 1;
+  return tier > 7 ? null : tier;
+}
+
+/** Qualifying UFA signings this offseason: expired, signed elsewhere, not a cut. */
+export function qualifyingUfaMoves(state: GameState): UfaMove[] {
+  const cap = salaryCap(state.season, startSeason(state));
+  const out: UfaMove[] = [];
+  for (const p of state.players) {
+    if (p.retired || p.prospect || !p.contract || p.teamId == null) continue;
+    if (p.contract.signedSeason !== state.season) continue;
+    if (p.draftClassSeason === state.season) continue;
+    const from = lastClubThisSeason(p, state.season);
+    if (from == null || from === p.teamId) continue;
+    if (waivedThisOffseason(state, p)) continue;
+    const apy = contractApy(p);
+    const games = p.stats.find((s) => s.season === state.season)?.games ?? 0;
+    const tier = compensatoryTier(apy, cap, games);
+    if (tier == null) continue;
+    out.push({ playerId: p.id, fromTeamId: from, toTeamId: p.teamId, apy, tier });
+  }
+  return out;
+}
+
+export interface CompAward {
+  teamId: number;
+  round: number;
+  apy: number;
+  playerId: number;
+}
+
+/** Net unpaired UFA losses → compensatory slots. Deterministic, zero draws. */
+export function computeCompensatoryAwards(state: GameState): CompAward[] {
+  const moves = qualifyingUfaMoves(state);
+  const byClub = new Map<number, { lost: UfaMove[]; gained: UfaMove[] }>();
+  for (const t of state.teams) byClub.set(t.id, { lost: [], gained: [] });
+  for (const m of moves) {
+    byClub.get(m.fromTeamId)?.lost.push(m);
+    byClub.get(m.toTeamId)?.gained.push(m);
+  }
+
+  const unpaired: CompAward[] = [];
+  for (const t of state.teams) {
+    const bag = byClub.get(t.id);
+    if (!bag) continue;
+    const lost = bag.lost.slice().sort((a, b) => b.apy - a.apy || a.playerId - b.playerId);
+    const gained = bag.gained.slice().sort((a, b) => b.apy - a.apy || a.playerId - b.playerId);
+    for (const g of gained) {
+      let best = -1;
+      for (let i = 0; i < lost.length; i++) {
+        if (lost[i].tier < g.tier) continue;
+        if (best < 0 || lost[i].tier < lost[best].tier ||
+          (lost[i].tier === lost[best].tier && lost[i].apy > lost[best].apy)) {
+          best = i;
+        }
+      }
+      if (best >= 0) lost.splice(best, 1);
+    }
+    const kept = lost.slice(0, COMP_PICKS_PER_CLUB);
+    for (const m of kept) {
+      unpaired.push({ teamId: t.id, round: m.tier, apy: m.apy, playerId: m.playerId });
+    }
+  }
+
+  unpaired.sort((a, b) => b.apy - a.apy || a.teamId - b.teamId || a.playerId - b.playerId);
+  return unpaired;
+}
+
+function alreadyAwardedComps(state: GameState, season: number): boolean {
+  return (state.pickOwners ?? []).some((p) => p.season === season && p.compensatory);
+}
+
+/** Write this class's compensatory rows into pickOwners. Idempotent. */
+export function awardCompensatoryPicks(state: GameState, season: number): PickOwnership[] {
+  if (alreadyAwardedComps(state, season)) {
+    return (state.pickOwners ?? []).filter((p) => p.season === season && p.compensatory);
+  }
+  const awards = computeCompensatoryAwards(state);
+  const rows: PickOwnership[] = awards.map((a, i) => ({
+    season,
+    round: a.round,
+    originalTeamId: COMP_PICK_ORIGIN + i,
+    teamId: a.teamId,
+    compensatory: true,
+  }));
+  appendPickOwners(state, rows);
+  return rows;
+}
+
+function childSeed(seed: number, season: number, week: number, tag: string): number {
+  let h = seed >>> 0;
+  h = Math.imul(h ^ season, 0x9e3779b9);
+  h = Math.imul(h ^ (week + 1), 0x85ebca6b);
+  for (let i = 0; i < tag.length; i++) h = Math.imul(h ^ tag.charCodeAt(i), 0xc2b2ae35);
+  return (h >>> 0) || 0x9e3779b9;
+}
+
+function streamForSlot(state: GameState, pick: DraftPick, parent: Rng): Rng {
+  if (!pick.compensatory) return parent;
+  const d = state.draft;
+  if (!d) return parent;
+  if (d.compRngState == null) {
+    d.compRngState = childSeed(state.seed, state.season, state.week, "compPicks");
+  }
+  return new Rng(d.compRngState);
+}
+
+function commitStream(state: GameState, pick: DraftPick, used: Rng, parent: Rng): void {
+  if (pick.compensatory && state.draft && used !== parent) {
+    state.draft.compRngState = used.state;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Draft board + picks
 // ---------------------------------------------------------------------------
 
@@ -215,10 +425,19 @@ export function buildDraftPicks(state: GameState, season: number): DraftPick[] {
   // persistent pick inventory rather than by the standings — that is what makes
   // a pick a tradeable asset instead of an entitlement.
   ensurePickInventory(state);
+  awardCompensatoryPicks(state, season);
   const order = draftOrder(state, season);
   const owners = new Map<string, number>();
+  const compsByRound = new Map<number, PickOwnership[]>();
   for (const row of state.pickOwners ?? []) {
-    if (row.season === season) owners.set(`${row.round}:${row.originalTeamId}`, row.teamId);
+    if (row.season !== season) continue;
+    if (row.compensatory) {
+      const arr = compsByRound.get(row.round) ?? [];
+      arr.push(row);
+      compsByRound.set(row.round, arr);
+    } else {
+      owners.set(`${row.round}:${row.originalTeamId}`, row.teamId);
+    }
   }
 
   const picks: DraftPick[] = [];
@@ -227,6 +446,15 @@ export function buildDraftPicks(state: GameState, season: number): DraftPick[] {
     for (const originalTeamId of order) {
       const teamId = owners.get(`${round}:${originalTeamId}`) ?? originalTeamId;
       picks.push({ round, pick: overall++, teamId, originalTeamId, playerId: null });
+    }
+    const extras = (compsByRound.get(round) ?? []).slice().sort(
+      (a, b) => a.originalTeamId - b.originalTeamId
+    );
+    for (const row of extras) {
+      picks.push({
+        round, pick: overall++, teamId: row.teamId,
+        originalTeamId: row.originalTeamId, playerId: null, compensatory: true,
+      });
     }
   }
   return picks;
@@ -352,13 +580,6 @@ export function cpuTopOfBoard(
   return cpuBoardShortlist(state, teamId, pool, sample)[0] ?? null;
 }
 
-export function rookieContract(state: GameState, round: number, rng: Rng) {
-  // Four-year deals for everyone drafted; escalating by round.
-  const scale = [0, 5.2, 2.4, 1.5, 1.15, 1.0, 0.95, 0.9][round] ?? 0.9;
-  const apy = Math.max(LEAGUE_MINIMUM, Math.round(LEAGUE_MINIMUM * scale));
-  return makeContract(rng, apy, 4, state.season, 2);
-}
-
 export function makePick(state: GameState, playerId: number, rng: Rng): boolean {
   const d = state.draft;
   if (!d || d.complete) return false;
@@ -372,7 +593,7 @@ export function makePick(state: GameState, playerId: number, rng: Rng): boolean 
   p.prospect = false;          // becomes a normal player — one namespace, always
   p.draftedRound = pick.round;
   p.draftedPick = pick.pick;
-  p.contract = rookieContract(state, pick.round, rng);
+  p.contract = rookieContract(state, pick.round, rng, pick.pick);
   p.scoutedOvrLow = null;
   p.scoutedOvrHigh = null;
   pick.playerId = p.id;
@@ -396,14 +617,17 @@ export function runDraftUntilUser(state: GameState, rng: Rng, limit = 320): void
   while (!d.complete && guard++ < limit) {
     const pick = d.picks[d.onClock];
     if (!pick) break;
+    const slotRng = streamForSlot(state, pick, rng);
     if (pick.teamId === state.userTeamId) {
-      generateClockOffers(state, rng);
+      generateClockOffers(state, slotRng);
+      commitStream(state, pick, slotRng, rng);
       return;
     }
     // The market between picks. A trade changes who is on the clock but never
     // hands the slot to the user, so the loop cannot stall.
-    if (rng.chance(0.4)) tryCpuClockTrade(state, rng);
-    cpuPick(state, rng);
+    if (slotRng.chance(0.4)) tryCpuClockTrade(state, slotRng);
+    cpuPick(state, slotRng);
+    commitStream(state, pick, slotRng, rng);
   }
 }
 
@@ -438,10 +662,12 @@ export function runFullDraft(state: GameState, rng: Rng): void {
   while (!d.complete && guard++ < 400) {
     const pick = d.picks[d.onClock];
     if (!pick) break;
+    const slotRng = streamForSlot(state, pick, rng);
     // The clock market runs headlessly too — a simmed draft is still a draft.
-    if (pick.teamId !== state.userTeamId && rng.chance(0.4)) tryCpuClockTrade(state, rng);
+    if (pick.teamId !== state.userTeamId && slotRng.chance(0.4)) tryCpuClockTrade(state, slotRng);
     // Auto-pick for the user when they choose to sim the whole thing.
-    cpuPick(state, rng);
+    cpuPick(state, slotRng);
+    commitStream(state, pick, slotRng, rng);
   }
   d.complete = true;
 }
@@ -451,7 +677,7 @@ export function runFullDraft(state: GameState, rng: Rng): void {
 // ---------------------------------------------------------------------------
 
 /**
- * How many priority signings one club makes in the minutes after pick 224.
+ * How many priority signings one club makes in the minutes after the last pick.
  *
  * Real clubs sign 10-15 UDFAs — into 90-man camps that cut back to 53. The
  * chase is still capped at the men a club's board says can genuinely compete
@@ -614,7 +840,9 @@ function liveAsset(d: DraftState, i: number): Extract<TradeAsset, { kind: "pick"
 }
 
 function slotInRound(d: DraftState, i: number): number {
-  return (d.picks[i].pick - 1) % 32;
+  const rd = d.picks[i].round;
+  const first = d.picks.findIndex((p) => p.round === rd);
+  return first < 0 ? 0 : i - first;
 }
 
 /** A pick row shaped for `pickValue`, priced at its KNOWN slot. */

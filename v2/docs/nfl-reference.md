@@ -530,6 +530,30 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   tagged player. CPU clubs may extend via evaluate / cap / posture;
   the user club is not auto-extended. Must fit the cap; Extend is
   blocked with a Sign-shaped reason. Ungated published rule.
+- **Rookie slot scale (per-pick APY).** Added 2026-09-05. Not in T/D/S/P.
+  The 2011 CBA replaced negotiated rookie deals with a slotted wage scale.
+  Over The Cap publishes the yearly chart
+  (https://overthecap.com/rookie-wage-scale). 2024 shares of that year's
+  $255.4M cap, used as the shape: pick 1 ≈ 3.864%, pick 32 ≈ 1.294%,
+  pick 33 ≈ 0.854%, tail ≈ 0.312% (league minimum / cap). The sim applies
+  those shares to the live `salaryCap` and floors at `LEAGUE_MINIMUM`.
+  Four-year term unchanged. Pick 1 is no longer pick 32. Ungated
+  published rule — not a careers composition target.
+- **Compensatory draft picks (UFA net / tiers).** Added 2026-09-05. Not
+  in T/D/S/P. The NFL awards extra Day-3 slots to clubs that lose more
+  qualifying unrestricted free agents than they sign. Over The Cap's
+  published reconstruction
+  (https://overthecap.com/nfl-compensatory-picks) is the formula: APY
+  tiers as a share of the cap (3rd ≥4.5%, 4th ≥3.0%, 5th ≥2.0%,
+  6th ≥1.15%, 7th ≥0.66%); a signing cancels a loss of equal or worse
+  tier; max four per club; order by lost-player APY. Playing-time drop
+  uses last season's games (the real formula waits a year for new-club
+  snaps; FA and the draft share one offseason here). Cuts, re-signs,
+  and this class's rookies do not count. Assignment is deterministic —
+  zero draws. Regular inventory stays 32×7 so future classes remain
+  tradeable before their FA; comps are awarded onto `pickOwners` when
+  the draft is built. Ungated published rule. Do not chase
+  `careers.r1QbSharePct` or survival MAE against the extra Day-3 names.
 - **This-week play-calling (call sheet / Play-the-Game).** Added 2026-09-02.
   Not in T/D/S/P. The GM override uses the same units as coach `passBias`
   (−1 run … +1 pass) and `aggression` (0–100) already in `simulateGame`.
