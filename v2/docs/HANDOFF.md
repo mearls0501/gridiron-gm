@@ -5,6 +5,57 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-05 — contract office on /finances (branch `cursor/b-contract-office-b8b1`)
+
+Lane B, Phase 0/3 slice. Hub / briefing / `rosterIssues` already told the
+GM to "restructure at /finances". There was no button.
+
+**Diagnosis.** `/finances` was a read-only cap sheet. The only "extend"
+paths were the July 15 tagged-tender desk on the Hub and CPU
+`extendOwnPlayer` inside `spendToFloor`. The only "restructure" was
+`reconcileRoster`'s last-resort haircut to the league minimum. Void
+years and cap carryover are named in ROADMAP but have no published
+CBA block in `nfl-reference.md` §4 — implementing them honestly needs
+`capHit` / `teamCap` in `select.ts` and a year-end hook in
+`offseason/index.ts` (both outside this lane). `askingPrice` /
+`negotiatedApy` still ran on true OVR (veteran-beliefs leftover).
+Flipping `negotiatedApy` onto belief would move the FA parent stream
+(`freeAgency.ts` early-continues + `offerScore` draw counts). Two-arg
+`askingPrice` on rostered players is what `trades.ts` prices.
+
+**Change.** Desk on `/finances`. Extend replaces an own-roster deal
+via `beliefNegotiatedApy` / `makeContract` / cap block (Sign-shaped
+reason). Restructure converts this year's base (down to the league
+minimum) into signing bonus and re-prorates remaining bonus over the
+remaining term (max 5) using existing `capHit` / `deadMoney` fields —
+no new Contract keys, no sliders. Tagged 1-year tender stays on the
+Hub. `makeContract` draws from a child stream keyed
+`(seed, season, week, 'contractOffice')`; parent `rngState` is not
+read or written. Street `askingPrice` (2-arg, `teamId === null`) is
+the user's veteran belief so the FA board cannot invert true OVR.
+Two-arg rostered asks and `negotiatedApy` stay on truth so trades /
+CPU FA do not move the parent stream. 3-arg `askingPrice` and
+`beliefNegotiatedApy` are the club-belief path. Old contracts load;
+save migrate notes the existing-field write.
+
+**Leftover.** Void years and unused-cap carryover — Matt: no sourced
+CBA mechanic in-repo, and both need `select.ts` / orchestrator hooks.
+`negotiatedApy` still true-OVR (CPU FA stream). Other-club player-page
+asks still 2-arg truth (`trades.ts` coupling). No 6-vet PS / franchise
+tag / fifth-year math change.
+
+**Untouched.** `draft.ts`, `freeAgency.ts`, `frontOffice.ts`,
+`scouting.ts` (import only), `cpuBoardValue` / `POSITION_VALUE`,
+CONTENDER_PULL / GUARANTEE_PULL / CARRY_SHARE, `docs/baselines.json`,
+`sim/`, `offseason/index.ts`, Shell, tag / fifth-year math.
+
+**Phase hook.** None. The desk is always on `/finances`. Orchestrator
+does not need to wire `offseason/index.ts` or Shell.
+
+**Gate / Browser.** Pending first-pass after this note.
+
+---
+
 ## 2026-09-05 — Lane E: franchise history + Hall of Fame (branch `cursor/e-history-identity-796c`)
 
 Phase 4 / ORCHESTRATION Lane E. Presentation + derived views only.

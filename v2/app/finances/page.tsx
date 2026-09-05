@@ -10,6 +10,13 @@ import {
   teamCap,
   teamRoster,
 } from "@/lib/core/select";
+import {
+  applyOfficeExtension,
+  applyRestructure,
+  isOfficeExtensionEligible,
+  officeExtensionTerms,
+  restructurePreview,
+} from "@/lib/core/offseason/contracts";
 import { POSITION_GROUP, POSITIONS, Player } from "@/lib/core/types";
 import {
   Bar,
@@ -27,11 +34,12 @@ import {
 } from "@/components/ui";
 
 /**
- * Cap sheet.
+ * Contract office.
  *
  * Cap hit = base salary + prorated signing bonus; cutting accelerates the
- * remaining proration into dead money. Both columns are shown side by side so
- * the difference between "expensive" and "unmovable" is visible at a glance.
+ * remaining proration into dead money. Extend replaces an own-roster deal.
+ * Restructure converts this year's base into bonus and spreads it — the
+ * button the Hub already told the GM to press.
  */
 
 const GROUP_ORDER: string[] = Array.from(new Set(POSITIONS.map((p) => POSITION_GROUP[p])));
@@ -49,6 +57,7 @@ function proration(p: Player): number {
 export default function FinancesPage() {
   const state = useGame((s) => s.state);
   const rev = useGame((s) => s.rev);
+  const apply = useGame((s) => s.apply);
 
   const [showAll, setShowAll] = useState(false);
 
@@ -83,6 +92,25 @@ export default function FinancesPage() {
   const maxGroup = byGroup.reduce((m, g) => Math.max(m, g.total), 0);
   const rows = showAll ? contracts : contracts.slice(0, 25);
   const top5 = contracts.slice(0, 5).reduce((sum, p) => sum + capHit(p.contract), 0);
+  const restructureTargets = contracts.filter((p) => restructurePreview(state, teamId, p).ok);
+
+  function extend(p: Player) {
+    apply((s) => {
+      const terms = officeExtensionTerms(s, s.userTeamId, p);
+      const r = applyOfficeExtension(s, s.userTeamId, p.id);
+      if (!r.ok) return r.reason ?? "That extension was turned down.";
+      return `Extended ${p.firstName} ${p.lastName} — ${terms.years}yr / ${formatMoney(terms.apy)} per year`;
+    });
+  }
+
+  function restructure(p: Player) {
+    apply((s) => {
+      const preview = restructurePreview(s, s.userTeamId, p);
+      const r = applyRestructure(s, s.userTeamId, p.id);
+      if (!r.ok) return r.reason ?? "That deal could not be restructured.";
+      return `Restructured ${p.firstName} ${p.lastName} — saved ${formatMoney(preview.savings)} this season`;
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -106,6 +134,30 @@ export default function FinancesPage() {
           tone={cap.space < 0 ? "bad" : "good"}
         />
       </div>
+
+      {cap.space < 0 && (
+        <Card
+          title={`Over the cap by ${formatMoney(-cap.space)}`}
+          subtitle={
+            restructureTargets.length > 0
+              ? `${restructureTargets.length} deal${restructureTargets.length === 1 ? "" : "s"} can be restructured on this desk — convert this year's base into bonus.`
+              : "No multi-year deal has convertible base. Release someone on the roster."
+          }
+        >
+          {restructureTargets.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {restructureTargets.slice(0, 8).map((p) => {
+                const preview = restructurePreview(state, teamId, p);
+                return (
+                  <Button key={p.id} size="sm" onClick={() => restructure(p)}>
+                    {p.lastName} · save {formatMoney(preview.savings)}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card
         title="Cap allocation by position group"
@@ -168,10 +220,13 @@ export default function FinancesPage() {
             hint="Every cap figure on this page is zero until the roster has signed players."
           />
         ) : (
-          <Table head={["Player", "Pos", "Age", "OVR", "Cap Hit", "Base", "Bonus", "Yrs", "Dead if Cut", "Save if Cut"]}>
+          <Table head={["Player", "Pos", "Age", "OVR", "Cap Hit", "Base", "Bonus", "Yrs", "Dead if Cut", "Save if Cut", ""]}>
             {rows.map((p) => {
               const dead = deadMoney(p.contract);
               const savings = capSavingsFromCut(p.contract);
+              const canExtend = isOfficeExtensionEligible(state, p);
+              const ext = canExtend ? officeExtensionTerms(state, teamId, p) : null;
+              const rest = restructurePreview(state, teamId, p);
               return (
                 <Row key={p.id}>
                   <Cell align="left">
@@ -191,6 +246,30 @@ export default function FinancesPage() {
                   <Cell className={cx(dead > 0 && "text-[var(--color-bad)]")}>{formatMoney(dead)}</Cell>
                   <Cell className={cx(savings > 0 ? "text-[var(--color-good)]" : savings < 0 && "text-[var(--color-bad)]")}>
                     {formatMoney(savings)}
+                  </Cell>
+                  <Cell>
+                    <div className="flex gap-1 justify-end">
+                      <Button
+                        size="sm"
+                        disabled={!canExtend}
+                        title={
+                          ext
+                            ? `${ext.years}yr / ${formatMoney(ext.apy)} per year`
+                            : "A tagged tender is extended on the Hub."
+                        }
+                        onClick={() => extend(p)}
+                      >
+                        Extend
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={!rest.ok}
+                        title={rest.ok ? `Save ${formatMoney(rest.savings)} this year` : rest.reason}
+                        onClick={() => restructure(p)}
+                      >
+                        Restructure
+                      </Button>
+                    </div>
                   </Cell>
                 </Row>
               );

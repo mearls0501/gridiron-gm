@@ -8,6 +8,7 @@ import { capHit, deadMoney, isActiveRoster, isOnWaivers, positionCount, practice
 import { clearRosterSlot } from "../rosterStatus";
 import { POSITION_VALUE } from "../ratings";
 import { evaluate, frontOffice, targetSpend, teamOutlook, SPEND_FLOOR, payroll } from "../frontOffice";
+import { cpuVeteranView } from "../scouting";
 
 /**
  * Contracts, cuts and re-signings.
@@ -504,9 +505,29 @@ export function signPlayer(
   return { ok: true };
 }
 
-/** What this player expects per year on the open market. */
-export function askingPrice(state: GameState, p: Player): number {
+/** True-OVR market. CPU / trades / 2-arg rostered callers stay here so the parent stream cannot move. */
+function trueAskingPrice(state: GameState, p: Player): number {
   return marketApy(p.ovr, p.pos, p.age, state.season, startSeason(state));
+}
+
+/** What this club believes a veteran is worth. Own-roster men are known (same as `cpuVeteranView`). */
+function believedOvr(state: GameState, teamId: number, p: Player): number {
+  if (!p.prospect && p.teamId === teamId) return p.ovr;
+  return cpuVeteranView(state, teamId, p).ovr;
+}
+
+/**
+ * What this player expects per year on the open market.
+ *
+ * Two-arg, rostered: true OVR — `trades.ts` / `verify` / CPU own-men stay
+ * stream-stable. Two-arg, street FA: the user's veteran belief, so the FA
+ * board cannot invert true OVR from the ask. Pass `forTeamId` for that
+ * club's belief (own roster = truth). CPU `negotiatedApy` stays on truth.
+ */
+export function askingPrice(state: GameState, p: Player, forTeamId?: number): number {
+  if (forTeamId === undefined && p.teamId !== null) return trueAskingPrice(state, p);
+  const club = forTeamId ?? state.userTeamId;
+  return marketApy(believedOvr(state, club, p), p.pos, p.age, state.season, startSeason(state));
 }
 
 /**
@@ -533,15 +554,32 @@ export { MAX_CONTRACT_SHARE } from "../types";
  * belongs in the salary profile, not in this constant.
  */
 
-/** Asking price with a club-specific premium, held under the hard ceiling. */
-export function negotiatedApy(
-  state: GameState, teamId: number, p: Player, premium: number
-): number {
+function apyFromAsk(state: GameState, teamId: number, ask: number, premium: number): number {
   const ceiling = teamCap(state, teamId).cap * MAX_CONTRACT_SHARE;
   return Math.max(
     LEAGUE_MINIMUM,
-    Math.min(Math.round(askingPrice(state, p) * premium), Math.round(ceiling))
+    Math.min(Math.round(ask * premium), Math.round(ceiling))
   );
+}
+
+/**
+ * Asking price with a club-specific premium, held under the hard ceiling.
+ *
+ * Stays on true OVR. Flipping this onto belief moves the FA parent stream
+ * (`freeAgency.ts` early-continues and `offerScore` draw counts). The desk
+ * uses `beliefNegotiatedApy`.
+ */
+export function negotiatedApy(
+  state: GameState, teamId: number, p: Player, premium: number
+): number {
+  return apyFromAsk(state, teamId, trueAskingPrice(state, p), premium);
+}
+
+/** Same ceiling as `negotiatedApy`, priced on this club's veteran belief. */
+export function beliefNegotiatedApy(
+  state: GameState, teamId: number, p: Player, premium: number
+): number {
+  return apyFromAsk(state, teamId, askingPrice(state, p, teamId), premium);
 }
 
 /** Reasonable contract length for a player of this age/ability. */
@@ -551,6 +589,149 @@ export function suggestedYears(p: Player): number {
   if (p.ovr >= 80) return 5;
   if (p.ovr >= 72) return 4;
   return 3;
+}
+
+// ---------------------------------------------------------------------------
+// Contract office — user extend / restructure on /finances
+// ---------------------------------------------------------------------------
+
+/**
+ * Child stream keyed (seed, season, week, 'contractOffice').
+ * Does not read or write `state.rngState`.
+ */
+function contractOfficeRng(state: GameState): Rng {
+  let h = (state.seed ^ 0x0c0ff1ce) >>> 0;
+  h = Math.imul(h ^ (state.season * 0x9e3779b9), 0x85ebca6b);
+  h = Math.imul(h ^ ((state.week + 1) * 0xc2b2ae35), 0x27d4eb2f);
+  return new Rng((h >>> 0) || 0x9e3779b9);
+}
+
+function remainingBonus(c: NonNullable<Player["contract"]>): number {
+  const elapsed = Math.max(0, c.years - c.yearsRemaining);
+  const left = Math.max(0, Math.min(c.bonusProrationYears - elapsed, c.yearsRemaining));
+  const annual = c.bonusProrationYears > 0 ? c.signingBonus / c.bonusProrationYears : 0;
+  return annual * left;
+}
+
+/** Tagged 1-year tender stays on the Hub July 15 desk. */
+export function isOfficeExtensionEligible(state: GameState, p: Player): boolean {
+  if (p.retired || p.prospect || p.teamId === null || !p.contract) return false;
+  if (isTagExtensionEligible(state, p)) return false;
+  return p.contract.yearsRemaining >= 1;
+}
+
+export function officeExtensionTerms(
+  state: GameState, teamId: number, p: Player
+): { years: number; apy: number } {
+  const left = p.contract?.yearsRemaining ?? 1;
+  const years = clamp(Math.max(suggestedYears(p), left + 1), 2, 6);
+  return { years, apy: beliefNegotiatedApy(state, teamId, p, 1) };
+}
+
+export function applyOfficeExtension(
+  state: GameState, teamId: number, playerId: number
+): SignResult {
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p) return { ok: false, reason: "No such player" };
+  if (p.retired) return { ok: false, reason: "Player has retired" };
+  if (p.teamId !== teamId) return { ok: false, reason: "Player is not on this roster" };
+  if (!isOfficeExtensionEligible(state, p) || !p.contract) {
+    return { ok: false, reason: "Only a player on this club's own deal can be extended here. A tagged tender is extended on the Hub." };
+  }
+
+  const currentHit = capHit(p.contract);
+  const { years: yrs, apy } = officeExtensionTerms(state, teamId, p);
+  const asking = askingPrice(state, p, teamId);
+  if (apy < asking * 0.92) {
+    return {
+      ok: false,
+      reason: `${p.lastName} wants at least $${(asking / 1e6).toFixed(1)}M per year.`,
+    };
+  }
+
+  const contract = makeContract(
+    contractOfficeRng(state), apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)
+  );
+  const hit = capHit(contract);
+  const cap = teamCap(state, teamId);
+  const available = cap.space + currentHit;
+  if (hit > available) {
+    return {
+      ok: false,
+      reason: `Not enough cap space. That deal costs $${(hit / 1e6).toFixed(1)}M against $${(available / 1e6).toFixed(1)}M available.`,
+    };
+  }
+
+  p.contract = contract;
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "transaction",
+    text: `${state.teams[teamId].abbr} extended ${p.firstName} ${p.lastName} (${p.pos}) — ${yrs}yr / $${(apy / 1e6).toFixed(1)}M per year`,
+  });
+  return { ok: true };
+}
+
+/**
+ * Convert this year's base (down to the league minimum) into signing bonus
+ * and re-prorate remaining bonus over the remaining term (max 5). Existing
+ * `capHit` / `deadMoney` math — no new Contract fields. Needs 2+ years left
+ * or there is nowhere to push the charge.
+ */
+export function restructurePreview(
+  state: GameState, teamId: number, p: Player
+): { ok: boolean; reason?: string; convert: number; savings: number; oldHit: number; newHit: number } {
+  const empty = { convert: 0, savings: 0, oldHit: 0, newHit: 0 };
+  if (p.retired || p.prospect || p.teamId !== teamId || !p.contract) {
+    return { ok: false, reason: "Player is not on this roster", ...empty };
+  }
+  if (isTagExtensionEligible(state, p)) {
+    return { ok: false, reason: "A tagged tender is extended on the Hub, not restructured here.", ...empty };
+  }
+  const c = p.contract;
+  if (c.yearsRemaining < 2) {
+    return { ok: false, reason: "Need at least two years left to restructure.", ...empty };
+  }
+  const convert = Math.max(0, (c.baseSalary[0] ?? 0) - LEAGUE_MINIMUM);
+  if (convert <= 0) {
+    return { ok: false, reason: "This year's base is already at the league minimum.", ...empty };
+  }
+  const oldHit = capHit(c);
+  const leftover = remainingBonus(c);
+  const spread = Math.min(c.yearsRemaining, 5);
+  const newHit = Math.round((c.baseSalary[0] - convert) + (leftover + convert) / spread);
+  return { ok: true, convert, savings: oldHit - newHit, oldHit, newHit };
+}
+
+export function applyRestructure(
+  state: GameState, teamId: number, playerId: number
+): SignResult {
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p) return { ok: false, reason: "No such player" };
+  const preview = restructurePreview(state, teamId, p);
+  if (!preview.ok || !p.contract) {
+    return { ok: false, reason: preview.reason ?? "That deal cannot be restructured." };
+  }
+
+  const c = p.contract;
+  const leftover = remainingBonus(c);
+  const elapsed = Math.max(0, c.years - c.yearsRemaining);
+  const spread = Math.min(c.yearsRemaining, 5);
+  const convert = preview.convert;
+  const newBonusPool = leftover + convert;
+  const newProrationYears = elapsed + spread;
+
+  c.baseSalary[0] = (c.baseSalary[0] ?? 0) - convert;
+  c.signingBonus = Math.round(newBonusPool * newProrationYears / spread);
+  c.bonusProrationYears = newProrationYears;
+
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "transaction",
+    text: `${state.teams[teamId].abbr} restructured ${p.firstName} ${p.lastName} (${p.pos}) — converted $${(convert / 1e6).toFixed(1)}M of this year's base, saved $${(preview.savings / 1e6).toFixed(1)}M this season`,
+  });
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -661,7 +842,7 @@ function bestAffordable(
     if (p.teamId !== null || p.retired || p.prospect || isOnWaivers(state, p.id)) continue;
     if (pos !== null && p.pos !== pos) continue;
     if (best && p.ovr <= best.ovr) continue;
-    if (askingPrice(state, p) > budget) continue;
+    if (trueAskingPrice(state, p) > budget) continue;
     best = p;
   }
   return best;
