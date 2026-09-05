@@ -5,6 +5,49 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-05 — Phase 1 play-by-play / game viewer (branch `cursor/a-play-by-play-viewer-feae`)
+
+Lane A. The engine already ran every snap; nothing on the GM side of the
+screen could read it. `/game/[id]` was a scoring summary. `/play` showed
+down/distance/score and never the snap you just called. `liveGame.ts`
+re-ran the game from a kickoff snapshot on every peek.
+
+**Diagnosis.** Confirmed. `sim/game.ts` has the play loop, scoring plays,
+and box — no structured event stream. `PlayOutcome` was internal only.
+`createLiveGame.peek()` always called `simulateGame`. Zero play-by-play
+types anywhere.
+
+**Change.** Observation only. `lib/core/sim/events.ts` is the emitter /
+drive builder. `simulateGame` emits after each outcome it already
+computed — no new `rng.*`, no retune. `PlayEvent` / `DriveSummary` are
+additive on `BoxScore`. User games persist the snap log; every game
+gets a drive list (save-size). `liveGame.peek()` returns a cached view;
+`call` / `finishAuto` still re-run from the kickoff snapshot so injuries
+do not stack. `/game/[id]` shows a drive chart and text PBP. `/play`
+shows the result of the snap you called plus a live drive log.
+
+**Leftover.** No Madden formation tree or play art. CPU boxes get a
+drive chart, not a full snap log. Opening kick is the engine's implied
+touchback (there is still no live opening kick). PAT / two-point stay
+on the scoring drive.
+
+**Untouched.** `draft.ts`, `contracts.ts`, `freeAgency.ts`, `scouting.ts`,
+`cpuBoardValue` / `POSITION_VALUE`, CONTENDER_PULL / GUARANTEE_PULL /
+CARRY_SHARE, `docs/baselines.json`. `scripts/` only for `gate.ts` test
+registration. No Shell / offseason nav hook — `/game/[id]` and `/play`
+already existed.
+
+**Gate.** Fast tier pending at write-up; unit test green
+(`playByPlay.test.ts`): same-seed scores / yards / play log identical;
+peek cache identity; live finish matches call-sheet replay; codec keeps
+the log; old box without `plays`/`drives` loads. Inherited reds only
+expected: `leverage.wrongSign 1`, `statcheck.wr10RecYds 1018`.
+
+**Browser.** Pending — New Franchise → Play the Game / Play Week →
+drive log + snap result on `/play`, drive chart + PBP on `/game/[id]`.
+
+---
+
 ## 2026-09-05 — Shell History nav after #51
 
 Wired `{ href: "/history", label: "History" }` next to Records in Shell. `/history` already exists from #51.

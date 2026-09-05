@@ -408,6 +408,82 @@ export interface ScoringPlay {
   awayScore: number;
 }
 
+/** One snap or special-teams act. Display only — never feeds the engine. */
+export type PlayKind =
+  | "kickoff"
+  | "punt"
+  | "fg"
+  | "xp"
+  | "two"
+  | "run"
+  | "pass"
+  | "sack"
+  | "kneel"
+  | "penalty"
+  | "safety"
+  | "downs";
+
+export type PlayResult =
+  | "touchback"
+  | "return"
+  | "td"
+  | "good"
+  | "miss"
+  | "fail"
+  | "gain"
+  | "loss"
+  | "complete"
+  | "incomplete"
+  | "sack"
+  | "int"
+  | "fumble"
+  | "accepted"
+  | "safety"
+  | "downs";
+
+export interface PlayEvent {
+  q: number;
+  clock: number;
+  down: number;
+  toGo: number;
+  yardLine: number;
+  offenseId: number;
+  kind: PlayKind;
+  result: PlayResult;
+  yards: number;
+  playerId?: number;
+  targetId?: number;
+  homeScore: number;
+  awayScore: number;
+}
+
+export type DriveResult =
+  | "touchdown"
+  | "field_goal"
+  | "missed_fg"
+  | "punt"
+  | "turnover"
+  | "downs"
+  | "safety"
+  | "end_half"
+  | "end_game"
+  | "return_td";
+
+export interface DriveSummary {
+  n: number;
+  offenseId: number;
+  q: number;
+  clock: number;
+  startYl: number;
+  endYl: number;
+  plays: number;
+  yards: number;
+  result: DriveResult;
+  /** Inclusive start / exclusive end in `box.plays` (or the in-memory log). */
+  from: number;
+  to: number;
+}
+
 export interface TeamGameStats {
   points: number;
   totalYards: number;
@@ -466,6 +542,10 @@ export interface BoxScore {
   players: PlayerGameStat[];
   /** Declared inactives this game. Missing on older boxes. Not season-stat rows. */
   inactives?: number[];
+  /** Snap-by-snap log. User games on this build; missing on older boxes and CPU games. */
+  plays?: PlayEvent[];
+  /** Drive summaries derived from the play log. Missing on older boxes. */
+  drives?: DriveSummary[];
 }
 
 export type PlayoffRound = "WC" | "DIV" | "CONF" | "SB";

@@ -1,9 +1,10 @@
 import { schemeAttrMultiplier } from "../staff";
 import { Rng, clamp } from "../rng";
 import {
-  BoxScore, CARRY_SHARE, Coach, Game, GameState, Player, PlayerGameStat, Position,
-  ROTATION, ScoringPlay, STARTERS, Team, TeamGameStats,
+  BoxScore, CARRY_SHARE, Coach, Game, GameState, PlayEvent, PlayKind, PlayResult,
+  Player, PlayerGameStat, Position, ROTATION, ScoringPlay, STARTERS, Team, TeamGameStats,
 } from "../types";
+import { buildDrives, emitPlay } from "./events";
 import { CLEAR, HOME_FIELD, restEffect, weatherEffects } from "../weather";
 import { blankPlayerGameStat, blankTeamGameStats } from "../season/stats";
 import { isSat } from "../inactives";
@@ -271,6 +272,7 @@ export interface SimResult {
   homeScore: number;
   awayScore: number;
   box: BoxScore;
+  plays: PlayEvent[];
 }
 
 export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimOpts): SimResult {
@@ -623,6 +625,21 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
   const restFor = (isHome: boolean) => (isHome ? homeRestMult : awayRestMult);
 
   const scoringPlays: ScoringPlay[] = [];
+  const playLog: PlayEvent[] = [];
+  const emit = (
+    e: Omit<PlayEvent, "q" | "clock" | "homeScore" | "awayScore"> &
+      Partial<Pick<PlayEvent, "q" | "clock" | "homeScore" | "awayScore">>,
+  ) => {
+    const ev: PlayEvent = {
+      q: quarter,
+      clock: Math.max(0, Math.round(clock)),
+      homeScore,
+      awayScore,
+      ...e,
+    };
+    playLog.push(ev);
+    emitPlay(ev);
+  };
   let homeScore = 0;
   let awayScore = 0;
 
@@ -756,22 +773,36 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
         // both counted the two points twice when reconciling the box score.
         if (converter) statFor(converter, ctx).twoPtMade++;
         award(ctx.team.id, 2, "Two-point conversion GOOD");
+        emit({
+          kind: "two", result: "good", yards: 0, down: 0, toGo: 0, yardLine,
+          offenseId: ctx.team.id, playerId: converter?.id,
+        });
       } else {
         record(ctx.team.id, "Two-point conversion FAILED");
+        emit({
+          kind: "two", result: "fail", yards: 0, down: 0, toGo: 0, yardLine,
+          offenseId: ctx.team.id, playerId: converter?.id,
+        });
       }
       return;
     }
 
     const k = ctx.starters.K[0];
-    if (!k) { award(ctx.team.id, 1, "Extra point good"); return; }
+    if (!k) {
+      award(ctx.team.id, 1, "Extra point good");
+      emit({ kind: "xp", result: "good", yards: 0, down: 0, toGo: 0, yardLine, offenseId: ctx.team.id });
+      return;
+    }
     const st = statFor(k, ctx);
     st.xpa++;
     st.snaps++;
     if (rng.chance(clamp(0.86 + (att(k, "kac") - 50) * 0.0022, 0.80, 0.985))) {
       st.xpm++;
       award(ctx.team.id, 1, "Extra point good");
+      emit({ kind: "xp", result: "good", yards: 0, down: 0, toGo: 0, yardLine, offenseId: ctx.team.id, playerId: k.id });
     } else {
       record(ctx.team.id, "Extra point MISSED");
+      emit({ kind: "xp", result: "miss", yards: 0, down: 0, toGo: 0, yardLine, offenseId: ctx.team.id, playerId: k.id });
     }
   };
 
@@ -787,6 +818,10 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
 
     if (rng.chance(0.62)) {
       startDrive(TOUCHBACK_YARDLINE);
+      emit({
+        kind: "kickoff", result: "touchback", yards: 0,
+        down: 1, toGo: 10, yardLine: TOUCHBACK_YARDLINE, offenseId: receiving.team.id,
+      });
       return;
     }
 
@@ -811,6 +846,11 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
 
     if (td) {
       award(receiving.team.id, 6, `${returner ? returner.lastName : "Returner"} ${ret} yd kickoff return TD`);
+      emit({
+        kind: "kickoff", result: "td", yards: ret,
+        down: 0, toGo: 0, yardLine: TOUCHBACK_YARDLINE, offenseId: receiving.team.id,
+        playerId: returner?.id,
+      });
       attemptPat(receiving);
       // The team that just scored kicks off; kickoff() hands the ball to the
       // other side.
@@ -820,6 +860,11 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
     }
 
     startDrive(clamp(TOUCHBACK_YARDLINE + (ret - 23), 5, 60));
+    emit({
+      kind: "kickoff", result: "return", yards: ret,
+      down: 1, toGo: Math.min(10, 100 - yardLine), yardLine, offenseId: receiving.team.id,
+      playerId: returner?.id,
+    });
   };
 
   const scoreTouchdown = (ctx: Ctx, desc: string, fromRedZone: boolean) => {
@@ -855,9 +900,17 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
       st.fgm++;
       st.longFg = Math.max(st.longFg, distance);
       award(ctx.team.id, 3, `${k.lastName} ${distance} yd field goal is GOOD`);
+      emit({
+        kind: "fg", result: "good", yards: distance,
+        down, toGo, yardLine, offenseId: ctx.team.id, playerId: k.id,
+      });
       kickoff();
     } else {
       record(ctx.team.id, `${k.lastName} ${distance} yd field goal is NO GOOD`);
+      emit({
+        kind: "fg", result: "miss", yards: distance,
+        down, toGo, yardLine, offenseId: ctx.team.id, playerId: k.id,
+      });
       changePossession(clamp(100 - Math.max(yardLine - 8, 20), 1, 99));
     }
   };
@@ -881,6 +934,10 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
     }
 
     if (landing >= 100) {
+      emit({
+        kind: "punt", result: "touchback", yards: Math.round(gross),
+        down, toGo, yardLine, offenseId: ctx.team.id, playerId: p?.id,
+      });
       changePossession(TOUCHBACK_YARDLINE);
       return;
     }
@@ -907,14 +964,28 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
 
       if (td) {
         award(receiving.team.id, 6, `${returner ? returner.lastName : "Returner"} ${ret} yd punt return TD`);
+        emit({
+          kind: "punt", result: "td", yards: ret,
+          down, toGo, yardLine, offenseId: receiving.team.id, playerId: returner?.id,
+        });
         attemptPat(receiving);
         offenseIsHome = receiving.team.id === home.id;
         kickoff();
         return;
       }
       spot = clamp(spot + ret, 1, 99);
+      emit({
+        kind: "punt", result: "return", yards: Math.round(gross),
+        down, toGo, yardLine, offenseId: ctx.team.id, playerId: returner?.id,
+      });
+      changePossession(spot);
+      return;
     }
 
+    emit({
+      kind: "punt", result: "gain", yards: Math.round(gross),
+      down, toGo, yardLine, offenseId: ctx.team.id, playerId: p?.id,
+    });
     changePossession(spot);
   }
 
@@ -943,6 +1014,8 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
     passerId: number | null;
     scorerId: number | null;
     isPass: boolean;
+    result?: PlayResult;
+    targetId?: number;
   }
 
   const NO_PLAY = (t: number): PlayOutcome => ({
@@ -1073,13 +1146,13 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
           statFor(recoverer, d).fr++;
           if (rng.chance(0.12 + (spot < 30 ? 0.08 : 0))) {
             defensiveTd(recoverer, d, "fumble", 100 - spot);
-            return { ...NO_PLAY(rng.int(8, 16)), scored: true };
+            return { ...NO_PLAY(rng.int(8, 16)), scored: true, result: "fumble", scorerId: carrier.id };
           }
         }
         return {
           yards: Math.max(0, Math.min(yards, 3)), timeUsed: rng.int(25, 40),
           turnover: true, touchdown: false, scored: false,
-          passerId: null, scorerId: null, isPass: false,
+          passerId: null, scorerId: carrier.id, isPass: false, result: "fumble",
         };
       }
       yards = Math.max(0, Math.min(yards, 2));
@@ -1111,6 +1184,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
       yards, timeUsed: rng.int(25, 40), turnover: false,
       touchdown: yardLine + yards >= 100, scored: false,
       passerId: null, scorerId: carrier.id, isPass: false,
+      result: yardLine + yards >= 100 ? "td" : yards < 0 ? "loss" : "gain",
     };
   };
 
@@ -1189,14 +1263,14 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
           if (rec) statFor(rec, d).fr++;
           return {
             yards: -loss, timeUsed: rng.int(31, 45), turnover: true, touchdown: false,
-            scored: false, passerId: qb.id, scorerId: null, isPass: true,
+            scored: false, passerId: qb.id, scorerId: null, isPass: true, result: "fumble",
           };
         }
       }
 
       return {
         yards: -loss, timeUsed: rng.int(31, 45), turnover: false, touchdown: false,
-        scored: false, passerId: qb.id, scorerId: null, isPass: true,
+        scored: false, passerId: qb.id, scorerId: null, isPass: true, result: "sack",
       };
     }
 
@@ -1307,12 +1381,14 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
             return {
               yards: 0, timeUsed: rng.int(8, 18), turnover: true, touchdown: false,
               scored: false, passerId: qb.id, scorerId: null, isPass: true,
+              result: "int", targetId: target.id,
             };
           }
         }
         return {
           yards: 0, timeUsed: rng.int(3, 7), turnover: false, touchdown: false,
           scored: false, passerId: qb.id, scorerId: null, isPass: true,
+          result: "incomplete", targetId: target.id,
         };
       }
       // Won the ball in the air — a catch, but no room to run afterwards.
@@ -1332,6 +1408,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
         yards: gained, timeUsed: rng.int(25, 39), turnover: false,
         touchdown: yardLine + gained >= 100, scored: false,
         passerId: qb.id, scorerId: target.id, isPass: true,
+        result: yardLine + gained >= 100 ? "td" : "complete", targetId: target.id,
       };
     }
 
@@ -1348,12 +1425,13 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
         ds.intYds += retYds;
         if (rng.chance(0.15)) {
           defensiveTd(defender, d, "INT", Math.max(retYds, 20));
-          return { ...NO_PLAY(rng.int(8, 18)), scored: true, isPass: true };
+          return { ...NO_PLAY(rng.int(8, 18)), scored: true, isPass: true, result: "int", passerId: qb.id, targetId: target.id };
         }
       }
       return {
         yards: 0, timeUsed: rng.int(8, 20), turnover: true, touchdown: false,
         scored: false, passerId: qb.id, scorerId: null, isPass: true,
+        result: "int", targetId: target.id,
       };
     }
 
@@ -1362,6 +1440,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
       return {
         yards: 0, timeUsed: rng.int(3, 7), turnover: false, touchdown: false,
         scored: false, passerId: qb.id, scorerId: null, isPass: true,
+        result: "incomplete", targetId: target.id,
       };
     }
 
@@ -1458,7 +1537,8 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
         if (tackler) statFor(tackler, d).fr++;
         return {
           yards, timeUsed: rng.int(25, 39), turnover: true, touchdown: false,
-          scored: false, passerId: qb.id, scorerId: null, isPass: true,
+          scored: false, passerId: qb.id, scorerId: target.id, isPass: true,
+          result: "fumble", targetId: target.id,
         };
       }
     }
@@ -1467,6 +1547,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
       yards, timeUsed: rng.int(25, 39), turnover: false,
       touchdown: yardLine + yards >= 100, scored: false,
       passerId: qb.id, scorerId: target.id, isPass: true,
+      result: yardLine + yards >= 100 ? "td" : "complete", targetId: target.id,
     };
   };
 
@@ -1537,6 +1618,10 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
   // -------------------------------------------------------------------------
 
   off().stats.possessions++;
+  emit({
+    kind: "kickoff", result: "touchback", yards: 0,
+    down: 1, toGo: 10, yardLine: TOUCHBACK_YARDLINE, offenseId: off().team.id,
+  });
   let guard = 0;
 
   while (guard++ < 500) {
@@ -1557,6 +1642,10 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
         if (quarter === 3) {
           offenseIsHome = !receivedFirst;
           startDrive(TOUCHBACK_YARDLINE);
+          emit({
+            kind: "kickoff", result: "touchback", yards: 0,
+            down: 1, toGo: 10, yardLine: TOUCHBACK_YARDLINE, offenseId: off().team.id,
+          });
         }
       }
       continue;
@@ -1593,7 +1682,18 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
         down++;
         // Measured snap-to-snap on a real kneel: 31.9 seconds (§5.6).
         burn(econRng.int(26, 38));
-        if (down > 4) changePossession(clamp(100 - yardLine, 1, 99));
+        emit({
+          kind: "kneel", result: loss < 0 ? "loss" : "gain", yards: loss,
+          down: down - 1, toGo: toGo + loss, yardLine: yardLine - loss,
+          offenseId: o.team.id, playerId: qb.id,
+        });
+        if (down > 4) {
+          emit({
+            kind: "downs", result: "downs", yards: 0,
+            down: 4, toGo, yardLine, offenseId: o.team.id,
+          });
+          changePossession(clamp(100 - yardLine, 1, 99));
+        }
         continue;
       }
     }
@@ -1628,15 +1728,21 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
         const yds = rng.pick([5, 5, 10, 10, 15]);
         o.stats.penalties++;
         o.stats.penaltyYards += yds;
+        const spot = yardLine;
         yardLine = clamp(yardLine - yds, 1, 99);
         toGo += yds;
         burn(rng.int(6, 12));
+        emit({
+          kind: "penalty", result: "accepted", yards: -yds,
+          down, toGo: toGo - yds, yardLine: spot, offenseId: o.team.id,
+        });
         continue;
       }
       if (rng.chance(clamp(0.040 - (dDisc - 60) * 0.00038, 0.013, 0.08))) {
         const yds = rng.pick([5, 5, 5, 10, 15]);
         d.stats.penalties++;
         d.stats.penaltyYards += yds;
+        const spot = yardLine;
         yardLine = clamp(yardLine + yds, 1, 99);
         if (yds >= 10 || yds >= toGo) {
           down = 1;
@@ -1647,6 +1753,10 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
           toGo = Math.max(1, toGo - yds);
         }
         burn(rng.int(6, 12));
+        emit({
+          kind: "penalty", result: "accepted", yards: yds,
+          down, toGo, yardLine: spot, offenseId: o.team.id,
+        });
         continue;
       }
     }
@@ -1676,6 +1786,9 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
     const snapOff = off();
     const snapDef = def();
     contact = [];
+    const snapDown = down;
+    const snapToGo = toGo;
+    const snapYl = yardLine;
     const outcome = doPass ? passPlay() : runPlay(sneak);
     creditSnaps(snapOff, snapDef);
     // After the snap is credited, so a man who goes down keeps the work he did.
@@ -1683,6 +1796,24 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
 
     off().stats.plays++;
     burn(outcome.timeUsed);
+
+    {
+      const kind: PlayKind = outcome.result === "sack" || (outcome.isPass && outcome.yards < 0 && !outcome.result)
+        ? "sack"
+        : outcome.isPass ? "pass" : "run";
+      const result: PlayResult = outcome.result
+        ?? (outcome.touchdown ? "td"
+          : outcome.turnover ? (outcome.isPass ? "int" : "fumble")
+          : kind === "pass" ? (outcome.yards === 0 ? "incomplete" : "complete")
+          : outcome.yards < 0 ? "loss" : "gain");
+      emit({
+        kind, result, yards: outcome.yards,
+        down: snapDown, toGo: snapToGo, yardLine: snapYl,
+        offenseId: snapOff.team.id,
+        playerId: outcome.passerId ?? outcome.scorerId ?? undefined,
+        targetId: outcome.targetId ?? (outcome.isPass ? outcome.scorerId ?? undefined : undefined),
+      });
+    }
 
     if (outcome.scored) continue;
 
@@ -1718,6 +1849,11 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
       const who = tacklers.length ? rng.pick(tacklers) : null;
       if (who) statFor(who, d).safeties++;
       award(d.team.id, 2, `Safety${who ? ` — tackled by ${who.lastName}` : ""}`);
+      emit({
+        kind: "safety", result: "safety", yards: outcome.yards,
+        down: snapDown, toGo: snapToGo, yardLine: snapYl,
+        offenseId: snapOff.team.id, playerId: who?.id,
+      });
       changePossession(45);
       continue;
     }
@@ -1736,7 +1872,13 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
       toGo = Math.min(10, 100 - yardLine);
     } else {
       down++;
-      if (down > 4) changePossession(clamp(100 - yardLine, 1, 99));
+      if (down > 4) {
+        emit({
+          kind: "downs", result: "downs", yards: 0,
+          down: 4, toGo, yardLine, offenseId: off().team.id,
+        });
+        changePossession(clamp(100 - yardLine, 1, 99));
+      }
     }
   }
 
@@ -1767,15 +1909,20 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
   );
 
   const inactiveIds = [...(home.inactives ?? []), ...(away.inactives ?? [])];
+  const drives = buildDrives(playLog);
+  const userIn = game.homeId === state.userTeamId || game.awayId === state.userTeamId;
   return {
     homeScore,
     awayScore,
+    plays: playLog,
     box: {
       home: ctxHome.stats,
       away: ctxAway.stats,
       quarters: { home: ctxHome.quarterPoints, away: ctxAway.quarterPoints },
       scoringPlays,
       players,
+      drives,
+      ...(userIn && playLog.length ? { plays: playLog } : {}),
       ...(inactiveIds.length ? { inactives: inactiveIds } : {}),
     },
   };
