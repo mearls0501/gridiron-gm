@@ -139,7 +139,16 @@ export default function LeaguePage() {
           )}
         </Card>
 
-        <Card title="Season History" subtitle="Champions and award winners" padded={false}>
+        <Card
+          title="Season History"
+          subtitle="Champions and award winners"
+          padded={false}
+          actions={
+            <Link href="/history" className="text-xs text-[var(--color-accent)] hover:underline">
+              Franchise History
+            </Link>
+          }
+        >
           {history.length === 0 ? (
             <Empty
               title="No seasons in the books."

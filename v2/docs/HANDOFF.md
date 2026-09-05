@@ -5,6 +5,53 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-05 — Lane E: franchise history + Hall of Fame (branch `cursor/e-history-identity-796c`)
+
+Phase 4 / ORCHESTRATION Lane E. Presentation + derived views only.
+`recordSeasonHistory` was not rewritten and is not imported.
+
+**Diagnosis.** `SeasonHistory` already holds years, standings, awards, and
+league leaders. Retirees stay on `state.players`. Nothing read the archive as
+a franchise page, and there was no Hall of Fame. Jersey numbers are not on
+`Player`, so retired numbers were not invented.
+
+**Change.** `lib/core/hallOfFame.ts` is a read-only presenter. A retiree is a
+franchise legend when they played four seasons with this club (`stats` rows
+with `teamId` and `games > 0`) and at least one of: MVP / OPOY / DPOY, a
+championship, a league-leading season (pass / rush / rec / sacks), or eight
+seasons here. ROY alone does not qualify. Active players never qualify. No
+career-AV — those numbers are not on the save. `/history` shows the year
+table, a timeline of the same years, and the Hall of Fame (or an honest
+empty). `/records` and `/league` link in. Shell nav was not edited
+(orchestrator-owned); suggested hook: `{ href: "/history", label: "History" }`
+next to Records.
+
+**Leftover.** No jersey numbers, so no retired-number wall. No Shell link
+until the orchestrator wires it. Darnold path is a different Phase 4 packet.
+
+**Untouched.** `recordSeasonHistory` and callers, `sim/`, contracts, draft,
+scouting, baselines, Lane A/B/C files, `components/Shell.tsx`.
+
+Regression: `lib/core/hallOfFame.test.ts` (gate `halloffame`) — year-0 empty;
+planted years render; 4 seasons + MVP / leader / championship qualify; 3
+seasons + MVP, ROY-only, and active stars do not; 8 seasons qualifies on
+tenure; another club's award does not count.
+
+### Gate (`nproc` pending)
+
+Fast tier after implementation. Two inherited single-seed metric reds — leave
+them. Do not touch `docs/baselines.json`.
+
+```
+(gate paste)
+```
+
+Browser: New Franchise → `/history` empty years and empty HoF with the rule
+printed. Plant two archived seasons + a four-year retiree MVP → years show,
+HoF lists him. `/records` and `/league` both link to `/history`.
+
+---
+
 ## 2026-09-04 — standing ROADMAP + ORCHESTRATION (docs only)
 
 Docs only — standing ROADMAP + ORCHESTRATION; AGENTS pointer; Phase 0
