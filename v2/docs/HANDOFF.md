@@ -37,14 +37,26 @@ CARRY_SHARE, `docs/baselines.json`. `scripts/` only for `gate.ts` test
 registration. No Shell / offseason nav hook — `/game/[id]` and `/play`
 already existed.
 
-**Gate.** Fast tier pending at write-up; unit test green
-(`playByPlay.test.ts`): same-seed scores / yards / play log identical;
-peek cache identity; live finish matches call-sheet replay; codec keeps
-the log; old box without `plays`/`drives` loads. Inherited reds only
-expected: `leverage.wrongSign 1`, `statcheck.wr10RecYds 1018`.
+**Gate (`nproc`=4).** Fast: all 23 harnesses exit 0 (`playbyplay`
+included). Two inherited single-seed metric reds — leave them. Same
+two numbers as main. Do not touch `docs/baselines.json`.
 
-**Browser.** Pending — New Franchise → Play the Game / Play Week →
-drive log + snap result on `/play`, drive chart + PBP on `/game/[id]`.
+```
+FAIL  leverage.wrongSign     1     expected <= 0
+FAIL  statcheck.wr10RecYds  1018   expected 1208 +/-97
+```
+
+All other calibrate / verify / statcheck / leverage metrics inside
+baseline. `determinism` clean (2 metrics). Zero new RNG — stream did
+not move.
+
+Unit test: same-seed scores / yards / play log identical; peek cache
+identity; live finish matches call-sheet replay; codec keeps the log;
+old box without `plays`/`drives` loads.
+
+**Browser.** New Franchise → Play the Game (`/play`) shows last-snap
+result + drive log + PBP; Play Week → `/game/[id]` shows drive chart
+and text play-by-play. Screenshots on the PR.
 
 ---
 
