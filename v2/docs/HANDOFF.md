@@ -5,6 +5,118 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-05 — draft published rules: slot scale + comps (branch `cursor/c-draft-published-rules-8a1e`)
+
+Packet C / Phase 0. Rebased onto `origin/main` @ `e03edb06` (#53
+Phase 1 play-by-play, after #55 / #52 / #51). Gate keeps
+`playbyplay` + `halloffame` + `contractoffice` + `draftrules`.
+
+Rookie deals were flat per round (`5.2 / 2.4 / … ×
+LEAGUE_MINIMUM`) so pick 1 signed the same APY as pick 32. The live draft
+was 224 (7×32) against a real 254–262; `DRAFT_BOARD` was already 258
+prospects, but `buildDraftPicks` never created compensatory slots.
+
+**Diagnosis.** Confirmed. `rookieContract` ignored overall pick.
+`ensurePickInventory` wrote one row per club per round and
+`buildDraftPicks` walked that 32×7 grid. No UFA-net formula. Same
+ungated published-rule pattern as camp 90 / tag / fifth-year.
+
+**Change.** Per-pick rookie APY from the published 2011-CBA / Over The
+Cap slot *shape* (cap shares: pick 1 3.864%, pick 32 1.294%, then the
+R2-and-later decay). Each 32-pick band is mean-preserving against
+the inherited round flats so league rookie spend stays in the old
+economy; deviations are compressed (`ROOKIE_SLOT_AMPLITUDE` 0.32)
+so year-0 cutdown leftover stays inside the inherited
+waiver-settlement band. Full OTC dollars (pick 1 ≈ $7.4–9.8M vs the
+old $4.13M flat) left picks-1–16 clubs — already the tightest —
+with more veterans cap-stuck and tripped `rostercap` / `waivers`
+(`wire` 125–130 vs `< 120`). Compressed year-0 APYs: pick 1 $5.19M
+> pick 32 $3.61M. Four-year term unchanged. Compensatory picks from
+the published UFA-net / APY-tier formula (losing UFAs minus signed
+UFAs, incoming cancels equal-or-worse tier, max 4 per club, Day 3
+only). Awarded onto `pickOwners` when the draft is built (unique
+`originalTeamId` ≥ 1000) and appended after the regular 32 in that
+round. Year-0 / no-FA drafts stay 224. After a real FA, seed 42
+grew to 261 picks / 37 comps (in the 254–262 band). Cuts, re-signs,
+and this class's rookies do not count. Assignment is deterministic
+— zero draws. CPU picks / clock trades on a comp slot use a child
+stream keyed `(seed, season, week, 'compPicks')` so the parent
+224-pick loop does not move. Old saves missing `compensatory` load.
+
+**Leftover.** No Rooney-Rule extra comps. No Pro Bowl / snap-share
+escalators on the real one-year-lag formula (new-club snaps have not
+been played). `askingPrice` true-OVR invert stays leftover. Do not
+chase `careers.r1QbSharePct` or survival MAE against the extra Day-3
+names.
+
+**Untouched.** `contracts.ts`, `scouting.ts`, `cpuBoardValue` /
+`POSITION_VALUE`, `freeAgency.ts`, sim/, CONTENDER_PULL /
+GUARANTEE_PULL / CARRY_SHARE, `docs/baselines.json`, trade UI.
+
+Regression: `lib/core/draftRules.test.ts` (gate `draftrules`) — pick-1
+APY > pick-32 same round; planted UFA loss grows the board past 224;
+matched UFAs cancel; a cut is not a UFA; old save without `pickOwners`
+loads at 224; year-0 enterDraft stays 224.
+
+### Gate (`nproc`=4)
+
+Fast tier after the amplitude compress. All 23 harnesses exit 0
+(`rostercap`, `waivers`, `draftrules`, `determinism`, `verify`,
+`sweep` included). Two inherited single-seed metric reds — leave
+them. Do not touch `docs/baselines.json`.
+
+```
+  ok    typecheck     17s  0 metrics
+  ok    simtoast       2s  0 metrics
+  ok    drafttoast    16s  0 metrics
+  ok    newgame        2s  0 metrics
+  ok    simmenu        2s  0 metrics
+  ok    tradewindow   25s  0 metrics
+  ok    rostercap     58s  0 metrics
+  ok    teamleaders    4s  0 metrics
+  ok    irps          60s  0 metrics
+  ok    inactives     10s  0 metrics
+  ok    waivers       56s  0 metrics
+  ok    callsheet     47s  0 metrics
+  ok    franchisetag  10s  0 metrics
+  ok    fifthyearoption  56s  0 metrics
+  ok    tagextension  82s  0 metrics
+  ok    draftrules     7s  0 metrics
+  ok    determinism    5s  2 metrics
+  ok    verify       269s  2 metrics
+  ok    sweep        625s  0 metrics
+  ok    calibrate     61s  28 metrics
+  ok    statcheck     30s  23 metrics
+  ok    leverage      65s  3 metrics
+  ok    scout         16s  4 metrics
+
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97  (NFL ~1208)
+
+GATE FAIL  2 problems
+```
+
+Strike 1 (full OTC dollars): `rostercap` wire=125 plus the two
+inherited reds. Strike 2 (mean-preserving, amplitude 1.0):
+`rostercap` wire=130. Strike 3 not taken — amplitude 0.32 settled
+the claim chain. Do not chase `careers.r1QbSharePct`.
+
+### Browser
+
+New Franchise → Kansas City Stampede → Start the Season → Through
+the Playoffs (4-12-1) → tag (none) → FA → Draft Room.
+
+- On the clock: **Round 1, pick 6 of 267** (43 comps; seed 42
+  headless was 261 / 37). Published UFA-net, not a composition
+  target.
+- Remaining picks include **R3 · #99 Comp**, **R3 · #103 Comp**,
+  **R3 · #111 Comp**, **R6 · #223 Comp** (club max 4).
+- Round 1 / pick 6 rookie deal preview: **about $4.35M against
+  this year's cap · 4 years** (cap hit of the slot-scaled deal;
+  old flat R1 was ~$4.13M APY for every first-rounder).
+
+---
+
 ## 2026-09-05 — Phase 1 play-by-play / game viewer (branch `cursor/a-play-by-play-viewer-feae`)
 
 Lane A. The engine already ran every snap; nothing on the GM side of the

@@ -57,6 +57,18 @@ export function ensurePickInventory(state: GameState): void {
   }
 }
 
+/** Append newly awarded rows (compensatory slots) without duplicating keys. */
+export function appendPickOwners(state: GameState, rows: PickOwnership[]): void {
+  if (!state.pickOwners) state.pickOwners = [];
+  const have = new Set(state.pickOwners.map((p) => `${p.season}:${p.round}:${p.originalTeamId}`));
+  for (const row of rows) {
+    const key = `${row.season}:${row.round}:${row.originalTeamId}`;
+    if (have.has(key)) continue;
+    state.pickOwners.push(row);
+    have.add(key);
+  }
+}
+
 /** Drop rows for classes that have already been drafted. */
 export function prunePickInventory(state: GameState, throughSeason: number): void {
   if (!state.pickOwners) return;
