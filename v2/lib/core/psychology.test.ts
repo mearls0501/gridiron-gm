@@ -33,14 +33,15 @@ function stripPsych(st: GameState): GameState {
 {
   const st = newGame({ seed: 41 });
   const before = st.rngState;
-  assert.equal(st.psychTick, undefined, "newGame does not evaluate psychology");
+  assert.equal(st.psychTick === undefined, true, "newGame does not evaluate psychology");
   runPsychology(st);
   assert.equal(st.rngState, before, "psychology child stream must not move the parent");
-  assert.ok(st.psychTick, "tick is written");
+  const tick = st.psychTick;
+  assert.ok(tick, "tick is written");
   const again = st.rngState;
   runPsychology(st);
   assert.equal(st.rngState, again);
-  assert.equal(st.psychTick!.week, st.week);
+  assert.equal(tick.week, st.week);
   ok("runPsychology is child-stream; parent still; same week is a no-op");
 }
 
@@ -61,12 +62,12 @@ function stripPsych(st: GameState): GameState {
 
 {
   const st = stripPsych(newGame({ seed: 17 }));
-  assert.equal(st.psychTick, undefined);
+  assert.equal(st.psychTick === undefined, true);
   const before = st.rngState;
   runPsychology(st);
   assert.equal(st.rngState, before);
   const round = decodeSave(encodeSave(st));
-  assert.equal(round.psychTick?.season, st.psychTick?.season);
+  assert.equal(round.psychTick && round.psychTick.season, st.psychTick && st.psychTick.season);
   const filed = st.players.find((p) => p.psychology?.holdout || p.psychology?.tradeRequest);
   if (filed) {
     const back = round.players.find((p) => p.id === filed.id)!;
