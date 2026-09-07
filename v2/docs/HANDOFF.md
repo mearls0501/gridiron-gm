@@ -7,8 +7,9 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ## 2026-09-07 — Lane F: player psychology (branch `cursor/f-psychology-f7ac`)
 
-Packet F / Phase 2 people layer. Base `main` @ `7c1c6eb` (Lane D #57).
-Minimal locker-room demands: contract-year notes, holdouts, and trade
+Packet F / Phase 2 people layer. Rebased onto `origin/main` @
+`aa98b81` (#59 Shell Staff + carousel, after #57). Minimal
+locker-room demands: contract-year notes, holdouts, and trade
 requests driven by role vs rating vs money. No morale slider.
 
 **Diagnosis.** Confirmed. Players had no demand flags. Briefing never
@@ -39,10 +40,11 @@ file that one (happy clubs stay quiet). Contract-year: `yearsRemaining
 deals; many 1-year remainders). No morale. No LLM.
 
 **Leftover.** Hub does not read briefing, so the desk is `/week`.
-`runPsychology` is not on phase advance (`offseason/index.ts` and
-`season/engine.ts` are orchestrator-owned). A paid extension does not
-auto-clear until the next tick. Contract-year does not change
-availability.
+`runPsychology` is not on phase advance (`season/engine.ts` still
+orchestrator-owned). #59 already wired Staff nav and
+`runCoachCarousel` in recap — not this packet. A paid extension
+does not auto-clear until the next tick. Contract-year does not
+change availability.
 
 **Phase hook (orchestrator).**
 1. Season: `runPsychology(state)` from `advance()` after the week
