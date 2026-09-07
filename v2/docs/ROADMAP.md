@@ -29,7 +29,7 @@ as cap-stuck residue).
 |---|---|---|---|---|
 | `leverage.wrongSign` | 1 | ≤ 0 | non-defect | OT.sta knife-edge probe rounding to 0.0. Do not invent a leverage fix. |
 | `statcheck.wr10RecYds` | 1018 | 1208 ±97 | non-defect | Single-seed fast tier only; 1,136 on the panel. |
-| `drift.tradesPerSeason` | 7.8* | 60–120 | STALE | *Predates PR #4's cutdown + deadline markets. 2026-09-07: stock `gate:full` (default 5 seeds) aborted at 92 min on 4 cores still on careers/drift seed 1 — no new reading. Standalone `drift.ts 20` started after abort; see HANDOFF. |
+| `drift.tradesPerSeason` | 7.8* | 60–120 | STALE | *Predates PR #4. 2026-09-07: stock `gate:full` aborted at 92 min (careers/drift still seed 1); standalone `drift.ts 20` killed at 173 min / 91 min CPU with no emit. Remeasure outstanding — too slow post-PBP on 4 cores. |
 | `careers.survivalMae` | 5.94 | < 4 | open | R1–R3 over-survive. Cannot close from a late-round hold. |
 | `careers.careerLenMae` | 0.57 | < 0.5 | open | Residue is R1/R2/R4 one–two-season careers; must not be shortened. |
 | `conditions.coldPointsDelta` | −0.5 | −2.4 | unconfirmed | Single seed, 6 seasons. Check on a matched-seed baseline first. |
