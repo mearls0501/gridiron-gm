@@ -60,11 +60,66 @@ Regression: `lib/core/coaches.test.ts` (gate `peoplecheck`) and
 
 ### Gate (`nproc`=4)
 
-Pending — running after this note.
+Fast: all 27 harnesses exit 0 (`peoplecheck` + `ownercheck` included).
+Two inherited single-seed metric reds — leave them. Same two numbers
+as main. Do not touch `docs/baselines.json`. Determinism clean
+(2 metrics, standalone `DETERMINISTIC`).
+
+```
+  ok    typecheck     11s  0 metrics
+  ok    simtoast       3s  0 metrics
+  ok    drafttoast    18s  0 metrics
+  ok    newgame        3s  0 metrics
+  ok    simmenu        4s  0 metrics
+  ok    tradewindow   29s  0 metrics
+  ok    rostercap     61s  0 metrics
+  ok    teamleaders    6s  0 metrics
+  ok    playbyplay    10s  0 metrics
+  ok    irps          63s  0 metrics
+  ok    inactives     14s  0 metrics
+  ok    waivers       55s  0 metrics
+  ok    callsheet     54s  0 metrics
+  ok    franchisetag  13s  0 metrics
+  ok    fifthyearoption  57s  0 metrics
+  ok    tagextension  86s  0 metrics
+  ok    halloffame     8s  0 metrics
+  ok    contractoffice   7s  0 metrics
+  ok    draftrules    10s  0 metrics
+  ok    peoplecheck    7s  0 metrics
+  ok    ownercheck     7s  0 metrics
+  ok    determinism    7s  2 metrics
+  ok    verify       263s  2 metrics
+  ok    sweep        619s  0 metrics
+  ok    calibrate     64s  28 metrics
+  ok    statcheck     34s  23 metrics
+  ok    leverage      71s  3 metrics
+  ok    scout         19s  4 metrics
+
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97  (NFL ~1208)
+
+GATE FAIL  2 problems
+```
+
+All other calibrate / verify / statcheck / leverage metrics inside
+baseline. Parent stream did not move.
 
 ### Browser
 
-Pending — New Franchise → `/staff` after the gate.
+New Franchise → Kansas City Stampede → seed 42 → Start Franchise →
+`/staff` (no Shell chip).
+
+- KC HC **Doug Roberts** (5 yr left / $11.8M / Spread and Space)
+- OC **Ned Fitzgibbon** (4 yr / $2.89M)
+- DC **Lou Ivey** (2 yr / $3.85M / Four-Man Rush)
+- Owner **Joel Pemberton** (patience 0.47, heat 0, fire at 75,
+  contend / ~10 wins, seat safe — first two seasons are a look)
+- Boston Minutemen (CPU): HC **John Mayfield**, OC **Pete Whitlock**,
+  DC **Marv Garcia**, owner **Marv Mayfield** (retool / ~8 wins)
+
+Day-one OC/DC dials match the HC (`Team.coach` copy) so play-calling
+does not move. Screenshots: `staff-kc-hc-oc-dc-owner.webp`,
+`staff-boston-cpu-coaches.webp`.
 
 ---
 
