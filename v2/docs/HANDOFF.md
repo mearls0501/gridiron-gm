@@ -5,6 +5,130 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-07 — post-Wave-1 `gate:full` default (aborted; 5-seed still outstanding)
+
+Orchestrator stabilize after Wave 1 (#51–#55). Docs only. No engine, harness,
+or baseline edits.
+
+**SHA.** `origin/main` @ `f66492a94bb3e52ce2422095788df644edfd70cf`
+(`f66492a` — Draft published rules: rookie slot scale + compensatory picks, #54).
+Wave 1 already on this tip.
+
+**Command.** Stock `npm run gate:full` in `v2/` — **no `--seeds` flag**.
+`scripts/gate.ts` default for `full` is already `PANEL = 5` (seeds 1–5 via
+`GG_SEED`). Passing `--seeds 5` would have been the same run. `nproc`=4.
+16 GB RAM, no swap. `NODE_OPTIONS=--max-old-space-size=4096`.
+
+**Wall.** Start `2026-09-07T10:30:20Z`. Abort `2026-09-07T12:02:59Z`.
+**92 minutes** (5559 s). Exit **143** (SIGTERM). Parent did not die; no OOM
+(peak ~3.5 GiB / 15 GiB). Gate stdout stayed buffered at the header the
+entire time — `Promise.all` prints the FAIL/ok table only after every step
+finishes all five seeds.
+
+### Why we stopped
+
+Packet rule: if the default is already multi-seed and wall exceeds ~90
+minutes with careers/drift still on seed 1, stop cleanly. Do not sit 10 h
+on this 4-core VM.
+
+At abort, `GG_SEED` from `/proc/<pid>/environ`:
+
+| harness | seed at 92 min | worker CPU | RSS |
+|---|---|---|---|
+| `careers.ts 24` | **1** (same PID from t+0) | 27m 19s | 374 MB |
+| `drift.ts 20` | **1** (same PID from t+0) | 27m 12s | 425 MB |
+| `verify.ts 10` | **1** | 27m 19s | 605 MB |
+| `sweep.ts 25 2` | **1** | 26m 41s | 756 MB |
+| `staffcheck.ts 8` | **1** | 27m 02s | 520 MB |
+
+Five long sims ran in parallel on four cores after the cheap steps drained.
+Load opened at 25.66 (all FAST+FULL children at once), settled ~5.0 with
+those five workers at ~62% CPU each. ~27 min of CPU on careers/drift in
+92 min of wall — seed 1 of 5 had not finished. Extrapolating 5 sequential
+seeds per step at that rate is many hours, same failure mode as the prior
+`--seeds 5` attempt. Wave 1 PBP emit is the suspected extra cost on every
+headless game (observation-only, but it allocates a snap log / drive list
+on every sim).
+
+Shorter full-tier steps **did** advance their panel before abort (process
+recycling, not a printed table): `conditions` reached seed 4 by ~t+10m;
+`coherence` seed 4; `tails` seed 5. Those results died with the parent —
+the gate never emitted a row.
+
+### Gate output (complete — this is all it printed)
+
+```
+GATE START 2026-09-07T10:30:20Z
+
+> gridiron-gm@1.0.0 gate:full
+> tsx scripts/gate.ts full
+
+
+=== gate (full) ===
+
+GATE END 143 2026-09-07T12:02:59Z
+```
+
+**No FAIL/ok table. No metric lines. No `drift.tradesPerSeason` from the
+gate.** Nothing NEW red can be flagged because nothing was compared.
+The two inherited fast-tier singles (`leverage.wrongSign 1`,
+`statcheck.wr10RecYds 1018`) were not re-read on this run; they are
+unchanged as last measured on this SHA's Wave 1 packets.
+
+### `drift.tradesPerSeason` (fallback)
+
+After abort, started a **single** `npx tsx scripts/drift.ts 20` (default
+seed 12345, one league, 20 seasons) at `2026-09-07T12:03:43Z` on the idle
+box. At HANDOFF write (~`13:59Z`) that process was still running at 100%
+of one core, ~409 MB RSS, stdout fully buffered (file still only the
+`=== seed 12345, 20 seasons ===` header). **No number yet.** The stale
+ROADMAP / AGENTS figure remains **7.8** (pre–PR #4 cutdown + deadline).
+Do not treat 7.8 as post-Wave-1.
+
+If this process finishes after the PR opens, prepend an update in a
+follow-up commit. Do not kill it to "finish" the docs.
+
+### 5-seed panel remains outstanding
+
+A prior agent tried `gate:full --seeds 5` on a 4-core VM and aborted
+after hours with no table. This run used the **stock default**, which
+**is** 5 seeds, and aborted at 92 min still on careers/drift seed 1.
+**Do not retry 5-seed on a 4-core box.** The re-lock
+(`npm run gate:full -- --seeds 5`) needs a machine where one 24-season
+`careers` seed finishes in tens of minutes, not hours — or the long
+harnesses must be run serially, one at a time, so they are not
+timesliced against each other.
+
+### Wave 2 clear? / blockers for Matt
+
+**Not measurement-clear.** Orchestration §6 step 4 (post-wave
+`gate:full` on `main`) did not produce a table. Lanes D and F can be
+dispatched on the contract (child RNG, no baseline edits) **if** Matt
+accepts that the last printed metric table is still the Wave 1 fast-tier
+packets on this SHA: only the two inherited singles red, everything else
+inside band on those fast runs. That is not a full-tier verdict.
+
+Blockers / decisions:
+
+1. **Where to run the 5-seed panel.** 4-core + `Promise.all` + Wave 1
+   PBP emit does not finish. Need more cores, or serial long harnesses,
+   or a `--seeds 1` stock override on this class of VM (that override
+   was out of scope here).
+2. **`drift.tradesPerSeason` is still the pre–PR #4 7.8.** Cutdown +
+   deadline + draft-weekend markets have not been re-measured on
+   post-Wave-1 `main`. Do not tune volume until the standalone
+   `drift.ts 20` (or a completed panel) prints.
+3. **PBP cost on headless sims.** Suspected, not proven. A lead packet
+   could make CPU-game emit skip the snap log (drive list only) so
+   `careers` / `drift` return to pre-#53 wall times. That is a
+   `scripts/`-adjacent / `sim/events.ts` change — not this PR.
+4. **No new reds observed** — also no greens. Absence of a table is not
+   evidence the panel is clean.
+
+No e2e. Gate never finished; no time left to chase UI.
+
+---
+
 ## 2026-09-05 — draft published rules: slot scale + comps (branch `cursor/c-draft-published-rules-8a1e`)
 
 Packet C / Phase 0. Rebased onto `origin/main` @ `e03edb06` (#53
