@@ -29,7 +29,7 @@ as cap-stuck residue).
 |---|---|---|---|---|
 | `leverage.wrongSign` | 1 | ≤ 0 | non-defect | OT.sta knife-edge probe rounding to 0.0. Do not invent a leverage fix. |
 | `statcheck.wr10RecYds` | 1018 | 1208 ±97 | non-defect | Single-seed fast tier only; 1,136 on the panel. |
-| `drift.tradesPerSeason` | 7.8* | 60–120 | STALE | *Predates PR #4's cutdown + deadline markets. Re-measure before touching. |
+| `drift.tradesPerSeason` | 7.8* | 60–120 | STALE | *Predates PR #4's cutdown + deadline markets. 2026-09-07: stock `gate:full` (default 5 seeds) aborted at 92 min on 4 cores still on careers/drift seed 1 — no new reading. Standalone `drift.ts 20` started after abort; see HANDOFF. |
 | `careers.survivalMae` | 5.94 | < 4 | open | R1–R3 over-survive. Cannot close from a late-round hold. |
 | `careers.careerLenMae` | 0.57 | < 0.5 | open | Residue is R1/R2/R4 one–two-season careers; must not be shortened. |
 | `conditions.coldPointsDelta` | −0.5 | −2.4 | unconfirmed | Single seed, 6 seasons. Check on a matched-seed baseline first. |
@@ -39,7 +39,11 @@ as cap-stuck residue).
 
 **Standing prerequisite:** run the five-seed panel re-lock
 (`npm run gate:full -- --seeds 5`) on a real machine before any further tuning.
-It has not been run since the sprint.
+It has not completed since the sprint. Stock `gate:full` **is** already 5
+seeds. Two 4-core attempts (explicit `--seeds 5`, then stock default) aborted
+with no FAIL/ok table — careers/drift still on seed 1 after ~90 min. Do not
+retry 5-seed on 4 cores; Wave 1 PBP emit is the suspected extra cost on long
+sims. See HANDOFF 2026-09-07.
 
 ## What is missing
 
