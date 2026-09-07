@@ -5,9 +5,143 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-07 — Lane F: player psychology (branch `cursor/f-psychology-f7ac`)
+
+Packet F / Phase 2 people layer. Rebased onto `origin/main` @
+`aa98b81` (#59 Shell Staff + carousel, after #57). Minimal
+locker-room demands: contract-year notes, holdouts, and trade
+requests driven by role vs rating vs money. No morale slider.
+
+**Diagnosis.** Confirmed. Players had no demand flags. Briefing never
+mentioned holdouts, trade requests, or contract years. `injuries.ts`
+and `sim/game.ts` are the only availability / effort surfaces, and
+both consume the parent stream — a contract-year nudge there would
+move calibrate / statcheck. Stopped. Briefing + offseason flags only.
+
+**Change.** `lib/core/psychology.ts`. Additive `Player.psychology` and
+`GameState.psychTick`. `runPsychology` draws only from a child stream
+keyed `(seed, season, week, 'psychology')`. First save / migrate
+evaluates once; the same week is a no-op. Briefing (`/week`) surfaces
+user-club holdouts → `/finances` and trade requests → `/trades`.
+Contract-year names land in Worth Knowing. `resolveDemand` clears a
+flag without touching `contracts.ts`. Frequency harness in
+`lib/core/psychology.test.ts` (gate `psychology`).
+
+**Proposed defaults (Matt — escalate class).** Untraced; nfl-reference
+has no holdout / trade-request block. Holdout: OVR ≥ 76, starter (or
+80+), paid < 62% of `marketApy`, not on rookie scale (`draftedRound`
+set and `yearsPro ≤ 3`), P = 0.16, cap 12. Trade request: OVR ≥ 74
+and within 3 OVR of the last starter but not starting, or a money
+veteran who did not hold out; P = 0.11 role / 0.05 money; cap 14.
+User-desk plant: if the club has no demand and someone scores ≥ 0.32,
+file that one (happy clubs stay quiet). Contract-year: `yearsRemaining
+=== 1`, briefing only — **no sim hook**. 8-seed camp means: holdouts
+**10.0**, trade requests **3.8**, contract-year **656** (staggered
+deals; many 1-year remainders). No morale. No LLM.
+
+**Leftover.** Hub does not read briefing, so the desk is `/week`.
+`runPsychology` is not on phase advance (`season/engine.ts` still
+orchestrator-owned). #59 already wired Staff nav and
+`runCoachCarousel` in recap — not this packet. A paid extension
+does not auto-clear until the next tick. Contract-year does not
+change availability.
+
+**Phase hook (orchestrator).**
+1. Season: `runPsychology(state)` from `advance()` after the week
+   increments (regular / playoffs) and from `startRegularSeason`.
+   Child stream; already idempotent per week.
+2. Offseason: `runPsychology(state)` during `offseason-final` (camp)
+   so a returning franchise gets holdouts before kickoff. New
+   franchises already evaluate on first `saveGame`.
+3. Optional: after Lane B extend / restructure, `resolveDemand` or
+   a new tick so a paid player drops the holdout. Do not edit deal
+   math from this lane.
+4. No Shell chip — `/week` is the surface.
+
+**Untouched.** `contracts.ts`, `freeAgency.ts`, `coaches.ts`,
+`owner.ts`, `/staff`, `Shell.tsx`, `offseason/index.ts`,
+`sim/game.ts`, `staff.ts`, `frontOffice.ts`, `docs/baselines.json`,
+`newGame.ts` / `generate.ts` (parent stream). Forbidden constants
+untouched.
+
+Regression: `lib/core/psychology.test.ts` (gate `psychology`).
+
+### Gate (`nproc`=4)
+
+Fast: 27 harnesses exit 0 after a test-only typecheck fix (`psychTick`
+narrowed to `never` after `assert.equal(..., undefined)`). First run
+had `typecheck` red on those two lines; `tsc --noEmit` + `psychology`
+re-run green. Engine harnesses on the first run were already inside
+band. Two inherited single-seed metric reds — leave them. Same two
+numbers as main. Do not touch `docs/baselines.json`. Determinism clean
+(2 metrics). `psychology` emitted holdoutsMean 10.00 / tradeRequestsMean
+3.75 / contractYearMean 656.13. Parent stream did not move.
+
+```
+  ok    typecheck      —  tsc --noEmit after test narrowing fix
+  ok    simtoast       4s  0 metrics
+  ok    drafttoast    19s  0 metrics
+  ok    newgame        4s  0 metrics
+  ok    simmenu        3s  0 metrics
+  ok    tradewindow   34s  0 metrics
+  ok    rostercap     65s  0 metrics
+  ok    teamleaders    6s  0 metrics
+  ok    playbyplay    11s  0 metrics
+  ok    irps          66s  0 metrics
+  ok    inactives     14s  0 metrics
+  ok    waivers       57s  0 metrics
+  ok    callsheet     54s  0 metrics
+  ok    franchisetag  14s  0 metrics
+  ok    fifthyearoption  59s  0 metrics
+  ok    tagextension  90s  0 metrics
+  ok    halloffame     8s  0 metrics
+  ok    contractoffice   7s  0 metrics
+  ok    draftrules    11s  0 metrics
+  ok    peoplecheck    7s  0 metrics
+  ok    ownercheck     7s  0 metrics
+  ok    psychology     9s  3 metrics
+  ok    determinism    7s  2 metrics
+  ok    verify       272s  2 metrics
+  ok    sweep        623s  0 metrics
+  ok    calibrate     68s  28 metrics
+  ok    statcheck     35s  23 metrics
+  ok    leverage      74s  3 metrics
+  ok    scout         20s  4 metrics
+
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97  (NFL ~1208)
+
+GATE FAIL  2 problems
+```
+
+All other calibrate / verify / statcheck / leverage metrics inside
+baseline. Parent stream did not move.
+
+### Browser
+
+New Franchise → New York Sentinels → seed 42 → Start Franchise →
+`/week` (This Week). Boston on this seed is paid to market; NYS is
+the planted path.
+
+Needs Your Decision:
+- **2 holdouts in camp** — Derrick Montoya, Jalen Whitlock III
+  (urgent, → `/finances`)
+- **1 trade request** — Owen Smith (S, 82 OVR) is S1 and wants
+  to be paid with the market (→ `/trades`)
+
+Worth Knowing: **11 contract-year players** (Carlos Scott LB 86,
+Elias Fitzgibbon WR 84, Blake Allen EDGE 84, DeShawn Stallworth
+OT 83). Holdout and trade-request rows navigate. Screenshots:
+`week-nys-holdouts-trade-request.webp`, `finances-from-holdout.webp`,
+`trades-from-request.webp`.
+
+---
+
 ## 2026-09-07 — Shell Staff nav + coach carousel hook after #57
 
 Wired `{ href: "/staff", label: "Staff" }` next to Front Office in Shell. `runCoachCarousel(state)` in `runRecap` immediately after `state.history.push(history)` (child stream inside carousel; parent RNG untouched).
+
+---
 
 ## 2026-09-07 — Lane D: HC / OC / DC + owner (branch `cursor/d-people-coaches-owner-43e7`)
 

@@ -1,5 +1,6 @@
 import { ensureCoaches } from "../core/coaches";
 import { ensureOwners } from "../core/owner";
+import { runPsychology } from "../core/psychology";
 import { GameState, STATE_VERSION, defaultSettings } from "../core/types";
 import { blankRecordBook } from "../core/season/records";
 import { SCHEMES, evenBudget } from "../core/staff";
@@ -69,6 +70,7 @@ export interface SaveSummary {
 export async function saveGame(state: GameState): Promise<void> {
   ensureCoaches(state);
   ensureOwners(state);
+  runPsychology(state);
   state.updatedAt = Date.now();
   // The JSON round trip is still here on purpose: it strips anything the
   // structured-clone algorithm would choke on before it reaches the store.
@@ -145,6 +147,9 @@ function migrate(state: GameState): GameState {
   // onto the people so play-calling does not move on an old save.
   ensureCoaches(state);
   ensureOwners(state);
+  // Holdouts / trade requests: child-stream evaluation. Missing psychology
+  // on a player is "no demand"; missing psychTick means evaluate once.
+  runPsychology(state);
 
   if (state.version === STATE_VERSION) return state;
   state.version = STATE_VERSION;
