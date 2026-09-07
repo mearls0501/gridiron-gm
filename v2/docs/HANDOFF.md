@@ -5,6 +5,10 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-07 — Shell Staff nav + coach carousel hook after #57
+
+Wired `{ href: "/staff", label: "Staff" }` next to Front Office in Shell. `runCoachCarousel(state)` in `runRecap` immediately after `state.history.push(history)` (child stream inside carousel; parent RNG untouched).
+
 ## 2026-09-07 — Lane D: HC / OC / DC + owner (branch `cursor/d-people-coaches-owner-43e7`)
 
 Packet D / Phase 2 people layer. Base `main` @ `f66492a`. Coaches are no

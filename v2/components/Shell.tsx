@@ -35,6 +35,7 @@ const NAV = [
   { href: "/draft", label: "Draft" },
   { href: "/finances", label: "Finances" },
   { href: "/front-office", label: "Front Office" },
+  { href: "/staff", label: "Staff" },
   { href: "/league", label: "League" },
 ];
 

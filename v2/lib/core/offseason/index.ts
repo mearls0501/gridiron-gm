@@ -12,6 +12,7 @@ import { ensureScouting, pruneScouting } from "../scouting";
 import { ensurePickInventory, generateUserOffers, prunePickInventory, pruneStaleTradeInbox, runCpuTrades, runDraftDayTrades } from "../trades";
 import { runHousekeeping } from "../housekeeping";
 import { refreshCpuStaff } from "../staff";
+import { runCoachCarousel } from "../coaches";
 
 export * from "./contracts";
 export * from "./draft";
@@ -77,6 +78,7 @@ export function runRecap(state: GameState): OffseasonReport {
 
   const history = recordSeasonHistory(state);
   state.history.push(history);
+  runCoachCarousel(state);
 
   const report = runProgression(state, rng);
 
