@@ -75,18 +75,34 @@ The two inherited fast-tier singles (`leverage.wrongSign 1`,
 `statcheck.wr10RecYds 1018`) were not re-read on this run; they are
 unchanged as last measured on this SHA's Wave 1 packets.
 
-### `drift.tradesPerSeason` (fallback)
+### `drift.tradesPerSeason` — remeasure still outstanding
 
-After abort, started a **single** `npx tsx scripts/drift.ts 20` (default
-seed 12345, one league, 20 seasons) at `2026-09-07T12:03:43Z` on the idle
-box. At HANDOFF write (~`13:59Z`) that process was still running at 100%
-of one core, ~409 MB RSS, stdout fully buffered (file still only the
-`=== seed 12345, 20 seasons ===` header). **No number yet.** The stale
-ROADMAP / AGENTS figure remains **7.8** (pre–PR #4 cutdown + deadline).
-Do not treat 7.8 as post-Wave-1.
+After the gate abort, started a **single** `npx tsx scripts/drift.ts 20`
+(default seed 12345, one league, 20 seasons) at `2026-09-07T12:03:43Z`
+on the idle 4-core box. Killed at `2026-09-07T14:57:54Z` on Matt's
+ship-now instruction (15-minute cap after the draft PR opened).
 
-If this process finishes after the PR opens, prepend an update in a
-follow-up commit. Do not kill it to "finish" the docs.
+| | |
+|---|---|
+| Wall | **173 min** (10438 s) |
+| Worker CPU | **91 min 24 s** (100% of one core the whole time) |
+| RSS at kill | 435 MB |
+| Emit | **none** — stdout fully buffered; file still only the header below |
+
+```
+DRIFT START 2026-09-07T12:03:43Z
+
+=== seed 12345, 20 seasons ===
+
+DRIFT KILLED 2026-09-07T14:57:54Z after 173m wall / ~91m CPU — no emit
+```
+
+**No `##M drift.tradesPerSeason` line. No season table. No guards.**
+Standalone 20-season drift is too slow post-Wave-1 PBP emit on this VM
+to produce a usable number. The stale ROADMAP / AGENTS figure remains
+**7.8** (pre–PR #4 cutdown + deadline). Do not treat 7.8 as post-Wave-1.
+Do not tune volume until a faster box (or a PBP-skip for headless sims)
+prints a reading.
 
 ### 5-seed panel remains outstanding
 
@@ -114,10 +130,10 @@ Blockers / decisions:
    PBP emit does not finish. Need more cores, or serial long harnesses,
    or a `--seeds 1` stock override on this class of VM (that override
    was out of scope here).
-2. **`drift.tradesPerSeason` is still the pre–PR #4 7.8.** Cutdown +
-   deadline + draft-weekend markets have not been re-measured on
-   post-Wave-1 `main`. Do not tune volume until the standalone
-   `drift.ts 20` (or a completed panel) prints.
+2. **`drift.tradesPerSeason` remeasure remains outstanding.** Both the
+   5-seed gate `drift` (seed 1 after 92 min) and standalone
+   `drift.ts 20` (173 min wall / 91 min CPU, no emit) failed to print
+   on this 4-core box. Still the pre–PR #4 **7.8**. Do not tune volume.
 3. **PBP cost on headless sims.** Suspected, not proven. A lead packet
    could make CPU-game emit skip the snap log (drive list only) so
    `careers` / `drift` return to pre-#53 wall times. That is a
