@@ -148,6 +148,19 @@ export interface Contract {
   guaranteedYears: number; // leading years that cannot be cut without full cost
 }
 
+export type PsychReason = "role" | "money" | "roleAndMoney";
+
+/** Discrete locker-room demand. Optional on Player so older saves load. */
+export interface PlayerPsychology {
+  holdout?: boolean;
+  tradeRequest?: boolean;
+  reason?: PsychReason;
+  filedSeason?: number;
+  filedWeek?: number;
+  /** Club he filed against. A trade clears the demand. */
+  teamId?: number;
+}
+
 // ---------------------------------------------------------------------------
 // Player
 // ---------------------------------------------------------------------------
@@ -256,6 +269,13 @@ export interface Player {
 
   stats: SeasonStatLine[];
   careerAwards: string[];
+
+  /**
+   * Locker-room demand. Missing = none, so saves written before the
+   * psychology layer still load. No morale slider — a holdout or trade
+   * request is a discrete flag from role / rating / money.
+   */
+  psychology?: PlayerPsychology;
 }
 
 // ---------------------------------------------------------------------------
@@ -1085,6 +1105,11 @@ export interface GameState {
   coachMarket?: CoachPerson[];
   /** Next `CoachPerson.id`. Missing = start at 1000 on backfill. */
   nextCoachId?: number;
+  /**
+   * Last psychology evaluation. Missing = never run, so older saves
+   * evaluate once on migrate. Idempotent per (season, week).
+   */
+  psychTick?: { season: number; week: number };
 
   history: SeasonHistory[];
   records: RecordBook;

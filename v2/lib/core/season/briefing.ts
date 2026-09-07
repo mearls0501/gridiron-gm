@@ -9,6 +9,9 @@ import { passerRating } from "./stats";
 import { playerName } from "../ratings";
 import { PRIVATE_VISIT_CAP, calendarView } from "../scouting";
 import { gamedayInactiveView } from "../inactives";
+import {
+  demandNearDeadline, holdoutDetail, psychologyView, tradeRequestDetail,
+} from "../psychology";
 
 /**
  * The weekly briefing: one deterministic digest of what just happened and
@@ -183,6 +186,32 @@ function buildActionItems(state: GameState): { action: ActionItem[]; review: str
   const action: ActionItem[] = [];
   const review: string[] = [];
   const team = state.teams[state.userTeamId];
+
+  const psych = psychologyView(state, state.userTeamId);
+  if (psych.holdouts.length > 0) {
+    const names = psych.holdouts.slice(0, 3).map((p) => playerName(p));
+    action.push({
+      label: `${psych.holdouts.length} holdout${psych.holdouts.length > 1 ? "s" : ""} in camp`,
+      detail: `${names.join(", ")} — ${psych.holdouts.length === 1 ? holdoutDetail(state, psych.holdouts[0]) : "extend, trade, or play through it."}`,
+      href: "/finances",
+      urgent: true,
+    });
+  }
+  if (psych.tradeRequests.length > 0) {
+    const names = psych.tradeRequests.slice(0, 3).map((p) => `${p.firstName} ${p.lastName} (${p.pos})`);
+    action.push({
+      label: `${psych.tradeRequests.length} trade request${psych.tradeRequests.length > 1 ? "s" : ""}`,
+      detail: `${names.join(", ")} — ${psych.tradeRequests.length === 1 ? tradeRequestDetail(state, psych.tradeRequests[0]) : "the locker room wants a change of scene."}`,
+      href: "/trades",
+      urgent: demandNearDeadline(state),
+    });
+  }
+  if (psych.contractYear.length > 0) {
+    const names = psych.contractYear.slice(0, 4).map((p) => `${p.firstName} ${p.lastName} (${p.pos}, ${p.ovr})`);
+    review.push(
+      `${psych.contractYear.length} contract-year player${psych.contractYear.length > 1 ? "s" : ""}: ${names.join(", ")}.`
+    );
+  }
 
   const offers = state.tradeOffers ?? [];
   if (offers.length > 0) {

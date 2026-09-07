@@ -5,9 +5,85 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-07 — Lane F: player psychology (branch `cursor/f-psychology-f7ac`)
+
+Packet F / Phase 2 people layer. Base `main` @ `7c1c6eb` (Lane D #57).
+Minimal locker-room demands: contract-year notes, holdouts, and trade
+requests driven by role vs rating vs money. No morale slider.
+
+**Diagnosis.** Confirmed. Players had no demand flags. Briefing never
+mentioned holdouts, trade requests, or contract years. `injuries.ts`
+and `sim/game.ts` are the only availability / effort surfaces, and
+both consume the parent stream — a contract-year nudge there would
+move calibrate / statcheck. Stopped. Briefing + offseason flags only.
+
+**Change.** `lib/core/psychology.ts`. Additive `Player.psychology` and
+`GameState.psychTick`. `runPsychology` draws only from a child stream
+keyed `(seed, season, week, 'psychology')`. First save / migrate
+evaluates once; the same week is a no-op. Briefing (`/week`) surfaces
+user-club holdouts → `/finances` and trade requests → `/trades`.
+Contract-year names land in Worth Knowing. `resolveDemand` clears a
+flag without touching `contracts.ts`. Frequency harness in
+`lib/core/psychology.test.ts` (gate `psychology`).
+
+**Proposed defaults (Matt — escalate class).** Untraced; nfl-reference
+has no holdout / trade-request block. Holdout: OVR ≥ 76, starter (or
+80+), paid < 62% of `marketApy`, not on rookie scale (`draftedRound`
+set and `yearsPro ≤ 3`), P = 0.16, cap 12. Trade request: OVR ≥ 74
+and within 3 OVR of the last starter but not starting, or a money
+veteran who did not hold out; P = 0.11 role / 0.05 money; cap 14.
+User-desk plant: if the club has no demand and someone scores ≥ 0.32,
+file that one (happy clubs stay quiet). Contract-year: `yearsRemaining
+=== 1`, briefing only — **no sim hook**. 8-seed camp means: holdouts
+**10.0**, trade requests **3.8**, contract-year **656** (staggered
+deals; many 1-year remainders). No morale. No LLM.
+
+**Leftover.** Hub does not read briefing, so the desk is `/week`.
+`runPsychology` is not on phase advance (`offseason/index.ts` and
+`season/engine.ts` are orchestrator-owned). A paid extension does not
+auto-clear until the next tick. Contract-year does not change
+availability.
+
+**Phase hook (orchestrator).**
+1. Season: `runPsychology(state)` from `advance()` after the week
+   increments (regular / playoffs) and from `startRegularSeason`.
+   Child stream; already idempotent per week.
+2. Offseason: `runPsychology(state)` during `offseason-final` (camp)
+   so a returning franchise gets holdouts before kickoff. New
+   franchises already evaluate on first `saveGame`.
+3. Optional: after Lane B extend / restructure, `resolveDemand` or
+   a new tick so a paid player drops the holdout. Do not edit deal
+   math from this lane.
+4. No Shell chip — `/week` is the surface.
+
+**Untouched.** `contracts.ts`, `freeAgency.ts`, `coaches.ts`,
+`owner.ts`, `/staff`, `Shell.tsx`, `offseason/index.ts`,
+`sim/game.ts`, `staff.ts`, `frontOffice.ts`, `docs/baselines.json`,
+`newGame.ts` / `generate.ts` (parent stream). Forbidden constants
+untouched.
+
+Regression: `lib/core/psychology.test.ts` (gate `psychology`).
+
+### Gate (`nproc`=4)
+
+Pending full fast-tier run after this note. Unit harness green.
+Inherited singles remain `leverage.wrongSign 1` and
+`statcheck.wr10RecYds 1018`. Do not touch `docs/baselines.json`.
+
+### Browser
+
+Pending. Seed 42 Boston is paid to market (plant bar does not fire).
+Walkthrough uses seed 42 / **New York Sentinels** (id 16): holdouts
+Derrick Montoya (93) and Jalen Whitlock III (77), trade request
+Owen Smith (82). `/week` Needs Your Decision.
+
+---
+
 ## 2026-09-07 — Shell Staff nav + coach carousel hook after #57
 
 Wired `{ href: "/staff", label: "Staff" }` next to Front Office in Shell. `runCoachCarousel(state)` in `runRecap` immediately after `state.history.push(history)` (child stream inside carousel; parent RNG untouched).
+
+---
 
 ## 2026-09-07 — Lane D: HC / OC / DC + owner (branch `cursor/d-people-coaches-owner-43e7`)
 
