@@ -66,16 +66,72 @@ Regression: `lib/core/psychology.test.ts` (gate `psychology`).
 
 ### Gate (`nproc`=4)
 
-Pending full fast-tier run after this note. Unit harness green.
-Inherited singles remain `leverage.wrongSign 1` and
-`statcheck.wr10RecYds 1018`. Do not touch `docs/baselines.json`.
+Fast: 27 harnesses exit 0 after a test-only typecheck fix (`psychTick`
+narrowed to `never` after `assert.equal(..., undefined)`). First run
+had `typecheck` red on those two lines; `tsc --noEmit` + `psychology`
+re-run green. Engine harnesses on the first run were already inside
+band. Two inherited single-seed metric reds — leave them. Same two
+numbers as main. Do not touch `docs/baselines.json`. Determinism clean
+(2 metrics). `psychology` emitted holdoutsMean 10.00 / tradeRequestsMean
+3.75 / contractYearMean 656.13. Parent stream did not move.
+
+```
+  ok    typecheck      —  tsc --noEmit after test narrowing fix
+  ok    simtoast       4s  0 metrics
+  ok    drafttoast    19s  0 metrics
+  ok    newgame        4s  0 metrics
+  ok    simmenu        3s  0 metrics
+  ok    tradewindow   34s  0 metrics
+  ok    rostercap     65s  0 metrics
+  ok    teamleaders    6s  0 metrics
+  ok    playbyplay    11s  0 metrics
+  ok    irps          66s  0 metrics
+  ok    inactives     14s  0 metrics
+  ok    waivers       57s  0 metrics
+  ok    callsheet     54s  0 metrics
+  ok    franchisetag  14s  0 metrics
+  ok    fifthyearoption  59s  0 metrics
+  ok    tagextension  90s  0 metrics
+  ok    halloffame     8s  0 metrics
+  ok    contractoffice   7s  0 metrics
+  ok    draftrules    11s  0 metrics
+  ok    peoplecheck    7s  0 metrics
+  ok    ownercheck     7s  0 metrics
+  ok    psychology     9s  3 metrics
+  ok    determinism    7s  2 metrics
+  ok    verify       272s  2 metrics
+  ok    sweep        623s  0 metrics
+  ok    calibrate     68s  28 metrics
+  ok    statcheck     35s  23 metrics
+  ok    leverage      74s  3 metrics
+  ok    scout         20s  4 metrics
+
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97  (NFL ~1208)
+
+GATE FAIL  2 problems
+```
+
+All other calibrate / verify / statcheck / leverage metrics inside
+baseline. Parent stream did not move.
 
 ### Browser
 
-Pending. Seed 42 Boston is paid to market (plant bar does not fire).
-Walkthrough uses seed 42 / **New York Sentinels** (id 16): holdouts
-Derrick Montoya (93) and Jalen Whitlock III (77), trade request
-Owen Smith (82). `/week` Needs Your Decision.
+New Franchise → New York Sentinels → seed 42 → Start Franchise →
+`/week` (This Week). Boston on this seed is paid to market; NYS is
+the planted path.
+
+Needs Your Decision:
+- **2 holdouts in camp** — Derrick Montoya, Jalen Whitlock III
+  (urgent, → `/finances`)
+- **1 trade request** — Owen Smith (S, 82 OVR) is S1 and wants
+  to be paid with the market (→ `/trades`)
+
+Worth Knowing: **11 contract-year players** (Carlos Scott LB 86,
+Elias Fitzgibbon WR 84, Blake Allen EDGE 84, DeShawn Stallworth
+OT 83). Holdout and trade-request rows navigate. Screenshots:
+`week-nys-holdouts-trade-request.webp`, `finances-from-holdout.webp`,
+`trades-from-request.webp`.
 
 ---
 
