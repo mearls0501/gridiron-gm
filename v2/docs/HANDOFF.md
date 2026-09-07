@@ -5,6 +5,12 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-07 — Psychology season hooks after #60
+
+Wired `runPsychology(state)` in `startRegularSeason` (after week is set to 1), in `advance()` after the week increments (regular `week += 1` / playoff `week += 1` / regular→playoffs `week = 19`), and during `offseason-final` (camp) in `enterCampAfterDraft` plus after `finalizeOffseason` (new season week 0). Child stream stays inside `runPsychology`; parent RNG untouched.
+
+---
+
 ## 2026-09-07 — Lane F: player psychology (branch `cursor/f-psychology-f7ac`)
 
 Packet F / Phase 2 people layer. Rebased onto `origin/main` @

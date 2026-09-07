@@ -12,6 +12,7 @@ import { ensureScouting, pruneScouting } from "../scouting";
 import { ensurePickInventory, generateUserOffers, prunePickInventory, pruneStaleTradeInbox, runCpuTrades, runDraftDayTrades } from "../trades";
 import { runHousekeeping } from "../housekeeping";
 import { refreshCpuStaff } from "../staff";
+import { runPsychology } from "../psychology";
 import { runCoachCarousel } from "../coaches";
 
 export * from "./contracts";
@@ -206,6 +207,7 @@ export function enterCampAfterDraft(state: GameState, rng: Rng): number {
   state.phase = "offseason-final";
   runCpuFifthYearOptions(state);
   runCpuTagExtensions(state, rng);
+  runPsychology(state);
   return n;
 }
 
@@ -326,6 +328,7 @@ export function advanceOffseason(state: GameState): string {
 
     case "offseason-final":
       finalizeOffseason(state);
+      runPsychology(state);
       return `${state.season} preseason begins`;
 
     default:
