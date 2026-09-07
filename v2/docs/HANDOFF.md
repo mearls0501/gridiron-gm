@@ -5,6 +5,124 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-07 — Lane D: HC / OC / DC + owner (branch `cursor/d-people-coaches-owner-43e7`)
+
+Packet D / Phase 2 people layer. Base `main` @ `f66492a`. Coaches are no
+longer seven numbers on `Team`. Each club has named HC/OC/DC with
+contracts and schemes, plus an owner whose patience makes
+`firingEnabled` real.
+
+**Diagnosis.** Confirmed. `Team.coach` was a generated dial object —
+no OC/DC, no contracts, no owner. `firingEnabled` migrated off and
+gated nothing. `/staff` did not exist. `effectiveCoach` read only
+`Team.coach` + the call sheet.
+
+**Change.** `lib/core/coaches.ts` and `lib/core/owner.ts`. Additive
+`Team.coaches` / `Team.owner` / `coachMarket` / `nextCoachId`. New
+saves get people in `saveGame`; old saves get them in `migrate`.
+People copy `Team.coach` dials on first fill so play-calling does
+not move until a hire or a poach. `effectiveCoach` reads OC
+passBias / HC aggression / DC shadowTendency when those dials
+differ. Child streams only: `(seed, season, week, 'coaches')` and
+`(... 'owner')`. `/staff` shows HC/OC/DC + owner; user can
+fire/hire; CPU clubs are viewable. `runCoachCarousel` poaches the
+user OC into a vacant CPU HC chair (user slot stays empty).
+
+**Proposed defaults (Matt).** Owner patience 0.35–0.80 (mean 0.55).
+Win targets: contend 10 / retool 8 / rebuild 6. No firing before
+two seasons. Fire heat = `62 + patience * 28` (impatient 72,
+patient 84). Rebuild years 0–1 add heat at 3× not 8×. Coach cash
+(not cap): HC 4–6 yr / $8–16M; OC 3–4 / $2.5–7M; DC 3–4 /
+$2.5–6.5M. No morale. No LLM.
+
+**Leftover.** Shell has no Staff chip — `/staff` is a URL until the
+orchestrator wires it. Carousel / GM firing do not run on phase
+advance (`offseason/index.ts` is orchestrator-owned). Heat is
+computed; `wouldFire` is the signal.
+
+**Phase hook (orchestrator).**
+1. Shell nav: `{ href: "/staff", label: "Staff" }` next to Front Office.
+2. Offseason: `runCoachCarousel(state)` during `offseason-recap`
+   after history is written (or `offseason-tag`). Child stream;
+   user club is interactive-only.
+3. Optional: if `ownerJobView(state, userTeamId).wouldFire`, end
+   the franchise / force a new GM. Do not call that without a
+   product decision — the page already shows the seat.
+
+**Untouched.** `staff.ts`, `frontOffice.ts`, `sim/game.ts`,
+`contracts.ts`, `freeAgency.ts`, `draft.ts`, `scouting.ts`,
+`Shell.tsx`, `offseason/index.ts`, `docs/baselines.json`,
+`newGame.ts` / `generate.ts` (parent stream). `Team.coach` not
+renamed or retyped.
+
+Regression: `lib/core/coaches.test.ts` (gate `peoplecheck`) and
+`lib/core/owner.test.ts` (gate `ownercheck`).
+
+### Gate (`nproc`=4)
+
+Fast: all 27 harnesses exit 0 (`peoplecheck` + `ownercheck` included).
+Two inherited single-seed metric reds — leave them. Same two numbers
+as main. Do not touch `docs/baselines.json`. Determinism clean
+(2 metrics, standalone `DETERMINISTIC`).
+
+```
+  ok    typecheck     11s  0 metrics
+  ok    simtoast       3s  0 metrics
+  ok    drafttoast    18s  0 metrics
+  ok    newgame        3s  0 metrics
+  ok    simmenu        4s  0 metrics
+  ok    tradewindow   29s  0 metrics
+  ok    rostercap     61s  0 metrics
+  ok    teamleaders    6s  0 metrics
+  ok    playbyplay    10s  0 metrics
+  ok    irps          63s  0 metrics
+  ok    inactives     14s  0 metrics
+  ok    waivers       55s  0 metrics
+  ok    callsheet     54s  0 metrics
+  ok    franchisetag  13s  0 metrics
+  ok    fifthyearoption  57s  0 metrics
+  ok    tagextension  86s  0 metrics
+  ok    halloffame     8s  0 metrics
+  ok    contractoffice   7s  0 metrics
+  ok    draftrules    10s  0 metrics
+  ok    peoplecheck    7s  0 metrics
+  ok    ownercheck     7s  0 metrics
+  ok    determinism    7s  2 metrics
+  ok    verify       263s  2 metrics
+  ok    sweep        619s  0 metrics
+  ok    calibrate     64s  28 metrics
+  ok    statcheck     34s  23 metrics
+  ok    leverage      71s  3 metrics
+  ok    scout         19s  4 metrics
+
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97  (NFL ~1208)
+
+GATE FAIL  2 problems
+```
+
+All other calibrate / verify / statcheck / leverage metrics inside
+baseline. Parent stream did not move.
+
+### Browser
+
+New Franchise → Kansas City Stampede → seed 42 → Start Franchise →
+`/staff` (no Shell chip).
+
+- KC HC **Doug Roberts** (5 yr left / $11.8M / Spread and Space)
+- OC **Ned Fitzgibbon** (4 yr / $2.89M)
+- DC **Lou Ivey** (2 yr / $3.85M / Four-Man Rush)
+- Owner **Joel Pemberton** (patience 0.47, heat 0, fire at 75,
+  contend / ~10 wins, seat safe — first two seasons are a look)
+- Boston Minutemen (CPU): HC **John Mayfield**, OC **Pete Whitlock**,
+  DC **Marv Garcia**, owner **Marv Mayfield** (retool / ~8 wins)
+
+Day-one OC/DC dials match the HC (`Team.coach` copy) so play-calling
+does not move. Screenshots: `staff-kc-hc-oc-dc-owner.webp`,
+`staff-boston-cpu-coaches.webp`.
+
+---
+
 ## 2026-09-07 — post-Wave-1 `gate:full` default (aborted; 5-seed still outstanding)
 
 Orchestrator stabilize after Wave 1 (#51–#55). Docs only. No engine, harness,

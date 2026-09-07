@@ -1,3 +1,5 @@
+import { ensureCoaches } from "../core/coaches";
+import { ensureOwners } from "../core/owner";
 import { GameState, STATE_VERSION, defaultSettings } from "../core/types";
 import { blankRecordBook } from "../core/season/records";
 import { SCHEMES, evenBudget } from "../core/staff";
@@ -65,6 +67,8 @@ export interface SaveSummary {
 }
 
 export async function saveGame(state: GameState): Promise<void> {
+  ensureCoaches(state);
+  ensureOwners(state);
   state.updatedAt = Date.now();
   // The JSON round trip is still here on purpose: it strips anything the
   // structured-clone algorithm would choke on before it reaches the store.
@@ -137,6 +141,10 @@ function migrate(state: GameState): GameState {
   ensureScouting(state);
   // Contract office (extend / restructure) writes existing Contract fields
   // only — signingBonus / baseSalary / bonusProrationYears. No backfill.
+  // HC / OC / DC + owner: child-stream backfill. Copies Team.coach dials
+  // onto the people so play-calling does not move on an old save.
+  ensureCoaches(state);
+  ensureOwners(state);
 
   if (state.version === STATE_VERSION) return state;
   state.version = STATE_VERSION;
