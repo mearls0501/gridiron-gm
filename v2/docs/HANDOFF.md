@@ -5,6 +5,69 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-07 — Lane D: HC / OC / DC + owner (branch `cursor/d-people-coaches-owner-43e7`)
+
+Packet D / Phase 2 people layer. Base `main` @ `f66492a`. Coaches are no
+longer seven numbers on `Team`. Each club has named HC/OC/DC with
+contracts and schemes, plus an owner whose patience makes
+`firingEnabled` real.
+
+**Diagnosis.** Confirmed. `Team.coach` was a generated dial object —
+no OC/DC, no contracts, no owner. `firingEnabled` migrated off and
+gated nothing. `/staff` did not exist. `effectiveCoach` read only
+`Team.coach` + the call sheet.
+
+**Change.** `lib/core/coaches.ts` and `lib/core/owner.ts`. Additive
+`Team.coaches` / `Team.owner` / `coachMarket` / `nextCoachId`. New
+saves get people in `saveGame`; old saves get them in `migrate`.
+People copy `Team.coach` dials on first fill so play-calling does
+not move until a hire or a poach. `effectiveCoach` reads OC
+passBias / HC aggression / DC shadowTendency when those dials
+differ. Child streams only: `(seed, season, week, 'coaches')` and
+`(... 'owner')`. `/staff` shows HC/OC/DC + owner; user can
+fire/hire; CPU clubs are viewable. `runCoachCarousel` poaches the
+user OC into a vacant CPU HC chair (user slot stays empty).
+
+**Proposed defaults (Matt).** Owner patience 0.35–0.80 (mean 0.55).
+Win targets: contend 10 / retool 8 / rebuild 6. No firing before
+two seasons. Fire heat = `62 + patience * 28` (impatient 72,
+patient 84). Rebuild years 0–1 add heat at 3× not 8×. Coach cash
+(not cap): HC 4–6 yr / $8–16M; OC 3–4 / $2.5–7M; DC 3–4 /
+$2.5–6.5M. No morale. No LLM.
+
+**Leftover.** Shell has no Staff chip — `/staff` is a URL until the
+orchestrator wires it. Carousel / GM firing do not run on phase
+advance (`offseason/index.ts` is orchestrator-owned). Heat is
+computed; `wouldFire` is the signal.
+
+**Phase hook (orchestrator).**
+1. Shell nav: `{ href: "/staff", label: "Staff" }` next to Front Office.
+2. Offseason: `runCoachCarousel(state)` during `offseason-recap`
+   after history is written (or `offseason-tag`). Child stream;
+   user club is interactive-only.
+3. Optional: if `ownerJobView(state, userTeamId).wouldFire`, end
+   the franchise / force a new GM. Do not call that without a
+   product decision — the page already shows the seat.
+
+**Untouched.** `staff.ts`, `frontOffice.ts`, `sim/game.ts`,
+`contracts.ts`, `freeAgency.ts`, `draft.ts`, `scouting.ts`,
+`Shell.tsx`, `offseason/index.ts`, `docs/baselines.json`,
+`newGame.ts` / `generate.ts` (parent stream). `Team.coach` not
+renamed or retyped.
+
+Regression: `lib/core/coaches.test.ts` (gate `peoplecheck`) and
+`lib/core/owner.test.ts` (gate `ownercheck`).
+
+### Gate (`nproc`=4)
+
+Pending — running after this note.
+
+### Browser
+
+Pending — New Franchise → `/staff` after the gate.
+
+---
+
 ## 2026-09-07 — post-Wave-1 `gate:full` default (aborted; 5-seed still outstanding)
 
 Orchestrator stabilize after Wave 1 (#51–#55). Docs only. No engine, harness,

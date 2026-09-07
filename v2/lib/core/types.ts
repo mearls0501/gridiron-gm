@@ -344,6 +344,14 @@ export interface Team {
    * older saves load. Cleared after the week. CPU clubs never write one.
    */
   callSheet?: CallSheet;
+  /**
+   * Named HC / OC / DC. Missing = older save; `ensureLeaguePeople` fills it
+   * from `coach` so the existing dial object stays the sim source until a
+   * hire actually replaces a coordinator.
+   */
+  coaches?: CoachingStaff;
+  /** Club owner. Missing = older save; backfilled on load. */
+  owner?: Owner;
 }
 
 /**
@@ -393,6 +401,49 @@ export interface Coach {
    * matchup fall where the formation puts it.
    */
   shadowTendency: number;
+}
+
+export type CoachRole = "hc" | "oc" | "dc";
+
+/**
+ * A coach as a person — contract, scheme, and the same dials `Coach` already
+ * carries. Generated onto `Team.coaches`; `Team.coach` is unchanged.
+ */
+export interface CoachPerson {
+  id: number;
+  name: string;
+  role: CoachRole;
+  /** Club they work for. null = unemployed (on `coachMarket`). */
+  teamId: number | null;
+  offense: number;
+  defense: number;
+  development: number;
+  aggression: number;
+  passBias: number;
+  shadowTendency: number;
+  /** Scheme id from `SCHEMES`. Display / hire-fit; does not write `offScheme`. */
+  scheme: string;
+  years: number;
+  yearsRemaining: number;
+  /** Annual cash. Not a cap charge. */
+  salary: number;
+  hiredSeason: number;
+}
+
+export interface CoachingStaff {
+  hc?: CoachPerson;
+  oc?: CoachPerson;
+  dc?: CoachPerson;
+}
+
+/**
+ * Owner of a club. Patience and heat are proposed defaults — flagged for Matt.
+ * `firingEnabled` gates whether heat can actually cost the GM the chair.
+ */
+export interface Owner {
+  name: string;
+  /** 0 = short fuse, 1 = very patient. Generated in ~0.35–0.80. */
+  patience: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -616,7 +667,7 @@ export type PauseEvent = "tradeOffer" | "injuredStarter" | "milestone";
  * whether they happen.
  */
 export interface GameSettings {
-  /** The owner can fire you (bites once the owner model lands). */
+  /** The owner can fire you. Heat is always computed; this flag is the bite. */
   firingEnabled: boolean;
   /** Which events stop a Sim-ahead early. */
   pauseOn: Record<PauseEvent, boolean>;
@@ -1027,6 +1078,13 @@ export interface GameState {
   /** Offers currently sitting in front of the user. */
   tradeOffers?: TradeOffer[];
   nextTradeId?: number;
+  /**
+   * Unemployed coaches. Missing = none, so older saves load.
+   * Filled when the people layer is backfilled.
+   */
+  coachMarket?: CoachPerson[];
+  /** Next `CoachPerson.id`. Missing = start at 1000 on backfill. */
+  nextCoachId?: number;
 
   history: SeasonHistory[];
   records: RecordBook;

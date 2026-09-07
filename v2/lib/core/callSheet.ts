@@ -1,3 +1,4 @@
+import { peopleCoachDials, sameCoachDials } from "./coaches";
 import { BoxScore, CallSheet, Coach, Game, GameState, SnapCall, Team } from "./types";
 
 /**
@@ -34,12 +35,17 @@ export interface SimOpts {
 }
 
 export function effectiveCoach(team: Team): Coach {
+  const people = peopleCoachDials(team);
+  const base =
+    people && !sameCoachDials(people, team.coach)
+      ? { ...team.coach, ...people }
+      : team.coach;
   const sheet = team.callSheet;
-  if (!sheet || (sheet.passLean == null && sheet.aggression == null)) return team.coach;
+  if (!sheet || (sheet.passLean == null && sheet.aggression == null)) return base;
   return {
-    ...team.coach,
-    passBias: sheet.passLean ?? team.coach.passBias,
-    aggression: sheet.aggression ?? team.coach.aggression,
+    ...base,
+    passBias: sheet.passLean ?? base.passBias,
+    aggression: sheet.aggression ?? base.aggression,
   };
 }
 
@@ -93,11 +99,12 @@ export function boxAttempts(box: BoxScore, teamId: number): { passAtt: number; r
 
 export function callSheetView(team: Team) {
   const sheet = team.callSheet;
+  const people = peopleCoachDials(team);
   return {
     passLean: sheet?.passLean,
     aggression: sheet?.aggression,
     hasSnaps: (sheet?.snaps?.length ?? 0) > 0,
-    coachPassBias: team.coach.passBias,
-    coachAggression: team.coach.aggression,
+    coachPassBias: people?.passBias ?? team.coach.passBias,
+    coachAggression: people?.aggression ?? team.coach.aggression,
   };
 }
