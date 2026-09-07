@@ -14,6 +14,7 @@ import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatu
 import { clearInactives, declareGamedayInactives } from "../inactives";
 import { clearCallSheets, userSimOpts } from "../callSheet";
 import { resolveWaivers, settleWaivers } from "../waivers";
+import { runPsychology } from "../psychology";
 
 /**
  * Share of in-season trade activity by distance from the deadline, derived
@@ -47,6 +48,7 @@ export function startRegularSeason(state: GameState): void {
     season: state.season, week: 1, kind: "system",
     text: `The ${state.season} season is underway.`,
   });
+  runPsychology(state);
 }
 
 /** Simulate every unplayed game in the current week. */
@@ -161,9 +163,11 @@ export function advance(state: GameState): string {
         state.phase = "playoffs";
         state.playoffs = initPlayoffs(state);
         state.week = 19;
+        runPsychology(state);
         return "Regular season complete — playoff field set";
       }
       state.week += 1;
+      runPsychology(state);
       return `Week ${state.week - 1} complete`;
     }
 
@@ -179,6 +183,7 @@ export function advance(state: GameState): string {
         return "Champion crowned";
       }
       state.week += 1;
+      runPsychology(state);
       return `${before} round complete`;
     }
 

@@ -8,6 +8,8 @@ import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { decodeSave, encodeSave } from "../store/codec";
 import { buildBriefing } from "./season/briefing";
+import { advance, startRegularSeason } from "./season/engine";
+import { advanceOffseason } from "./offseason";
 import {
   HOLDOUT_CAP,
   TRADE_CAP,
@@ -153,6 +155,52 @@ function stripPsych(st: GameState): GameState {
     assert.ok(briefing.reviewItems.some((r) => /contract-year/i.test(r)));
   }
   ok("contract-year is a flag + briefing note, not a sim hook");
+}
+
+{
+  const st = newGame({ seed: 42 });
+  assert.equal(st.psychTick === undefined, true);
+  startRegularSeason(st);
+  assert.equal(st.psychTick?.season, st.season);
+  assert.equal(st.psychTick?.week, 1, "startRegularSeason evaluates week 1");
+  const afterStart = st.rngState;
+  runPsychology(st);
+  assert.equal(st.rngState, afterStart, "hook does not draw the parent stream");
+
+  const tick = st.psychTick!;
+  const weekBefore = st.week;
+  advance(st);
+  assert.equal(st.week, weekBefore + 1);
+  assert.equal(st.psychTick?.week, st.week, "advance reticks after the week increments");
+  assert.notEqual(st.psychTick!.week, tick.week);
+
+  const parent = st.rngState;
+  delete st.psychTick;
+  runPsychology(st);
+  assert.equal(st.rngState, parent, "parent rngState unchanged across runPsychology");
+  const census = psychologyCensus(st);
+  assert.ok(
+    census.holdouts + census.tradeRequests + census.contractYear > 0,
+    "demands or contract-year notes can appear after a week advance",
+  );
+  ok("season hooks: startRegularSeason + advance retick; parent still");
+}
+
+{
+  const st = newGame({ seed: 31 });
+  runPsychology(st);
+  const first = st.psychTick!;
+  st.phase = "offseason-final";
+  advanceOffseason(st);
+  assert.equal(st.phase, "preseason");
+  assert.equal(st.week, 0);
+  assert.equal(st.psychTick?.season, st.season);
+  assert.equal(st.psychTick?.week, 0);
+  assert.ok(st.psychTick!.season !== first.season, "camp finalize reticks the new season");
+  const parent = st.rngState;
+  runPsychology(st);
+  assert.equal(st.rngState, parent, "camp hook does not draw the parent stream");
+  ok("offseason-final camp hook evaluates week 0 of the new season");
 }
 
 console.log("ok    psychology people layer");
