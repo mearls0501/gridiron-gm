@@ -5,6 +5,108 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-09 — Wave 3.1B: serial gate + tradesPerSeason (main@c2233e1 / #64)
+
+Wave 3.1B. Docs only in this note. Serial runner already on `main` as
+**#64** (`c2233e1`). Draft **#63** left alone — CPU drive charts stay.
+Zero RNG. `baselines.json` not edited. Forbidden constants not touched.
+
+**Diagnosis (from failed Wave 3.1 / bc-c3e02f53).** Confirmed. The
+`retainLog` skip does not move wall time. The 4-core failure is
+`Promise.all` fanning careers/drift/verify/sweep/staff, plus piped
+children that print nothing until exit. `tradesPerSeason` was still
+the pre–PR #4 **7.8**.
+
+**Serial path (shipped).** `--serial` / `GATE_SERIAL=1` /
+`npm run gate:full:serial`. Steps run one at a time; stdout/stderr is
+teed. Long harnesses emit one `progress()` line per season via
+`writeSync(1)`. Default remains `Promise.all` for big boxes.
+
+```bash
+cd v2
+npm run gate:full:serial                          # 5-seed full, serial
+npm run gate:full:serial -- --seeds 1             # one-seed full
+npx tsx scripts/drift.ts 20                       # dedicated tradesPerSeason
+```
+
+### `drift.tradesPerSeason` — MEASURED
+
+Dedicated `npx tsx scripts/drift.ts 20` (default seed **12345**, one
+league, 20 seasons) on this 4-core VM after #64. Live season ticks
+streamed. Wall **5549 s (92.5 min)**. Exit 1 from harness P0s (below),
+not from a hang.
+
+**`##M drift.tradesPerSeason 12.6`**
+
+Per-season trade counts (streamed):
+
+```
+season 2026 (1/20) trades=87
+season 2027 (2/20) trades=55
+season 2028 (3/20) trades=40
+season 2029 (4/20) trades=63
+season 2030 (5/20) trades=1
+season 2031 (6/20) trades=6
+season 2032–2045 (7–20/20) trades=0 every year
+```
+
+Sum 252 / 20 = **12.6**. Baseline `min: 5` passes. Harness internal
+band `2–20` also passes at the 20-season mean (a 1-season reading of
+87 would fail that band). NFL target **60–120** (`nfl-reference.md`
+§1) is still open.
+
+**Leftover — do not tune trades in this packet.** Volume is
+front-loaded (years 1–4 sit at 40–87, in the real-league band) and
+then dies: 1, 6, then fourteen straight zeros. The stale 7.8 was a
+shorter/earlier window before cutdown + deadline (#4) and before this
+collapse was visible. A volume knob that lifts the mean without
+explaining why the market goes silent after season 5 is the same
+mistake as chasing 7.8.
+
+Other `##M` from the same run (report only; do not chase):
+
+| metric | reads | gate band | note |
+|---|---|---|---|
+| `drift.tradesPerSeason` | **12.6** | ≥ 5 | the remeasure |
+| `drift.passRecordSeasons` | 0 | ≤ 3 | still the accepted 0/20 |
+| `drift.medianPayrollPct` | 92.6 | 90.6 ±6 | inside |
+| `drift.playerWeeksLost` | 3041 | 2158 ±700 | above band |
+| `drift.ovrDrift` | −4.13 | −0.52 ±1.5 | deflation |
+| `drift.eliteGrowthRatio` | 0.74 | 1.04 ±0.5 | inside |
+| `drift.saveGrowthMbPerSeason` | 0.462 | ≤ 0.45 | just over |
+| `drift.saveMbAtEnd` | 12.02 | ≤ 10.5 | over (save 3.2 → 12.0 MB) |
+| `drift.capBustSeasons` | 2 | ≤ 0 | peak 31% in 2030–31 |
+| `drift.p0Failures` | 4 | ≤ 0 | harness exit 1 |
+| `drift.minPayrollSeasonsUnder55` | 0 | ≤ 0 | ok |
+
+Harness P0 text: OVR −4.1 over 20; 34-year-olds below 27-year-olds in
+only 7/20 seasons; 2 cap-bust seasons; save growth +0.46 MB/season.
+
+### 5-seed panel
+
+**Still outstanding.** Drift 20 alone is 92 min on this box. Five
+panel seeds of drift would be ~7.5 h before careers / verify / sweep /
+staff. Do not retry `npm run gate:full:serial` (default 5 seeds) on 4
+cores. Needs a bigger machine, or a much longer run.
+
+Optional one-seed `npm run gate:full:serial -- --seeds 1` was started
+after the dedicated drift (streams). Not required for the
+tradesPerSeason remeasure. Cheap unit steps already printed `ok` live.
+No 5-seed FAIL/ok table.
+
+### Wave 3.1 leftovers closed / still open
+
+| item | status |
+|---|---|
+| Serial gate so 4-core harnesses can finish | **shipped #64** |
+| Live season/seed progress | **shipped** |
+| `tradesPerSeason` remeasure | **12.6** (seed 12345 / 20 seasons) |
+| Trade-volume collapse after ~season 5 | **leftover — do not tune here** |
+| 5-seed panel / re-lock | still needs a bigger box |
+| Draft #63 CPU `retainLog` skip | left draft; ~0 speed win |
+
+---
+
 ## 2026-09-09 — Wave 3.2: Playwright desks (branch `cursor/wave32-e2e-desks-2ff7`)
 
 Wave 3.2 / frontend e2e only. `/staff`, `/history`, `/play`, `/finances`
