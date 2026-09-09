@@ -29,7 +29,7 @@
  *
  *   npx tsx scripts/staffcheck.ts [seasons]
  */
-import { emit, emitAll, seedFor } from "./metrics";
+import { emit, emitAll, progress, seedFor } from "./metrics";
 import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { advanceOffseason, developPlayer, isOffseason } from "../lib/core/offseason";
@@ -81,8 +81,8 @@ function run(
     for (const p of state.players) {
       if (p.ovr > p.pot + 0.5 || p.ceiling > p.pot + 0.5) overPot++;
     }
+    progress(`  ${label} season ${s + 1}/${SEASONS}`);
   }
-  void label;
   return { state, overPot };
 }
 
