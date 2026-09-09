@@ -1,9 +1,10 @@
 # Gridiron GM — Roadmap
 
 Standing roadmap. Read after `AGENTS.md`, before `HANDOFF.md`. Updated
-2026-09-04 against `main@a62d235` (PR #49). The engine is the mature half; the
-franchise half — people, contracts you can work, a game you can watch — is what
-remains. Dispatch rules for parallel agents are in `ORCHESTRATION.md`.
+2026-09-09 against `main@c2233e1` (PR #64 serial gate). The engine is the
+mature half; the franchise half — people, contracts you can work, a game you
+can watch — is what remains. Dispatch rules for parallel agents are in
+`ORCHESTRATION.md`.
 
 ## Where we are
 
@@ -29,7 +30,7 @@ as cap-stuck residue).
 |---|---|---|---|---|
 | `leverage.wrongSign` | 1 | ≤ 0 | non-defect | OT.sta knife-edge probe rounding to 0.0. Do not invent a leverage fix. |
 | `statcheck.wr10RecYds` | 1018 | 1208 ±97 | non-defect | Single-seed fast tier only; 1,136 on the panel. |
-| `drift.tradesPerSeason` | 7.8* | 60–120 | STALE | *Predates PR #4. 2026-09-07: stock `gate:full` aborted at 92 min (careers/drift still seed 1); standalone `drift.ts 20` killed at 173 min / 91 min CPU with no emit. Remeasure outstanding — too slow post-PBP on 4 cores. |
+| `drift.tradesPerSeason` | **12.6** | 60–120 | measured | Wave 3.1B, `drift.ts 20` seed 12345, 92.5 min wall, live ticks. Years 1–4: 87/55/40/63; then 1, 6, then 0×14. Mean 12.6 passes `min: 5` and the harness 2–20 band; NFL 60–120 still open because the market dies after ~season 5. **Do not tune volume in a leftover packet.** |
 | `careers.survivalMae` | 5.94 | < 4 | open | R1–R3 over-survive. Cannot close from a late-round hold. |
 | `careers.careerLenMae` | 0.57 | < 0.5 | open | Residue is R1/R2/R4 one–two-season careers; must not be shortened. |
 | `conditions.coldPointsDelta` | −0.5 | −2.4 | unconfirmed | Single seed, 6 seasons. Check on a matched-seed baseline first. |
@@ -37,13 +38,13 @@ as cap-stuck residue).
 | `drift.passRecordSeasons` | 0/20 | 1–3/20 | accepted | Leader averages 4,742 vs 5,477 record. Reopen only with a pass-volume mechanism that leaves the mix alone. |
 | QB availability 2nd moment | 41% at 16+ | 46% | accepted | Needs a per-position duration table — design change. |
 
-**Standing prerequisite:** run the five-seed panel re-lock
-(`npm run gate:full -- --seeds 5`) on a real machine before any further tuning.
-It has not completed since the sprint. Stock `gate:full` **is** already 5
-seeds. Two 4-core attempts (explicit `--seeds 5`, then stock default) aborted
-with no FAIL/ok table — careers/drift still on seed 1 after ~90 min. Do not
-retry 5-seed on 4 cores; Wave 1 PBP emit is the suspected extra cost on long
-sims. See HANDOFF 2026-09-07.
+**Standing prerequisite:** five-seed panel re-lock still needs a **bigger
+box** (or a much longer run). Serial path is shipped (`#64`,
+`npm run gate:full:serial`). Drift 20 alone is 92 min on 4 cores; five
+panel seeds of the long harnesses will not finish in ~2–3 h. On this
+class of VM use `npm run gate:full:serial -- --seeds 1` or a dedicated
+`npx tsx scripts/drift.ts 20`. Do not retry stock `Promise.all`
+`gate:full` on 4 cores. See HANDOFF 2026-09-09 Wave 3.1B.
 
 ## What is missing
 
@@ -79,7 +80,9 @@ the contract: one task, one branch, one file cluster, gate green, HANDOFF note.
 
 ### Phase 0 — stabilize and close the published rules (days)
 
-Panel re-lock. Re-measure `tradesPerSeason`, retire stale AGENTS.md rows. Fix
+Panel re-lock on a machine that can finish 5 serial seeds. `tradesPerSeason`
+remeasured at **12.6** (Wave 3.1B); leftover is the post–season-5 collapse,
+not the old 7.8. Retire stale AGENTS.md rows. Fix
 the restructure advice text. Rookie slot scale and the compensatory-pick
 formula (published CBA math, no calibration argument). `askingPrice` onto the
 club's belief. Year-2 waiver desk ~267 is the #41/#49 cap-stuck residue —
