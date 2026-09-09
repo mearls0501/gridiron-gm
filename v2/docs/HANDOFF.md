@@ -68,11 +68,10 @@ touch). Built `next start` @ `:3000`, `PW_CHROMIUM` = full Chrome
 - `/draft` **259** picks + Comp label
 - History archive after season 1
 
-`node scripts/e2e-interact.mjs` — first run had 1 inherited FAIL:
-Medical Check disabled in the preseason film window (combine-only
-since the calendar-window packet). Control still present. War-room
-block now notes a closed window instead of failing; enabled path
-still asserts a grade. Re-run in flight.
+`node scripts/e2e-interact.mjs` — **INTERACTION TEST PASSED**
+(0 console errors). Medical Check present but closed in film
+(note). Draft board **256** picks + Comp. Existing scout / war
+room / one pick / front-office sliders still green.
 
 ---
 
