@@ -281,6 +281,9 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
 
   const home = state.teams[game.homeId];
   const away = state.teams[game.awayId];
+  const userIn = game.homeId === state.userTeamId || game.awayId === state.userTeamId;
+  // CPU / harness games skip the snap log. Allocation only — no RNG.
+  const retainLog = opts?.retainLog ?? userIn;
 
   const mkCtx = (team: Team): Ctx => {
     const starters = buildStarters(state, team, byId);
@@ -630,6 +633,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
     e: Omit<PlayEvent, "q" | "clock" | "homeScore" | "awayScore"> &
       Partial<Pick<PlayEvent, "q" | "clock" | "homeScore" | "awayScore">>,
   ) => {
+    if (!retainLog) return;
     const ev: PlayEvent = {
       q: quarter,
       clock: Math.max(0, Math.round(clock)),
@@ -1909,8 +1913,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
   );
 
   const inactiveIds = [...(home.inactives ?? []), ...(away.inactives ?? [])];
-  const drives = buildDrives(playLog);
-  const userIn = game.homeId === state.userTeamId || game.awayId === state.userTeamId;
+  const drives = retainLog ? buildDrives(playLog) : [];
   return {
     homeScore,
     awayScore,
@@ -1921,7 +1924,7 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
       quarters: { home: ctxHome.quarterPoints, away: ctxAway.quarterPoints },
       scoringPlays,
       players,
-      drives,
+      ...(retainLog ? { drives } : {}),
       ...(userIn && playLog.length ? { plays: playLog } : {}),
       ...(inactiveIds.length ? { inactives: inactiveIds } : {}),
     },

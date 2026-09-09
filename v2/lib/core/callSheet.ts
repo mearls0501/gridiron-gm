@@ -32,6 +32,12 @@ export interface SimOpts {
    * `"auto"` (or a short list) falls through to choosePass.
    */
   playCaller?: (info: SnapInfo) => SnapCall;
+  /**
+   * Keep the snap log, drive list, and emitPlay fan-out.
+   * Default: the user club is in the game (`/game` and `/play`).
+   * CPU / bulk / harness games skip the allocation. Observation only — no RNG.
+   */
+  retainLog?: boolean;
 }
 
 export function effectiveCoach(team: Team): Coach {
