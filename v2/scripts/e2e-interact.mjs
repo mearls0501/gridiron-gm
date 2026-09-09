@@ -142,13 +142,18 @@ if (await room.count()) {
   } else fail("no tier buttons in the war room");
 
   const med = page.getByRole("button", { name: /Medical Check/i }).first();
-  if ((await med.count()) && (await med.isEnabled())) {
+  if (!(await med.count())) fail("no Medical Check control in the war room");
+  else if (await med.isEnabled()) {
     await med.click();
     await page.waitForTimeout(600);
     const t3 = await text();
     if (/Medical\s*\n?\s*(clean|minor|moderate|major)/.test(t3)) ok("medical check reveals a grade");
     else fail("medical grade did not reveal in the war room");
-  } else fail("medical check unavailable in the war room");
+  } else {
+    // Calendar windows: medicals are combine-only; preseason is film. Presence
+    // is the smoke — running it here would be a flake, not a desk failure.
+    console.log("  note  Medical Check present but closed in this window (not a fail)");
+  }
 } else fail("no Room button on the draft page");
 
 // ---- Full season into the draft, then make a pick ---------------------------

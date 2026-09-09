@@ -55,8 +55,24 @@ headless-shell build.
 
 ### Gate / browser
 
-Pending first run on this branch. Scripts + HANDOFF only — no sim
-harness should move.
+Scripts + HANDOFF only. Fast sim harnesses not re-run (no core
+touch). Built `next start` @ `:3000`, `PW_CHROMIUM` = full Chrome
+(`/usr/local/bin/google-chrome`).
+
+`node scripts/e2e.mjs` — **E2E PASSED**
+
+- `/staff` / `/history` / `/finances` Extend(25)+Restructure(25), one Restructure click
+- holdout: note (no holdout this seed)
+- `/play` last-snap + live PBP
+- Drive Chart + PBP on the box
+- `/draft` **259** picks + Comp label
+- History archive after season 1
+
+`node scripts/e2e-interact.mjs` — first run had 1 inherited FAIL:
+Medical Check disabled in the preseason film window (combine-only
+since the calendar-window packet). Control still present. War-room
+block now notes a closed window instead of failing; enabled path
+still asserts a grade. Re-run in flight.
 
 ---
 
