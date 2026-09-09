@@ -6,15 +6,28 @@
  * a console error, or renders Next's error boundary. This is the check that
  * separates "it compiles" from "a person can play it".
  *
+ * Wave 3.2 also smokes the Wave 1/2 desks: /staff, /history, /play last-snap
+ * + PBP, /finances Extend/Restructure, a soft holdout→finances path, and
+ * post-FA draft pick count in the mid-260s.
+ *
  *   node scripts/e2e.mjs [baseUrl]
  */
 import { chromium } from "playwright";
+import {
+  checkDraftBoard,
+  checkFinancesDesk,
+  checkHistoryDesk,
+  checkHoldoutPath,
+  checkPlayLastSnap,
+  checkStaffDesk,
+} from "./e2e-desks.mjs";
 
 const BASE = process.argv[2] ?? "http://127.0.0.1:3000";
 
 const ROUTES = [
   "/", "/roster", "/week", "/depth-chart", "/schedule", "/standings", "/stats",
-  "/records", "/playoffs", "/free-agency", "/draft", "/finances", "/league", "/saves",
+  "/records", "/history", "/playoffs", "/free-agency", "/draft", "/finances",
+  "/staff", "/play", "/league", "/saves",
 ];
 
 let failures = 0;
@@ -123,8 +136,8 @@ async function main() {
   // and hid League. Wrap so every NAV label is fully on-screen.
   const NAV_LABELS = [
     "Hub", "This Week", "Roster", "Depth Chart", "Schedule", "Standings",
-    "Stats", "Records", "Playoffs", "Free Agency", "Trades", "Draft",
-    "Finances", "Front Office", "League",
+    "Stats", "Records", "History", "Playoffs", "Free Agency", "Trades", "Draft",
+    "Finances", "Front Office", "Staff", "League",
   ];
   for (const width of [1024, 768]) {
     await page.setViewportSize({ width, height: 800 });
@@ -150,6 +163,15 @@ async function main() {
 
   await visitAll("[preseason]");
 
+  const report = {
+    fail,
+    ok: (m) => console.log(`  ok    ${m}`),
+  };
+  await checkStaffDesk(page, BASE, report);
+  await checkHistoryDesk(page, BASE, report);
+  await checkFinancesDesk(page, BASE, report, { click: true });
+  await checkHoldoutPath(page, BASE, report);
+
   // ---- Start the season -----------------------------------------------------
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
   const startSeason = page.getByRole("button", { name: /Start the Season/i });
@@ -163,6 +185,8 @@ async function main() {
   await checkPage("[start season] /");
   console.log("  ok    season started");
 
+  let playSmoked = await checkPlayLastSnap(page, BASE, report);
+
   await page.goto(BASE + "/week", { waitUntil: "networkidle" });
   await page.waitForTimeout(400);
   const weekTxt = await page.evaluate(() => document.body.innerText);
@@ -173,6 +197,8 @@ async function main() {
   }
 
   // Sit leftover: Hub Sim ▾ stayed open after click-away and Esc.
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(300);
   const simMenuBtn = page.getByRole("button", { name: /^Sim/ }).filter({ hasNotText: /Round|Week/ });
   if (!(await simMenuBtn.count())) fail("hub has no Sim menu after season start");
   else {
@@ -201,6 +227,9 @@ async function main() {
   // ---- Play the regular season ---------------------------------------------
   let weeks = 0;
   for (let i = 0; i < 25; i++) {
+    if (!playSmoked) playSmoked = await checkPlayLastSnap(page, BASE, report);
+    await page.goto(BASE + "/", { waitUntil: "networkidle" });
+    await page.waitForTimeout(200);
     const btn = page.getByRole("button", { name: /^(Play Week|Advance Week)/ });
     if (!(await btn.count())) break;
     await btn.click();
@@ -245,6 +274,10 @@ async function main() {
     const txt = await page.evaluate(() => document.body.innerText);
     if (!/Scoring|Passing|Rushing/i.test(txt)) fail("box score has no stat sections");
     else console.log("  ok    box score renders");
+    if (!/Drive Chart/i.test(txt)) fail("box score missing drive chart");
+    else console.log("  ok    box score has drive chart");
+    if (/Play by Play/i.test(txt)) console.log("  ok    box score has play-by-play");
+    else console.log("  note  box score has no snap log (CPU game — drive chart only)");
   } else {
     fail("no game links found on the schedule");
   }
@@ -270,9 +303,16 @@ async function main() {
 
   // ---- Offseason ------------------------------------------------------------
   let steps = 0;
+  let draftBoardChecked = false;
   for (let i = 0; i < 8; i++) {
     await page.goto(BASE + "/", { waitUntil: "networkidle" });
     await page.waitForTimeout(400);
+    if (!draftBoardChecked && await page.getByRole("button", { name: /Finish the Draft/i }).count()) {
+      await checkDraftBoard(page, BASE, report);
+      draftBoardChecked = true;
+      await page.goto(BASE + "/", { waitUntil: "networkidle" });
+      await page.waitForTimeout(300);
+    }
     const btn = page
       .getByRole("button", { name: /Continue to|Finish the Draft|Start the Season|Roster Cutdown|Continue$/i })
       .first();
@@ -297,6 +337,8 @@ async function main() {
   const body = await page.evaluate(() => document.body.innerText);
   if (!/Preseason/i.test(body)) fail("did not roll into the next preseason");
   else console.log("  ok    rolled into the next season");
+
+  await checkHistoryDesk(page, BASE, report, { expectArchive: true });
 
   // ---- Prior-season standings from history --------------------------------
   await page.goto(BASE + "/league", { waitUntil: "networkidle" });

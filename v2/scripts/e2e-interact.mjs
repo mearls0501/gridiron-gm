@@ -4,6 +4,14 @@
  * nothing is the failure mode this catches.
  */
 import { chromium } from "playwright";
+import {
+  checkDraftBoard,
+  checkFinancesDesk,
+  checkHistoryDesk,
+  checkHoldoutPath,
+  checkPlayLastSnap,
+  checkStaffDesk,
+} from "./e2e-desks.mjs";
 const BASE = process.argv[2] ?? "http://127.0.0.1:3000";
 let failures = 0;
 const ok = (m) => console.log("  ok    " + m);
@@ -23,6 +31,12 @@ await page.waitForTimeout(400);
 await page.getByRole("button", { name: /Start Franchise/i }).click();
 await page.waitForTimeout(3000);
 ok("franchise created");
+
+const report = { fail, ok };
+await checkStaffDesk(page, BASE, report);
+await checkHistoryDesk(page, BASE, report);
+await checkFinancesDesk(page, BASE, report, { click: false });
+await checkHoldoutPath(page, BASE, report);
 
 // ---- Depth chart reorder ---------------------------------------------------
 await page.goto(BASE + "/depth-chart", { waitUntil: "networkidle" });
@@ -145,7 +159,11 @@ if (await start.count()) {
   const c = page.getByRole("button", { name: /^Confirm$/ }); if (await c.count()) await c.click();
   await page.waitForTimeout(3500);
 }
+let playSmoked = await checkPlayLastSnap(page, BASE, report);
 for (let i = 0; i < 20; i++) {
+  if (!playSmoked) playSmoked = await checkPlayLastSnap(page, BASE, report);
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(200);
   const b = page.getByRole("button", { name: /^(Play Week|Advance Week)/ });
   if (!(await b.count())) break;
   await b.click(); await page.waitForTimeout(750);
@@ -197,6 +215,9 @@ if (await simTo.count()) {
   } else fail("no Draft button after simming to the user's pick");
 } else {
   console.log("  note  draft room not reachable in this run (phase mismatch)");
+}
+if (await page.getByRole("button", { name: /Finish the Draft|Sim to my pick|^Draft$/i }).count()) {
+  await checkDraftBoard(page, BASE, report);
 }
 
 // ---------------------------------------------------------------------------
