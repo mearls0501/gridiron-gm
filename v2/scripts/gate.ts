@@ -4,9 +4,16 @@
  * One command, one exit code. This is what decides whether a change is allowed
  * to exist — for a person, for a small model grinding on a task, and for CI.
  *
- *   npm run gate         fast tier  (~40s)  — run after every edit
- *   npm run gate:full    full tier  (~5m)   — run before review
- *   npm run gate:lock    re-lock baselines from the current run  (NOT for workers)
+ *   npm run gate              fast tier  (~40s)  — run after every edit
+ *   npm run gate:full         full tier  (~5m on a big box)  — before review
+ *   npm run gate:full:serial  same full tier, one step at a time (4-core VMs)
+ *   npm run gate:lock         re-lock baselines from the current run  (NOT for workers)
+ *
+ * Default still fans steps with Promise.all. On a 4-core box that timeslices
+ * careers/drift/verify/sweep/staff against each other and the piped children
+ * print nothing until they exit. `--serial` or `GATE_SERIAL=1` runs steps
+ * one-by-one and tees each child's stdout/stderr as it arrives. Seed panels
+ * were already sequential inside a step. Zero RNG change.
  *
  * Two things are checked, and a step must survive both:
  *
@@ -26,6 +33,7 @@
  * than no harness at all — which is exactly how the leverage probe stayed broken.
  */
 import { spawn } from "node:child_process";
+import { cpus } from "node:os";
 import { readFileSync, writeFileSync } from "node:fs";
 
 interface Bound {
@@ -141,6 +149,12 @@ const FULL: Step[] = [
 const BASELINES = "docs/baselines.json";
 const mode = process.argv[2] ?? "fast";
 const lock = process.argv.includes("--lock");
+const serialEnv = (process.env.GATE_SERIAL ?? "").toLowerCase();
+const serial =
+  process.argv.includes("--serial") ||
+  serialEnv === "1" ||
+  serialEnv === "true" ||
+  serialEnv === "yes";
 const steps = mode === "full" ? FULL : FAST;
 
 /**
@@ -173,8 +187,13 @@ function once(step: Step, seed: number): Promise<{ code: number; metrics: Record
     const env = seed > 0 ? { ...process.env, GG_SEED: String(seed) } : { ...process.env };
     const child = spawn(step.cmd, step.args, { env });
     let out = "";
-    child.stdout.on("data", (d) => (out += d));
-    child.stderr.on("data", (d) => (out += d));
+    const take = (d: Buffer | string) => {
+      const s = typeof d === "string" ? d : d.toString();
+      out += s;
+      if (serial) process.stdout.write(s);
+    };
+    child.stdout.on("data", take);
+    child.stderr.on("data", take);
     child.on("close", (code) => {
       const metrics: Record<string, number> = {};
       for (const line of out.split("\n")) {
@@ -200,7 +219,8 @@ function once(step: Step, seed: number): Promise<{ code: number; metrics: Record
  * a human whether a tolerance is tight enough to mean anything.
  *
  * Seeds run sequentially inside a step so the whole panel does not land on the
- * machine at once; steps still run in parallel with each other.
+ * machine at once. Steps still run in parallel with each other unless
+ * `--serial` / `GATE_SERIAL=1` is set.
  */
 function run(step: Step): Promise<Result> {
   return new Promise(async (resolve) => {
@@ -211,6 +231,10 @@ function run(step: Step): Promise<Result> {
     let tail = "";
 
     for (const seed of panel) {
+      if (serial) {
+        const label = seed > 0 ? `seed ${seed}` : "default seed";
+        console.log(`\n--- ${step.name}  ${label} ---\n`);
+      }
       const r = await once(step, seed);
       runs.push(r.metrics);
       if (r.code !== 0 && worstCode === 0) { worstCode = r.code; tail = r.tail; }
@@ -252,28 +276,51 @@ function checkBound(name: string, value: number, b: Bound): string | null {
   return null;
 }
 
+function printStepRow(r: Result, failures: string[]): void {
+  const secs = (r.ms / 1000).toFixed(0).padStart(3);
+  const bad = r.step.exitGates && r.code !== 0;
+  console.log(
+    `  ${bad ? "FAIL" : "ok  "}  ${r.step.name.padEnd(12)} ${secs}s  ` +
+    `${Object.keys(r.metrics).length} metrics` +
+    `${r.seeds > 1 ? ` x${r.seeds} seeds` : ""}${bad ? `  (exit ${r.code})` : ""}`
+  );
+  if (bad) {
+    failures.push(`FAIL  ${r.step.name}  exited ${r.code}`);
+    console.log(r.tail.split("\n").map((l) => `        ${l}`).join("\n"));
+  }
+}
+
 (async () => {
-  console.log(`\n=== gate (${mode}) ===\n`);
-  const results = await Promise.all(steps.map(run));
+  const cores = cpus().length;
+  console.log(
+    `\n=== gate (${mode}${serial ? ", serial" : ", parallel"})  ` +
+    `${seeds.length} seed${seeds.length === 1 ? "" : "s"}  ${cores} cores ===\n`
+  );
+  if (!serial && mode === "full" && cores <= 4) {
+    console.log(
+      "note: full tier still fans steps with Promise.all. On this box use\n" +
+      "      npm run gate:full:serial   or   GATE_SERIAL=1 / --serial\n"
+    );
+  }
 
   const failures: string[] = [];
   const seen: Record<string, number> = {};
   const noise: Record<string, number> = {};
 
-  for (const r of results) {
-    const secs = (r.ms / 1000).toFixed(0).padStart(3);
-    const bad = r.step.exitGates && r.code !== 0;
-    console.log(
-      `  ${bad ? "FAIL" : "ok  "}  ${r.step.name.padEnd(12)} ${secs}s  ` +
-      `${Object.keys(r.metrics).length} metrics` +
-      `${r.seeds > 1 ? ` x${r.seeds} seeds` : ""}${bad ? `  (exit ${r.code})` : ""}`
-    );
-    if (bad) {
-      failures.push(`FAIL  ${r.step.name}  exited ${r.code}`);
-      console.log(r.tail.split("\n").map((l) => `        ${l}`).join("\n"));
+  if (serial) {
+    for (const step of steps) {
+      const r = await run(step);
+      printStepRow(r, failures);
+      Object.assign(seen, r.metrics);
+      Object.assign(noise, r.spread);
     }
-    Object.assign(seen, r.metrics);
-    Object.assign(noise, r.spread);
+  } else {
+    const batch = await Promise.all(steps.map(run));
+    for (const r of batch) {
+      printStepRow(r, failures);
+      Object.assign(seen, r.metrics);
+      Object.assign(noise, r.spread);
+    }
   }
 
   if (lock) {

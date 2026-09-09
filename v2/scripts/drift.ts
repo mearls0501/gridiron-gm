@@ -19,7 +19,7 @@ import { leagueStandings } from "../lib/core/season/standings";
 import { capHit } from "../lib/core/select";
 import { GameState, Player, Position, salaryCap } from "../lib/core/types";
 import { encodeSave } from "../lib/store/codec";
-import { emitAll, seedFor } from "./metrics";
+import { emitAll, progress, seedFor } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 20);
 const SEEDS = process.argv.slice(3).map(Number);
@@ -151,6 +151,11 @@ function runOne(seed: number): Snapshot[] {
       // that season on the entry.
       trades: st.log.filter((l) => l.season === season && l.text.startsWith("Trade:")).length,
     });
+    const snap = out[out.length - 1];
+    progress(
+      `  season ${season} (${s + 1}/${SEASONS}) trades=${snap.trades} ` +
+      `saveMB=${snap.saveMB.toFixed(1)} passLd=${snap.passLead}`
+    );
   }
   return out;
 }

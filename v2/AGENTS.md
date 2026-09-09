@@ -118,8 +118,9 @@ say so in `docs/nfl-reference.md` §4.
 ## The gate
 
 ```bash
-npm run gate         # fast tier  — run after every edit
-npm run gate:full    # full tier  — run before asking for review
+npm run gate              # fast tier  — run after every edit
+npm run gate:full         # full tier  — run before asking for review
+npm run gate:full:serial  # same full tier, one harness at a time (4-core VMs)
 ```
 
 One exit code. On failure it prints one line per violation:
@@ -144,12 +145,17 @@ worse than no guard, because it manufactures confidence.
 
 ### Cost, and why the full tier may not run where you are
 
-The gate fans all steps out with `Promise.all` and sweeps a 5-seed panel. On a
-2-core box that is an hour-plus of thrashing and the output stays buffered the
-whole time, so it looks hung when it is merely slow. Check `nproc` first.
+The default gate fans all steps out with `Promise.all` and sweeps a 5-seed
+panel. On a 4-core box that timeslices `careers` / `drift` / `verify` /
+`sweep` / `staff` against each other and the piped children print nothing
+until they exit, so it looks hung when it is merely slow. Check `nproc`
+first. On ≤4 cores use the serial path — steps run one at a time and
+stdout/stderr is teed live. Seed panels were already sequential inside a
+step. `--seeds N` still works.
 
 ```bash
-npm run gate:full -- --seeds 2      # honest on 2 cores
+npm run gate:full:serial            # 5-seed full tier, serial (4-core VMs)
+GATE_SERIAL=1 npm run gate:full -- --seeds 1   # one-seed full, same serial path
 npx tsx scripts/drift.ts 20         # or run the one harness your change risks
 ```
 

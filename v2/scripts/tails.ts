@@ -11,7 +11,7 @@
 import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { GameState, Player } from "../lib/core/types";
-import { emitAll, seedFor } from "./metrics";
+import { emitAll, progress, seedFor } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 12);
 
@@ -208,6 +208,7 @@ for (let s = 0; s < SEASONS; s++) {
     extremes.sSacks = Math.max(extremes.sSacks, line.sacks);
     extremes.sTackles = Math.max(extremes.sTackles, line.tackles);
   }
+  progress(`  season ${st.season} (${seasonsRun}/${SEASONS}) games=${gamesRun}`);
 }
 
 console.log(`\n=== Tail distribution: ${seasonsRun} seasons, ${gamesRun} games ===`);

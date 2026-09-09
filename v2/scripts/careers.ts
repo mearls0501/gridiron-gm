@@ -16,7 +16,7 @@
  * real number does not exist in public data it is left blank rather than
  * invented — an honest gap beats a fake target.
  */
-import { emitAll, seedFor } from "./metrics";
+import { emitAll, progress, seedFor } from "./metrics";
 import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { advanceOffseason, isOffseason } from "../lib/core/offseason";
@@ -181,6 +181,7 @@ for (let s = 0; s < SEASONS; s++) {
   while (isOffseason(st.phase) && o++ < 40) advanceOffseason(st);
   // The draft happens in the offseason, so new rookies appear only now.
   enrol(st, season);
+  progress(`  season ${season} (${s + 1}/${SEASONS}) careers=${careers.size}`);
 }
 
 /**

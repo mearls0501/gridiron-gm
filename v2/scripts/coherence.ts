@@ -20,7 +20,7 @@ import { Rng } from "../lib/core/rng";
 import { simulateGame } from "../lib/core/sim/game";
 import { autoSortDepthChart } from "../lib/core/generate";
 import { refreshOvr } from "../lib/core/ratings";
-import { emitAll, seedFor } from "./metrics";
+import { emitAll, progress, seedFor } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 5);
 
@@ -162,6 +162,7 @@ for (let s = 0; s < SEASONS; s++) {
       }
     }
   }
+  progress(`  season ${st.season} (${s + 1}/${SEASONS}) outliers=${cases.length}`);
 }
 
 function report(kind: Case["kind"], label: string): { pct: number; n: number } {

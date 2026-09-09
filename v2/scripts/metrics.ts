@@ -15,6 +15,26 @@
  * breaks the gate — the gate fails loudly on a missing metric rather than
  * silently skipping it, which is the whole point.
  */
+import { writeSync } from "node:fs";
+
+/**
+ * Immediate line to fd 1. `console.log` is block-buffered when the gate
+ * pipes the child, which is why long harnesses used to print nothing until
+ * exit. Does not touch the sim RNG.
+ */
+export function progress(line: string): void {
+  writeSync(1, line.endsWith("\n") ? line : `${line}\n`);
+}
+
+try {
+  const handle = (process.stdout as NodeJS.WriteStream & {
+    _handle?: { setBlocking?: (v: boolean) => void };
+  })._handle;
+  handle?.setBlocking?.(true);
+} catch {
+  /* some stdout handles cannot flip blocking; progress() still flushes */
+}
+
 export function emit(name: string, value: number): void {
   console.log(`##M ${name} ${Number.isFinite(value) ? value : "NaN"}`);
 }

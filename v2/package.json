@@ -21,6 +21,8 @@
     "savesize": "tsx scripts/savesize.ts 20",
     "gate": "tsx scripts/gate.ts fast",
     "gate:full": "tsx scripts/gate.ts full",
+    "gate:full:serial": "tsx scripts/gate.ts full --serial",
+    "gate:serial": "tsx scripts/gate.ts fast --serial",
     "gate:lock": "tsx scripts/gate.ts full --lock",
     "determinism": "tsx scripts/determinism.ts 2",
     "staff": "tsx scripts/staffcheck.ts 8",
