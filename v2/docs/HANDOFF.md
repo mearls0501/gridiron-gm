@@ -5,6 +5,76 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-09 — Wave 3.2: Playwright desks (branch `cursor/wave32-e2e-desks-2ff7`)
+
+Wave 3.2 / frontend e2e only. `/staff`, `/history`, `/play`, `/finances`
+Extend/Restructure, a soft holdout path, and post-FA draft board size were
+not in the browser suites after Waves 1–2.
+
+**Diagnosis.** Confirmed. `scripts/e2e.mjs` ROUTES and NAV_LABELS still
+listed the pre-#51/#57 set (no History, Staff, or `/play`). Interact
+covered depth chart / roster / FA / scouting / war room / one pick /
+front-office sliders — not the new desks. `/play` last-snap and the
+live log only appear after a snap is called, so a bare `goto` is not
+enough. Holdouts are seed/club dependent; a hard assert would flake.
+
+**Change.** `scripts/e2e-desks.mjs` holds the shared smokes. Both
+`e2e.mjs` and `e2e-interact.mjs` call them.
+
+- `/staff` — Staff / Head Coach / Owner / OC / DC
+- `/history` — Franchise History + Hall of Fame; after season 1, not empty
+- `/play` — Run/Pass a few snaps, assert Last snap + Play by Play or Drive Log. Bye / no-game is a note, retried after Advance Week. Does not commit Play Week.
+- `/finances` — Extend and Restructure present; e2e.mjs clicks one enabled control
+- Holdout — if `/week` shows a holdout link, it must land on `/finances`. No holdout = note, not FAIL
+- Draft — when Finish the Draft is up, pick count must be 248–290 (224 = comps missing). Comp label is a note
+- Box score also wants Drive Chart; PBP is a note on CPU games
+- NAV_LABELS includes History and Staff
+
+**Leftover.** No new unit test. Interact still does not click Extend
+(keeps cap stable for the FA sign). `/play` is not in Shell nav.
+
+**Untouched.** Sim core, `baselines.json`, `Shell.tsx`, offseason hooks,
+`psychology.ts`, `contracts.ts`, `draft.ts`, `hallOfFame.ts`. Zero RNG.
+
+### How to run
+
+From `v2/`, against a **built** server (not `next dev` — chunk 400s):
+
+```bash
+npx next build
+(nohup npx next start -p 3000 &) ; sleep 14
+PW_CHROMIUM=/path/to/full/chrome node scripts/e2e.mjs
+PW_CHROMIUM=/path/to/full/chrome node scripts/e2e-interact.mjs
+```
+
+Optional: `node scripts/e2e.mjs https://gridiron-gm-nine.vercel.app` —
+prefer local `next start` on the branch under test.
+
+Playwright needs `PW_CHROMIUM` pointing at a full Chrome, not the
+headless-shell build.
+
+### Gate / browser
+
+Scripts + HANDOFF only. Fast sim harnesses not re-run (no core
+touch). Built `next start` @ `:3000`, `PW_CHROMIUM` = full Chrome
+(`/usr/local/bin/google-chrome`).
+
+`node scripts/e2e.mjs` — **E2E PASSED**
+
+- `/staff` / `/history` / `/finances` Extend(25)+Restructure(25), one Restructure click
+- holdout: note (no holdout this seed)
+- `/play` last-snap + live PBP
+- Drive Chart + PBP on the box
+- `/draft` **259** picks + Comp label
+- History archive after season 1
+
+`node scripts/e2e-interact.mjs` — **INTERACTION TEST PASSED**
+(0 console errors). Medical Check present but closed in film
+(note). Draft board **256** picks + Comp. Existing scout / war
+room / one pick / front-office sliders still green.
+
+---
+
 ## 2026-09-07 — Psychology season hooks after #60
 
 Wired `runPsychology(state)` in `startRegularSeason` (after week is set to 1), in `advance()` after the week increments (regular `week += 1` / playoff `week += 1` / regular→playoffs `week = 19`), and during `offseason-final` (camp) in `enterCampAfterDraft` plus after `finalizeOffseason` (new season week 0). Child stream stays inside `runPsychology`; parent RNG untouched.

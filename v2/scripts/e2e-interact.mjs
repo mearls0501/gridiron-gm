@@ -4,6 +4,14 @@
  * nothing is the failure mode this catches.
  */
 import { chromium } from "playwright";
+import {
+  checkDraftBoard,
+  checkFinancesDesk,
+  checkHistoryDesk,
+  checkHoldoutPath,
+  checkPlayLastSnap,
+  checkStaffDesk,
+} from "./e2e-desks.mjs";
 const BASE = process.argv[2] ?? "http://127.0.0.1:3000";
 let failures = 0;
 const ok = (m) => console.log("  ok    " + m);
@@ -23,6 +31,12 @@ await page.waitForTimeout(400);
 await page.getByRole("button", { name: /Start Franchise/i }).click();
 await page.waitForTimeout(3000);
 ok("franchise created");
+
+const report = { fail, ok };
+await checkStaffDesk(page, BASE, report);
+await checkHistoryDesk(page, BASE, report);
+await checkFinancesDesk(page, BASE, report, { click: false });
+await checkHoldoutPath(page, BASE, report);
 
 // ---- Depth chart reorder ---------------------------------------------------
 await page.goto(BASE + "/depth-chart", { waitUntil: "networkidle" });
@@ -128,13 +142,18 @@ if (await room.count()) {
   } else fail("no tier buttons in the war room");
 
   const med = page.getByRole("button", { name: /Medical Check/i }).first();
-  if ((await med.count()) && (await med.isEnabled())) {
+  if (!(await med.count())) fail("no Medical Check control in the war room");
+  else if (await med.isEnabled()) {
     await med.click();
     await page.waitForTimeout(600);
     const t3 = await text();
     if (/Medical\s*\n?\s*(clean|minor|moderate|major)/.test(t3)) ok("medical check reveals a grade");
     else fail("medical grade did not reveal in the war room");
-  } else fail("medical check unavailable in the war room");
+  } else {
+    // Calendar windows: medicals are combine-only; preseason is film. Presence
+    // is the smoke — running it here would be a flake, not a desk failure.
+    console.log("  note  Medical Check present but closed in this window (not a fail)");
+  }
 } else fail("no Room button on the draft page");
 
 // ---- Full season into the draft, then make a pick ---------------------------
@@ -145,7 +164,11 @@ if (await start.count()) {
   const c = page.getByRole("button", { name: /^Confirm$/ }); if (await c.count()) await c.click();
   await page.waitForTimeout(3500);
 }
+let playSmoked = await checkPlayLastSnap(page, BASE, report);
 for (let i = 0; i < 20; i++) {
+  if (!playSmoked) playSmoked = await checkPlayLastSnap(page, BASE, report);
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(200);
   const b = page.getByRole("button", { name: /^(Play Week|Advance Week)/ });
   if (!(await b.count())) break;
   await b.click(); await page.waitForTimeout(750);
@@ -197,6 +220,9 @@ if (await simTo.count()) {
   } else fail("no Draft button after simming to the user's pick");
 } else {
   console.log("  note  draft room not reachable in this run (phase mismatch)");
+}
+if (await page.getByRole("button", { name: /Finish the Draft|Sim to my pick|^Draft$/i }).count()) {
+  await checkDraftBoard(page, BASE, report);
 }
 
 // ---------------------------------------------------------------------------
