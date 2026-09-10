@@ -5,13 +5,72 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-10 — Wave 3.3: #66 panel frame is wrong
+
+Docs only. Matt / orchestrator, Wave 3.3. The 2026-09-10 Wave 3.1 write-up
+(#66) recorded a real Mac Studio 5-seed FAIL and then framed the nine
+reds as "measured, record only, do not chase." **That frame is wrong.**
+Correct it before any feature lane or tuning packet. Zero RNG.
+`baselines.json` not edited. AGENTS.md not rewritten. Draft **#63**
+left alone. PR **#9** not touched.
+
+**Last green 5-seed panel:** `190cbd0` (2026-08-03). On that panel
+`drift.ovrDrift`, `drift.playerWeeksLost`, `drift.p0Failures`,
+`drift.saveMbAtEnd`, and `statcheck.rb5RushYds` were **inside bands**.
+
+**2026-09-10 Mac Studio panel** (`main@c2233e1` / #64; tip `a1c419a` /
+#66 is the same engine): those five read **−4.31**, **2976**, **3**,
+**11.91**, **1301.80**. Nothing in the AGENTS.md known-open table
+covers them.
+
+Per AGENTS.md: anything not on the known-open list that goes red is a
+**regression**. ~40 engine-touching commits landed between `190cbd0`
+and this panel with no full-tier read. Some broke the franchise arc.
+We do not yet know which.
+
+The nine FAIL lines are **provisional shipped ticks** until the panel
+is green again. Do not move `baselines.json`. Do not treat them as
+accepted leftovers. Do not chase them with a leftover knob.
+
+### Trade collapse is the same event
+
+Dedicated `drift.ts 20` seed 12345 (#65): **87 / 55 / 40 / 63 / 1 / 6 /
+then 0×14**. That is not a volume-tuning leftover. `capBustSeasons`
+peaks **~31% of clubs in 2030–31** — the same seasons the market dies.
+Cap-stuck clubs fail `checkTrade`. Deflated OVR shrinks `evaluate()`
+surplus above `REPLACEMENT_OVR = 58`. "Market dies after season 5" is
+a **symptom** of the franchise-arc break, not a knob.
+
+### Wave 3.3 Packet 1 — in flight
+
+Read-only bisect on Matt's Mac Studio. Find which commit(s) between
+`190cbd0` and `c2233e1` broke the arc. **No feature lanes. No tuning.**
+Nothing else until the bisect reports.
+
+### Serial runner #64 — AGENTS.md ratification still owed
+
+#64 is additive `scripts/` progress + `gate:full:serial` only. It
+should be ratified in AGENTS.md as a **lead edit**. That paragraph is
+still owed; this packet does not rewrite AGENTS.md.
+
+**Untouched.** Engine, `baselines.json`, AGENTS.md, draft **#63**, PR
+**#9**. Forbidden constants not touched.
+
+---
+
 ## 2026-09-10 — Wave 3.1 5-seed panel (Mac Studio, main@c2233e1 / #64)
 
-Wave 3.1 panel. Docs only. Ran on Matt's Mac Studio (14 cores) via
-`npm run gate:full:serial` at `/Users/mearls/Projects/gridiron-gm`
-`main@c2233e1` (#64). Tip at write-up is `ed83fc5` (#65 docs only —
-same engine). Zero RNG. `baselines.json` not edited. Draft **#63**
-left alone. PR **#9** not touched. Forbidden constants not touched.
+Wave 3.1 panel numbers. Docs only. Ran on Matt's Mac Studio (14 cores)
+via `npm run gate:full:serial` at `/Users/mearls/Projects/gridiron-gm`
+`main@c2233e1` (#64). Tip at the original write-up was `ed83fc5` (#65
+docs only — same engine). Zero RNG. `baselines.json` not edited. Draft
+**#63** left alone. PR **#9** not touched. Forbidden constants not
+touched.
+
+**#66 frame superseded.** The original write-up treated the FAIL as
+"measured / record only / do not chase" and the trade collapse as a
+leftover volume question. See Wave 3.3 above. The numbers below are
+unchanged; the verdict is not.
 
 **Command.** `npm run gate:full:serial` (default 5 seeds). Wall
 **~50937 s (~14.1 h)**. Process exit after GATE FAIL.
@@ -20,7 +79,7 @@ left alone. PR **#9** not touched. Forbidden constants not touched.
 the other non-FAIL steps. Careers ok **16527 s ×5**. Staff ok
 **7870 s ×5**. Scout ok.
 
-### GATE FAIL — 9 problems (paste; do not edit baselines)
+### GATE FAIL — 9 problems (provisional shipped ticks; do not edit baselines)
 
 ```
 FAIL  drift exited 1
@@ -37,27 +96,35 @@ FAIL  statcheck.wr10RecYds       1099.60     expected 1208 +/-97  (inherited/non
 Drift exit 1 is from internal p0 guards (save growth, OVR deflation,
 age ordering) — **not** from the trades floor.
 
+Five of these were **inside on `190cbd0`** and are not on the
+known-open list: `ovrDrift` −4.31, `playerWeeksLost` 2976,
+`p0Failures` 3, `saveMbAtEnd` 11.91, `rb5RushYds` 1301.80. Those are
+**regressions**. The nine reds stay until the panel is green again.
+
 ### `drift.tradesPerSeason` — panel
 
 Across the five panel seeds: **12.45 / 12.45 / 14.05 / 12.65 / 14.65**.
 Panel mean **~13.25**. Consistent with the dedicated Wave 3.1B
 `drift.ts 20` seed 12345 reading of **12.6** (#65). Baseline `min: 5`
 passes. NFL target **60–120** (`nfl-reference.md` §1) is still open
-because the market dies after ~season 5. **Do not tune volume in a
-leftover packet.**
+because the market dies after ~season 5. That collapse is a
+**symptom** of the same franchise-arc break (cap bust + OVR
+deflation) — see Wave 3.3. Do not tune volume.
 
-### What the panel does not change
+### How to read the nine reds
 
-- `wr10RecYds` remains the inherited / non-defect family (historically
-  a fast-tier single-seed red; this panel is also red at 1099.60 vs
-  1208 ±97). Do not invent a receiving fix.
-- `tails.milestonesOff` 19.60 vs max 16 — KNOWN-HIGH already in
-  `baselines.json`. Do not tune the engine against the aggregate.
-- `rb5RushYds` 1301.80 is outside 1191 ±95 (prior panel was 1254,
-  inside). Record only. Do not chase with `CARRY_SHARE`.
-- Save growth / save size / OVR deflation / player-weeks match the
-  dedicated 20-season drift (#65): same family, now confirmed on 5
-  seeds. Do not move the locked maxes.
+- `ovrDrift` / `playerWeeksLost` / `p0Failures` / `saveMbAtEnd` /
+  `rb5RushYds` — green on `190cbd0`, not known-open, now red.
+  **Regressions.** Dedicated 20-season drift (#65) is the same family
+  (−4.13 / 3041 / 4 p0s / 12.02). Do not move the locked maxes.
+- `saveGrowthMbPerSeason` 0.46 vs max 0.45 — was **+0.402** and
+  retired green. Now over the lock. Same family as the dedicated 0.462.
+- `wr10RecYds` 1099.60 vs 1208 ±97 — historically the inherited
+  fast-tier family; this panel is also red. One of the nine FAIL
+  ticks, not a license to ignore the panel. Do not invent a receiving
+  fix while Packet 1 is in flight.
+- `tails.milestonesOff` 19.60 vs KNOWN-HIGH max 16 — known-open got
+  worse. Do not tune the engine against the aggregate.
 - Careers / staff / scout / determinism / verify completed ok. No
   new careers MAE claimed.
 
@@ -65,13 +132,14 @@ leftover packet.**
 
 | item | status |
 |---|---|
-| Serial gate so 4-core harnesses can finish | **shipped #64** |
+| Serial gate so 4-core harnesses can finish | **shipped #64** — AGENTS.md ratification still owed |
 | Live season/seed progress | **shipped** |
 | `tradesPerSeason` dedicated | **12.6** (seed 12345 / 20 seasons, #65) |
 | `tradesPerSeason` 5-seed panel | **~13.25** (12.45 / 12.45 / 14.05 / 12.65 / 14.65) |
-| 5-seed panel / re-lock | **MEASURED** Mac Studio 14-core, ~14.1 h, GATE FAIL |
-| Trade-volume collapse after ~season 5 | **leftover — do not tune here** |
-| Panel reds (p0 / save / OVR / weeks / rb5 / wr10 / milestones) | recorded; **do not edit baselines** |
+| 5-seed panel / re-lock | **FAIL** Mac Studio 14-core, ~14.1 h — regressions, not leftovers |
+| Trade-volume collapse after ~season 5 | **symptom** of cap bust + OVR deflation — not a volume leftover |
+| Panel reds (p0 / save / OVR / weeks / rb5 / wr10 / milestones) | provisional shipped ticks until green; **do not edit baselines** |
+| Wave 3.3 Packet 1 (read-only bisect) | **in flight** — no feature lanes / no tuning |
 | Draft #63 CPU `retainLog` skip | left draft; ~0 speed win |
 
 ---
@@ -126,15 +194,19 @@ band `2–20` also passes at the 20-season mean (a 1-season reading of
 87 would fail that band). NFL target **60–120** (`nfl-reference.md`
 §1) is still open.
 
-**Leftover — do not tune trades in this packet.** Volume is
+**The collapse is a symptom, not a leftover knob.** Volume is
 front-loaded (years 1–4 sit at 40–87, in the real-league band) and
 then dies: 1, 6, then fourteen straight zeros. The stale 7.8 was a
 shorter/earlier window before cutdown + deadline (#4) and before this
-collapse was visible. A volume knob that lifts the mean without
-explaining why the market goes silent after season 5 is the same
-mistake as chasing 7.8.
+collapse was visible. `capBustSeasons` peaks ~31% of clubs in
+2030–31, the same seasons trades stop. Cap-stuck clubs fail
+`checkTrade`; deflated OVR shrinks `evaluate()` surplus above
+`REPLACEMENT_OVR = 58`. A volume knob that lifts the mean without
+explaining why the market goes silent is the same mistake as chasing
+7.8. See Wave 3.3 — do not tune volume.
 
-Other `##M` from the same run (report only; do not chase):
+Other `##M` from the same run (same family as the later panel
+regressions; Wave 3.3 Packet 1 bisects them):
 
 | metric | reads | gate band | note |
 |---|---|---|---|
@@ -155,10 +227,9 @@ only 7/20 seasons; 2 cap-bust seasons; save growth +0.46 MB/season.
 
 ### 5-seed panel
 
-**Still outstanding.** Drift 20 alone is 92 min on this box. Five
-panel seeds of drift would be ~7.5 h before careers / verify / sweep /
-staff. Do not retry `npm run gate:full:serial` (default 5 seeds) on 4
-cores. Needs a bigger machine, or a much longer run.
+**Later run on Mac Studio (2026-09-10); FAIL — see Wave 3.3.** Drift 20
+alone is 92 min on this 4-core box. Do not retry
+`npm run gate:full:serial` (default 5 seeds) on 4 cores.
 
 Optional one-seed `npm run gate:full:serial -- --seeds 1` was started
 after the dedicated drift (streams). Not required for the
@@ -172,8 +243,8 @@ No 5-seed FAIL/ok table.
 | Serial gate so 4-core harnesses can finish | **shipped #64** |
 | Live season/seed progress | **shipped** |
 | `tradesPerSeason` remeasure | **12.6** (seed 12345 / 20 seasons) |
-| Trade-volume collapse after ~season 5 | **leftover — do not tune here** |
-| 5-seed panel / re-lock | still needs a bigger box |
+| Trade-volume collapse after ~season 5 | **symptom** of cap bust + OVR deflation (Wave 3.3) |
+| 5-seed panel / re-lock | **FAIL** on Mac Studio 2026-09-10 — see Wave 3.3 |
 | Draft #63 CPU `retainLog` skip | left draft; ~0 speed win |
 
 ---
