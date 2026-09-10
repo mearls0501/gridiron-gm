@@ -1,7 +1,8 @@
 # Gridiron GM — Roadmap
 
 Standing roadmap. Read after `AGENTS.md`, before `HANDOFF.md`. Updated
-2026-09-09 against `main@c2233e1` (PR #64 serial gate). The engine is the
+2026-09-10 against `main@ed83fc5` (PR #65 docs). 5-seed panel measured
+on Mac Studio at `main@c2233e1` (#64; same engine). The engine is the
 mature half; the franchise half — people, contracts you can work, a game you
 can watch — is what remains. Dispatch rules for parallel agents are in
 `ORCHESTRATION.md`.
@@ -12,39 +13,49 @@ can watch — is what remains. Dispatch rules for parallel agents are in
 gate harnesses, 14 unit-test files, zero `TODO` markers.
 
 Landed: live free-agency market (CPU counter-bids, `CONTENDER_PULL 0.16` /
-`GUARANTEE_PULL 0.25`), Poisson verdict for `milestonesOff`, `rb5RushYds`
-green on the panel, CPU private scouting signal + quality scaling, calendar
-windows + 30 private visits replacing scouting points, veteran beliefs on the
-FA market, cutdown + deadline trade markets, late-round career fixes, Season
-Review, standings history, ROY rookies-only. Roster-rules cluster: 90-man camp
-+ cut to 53, IR + 16-man PS, gameday inactives 47/48, waiver wire + claim-chain
-settle, call sheet + Play-the-Game, camp-90 fill, CPU IR replacements,
-franchise-tag phase, fifth-year option, July 15 extension. PRs #46–49:
-playtest-chain fixes (stale prior-year picks + inbox into tag window;
-defenders as receiving leaders; camp copy /53→/90; waiver-hundreds accepted
-as cap-stuck residue).
+`GUARANTEE_PULL 0.25`), Poisson verdict for `milestonesOff`, CPU private
+scouting signal + quality scaling, calendar windows + 30 private visits
+replacing scouting points, veteran beliefs on the FA market, cutdown +
+deadline trade markets, late-round career fixes, Season Review, standings
+history, ROY rookies-only. Roster-rules cluster: 90-man camp + cut to 53,
+IR + 16-man PS, gameday inactives 47/48, waiver wire + claim-chain settle,
+call sheet + Play-the-Game, camp-90 fill, CPU IR replacements, franchise-tag
+phase, fifth-year option, July 15 extension. PRs #46–49: playtest-chain
+fixes (stale prior-year picks + inbox into tag window; defenders as
+receiving leaders; camp copy /53→/90; waiver-hundreds accepted as
+cap-stuck residue). `rb5RushYds` was green on the prior panel (1254);
+the 2026-09-10 Mac Studio panel reads **1301.80** vs 1191 ±95 — record
+only, do not chase.
 
 ### Gate status
 
 | metric | reads | target | status | note |
 |---|---|---|---|---|
 | `leverage.wrongSign` | 1 | ≤ 0 | non-defect | OT.sta knife-edge probe rounding to 0.0. Do not invent a leverage fix. |
-| `statcheck.wr10RecYds` | 1018 | 1208 ±97 | non-defect | Single-seed fast tier only; 1,136 on the panel. |
-| `drift.tradesPerSeason` | **12.6** | 60–120 | measured | Wave 3.1B, `drift.ts 20` seed 12345, 92.5 min wall, live ticks. Years 1–4: 87/55/40/63; then 1, 6, then 0×14. Mean 12.6 passes `min: 5` and the harness 2–20 band; NFL 60–120 still open because the market dies after ~season 5. **Do not tune volume in a leftover packet.** |
-| `careers.survivalMae` | 5.94 | < 4 | open | R1–R3 over-survive. Cannot close from a late-round hold. |
+| `statcheck.wr10RecYds` | **1099.60** | 1208 ±97 | non-defect | Inherited family; Mac Studio 5-seed panel still red (was 1,136 on the prior panel; fast-tier single-seed 1018). Do not invent a receiving fix. |
+| `statcheck.rb5RushYds` | **1301.80** | 1191 ±95 | measured | Mac Studio panel. Prior panel 1254 (inside). Record only; do not chase with `CARRY_SHARE`. |
+| `drift.tradesPerSeason` | **~13.25** | 60–120 | measured | Mac Studio 5-seed panel: 12.45 / 12.45 / 14.05 / 12.65 / 14.65. Dedicated Wave 3.1B `drift.ts 20` seed 12345 still **12.6**. Passes `min: 5`. NFL 60–120 still open because the market dies after ~season 5. Drift exit 1 is p0 guards, not the trades floor. **Do not tune volume in a leftover packet.** |
+| `drift.p0Failures` | **3** | ≤ 0 | measured | Panel. Internal p0s: save growth, OVR deflation, age ordering. Not trades. |
+| `drift.saveGrowthMbPerSeason` | **0.46** | ≤ 0.45 | measured | Panel. Same family as dedicated 0.462. Do not move the locked max. |
+| `drift.saveMbAtEnd` | **11.91** | ≤ 10.5 | measured | Panel. Dedicated 20-season was 12.02. Do not move the locked max. |
+| `drift.playerWeeksLost` | **2976.25** | 2158 ±700 | measured | Panel. Dedicated 20-season was 3041. |
+| `drift.ovrDrift` | **−4.31** | −0.52 ±1.5 | measured | Panel. Dedicated 20-season was −4.13. Deflation. |
+| `careers.survivalMae` | 5.94 | < 4 | open | R1–R3 over-survive. Cannot close from a late-round hold. Careers **ok** on this panel (16527 s ×5); no new MAE claimed. |
 | `careers.careerLenMae` | 0.57 | < 0.5 | open | Residue is R1/R2/R4 one–two-season careers; must not be shortened. |
 | `conditions.coldPointsDelta` | −0.5 | −2.4 | unconfirmed | Single seed, 6 seasons. Check on a matched-seed baseline first. |
-| `tails.milestonesOff` | 16.0 | 0 | open | Truly elevated: 1,900+ rec yds 2.25×, 23+ sacks 3.1×. Do not tune against the aggregate. |
+| `tails.milestonesOff` | **19.60** | 0 | open | Mac Studio panel vs max 16 (KNOWN-HIGH already in `baselines.json`). Prior lock 16.0 (14/15/15/18/18). Do not tune against the aggregate. |
 | `drift.passRecordSeasons` | 0/20 | 1–3/20 | accepted | Leader averages 4,742 vs 5,477 record. Reopen only with a pass-volume mechanism that leaves the mix alone. |
 | QB availability 2nd moment | 41% at 16+ | 46% | accepted | Needs a per-position duration table — design change. |
 
-**Standing prerequisite:** five-seed panel re-lock still needs a **bigger
-box** (or a much longer run). Serial path is shipped (`#64`,
-`npm run gate:full:serial`). Drift 20 alone is 92 min on 4 cores; five
-panel seeds of the long harnesses will not finish in ~2–3 h. On this
-class of VM use `npm run gate:full:serial -- --seeds 1` or a dedicated
-`npx tsx scripts/drift.ts 20`. Do not retry stock `Promise.all`
-`gate:full` on 4 cores. See HANDOFF 2026-09-09 Wave 3.1B.
+**Standing prerequisite:** five-seed panel is **measured** (2026-09-10,
+Matt's Mac Studio, 14 cores, `npm run gate:full:serial` at
+`main@c2233e1` / #64). Wall ~50937 s (~14.1 h). GATE FAIL — 9
+problems (see HANDOFF 2026-09-10). `tradesPerSeason` panel mean
+~13.25, consistent with dedicated 12.6. Drift exit 1 is save growth /
+OVR deflation / age ordering, not the trades floor. Serial path stays
+the right tool on 4-core VMs (`#64`, `npm run gate:full:serial`); use
+`--seeds 1` or a dedicated `npx tsx scripts/drift.ts 20` on that class
+of box. Do not retry stock `Promise.all` `gate:full` on 4 cores.
 
 ## What is missing
 
@@ -80,9 +91,11 @@ the contract: one task, one branch, one file cluster, gate green, HANDOFF note.
 
 ### Phase 0 — stabilize and close the published rules (days)
 
-Panel re-lock on a machine that can finish 5 serial seeds. `tradesPerSeason`
-remeasured at **12.6** (Wave 3.1B); leftover is the post–season-5 collapse,
-not the old 7.8. Retire stale AGENTS.md rows. Fix
+Panel re-lock **finished** on Mac Studio (2026-09-10, 14 cores,
+`gate:full:serial`, ~14.1 h). GATE FAIL — 9 problems recorded in
+HANDOFF; do not edit `baselines.json` from those reds.
+`tradesPerSeason` panel mean **~13.25** (dedicated 12.6); leftover is
+the post–season-5 collapse, not the old 7.8. Retire stale AGENTS.md rows. Fix
 the restructure advice text. Rookie slot scale and the compensatory-pick
 formula (published CBA math, no calibration argument). `askingPrice` onto the
 club's belief. Year-2 waiver desk ~267 is the #41/#49 cap-stuck residue —
