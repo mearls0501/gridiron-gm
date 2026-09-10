@@ -5,6 +5,77 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-10 — Wave 3.1 5-seed panel (Mac Studio, main@c2233e1 / #64)
+
+Wave 3.1 panel. Docs only. Ran on Matt's Mac Studio (14 cores) via
+`npm run gate:full:serial` at `/Users/mearls/Projects/gridiron-gm`
+`main@c2233e1` (#64). Tip at write-up is `ed83fc5` (#65 docs only —
+same engine). Zero RNG. `baselines.json` not edited. Draft **#63**
+left alone. PR **#9** not touched. Forbidden constants not touched.
+
+**Command.** `npm run gate:full:serial` (default 5 seeds). Wall
+**~50937 s (~14.1 h)**. Process exit after GATE FAIL.
+
+**Completed (ok):** scout, careers, staff, determinism, verify, and
+the other non-FAIL steps. Careers ok **16527 s ×5**. Staff ok
+**7870 s ×5**. Scout ok.
+
+### GATE FAIL — 9 problems (paste; do not edit baselines)
+
+```
+FAIL  drift exited 1
+FAIL  drift.p0Failures              3        expected <= 0
+FAIL  tails.milestonesOff          19.60     expected <= 16   (KNOWN-HIGH note already exists)
+FAIL  drift.saveGrowthMbPerSeason   0.46     expected <= 0.45
+FAIL  drift.saveMbAtEnd            11.91     expected <= 10.5
+FAIL  drift.playerWeeksLost      2976.25     expected 2158.23 +/-700
+FAIL  drift.ovrDrift               -4.31     expected -0.52 +/-1.5
+FAIL  statcheck.rb5RushYds       1301.80     expected 1191 +/-95
+FAIL  statcheck.wr10RecYds       1099.60     expected 1208 +/-97  (inherited/non-defect family; panel still red)
+```
+
+Drift exit 1 is from internal p0 guards (save growth, OVR deflation,
+age ordering) — **not** from the trades floor.
+
+### `drift.tradesPerSeason` — panel
+
+Across the five panel seeds: **12.45 / 12.45 / 14.05 / 12.65 / 14.65**.
+Panel mean **~13.25**. Consistent with the dedicated Wave 3.1B
+`drift.ts 20` seed 12345 reading of **12.6** (#65). Baseline `min: 5`
+passes. NFL target **60–120** (`nfl-reference.md` §1) is still open
+because the market dies after ~season 5. **Do not tune volume in a
+leftover packet.**
+
+### What the panel does not change
+
+- `wr10RecYds` remains the inherited / non-defect family (historically
+  a fast-tier single-seed red; this panel is also red at 1099.60 vs
+  1208 ±97). Do not invent a receiving fix.
+- `tails.milestonesOff` 19.60 vs max 16 — KNOWN-HIGH already in
+  `baselines.json`. Do not tune the engine against the aggregate.
+- `rb5RushYds` 1301.80 is outside 1191 ±95 (prior panel was 1254,
+  inside). Record only. Do not chase with `CARRY_SHARE`.
+- Save growth / save size / OVR deflation / player-weeks match the
+  dedicated 20-season drift (#65): same family, now confirmed on 5
+  seeds. Do not move the locked maxes.
+- Careers / staff / scout / determinism / verify completed ok. No
+  new careers MAE claimed.
+
+### Wave 3.1 leftovers closed / still open
+
+| item | status |
+|---|---|
+| Serial gate so 4-core harnesses can finish | **shipped #64** |
+| Live season/seed progress | **shipped** |
+| `tradesPerSeason` dedicated | **12.6** (seed 12345 / 20 seasons, #65) |
+| `tradesPerSeason` 5-seed panel | **~13.25** (12.45 / 12.45 / 14.05 / 12.65 / 14.65) |
+| 5-seed panel / re-lock | **MEASURED** Mac Studio 14-core, ~14.1 h, GATE FAIL |
+| Trade-volume collapse after ~season 5 | **leftover — do not tune here** |
+| Panel reds (p0 / save / OVR / weeks / rb5 / wr10 / milestones) | recorded; **do not edit baselines** |
+| Draft #63 CPU `retainLog` skip | left draft; ~0 speed win |
+
+---
+
 ## 2026-09-09 — Wave 3.1B: serial gate + tradesPerSeason (main@c2233e1 / #64)
 
 Wave 3.1B. Docs only in this note. Serial runner already on `main` as
