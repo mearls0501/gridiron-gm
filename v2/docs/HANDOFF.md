@@ -5,6 +5,74 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## Wave 3.3 bisect
+
+Five-anchor read-only `npx tsx scripts/drift.ts 12` (seed 12345 default)
+finished on Matt's Mac Studio in worktrees. No code changes. No
+`progress()` on these SHAs — **per-season `trades=` series is NOT
+available**; only mean `##M drift.tradesPerSeason` and the printed
+season table (`ovrMean` / `lost` / `topCap%` / `saveMB`).
+
+Docs only. Packet 1 five-anchor pass is in. Narrow `git bisect` inside
+`c2d4a58..a62d235` is **not started**. Packet 2 (fix) waits on that.
+Zero RNG. `baselines.json` not edited. Engine not touched.
+
+Do not call the three early anchors "panel green." They are **inside
+band on the Sep-10 regression metrics**.
+
+### Metric summary
+
+| sha | date | why | ovrDrift | playerWeeksLost | capBustSeasons | saveGrowth | saveMbAtEnd | p0Failures | tradesPerSeason (mean) | wall |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `190cbd0` | 08-03 | last green panel control | −0.35 | 2648 | 0 | 0.40 | 7.18 | 1 | 27.9 | 168s |
+| `2e647e9` | 08-31 | end Aug sim sprint | −0.43 | 2749 | 0 | 0.42 | 7.32 | 1 | 30.0 | 188s |
+| `c2d4a58` | 09-02 | 90-man camp + cutdown (start roster-rules) | −0.22 | 2697 | 0 | 0.42 | 7.33 | 1 | 30.8 | 189s |
+| `a62d235` | 09-04 | end roster-rules + #49 | **−4.12** | **2955** | **1** | **0.46** | **8.25** | **4** | **19.3** | 1323s |
+| `bdda9c2` | 09-07 | end Wave 1/2 | **−4.22** | **2979** | 0 | **0.46** | **8.32** | **4** | **21.2** | 1263s |
+
+`p0Failures=1` on the three early anchors is the harness "clubs trade
+with each other" band (mean ~28–31 is outside the stale 2–20 guard —
+too many trades, not collapse). `ovrDrift` / age-ordering / save
+growth are ok on those three.
+
+### ovrMean arc (smoking gun)
+
+- `190cbd0` / `2e647e9` / `c2d4a58`: `ovrMean` stays ~67.x across all
+  12 seasons.
+- `a62d235` / `bdda9c2`: season 2026 opens ~67.1, **2027 drops to
+  64.5**, then sits ~63.x. Matches franchise-arc deflation.
+- `a62d235` `topCap%` hits **30.5% in 2030** (`capBustSeasons=1`);
+  that is the year the later 20-season run saw trades die.
+
+### First-bad per metric (interval — narrow bisect NOT yet run)
+
+All Sep-10 regression metrics that flip do so in **`c2d4a58` →
+`a62d235`** (roster-rules cluster after camp cutdown through #49):
+
+| metric | last good | first bad |
+|---|---|---|
+| ovrDrift | c2d4a58 (−0.22) | a62d235 (−4.12) |
+| playerWeeksLost (vs 2158±700 → red above ~2858) | c2d4a58 (2697, inside) | a62d235 (2955, red) |
+| p0Failures | c2d4a58 (1) | a62d235 (4) |
+| saveGrowthMbPerSeason | c2d4a58 (0.42) | a62d235 (0.46) |
+| saveMbAtEnd (12-season; relative jump) | c2d4a58 (7.33) | a62d235 (8.25) |
+| capBustSeasons | c2d4a58 (0) | a62d235 (1) |
+| tradesPerSeason mean | c2d4a58 (30.8) | a62d235 (19.3) |
+
+Wave 1/2 (`a62d235`→`bdda9c2`) does **not** worsen `ovrDrift` further
+in a material way (−4.12 → −4.22). Hypothesis 1 (roster bodies in the
+post-camp cluster) is the leading interval; hypotheses 2–3 still need
+the narrow bisect inside `c2d4a58..a62d235`.
+
+### Explicit gaps
+
+- No per-season `trades=` series (pre-#64 harness). Mean only.
+- Narrow `git bisect` inside `c2d4a58..a62d235` **not started** —
+  first-bad **commit** per metric still owed.
+- Packet 2 (fix) must wait for that.
+
+---
+
 ## 2026-09-10 — Wave 3.3: #66 panel frame is wrong
 
 Docs only. Matt / orchestrator, Wave 3.3. The 2026-09-10 Wave 3.1 write-up
