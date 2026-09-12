@@ -14,7 +14,7 @@ import { freeAgents, isActiveRoster, teamCap } from "./select";
 import { LEAGUE_MINIMUM, Player } from "./types";
 import {
   applyFranchiseTag, applyTagExtension, expireContracts,
-  isTagExtensionEligible, runCpuTagExtensions, skipTagExtension,
+  isTagExtensionEligible, negotiatedApy, runCpuTagExtensions, skipTagExtension,
   tagExtensionPlayers, tagExtensionTerms,
 } from "./offseason/contracts";
 import { teamOutlook } from "./frontOffice";
@@ -57,13 +57,18 @@ function ok(label: string) { console.log("ok   ", label); }
 
   assert.equal(isTagExtensionEligible(st, p), true);
   const terms = tagExtensionTerms(st, st.userTeamId, p);
+  const expectedApy = negotiatedApy(st, st.userTeamId, p, 1);
   assert.ok(terms.years > 1);
+  assert.equal(terms.apy, expectedApy, "July-15 terms must be negotiatedApy");
   const rng = new Rng(st.rngState);
   const extended = applyTagExtension(st, st.userTeamId, p.id, rng);
   assert.equal(extended.ok, true, extended.reason ?? "extend");
   st.rngState = rng.state;
   assert.ok(p.contract);
   assert.ok(p.contract.years > 1, "extension must be multi-year");
+  assert.equal(p.contract.years, terms.years);
+  const paid = p.contract.baseSalary.reduce((a, b) => a + b, 0) + p.contract.signingBonus;
+  assert.equal(paid, expectedApy * p.contract.years, "deal total is negotiatedApy × years");
   assert.equal(p.contract.yearsRemaining, p.contract.years);
   assert.equal(p.teamId, st.userTeamId);
   assert.equal(isTagExtensionEligible(st, p), false);
@@ -76,6 +81,7 @@ function ok(label: string) { console.log("ok   ", label); }
   assert.ok(p.contract);
   assert.ok(p.contract.yearsRemaining >= 1);
   assert.equal(freeAgents(st).some((x) => x.id === p.id), false);
+  ok("tagged → July-15 extend is multi-year at negotiatedApy");
   ok("extend keeps him off the next FA");
 }
 

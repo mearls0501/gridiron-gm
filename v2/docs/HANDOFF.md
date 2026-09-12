@@ -5,6 +5,23 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-12 — Wave 3.5 addendum (Packet B on #70)
+
+Rebased onto `origin/main` `5af8ef0` (#70 Packet C). Packet B
+rules unchanged. `drift.active()` stays Packet C's
+`isActiveRoster` 53-man filter; `##M drift.franchiseTagsPerSeason`
+emit kept. No `baselines.json` edits.
+
+**Clarification (Matt 2026-09-12).** The #44 July-15 path must
+keep converting a tagged tender to a multi-year deal at
+`negotiatedApy`. Packet A's panel saw `capBustSeasons` 7 → 1 at
+#44 because of that conversion — do not regress it.
+`tagExtension.test.ts` now asserts tagged → July-15 extend →
+`years > 1` at `negotiatedApy` (APY on terms and on the signed
+total).
+
+---
+
 ## 2026-09-12 — Wave 3.4 Packet B: franchise-tag rules (consecutive / priced / snapshot)
 
 Matt SIGNED 2026-09-11. Lane B. Packet A context: `capBustSeasons`
