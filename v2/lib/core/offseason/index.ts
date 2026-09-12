@@ -203,7 +203,10 @@ export function simEntireDraft(state: GameState): void {
 export function enterCampAfterDraft(state: GameState, rng: Rng): number {
   const n = runUdfaChase(state, rng);
   if (state.draft) convertUndrafted(state, state.draft.season);
+  const TIME = typeof process !== "undefined" && process.env.WAIVER_TIME === "1";
+  if (TIME) console.time("fillCampRosters");
   fillCampRosters(state, rng);
+  if (TIME) console.timeEnd("fillCampRosters");
   state.phase = "offseason-final";
   runCpuFifthYearOptions(state);
   runCpuTagExtensions(state, rng);
@@ -216,6 +219,8 @@ export function enterCampAfterDraft(state: GameState, rng: Rng): number {
  * brought to a legal 53 under the cap, and the calendar rolls to next season.
  */
 export function finalizeOffseason(state: GameState): void {
+  const TIME = typeof process !== "undefined" && process.env.WAIVER_TIME === "1";
+  if (TIME) console.time("finalizeOffseason");
   const rng = new Rng(state.rngState);
 
   if (state.draft) {
@@ -285,6 +290,7 @@ export function finalizeOffseason(state: GameState): void {
   // claim-cut chain in this advance so the preseason desk is not the
   // whole camp dump. Play Week stays one window.
   settleWaivers(state);
+  if (TIME) console.timeEnd("finalizeOffseason");
 }
 
 /**

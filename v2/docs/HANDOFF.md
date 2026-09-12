@@ -5,6 +5,70 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-12 — Wave 3.5 Packet D: waiver settle perf
+
+Worker. Rebased onto `origin/main` `67ceb37` (#71 Packet B). Zero new RNG.
+`baselines.json` **not edited**. PR **#9** not touched. Forbidden constants
+not touched. Packet B tag engine / Packet C `drift.active()` / Packet E
+`needsOf` / `fillCampRosters` behaviour left alone.
+
+**Diagnosis (seed 12345, one rollover, `WAIVER_TIME=1` console.time — not cpu-prof).**
+Hottest path is `resolveWaivers` inside `settleWaivers` at Start the Season,
+not `fillCampRosters`. First finalize window is 710 names; 14 claim-cut
+passes; leftover wire 97 (cap-stuck, same as before).
+
+| call | HEAD | after |
+|---|---:|---:|
+| `fillCampRosters` | 168 ms | 162 ms |
+| `resolveWaivers` #1 n=710 | **6.0 s** | **124 ms** |
+| `settleWaivers` (finalize, 14 passes) | **18.8 s** | **377 ms** |
+| `finalizeOffseason` | **19.8 s** | **1.35 s** |
+| season-to-recap (weekly windows) | 8.0 s | 5.3 s |
+| offseason-to-preseason | 29.7 s | 11.1 s |
+
+Same n= sequence after the fix (710 → 195 → … → 97 ×3). Weekly
+`resolveWaivers` was 23–260 ms/window; now 3–11 ms.
+
+**Change.** `resolveWaivers` indexes `state.players` once per window
+(player map + per-club bags in players-array order) and caches
+`teamOutlook` until that club’s roster moves. Inner claim loop no longer
+rescans the whole league for `rosterCount` / `positionCount` / `teamCap` /
+`worseSurplus`. `settleWaivers` still stops when the leftover id set
+stops moving. `console.time` stays behind `WAIVER_TIME=1`.
+
+**Leftover.** Cap-stuck leftover ~97 on this seed (not this packet).
+Residual `ovrDrift` / cap bust / Packet E needs are other lanes.
+
+**`npx tsx scripts/drift.ts 12` 12345 wall (this 4-core VM):** **873 s**
+after the fix. Packet A Mac Studio first-bad was 1774 s at `c2e6661`;
+pre-#41 camp-90 was already 656 s on that box. One-rollover settle
+here is 18.8 s → 0.38 s (50×). Remaining 12-season wall is later-year
+game sim / save encode / player count (6873 bodies by 2037), not
+waive settle. Target <300 s is below the pre-#41 Mac Studio 656 s
+and is not reachable on this VM from this lane alone.
+
+Drift 12 after `active()` re-condition: `ovrDrift` **−1.70** (Packet C
+residual −1.68), `playerWeeksLost` 2623, `capBustSeasons` 2,
+`saveMbAtEnd` 8.38. Exit 1 is those known P0s, not this packet.
+
+**Untouched.** `baselines.json`, `cpuProspectView`, `POSITION_VALUE`,
+`CONTENDER_PULL`, `GUARANTEE_PULL`, `CARRY_SHARE`, PR #9, Packet B/C/E,
+`fillCampRosters` body, scripts/.
+
+**Gate** (`npm run gate:serial`, 4 cores, 418 s). Typecheck /
+determinism / verify 348/348 / sweep / calibrate / scout / waivers ok.
+The two inherited single-seed reds only — not this packet:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
+GATE FAIL  2 problems
+```
+
+No UI change; no browser evidence.
+
+---
+
 ## 2026-09-12 — Wave 3.5 addendum (Packet B on #70)
 
 Rebased onto `origin/main` `5af8ef0` (#70 Packet C). Packet B
