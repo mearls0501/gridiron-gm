@@ -2,7 +2,7 @@ import { Rng, clamp } from "./rng";
 import { POSITION_VALUE } from "./ratings";
 import {
   DraftPick, GameState, PICK_HORIZON, PickOwnership, Player, POSITION_MIN, POSITION_TARGET,
-  Position, ROSTER_LIMIT, STARTERS, TRADE_DEADLINE_WEEK, TradeAsset, TradeOffer,
+  Position, ROSTER_LIMIT, STARTERS, TRADE_DEADLINE_WEEK, TradeAsset, TradeOffer, isCampPhase,
 } from "./types";
 import {
   addDeadCap, capHit, deadMoney, isActiveRoster, positionCount, rosterCount, teamCap, teamRoster,
@@ -574,28 +574,53 @@ const UPGRADE_APPETITE = 6;
 const MAX_NEEDS = 5;
 
 /**
+ * Active bodies at or above replacement. Camp extras sit ~50 OVR and
+ * fill `positionCount` without filling the 53; they must not hide a need.
+ * Same line `evaluate()` uses.
+ */
+function qualityPositionCount(state: GameState, teamId: number, pos: Position): number {
+  let n = 0;
+  for (const p of state.players) {
+    if (
+      p.teamId === teamId &&
+      p.pos === pos &&
+      !p.retired &&
+      !p.prospect &&
+      isActiveRoster(p) &&
+      p.ovr >= REPLACEMENT_OVR
+    ) {
+      n++;
+    }
+  }
+  return n;
+}
+
+/** Camp extras only. A 53-man roster keeps the existing headcount. */
+function needHeadcount(state: GameState, teamId: number, pos: Position): number {
+  if (isCampPhase(state.phase) || rosterCount(state, teamId) > ROSTER_LIMIT) {
+    return qualityPositionCount(state, teamId, pos);
+  }
+  return positionCount(state, teamId, pos);
+}
+
+/**
  * What a club is shopping for.
  *
- * This used to be purely a headcount: a need existed only where the roster held
- * fewer men at a position than `POSITION_TARGET` wanted. The problem is that
- * `fillRoster` runs every offseason and brings every club up to target at every
- * position, so by the time the trade window opens almost nobody has a hole —
- * and `proposeTrade` walks away because there is nothing anyone wants. That is
- * most of why the league struck a fraction of the deals it should.
+ * Headcount under camp (or any roster over 53) is 53-man quality, not
+ * every camp body. Street signings at ~50 OVR used to make
+ * `positionCount` look full at every position once `fillCampRosters`
+ * ran, so needs collapsed to starter-deficit only and CPU clubs stopped
+ * shopping. In-season 53-man path is unchanged.
  *
- * Real front offices do not trade to fill empty chairs; they trade to upgrade
- * the weakest man who is starting. So a need is now either shape — a genuine
- * headcount shortage, or a starting job held by somebody the club would replace
- * given the chance.
- *
- * Capped at the five most valuable, so a bad club shops where it hurts most
- * rather than declaring itself in the market for everything.
+ * A need is still either shape: a quality shortage against
+ * `POSITION_TARGET`, or a starting job held by somebody the club would
+ * replace. Capped at the five most valuable.
  */
-function needsOf(state: GameState, teamId: number): Position[] {
+export function needsOf(state: GameState, teamId: number): Position[] {
   return (Object.keys(POSITION_TARGET) as Position[])
     .map((pos) => ({
       pos,
-      short: positionCount(state, teamId, pos) < POSITION_TARGET[pos],
+      short: needHeadcount(state, teamId, pos) < POSITION_TARGET[pos],
       deficit: starterDeficit(state, teamId, pos),
     }))
     .filter((x) => x.short || x.deficit > 0)
