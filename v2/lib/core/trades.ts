@@ -556,6 +556,7 @@ function autopsyDumpRecap(state: GameState): void {
     horizon.push(`s+${d}:${yr} clubs=${clubs}/32 full7=${full7}/32`);
   }
   const zeroLive = owned.filter((n) => n === 0).length;
+  const tradeLines = state.log.filter((l) => l.text.startsWith("Trade:")).length;
   autopsyPrint(
     `AUTOPSY recap season=${state.season} pickOwners=${state.pickOwners?.length ?? 0}` +
       ` picksPerClub=${owned.length ? `${Math.min(...owned)}/${mid(owned)}/${Math.max(...owned)}` : "0/0/0"}` +
@@ -563,6 +564,7 @@ function autopsyDumpRecap(state: GameState): void {
       ` posture=contend=${postures.contend}/retool=${postures.retool}/rebuild=${postures.rebuild}` +
       ` evalGt0=${evalGt0}` +
       ` draftOrderPrev=${order.length} missing=[${missing.join(",")}]` +
+      ` logLen=${state.log.length} tradeLines=${tradeLines}` +
       ` horizon ${horizon.join(" ")}`
   );
 }
