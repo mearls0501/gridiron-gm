@@ -5,6 +5,21 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-12 — Wave 3.6: ratify #64 serial runner + test-registration exception
+
+Docs only. Lead edit. `AGENTS.md` now states what was already true on
+main: `npm run gate:full:serial` (#64) is the supported long-panel /
+Mac Studio measurement path (live harness `progress()`), and registering
+a new `*.test.ts` in `package.json` `test` plus `scripts/gate.ts` FAST
+and FULL is the one permitted `scripts/` edit (#47 convention).
+`ORCHESTRATION.md` / `ROADMAP.md` pointers updated. Engine,
+`baselines.json`, forbidden constants, PR #9 not touched.
+
+The Wave 3.1 / 3.3 leftover "AGENTS.md ratification still owed" is
+closed.
+
+---
+
 ## 2026-09-12 — Wave 3.5 Packet E: `needsOf` counts 53-man quality, not camp bodies
 
 Worker. `lib/core/trades.ts` `needsOf` + callers unchanged besides the

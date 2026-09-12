@@ -120,7 +120,7 @@ say so in `docs/nfl-reference.md` §4.
 ```bash
 npm run gate              # fast tier  — run after every edit
 npm run gate:full         # full tier  — run before asking for review
-npm run gate:full:serial  # same full tier, one harness at a time (4-core VMs)
+npm run gate:full:serial  # same full tier, serial — long panel / Mac Studio (#64)
 ```
 
 One exit code. On failure it prints one line per violation:
@@ -143,20 +143,30 @@ A **missing** metric is a failure, not a skip. That rule exists because the
 and reported nine attributes as having backwards effects — a broken guard is
 worse than no guard, because it manufactures confidence.
 
-### Cost, and why the full tier may not run where you are
+### Cost, and the serial runner (#64)
 
 The default gate fans all steps out with `Promise.all` and sweeps a 5-seed
-panel. On a 4-core box that timeslices `careers` / `drift` / `verify` /
-`sweep` / `staff` against each other and the piped children print nothing
-until they exit, so it looks hung when it is merely slow. Check `nproc`
-first. On ≤4 cores use the serial path — steps run one at a time and
-stdout/stderr is teed live. Seed panels were already sequential inside a
-step. `--seeds N` still works.
+panel. That is still the path for a big box / CI. It is **not** the
+measurement path.
+
+**`npm run gate:full:serial` is the supported long-panel / Mac Studio
+path.** Same full tier, one harness at a time. stdout/stderr is teed
+live. Long harnesses emit one `progress()` line per season
+(`scripts/metrics.ts`, `writeSync(1)`). Seed panels were already
+sequential inside a step. `--seeds N` still works.
+
+On ≤4 cores the parallel full tier timeslices `careers` / `drift` /
+`verify` / `sweep` / `staff` and piped children print nothing until they
+exit, so it looks hung. Do not retry stock `Promise.all` `gate:full` on
+that class of box. Check `nproc` first. Use `--seeds 1` or a dedicated
+harness (`npx tsx scripts/drift.ts 20`) when a 5-seed serial panel is
+too expensive for the box.
 
 ```bash
-npm run gate:full:serial            # 5-seed full tier, serial (4-core VMs)
-GATE_SERIAL=1 npm run gate:full -- --seeds 1   # one-seed full, same serial path
-npx tsx scripts/drift.ts 20         # or run the one harness your change risks
+npm run gate:full:serial                       # 5-seed full, serial (Mac Studio / long panel)
+npm run gate:full:serial -- --seeds 1          # one-seed full, same path
+GATE_SERIAL=1 npm run gate:full -- --seeds 1   # equivalent
+npx tsx scripts/drift.ts 20                    # or run the one harness your change risks
 ```
 
 Fewer seeds means a noisier number, not a wrong one. Say which you ran.
@@ -175,6 +185,14 @@ model stayed 60x off reality without a single red line.
 
 Editing `scripts/` and `docs/baselines.json` is a **lead** decision, not a
 worker one. If you are running as a worker on a task, report and stop.
+
+**One exception — registering a new `*.test.ts`.** A new test file is not
+in the gate until it is listed in two places: the `package.json` `test`
+script (`&& tsx path/to/foo.test.ts`) and a named step in
+`scripts/gate.ts` **both** `FAST` and `FULL`. That pair is the one
+permitted `scripts/` edit (the #47 convention). Do not invent a runner,
+do not edit any other harness, and do not leave the file only in
+`package.json`.
 
 ### When a guard is the thing that is wrong
 
