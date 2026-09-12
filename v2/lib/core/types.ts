@@ -615,7 +615,7 @@ export interface BoxScore {
   inactives?: number[];
   /** Snap-by-snap log. User games on this build; missing on older boxes and CPU games. */
   plays?: PlayEvent[];
-  /** Drive summaries derived from the play log. Missing on older boxes. */
+  /** Drive summaries derived from the play log. Missing on older boxes and CPU/harness sims. */
   drives?: DriveSummary[];
 }
 

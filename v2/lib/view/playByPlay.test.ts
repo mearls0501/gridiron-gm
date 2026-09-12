@@ -105,10 +105,21 @@ function names(): (id: number) => string {
       g.awayId !== st.userTeamId
   );
   assert.ok(cpu);
-  const r = simulateGame(st, cpu, new Rng(st.rngState));
-  assert.ok(r.plays.length > 20);
+  const skip = cloneState(st);
+  const keep = cloneState(st);
+  const skipGame = skip.games.find((g) => g.id === cpu.id)!;
+  const keepGame = keep.games.find((g) => g.id === cpu.id)!;
+  const r = simulateGame(skip, skipGame, new Rng(skip.rngState));
+  const retained = simulateGame(keep, keepGame, new Rng(keep.rngState), { retainLog: true });
+  assert.equal(r.plays.length, 0, "CPU game skips the in-memory snap log");
   assert.equal(r.box.plays, undefined, "CPU game does not persist the snap log");
-  assert.ok(r.box.drives && r.box.drives.length >= 6, "CPU game still gets a drive chart");
+  assert.equal(r.box.drives, undefined, "CPU game skips the drive list");
+  assert.equal(r.homeScore, retained.homeScore, "skip vs retain: same score");
+  assert.equal(r.awayScore, retained.awayScore);
+  assert.equal(r.box.home.totalYards, retained.box.home.totalYards);
+  assert.equal(r.box.away.totalYards, retained.box.away.totalYards);
+  assert.ok(retained.plays.length > 20, "retainLog still captures a snap log");
+  assert.ok(retained.box.drives && retained.box.drives.length >= 6, "retainLog still builds drives");
 }
 
 {
