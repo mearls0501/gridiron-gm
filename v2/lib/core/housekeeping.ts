@@ -20,8 +20,18 @@ export const LOG_DETAIL_SEASONS = 2;
 /**
  * Kinds worth keeping forever. A milestone is a record falling, a title, a
  * retirement — the franchise's actual story, and cheap: a few dozen a year.
+ *
+ * Trades stay `kind: "transaction"` (same row `executeTrade` / `drift.ts` /
+ * briefing already share). They are permanent by the `Trade:` prefix, not a
+ * new kind: camp-90 / waiver finalize floods the log with later transactions,
+ * and the 4000 ceiling was deleting the year's trades (Wave 3.6 / #76).
  */
 const PERMANENT_KINDS: ReadonlySet<LogEntry["kind"]> = new Set(["milestone"]);
+
+/** Franchise-history rows `trimLog` must never drop. */
+export function isPermanentLogEntry(e: LogEntry): boolean {
+  return PERMANENT_KINDS.has(e.kind) || (e.kind === "transaction" && e.text.startsWith("Trade:"));
+}
 
 /**
  * Hard ceiling on retained entries, as a backstop for a franchise that
@@ -39,12 +49,12 @@ export const LOG_MAX_ENTRIES = 4000;
  */
 export function trimLog(state: GameState): void {
   const cutoff = state.season - LOG_DETAIL_SEASONS;
-  let kept = state.log.filter((e) => e.season >= cutoff || PERMANENT_KINDS.has(e.kind));
+  let kept = state.log.filter((e) => e.season >= cutoff || isPermanentLogEntry(e));
 
   if (kept.length > LOG_MAX_ENTRIES) {
     const permanent: LogEntry[] = [];
     const recent: LogEntry[] = [];
-    for (const e of kept) (PERMANENT_KINDS.has(e.kind) ? permanent : recent).push(e);
+    for (const e of kept) (isPermanentLogEntry(e) ? permanent : recent).push(e);
     // Drop the oldest non-permanent entries until we are under the ceiling.
     const room = Math.max(0, LOG_MAX_ENTRIES - permanent.length);
     const trimmed = new Set(recent.slice(0, Math.max(0, recent.length - room)));
