@@ -1,16 +1,20 @@
 # Gridiron GM — Roadmap
 
 Standing roadmap. Read after `AGENTS.md`, before `HANDOFF.md`. Updated
-2026-09-10 against `main@a1c419a` (#66 docs; same engine as `c2233e1` /
-#64). The 2026-09-10 panel framing in #66 is **wrong**: five metrics
-that were inside on the last green 5-seed panel (`190cbd0`, 2026-08-03)
-are now red and are not on the known-open list. Those are
-**regressions**. Wave 3.3 Packet 1 (read-only bisect on Mac Studio) is
-in flight. **No feature lanes. No tuning. Until the bisect reports.**
-The engine is the mature half; the franchise half — people, contracts
-you can work, a game you can watch — is what remains, but that work
-waits on a green panel. Dispatch rules for parallel agents are in
-`ORCHESTRATION.md`.
+2026-09-12 against Wave 3.4 Packet A (Studio, seed 12345, `drift.ts 12`).
+The 2026-09-10 panel framing in #66 is **wrong**: five metrics that
+were inside on the last green 5-seed panel (`190cbd0`, 2026-08-03) are
+now red and are not on the known-open list. Those are **regressions**.
+Wave 3.3 five-anchor + Wave 3.4 Packet A narrow bisect **reported**.
+First-bad: `capBustSeasons` at `e5e15de` (#42); `ovrDrift` starts
+`e069d03` / worst `7d09a8b`; trades mean drop at `7d09a8b`; wall 8× at
+`c2e6661` (#41). Parent 1 (`active()` exclude PS/IR) is a **partial**
+confirm — cliff / age / lost, not cap bust / trade death. Residual
+`ovrDrift` −1.68 ≠ ≈−0.3. Packets B/C launching. **No feature lanes.
+No tuning. Do not edit `baselines.json`.** The engine is the mature
+half; the franchise half — people, contracts you can work, a game you
+can watch — is what remains, but that work waits on a green panel.
+Dispatch rules for parallel agents are in `ORCHESTRATION.md`.
 
 ## Where we are
 
@@ -60,10 +64,11 @@ problems. Five of them (`ovrDrift`, `playerWeeksLost`, `p0Failures`,
 `saveMbAtEnd`, `rb5RushYds`) were inside on `190cbd0` and are not
 known-open — **regressions**. The nine reds are provisional shipped
 ticks until the panel is green again. Do not edit `baselines.json`.
-Wave 3.3 Packet 1 (read-only bisect on Mac Studio) is in flight; **no
-feature lanes / no tuning until it reports.** `tradesPerSeason` panel
-mean ~13.25 is the collapse symptom, not a leftover knob. Serial path
-stays the right tool on 4-core VMs (`#64`, `npm run gate:full:serial`);
+Wave 3.4 Packet A reported the first-bad commits (see `HANDOFF.md`).
+Packets B/C launching. **No feature lanes / no tuning.** Parent 1
+exclude is not "fully green." `tradesPerSeason` panel mean ~13.25 is
+the collapse symptom, not a leftover knob. Serial path stays the
+right tool on 4-core VMs (`#64`, `npm run gate:full:serial`);
 AGENTS.md ratification of that additive `scripts/` serial mode is
 still owed as a lead edit. Use `--seeds 1` or a dedicated
 `npx tsx scripts/drift.ts 20` on that class of box. Do not retry stock
@@ -106,9 +111,11 @@ the contract: one task, one branch, one file cluster, gate green, HANDOFF note.
 The 2026-09-10 panel is a FAIL, not a finished re-lock. Five metrics that
 were inside on `190cbd0` are red and not on the known-open list:
 regressions. ~40 engine-touching commits landed with no full-tier read;
-some broke the franchise arc. Wave 3.3 Packet 1 (read-only bisect on Mac
-Studio) is **in flight**. Find the commit(s). **No feature lanes. No
-tuning.** Do not edit `baselines.json`. Do not merge #9 or #63.
+some broke the franchise arc. Wave 3.4 Packet A (narrow bisect +
+`active()` exclude) **reported**. First-bad commits and Parent 1
+partial confirm are in `HANDOFF.md`. Packets B/C launching. **No
+feature lanes. No tuning.** Do not edit `baselines.json`. Do not merge
+#9 or #63.
 
 After the bisect reports: retire stale AGENTS.md rows; ratify the #64
 serial runner (additive `scripts/` progress + serial mode) in AGENTS.md

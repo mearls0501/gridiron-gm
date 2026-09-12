@@ -5,6 +5,58 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## Wave 3.4 Packet A results
+
+Docs only. Mac Studio, seed 12345, `npx tsx scripts/drift.ts 12`. Zero
+code. `baselines.json` not edited. Engine not touched. Packets B/C
+launching.
+
+Wave 3.3's five-anchor interval (`c2d4a58` → `a62d235`) is now a
+commit-level table. Do not treat Packet A as "fully green after
+exclude." Parent 1 is a **partial** confirm. Cap bust / trade death
+are still live. Residual `ovrDrift` after the throwaway `active()`
+exclude is **−1.68**, not ≈−0.3.
+
+### A.1 `active()` exclude PS/IR at `a62d235` (throwaway patch, not merged)
+
+Unpatched `a62d235` vs patched:
+
+- `ovrDrift` −4.12 → −1.68
+- `ovrMean` arc: cliff 67.1→64.5→~63 **GONE**; patched stays 68.0→66.3
+- 27-vs-34 age P0: FAIL 5/12 → ok 10/12
+- `playerWeeksLost` 2955 → 2586 (now inside 2158±700)
+- `capBustSeasons` 1→1, `topCap%` peak still 30.5% in 2030, `saveMbAtEnd` 8.25 unchanged
+
+**Verdict:** Parent 1 **PARTIAL CONFIRM** — harness population explains
+the cliff / age / lost. Cap bust / trade death **NOT** fixed. Residual
+`ovrDrift` −1.68 ≠ ≈−0.3. Packet C is re-lock + `active()`
+re-condition, not "fully green after exclude."
+
+### A.2 narrow bisect table
+
+| sha | what | ovrDrift | capBust | trades mean | wall |
+|---|---|---:|---:|---:|---:|
+| `e069d03` | #33 IR/PS | −1.66 | 0 | 32.8 | 240s |
+| `fe87d82` | #35 waivers | −3.00 | 0 | 31.4 | 413s |
+| `7d09a8b` | #39 camp→90 | −4.75 | 0 | 19.5 | 656s |
+| `c2e6661` | #41 waiver settle | −4.43 | 0 | 18.6 | 1774s |
+| `e5e15de` | #42 tags | −4.06 | 9 | 16.8 | 1886s |
+| `6c1f3e4` | #43 5th-year | −4.11 | 7 | 17.3 | 1884s |
+| `be3771a` | #44 July-15 | −4.04 | 1 | 19.6 | 1454s |
+
+**First-bad commits:**
+
+- `capBustSeasons`: `e5e15de` (#42) — Parent 2 confirmed
+- `ovrDrift` harness: starts `e069d03`, worst `7d09a8b`
+- trades mean drop: `7d09a8b` first
+- wall 8×: `c2e6661` (#41)
+
+### A.3
+
+Rollover 33s ok; `cpu-prof` only loader noise — re-profile pending.
+
+---
+
 ## Wave 3.3 bisect
 
 Five-anchor read-only `npx tsx scripts/drift.ts 12` (seed 12345 default)
@@ -14,8 +66,9 @@ available**; only mean `##M drift.tradesPerSeason` and the printed
 season table (`ovrMean` / `lost` / `topCap%` / `saveMB`).
 
 Docs only. Packet 1 five-anchor pass is in. Narrow `git bisect` inside
-`c2d4a58..a62d235` is **not started**. Packet 2 (fix) waits on that.
-Zero RNG. `baselines.json` not edited. Engine not touched.
+`c2d4a58..a62d235` is **reported in Wave 3.4 Packet A above**. Packet 2
+(fix) waits on Packets B/C. Zero RNG. `baselines.json` not edited.
+Engine not touched.
 
 Do not call the three early anchors "panel green." They are **inside
 band on the Sep-10 regression metrics**.
@@ -44,7 +97,7 @@ growth are ok on those three.
 - `a62d235` `topCap%` hits **30.5% in 2030** (`capBustSeasons=1`);
   that is the year the later 20-season run saw trades die.
 
-### First-bad per metric (interval — narrow bisect NOT yet run)
+### First-bad per metric (interval — narrow bisect now in Packet A)
 
 All Sep-10 regression metrics that flip do so in **`c2d4a58` →
 `a62d235`** (roster-rules cluster after camp cutdown through #49):
@@ -61,15 +114,15 @@ All Sep-10 regression metrics that flip do so in **`c2d4a58` →
 
 Wave 1/2 (`a62d235`→`bdda9c2`) does **not** worsen `ovrDrift` further
 in a material way (−4.12 → −4.22). Hypothesis 1 (roster bodies in the
-post-camp cluster) is the leading interval; hypotheses 2–3 still need
-the narrow bisect inside `c2d4a58..a62d235`.
+post-camp cluster) is the leading interval. Hypotheses 2–3 are now
+commit-level in Wave 3.4 Packet A above.
 
 ### Explicit gaps
 
 - No per-season `trades=` series (pre-#64 harness). Mean only.
-- Narrow `git bisect` inside `c2d4a58..a62d235` **not started** —
-  first-bad **commit** per metric still owed.
-- Packet 2 (fix) must wait for that.
+- Narrow `git bisect` inside `c2d4a58..a62d235` **reported in Packet A**.
+- Packet 2 (fix) waits on Packets B/C. Parent 1 exclude is partial;
+  cap bust / trade death still live.
 
 ---
 
