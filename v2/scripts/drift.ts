@@ -16,7 +16,7 @@ import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { advanceOffseason, isOffseason } from "../lib/core/offseason";
 import { leagueStandings } from "../lib/core/season/standings";
-import { capHit } from "../lib/core/select";
+import { capHit, isActiveRoster } from "../lib/core/select";
 import { GameState, Player, Position, salaryCap } from "../lib/core/types";
 import { encodeSave } from "../lib/store/codec";
 import { emitAll, progress, seedFor } from "./metrics";
@@ -39,8 +39,14 @@ const median = (a: number[]) => {
   const b = [...a].sort((x, y) => x - y);
   return b[Math.floor(b.length / 2)];
 };
+// 53-man active roster. After #33, IR and practice-squad stay on
+// teamId (invariant 4) but do not count against 53 — `rosterCount`
+// already uses `isActiveRoster`. Including them here mixed
+// replacement-level PS and IR bodies into ovrMean / age / fade /
+// payroll, which is not the population the franchise-arc guards
+// claim to measure. Missing `status` is active.
 const active = (s: GameState) =>
-  s.players.filter((p) => !p.retired && !p.prospect && p.teamId !== null);
+  s.players.filter((p) => !p.retired && !p.prospect && p.teamId !== null && isActiveRoster(p));
 
 interface Snapshot {
   season: number; ovrMean: number; n85: number; n90: number;
@@ -96,6 +102,11 @@ function runOne(seed: number): Snapshot[] {
 
     // Games a rostered player was unavailable for: 17 minus what he played,
     // counted only for players good enough to have been in the rotation.
+    // Includes IR minimum weeks after #33 (`IR_MIN_GAMES` = 4): a
+    // designation cannot return before four games, so those weeks sit
+    // in `17 - games` for anyone who served IR and is still in this
+    // rotation set at recap. The metric remains the §6.7
+    // churn-plus-absence composite; this is not a new claim.
     const rotation = A.filter((p) => (line(p)?.snaps ?? 0) > 100);
     const playerWeeksLost = rotation.reduce((n, p) => n + Math.max(0, 17 - (line(p)?.games ?? 0)), 0);
 
