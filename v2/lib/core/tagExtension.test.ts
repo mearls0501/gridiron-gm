@@ -17,6 +17,7 @@ import {
   isTagExtensionEligible, runCpuTagExtensions, skipTagExtension,
   tagExtensionPlayers, tagExtensionTerms,
 } from "./offseason/contracts";
+import { teamOutlook } from "./frontOffice";
 import { advanceOffseason, enterCampAfterDraft, enterDraft, simEntireDraft } from "./offseason";
 
 function clubActive(st: ReturnType<typeof newGame>, teamId: number) {
@@ -220,4 +221,24 @@ function ok(label: string) { console.log("ok   ", label); }
   const msg5 = advanceOffseason(st);
   assert.equal(st.phase, "preseason", msg5);
   ok("headless recap→camp reaches cutdown");
+}
+
+// Club at 91% committed does not add a July-15 extension.
+{
+  const st = newGame({ seed: 11 });
+  const cpuId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  const p = plantTagged(st, cpuId);
+  expireContracts(st);
+  assert.equal(isTagExtensionEligible(st, p), true);
+  const cap = teamCap(st, cpuId);
+  const target = Math.round(cap.cap * 0.91);
+  st.teams[cpuId].deadCap = Math.max(0, target - (cap.committed - cap.dead));
+  const after = teamCap(st, cpuId);
+  assert.ok(after.committed / after.cap > 0.90, "planted 91% committed");
+  assert.notEqual(teamOutlook(st, cpuId).posture, "rebuild");
+  const rng = new Rng(st.rngState);
+  runCpuTagExtensions(st, rng);
+  const decision = (st.tagExtensions ?? []).find((e) => e.playerId === p.id);
+  assert.ok(!decision || decision.extended === false, "91% committed club must not extend");
+  ok("91% committed club does not extend");
 }

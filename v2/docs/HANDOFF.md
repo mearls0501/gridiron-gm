@@ -5,6 +5,49 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-12 — Wave 3.4 Packet B: franchise-tag rules (consecutive / priced / snapshot)
+
+Matt SIGNED 2026-09-11. Lane B. Packet A context: `capBustSeasons`
+first-bad is `e5e15de` (#42 franchise tags). Parent 2 is this rules
+bug. Parent 1 (`active()` harness filter) is Packet C — **not touched
+in the engine; rebased onto #70 so `drift.active()` + this emit
+both stay**.
+
+**Diagnosis.** Confirmed. Exclusive tags were automatic on evaluate>0
+and cap-fit, first-tag shape only, and live top-five averages so a
+tag in the same window raised the next club's tender. No consecutive
+escalator. Fifth-year / July-15 CPU paths had the same missing 90%
+and rebuild gates. QB tenders had no 20% ban (kept — do not add one).
+
+**Change.** Rulebook consecutive-tag limit of three: first tag keeps
+existing `franchiseTagSalary` shape (snapshot top-five or 120% of
+last year); second = 120% of the first tender; third = max(144% of
+the second, the QB tender); no fourth. `consecutiveTags` on the tag
+record, default 0 in migrate. Snapshot top-five averages once at
+window open. CPU `runCpuFranchiseTags` is priced: next-season
+committed + tender ≤ ~90% of cap, `evaluate()` surplus exceeds
+tender cost in trade currency (`* 340 / cap`), contend/retool only.
+Same 90% + rebuild gates on `runCpuFifthYearOptions` and
+`runCpuTagExtensions`. CPU makeContract draws on child streams
+`franchiseTags` / `tagExtensions`. `##M drift.franchiseTagsPerSeason`
+emitted (additive). nfl-reference §4 notes ~10 league-wide. No
+`baselines.json` band — **HANDOFF: baseline band waits for the first
+green panel / Matt.** Do not invent one. July-15 `#44` path stays:
+tagged → extend → multi-year at `negotiatedApy` (regression in
+`tagExtension.test.ts`).
+
+**Leftover.** Studio `drift.ts 20` + 5-seed panel is orchestrator
+follow-up.
+
+**Untouched.** Packet C `active()` definition (preserved on rebase),
+`baselines.json`, `cpuProspectView`, `POSITION_VALUE`,
+`CONTENDER_PULL`, `GUARANTEE_PULL`, `CARRY_SHARE`, PR #9.
+
+**Gate.** Unit tests + fast gate on this PR. Inherited
+`leverage.wrongSign 1` and `statcheck.wr10RecYds 1018` left alone.
+
+---
+
 ## 2026-09-12 — Wave 3.4 Packet C: re-condition `drift.active()` to the 53-man
 
 Lead. Docs + harness population definition only. Rebased onto

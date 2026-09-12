@@ -150,6 +150,12 @@ function migrate(state: GameState): GameState {
   // Holdouts / trade requests: child-stream evaluation. Missing psychology
   // on a player is "no demand"; missing psychTick means evaluate once.
   runPsychology(state);
+  // Consecutive franchise-tag count. Pre-field saves default to 0.
+  if (state.franchiseTags) {
+    for (const tag of state.franchiseTags) {
+      if (typeof tag.consecutiveTags !== "number") tag.consecutiveTags = 0;
+    }
+  }
 
   if (state.version === STATE_VERSION) return state;
   state.version = STATE_VERSION;

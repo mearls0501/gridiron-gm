@@ -55,6 +55,7 @@ interface Snapshot {
   players: number; saveMB: number; playerWeeksLost: number;
   topCapPct: number; minPayrollPct: number; medPayrollPct: number; pick1FromBottom6: boolean;
   trades: number;
+  franchiseTags: number;
 }
 
 function runOne(seed: number): Snapshot[] {
@@ -161,6 +162,7 @@ function runOne(seed: number): Snapshot[] {
       // are the in-season ones plus the offseason that follows, and both carry
       // that season on the entry.
       trades: st.log.filter((l) => l.season === season && l.text.startsWith("Trade:")).length,
+      franchiseTags: (st.franchiseTags ?? []).filter((t) => t.season === season).length,
     });
     const snap = out[out.length - 1];
     progress(
@@ -284,6 +286,7 @@ emitAll({
   "drift.playerWeeksLost": injuryLoad,
   "drift.ovrDrift": ovrDrift,
   "drift.eliteGrowthRatio": eliteGrowth,
+  "drift.franchiseTagsPerSeason": mean(flat.map((r) => r.franchiseTags)),
 });
 console.log(failures === 0 ? "\nno P0 regressions" : `\n${failures} P0 REGRESSIONS`);
 process.exit(failures > 0 ? 1 : 0);

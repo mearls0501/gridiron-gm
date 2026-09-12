@@ -1018,6 +1018,20 @@ export interface FranchiseTag {
   season: number;
   teamId: number;
   playerId: number;
+  /**
+   * This club's consecutive tag count on this player (1–3).
+   * Missing / 0 = pre-field save; treated as a first tag.
+   */
+  consecutiveTags?: number;
+}
+
+/**
+ * Top-five cap-hit averages frozen when the tag window opens.
+ * A tag in this window cannot raise the average that prices the next one.
+ */
+export interface FranchiseTagSnapshot {
+  season: number;
+  averages: Partial<Record<Position, number>>;
 }
 
 /**
@@ -1080,6 +1094,11 @@ export interface GameState {
    * saves load. One per club per season; expireContracts skips these.
    */
   franchiseTags?: FranchiseTag[];
+  /**
+   * Top-five averages as they stood when this season's tag window
+   * opened. Missing = compute on first read, then freeze.
+   */
+  franchiseTagSnapshot?: FranchiseTagSnapshot;
   /**
    * Fifth-year option decisions for a league year. Missing = none, so
    * older saves load. One per eligible first-rounder per season.

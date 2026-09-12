@@ -484,17 +484,31 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   playoff clubs dress at most 47, or 48 when the 53 includes 8 offensive
   linemen (OT/OG/C). Inactive count is 53 minus that cap. Ungated published
   rule.
-- **Franchise tag (exclusive, one per club per year).** Added 2026-09-03.
+- **Franchise tag (exclusive, one per club per year).** Added 2026-09-03;
+  consecutive escalator + priced CPU + snapshot 2026-09-12 (Wave 3.4 B).
   Not in T/D/S/P. Same calendar source as camp 90 / PS 16 / IR / waivers
   (`docs/front-office-design-2026-07-28.md` Part 5): ~Feb 17–Mar 3, one
   tag per club per year.   Exclusive only — non-exclusive and transition are omitted so they
   do not widen the cluster. The July 15 extension is a separate
-  camp-desk packet (see the July 15 block below). Tender is the
+  camp-desk packet (see the July 15 block below). First tender is the
   published CBA shape: greater of the average of
   the top five cap hits at that position (existing `capHit` machinery)
-  or 120% of last year's hit. Must fit the cap; Tag is blocked with a
-  reason, same as Sign. One window, then FA opens — the game has no
-  wall-clock. Ungated published rule.
+  or 120% of last year's hit. Second consecutive tag on the same player
+  is 120% of the first tender. Third is the greater of 144% of the
+  second tender or that year's QB tender. No fourth — after three
+  consecutive tags that club cannot tag that player again. Top-five
+  averages are snapshotted once at window open (hits as they stood
+  before this window's tags); a tag cannot raise the average that
+  prices the next tag in the same window. No hard cap-percentage ban
+  on the tender (a QB tag may exceed 20% of the cap). Must still fit
+  the club's remaining cap; Tag is blocked with a reason, same as Sign.
+  CPU tags only when the tender fits next-season committed + tender
+  ≤ ~90% of the cap, `evaluate()` surplus exceeds the tender in the
+  same currency trades use, and posture is contend or retool —
+  rebuild clubs do not tag. Real league volume is ~10 tags a year;
+  the sim emits `drift.franchiseTagsPerSeason` and does not invent a
+  baseline band until the first green panel / Matt. One window, then
+  FA opens — the game has no wall-clock. Ungated published rule.
 - **Fifth-year option (first-rounders only).** Added 2026-09-03. Not in
   T/D/S/P. Same calendar source as the franchise tag
   (`docs/front-office-design-2026-07-28.md` Part 5): post-draft, May 1
@@ -512,9 +526,11 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   at the position (transition-shaped); picks 11–32 average the 3rd
   through 20th. Pro Bowl escalators are omitted — the repo has
   `draftedPick` but no Pro Bowl flag. Must fit the cap; Pick up is
-  blocked with a Sign-shaped reason. CPU clubs may pick up the
-  eligible R1s they can afford via evaluate / cap / posture; the user
-  club is not auto-picked. Ungated published rule.
+  blocked with a Sign-shaped reason.   CPU clubs may pick up the
+  eligible R1s they can afford via evaluate / cap / posture; rebuild
+  clubs do not add, and a club already above ~90% committed next
+  season does not add. The user club is not auto-picked. Ungated
+  published rule.
 - **July 15 extension (tagged player, camp desk).** Added 2026-09-03.
   Not in T/D/S/P. Same calendar source as the franchise tag
   (`docs/front-office-design-2026-07-28.md` Part 5): tag in Feb, FA
@@ -527,9 +543,11 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   an untagged veteran. Extend replaces the tender with a multi-year
   deal via existing `negotiatedApy` / `makeContract` (true OVR; no
   invert). Skip / Continue: he plays the tag year. One attempt per
-  tagged player. CPU clubs may extend via evaluate / cap / posture;
-  the user club is not auto-extended. Must fit the cap; Extend is
-  blocked with a Sign-shaped reason. Ungated published rule.
+  tagged player.   CPU clubs may extend via evaluate / cap / posture;
+  rebuild clubs do not add, and a club already above ~90% committed
+  next season does not add. The user club is not auto-extended. Must
+  fit the cap; Extend is blocked with a Sign-shaped reason. Ungated
+  published rule.
 - **Rookie slot scale (per-pick APY).** Added 2026-09-05. Not in T/D/S/P.
   The 2011 CBA replaced negotiated rookie deals with a slotted wage scale.
   Over The Cap publishes the yearly chart
