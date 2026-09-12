@@ -14,9 +14,10 @@ import { freeAgents, isActiveRoster, teamCap } from "./select";
 import { LEAGUE_MINIMUM, Player } from "./types";
 import {
   applyFranchiseTag, applyTagExtension, expireContracts,
-  isTagExtensionEligible, runCpuTagExtensions, skipTagExtension,
+  isTagExtensionEligible, negotiatedApy, runCpuTagExtensions, skipTagExtension,
   tagExtensionPlayers, tagExtensionTerms,
 } from "./offseason/contracts";
+import { teamOutlook } from "./frontOffice";
 import { advanceOffseason, enterCampAfterDraft, enterDraft, simEntireDraft } from "./offseason";
 
 function clubActive(st: ReturnType<typeof newGame>, teamId: number) {
@@ -56,13 +57,18 @@ function ok(label: string) { console.log("ok   ", label); }
 
   assert.equal(isTagExtensionEligible(st, p), true);
   const terms = tagExtensionTerms(st, st.userTeamId, p);
+  const expectedApy = negotiatedApy(st, st.userTeamId, p, 1);
   assert.ok(terms.years > 1);
+  assert.equal(terms.apy, expectedApy, "July-15 terms must be negotiatedApy");
   const rng = new Rng(st.rngState);
   const extended = applyTagExtension(st, st.userTeamId, p.id, rng);
   assert.equal(extended.ok, true, extended.reason ?? "extend");
   st.rngState = rng.state;
   assert.ok(p.contract);
   assert.ok(p.contract.years > 1, "extension must be multi-year");
+  assert.equal(p.contract.years, terms.years);
+  const paid = p.contract.baseSalary.reduce((a, b) => a + b, 0) + p.contract.signingBonus;
+  assert.equal(paid, expectedApy * p.contract.years, "deal total is negotiatedApy × years");
   assert.equal(p.contract.yearsRemaining, p.contract.years);
   assert.equal(p.teamId, st.userTeamId);
   assert.equal(isTagExtensionEligible(st, p), false);
@@ -75,6 +81,7 @@ function ok(label: string) { console.log("ok   ", label); }
   assert.ok(p.contract);
   assert.ok(p.contract.yearsRemaining >= 1);
   assert.equal(freeAgents(st).some((x) => x.id === p.id), false);
+  ok("tagged → July-15 extend is multi-year at negotiatedApy");
   ok("extend keeps him off the next FA");
 }
 
@@ -220,4 +227,24 @@ function ok(label: string) { console.log("ok   ", label); }
   const msg5 = advanceOffseason(st);
   assert.equal(st.phase, "preseason", msg5);
   ok("headless recap→camp reaches cutdown");
+}
+
+// Club at 91% committed does not add a July-15 extension.
+{
+  const st = newGame({ seed: 11 });
+  const cpuId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  const p = plantTagged(st, cpuId);
+  expireContracts(st);
+  assert.equal(isTagExtensionEligible(st, p), true);
+  const cap = teamCap(st, cpuId);
+  const target = Math.round(cap.cap * 0.91);
+  st.teams[cpuId].deadCap = Math.max(0, target - (cap.committed - cap.dead));
+  const after = teamCap(st, cpuId);
+  assert.ok(after.committed / after.cap > 0.90, "planted 91% committed");
+  assert.notEqual(teamOutlook(st, cpuId).posture, "rebuild");
+  const rng = new Rng(st.rngState);
+  runCpuTagExtensions(st, rng);
+  const decision = (st.tagExtensions ?? []).find((e) => e.playerId === p.id);
+  assert.ok(!decision || decision.extended === false, "91% committed club must not extend");
+  ok("91% committed club does not extend");
 }

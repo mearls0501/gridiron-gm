@@ -18,6 +18,7 @@ import {
   fifthYearOptionPlayers, fifthYearOptionSalary, franchiseTagSalary,
   isFifthYearOptionEligible, runCpuFifthYearOptions,
 } from "./offseason/contracts";
+import { teamOutlook } from "./frontOffice";
 import { advanceOffseason, enterCampAfterDraft, enterDraft, simEntireDraft } from "./offseason";
 
 function clubActive(st: ReturnType<typeof newGame>, teamId: number) {
@@ -198,4 +199,27 @@ function plantRookieDeal(
   expireContracts(st);
   assert.ok(p.contract);
   assert.equal(capHit(p.contract), tender);
+}
+
+// Club at 91% committed does not pick up a fifth-year option.
+{
+  const st = newGame({ seed: 12 });
+  const cpuId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  const p = plantRookieDeal(st, cpuId, 1, 28);
+  p.pos = "K";
+  p.ovr = 88;
+  p.pot = 90;
+  p.age = 24;
+  const cap = teamCap(st, cpuId);
+  const target = Math.round(cap.cap * 0.91);
+  st.teams[cpuId].deadCap = Math.max(0, target - (cap.committed - cap.dead));
+  const after = teamCap(st, cpuId);
+  assert.ok(after.committed / after.cap > 0.90, "planted 91% committed");
+  assert.notEqual(teamOutlook(st, cpuId).posture, "rebuild");
+  const tender = fifthYearOptionSalary(st, p);
+  assert.ok(tender < after.space, "tender still fits remaining space");
+  assert.equal(isFifthYearOptionEligible(st, p), true);
+  runCpuFifthYearOptions(st);
+  const decision = (st.fifthYearOptions ?? []).find((o) => o.playerId === p.id);
+  assert.ok(!decision || decision.pickedUp === false, "91% committed club must not pick up");
 }

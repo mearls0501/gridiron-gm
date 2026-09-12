@@ -1,14 +1,23 @@
 import { Rng, clamp } from "../rng";
 import { defaultGuaranteedYears, makeContract, makePlayer, marketApy } from "../generate";
 import {
-  CAMP_ROSTER_LIMIT, GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player, PRACTICE_SQUAD_LIMIT,
-  ROSTER_LIMIT, Position, POSITION_MIN, rosterLimit,
+  CAMP_ROSTER_LIMIT, FranchiseTagSnapshot, GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player,
+  PRACTICE_SQUAD_LIMIT, ROSTER_LIMIT, Position, POSITION_MIN, POSITIONS, rosterLimit,
 } from "../types";
 import { capHit, deadMoney, isActiveRoster, isOnWaivers, positionCount, practiceSquadCount, rosterCount, startSeason, teamCap } from "../select";
 import { clearRosterSlot } from "../rosterStatus";
 import { POSITION_VALUE } from "../ratings";
 import { evaluate, frontOffice, targetSpend, teamOutlook, SPEND_FLOOR, payroll } from "../frontOffice";
 import { cpuVeteranView } from "../scouting";
+
+/** Next-season committed + add must stay at or under this share of the cap. */
+const COMMITTED_HEADROOM = 0.90;
+
+/**
+ * Dollars → evaluate() units. Same factor `playerTradeValue` uses in trades.ts
+ * (`surplus * 340`). Do not retune.
+ */
+const CAP_TO_VALUE = 340;
 
 /**
  * Contracts, cuts and re-signings.
@@ -50,23 +59,74 @@ export function clubFranchiseTaggedPlayer(state: GameState, teamId: number): Pla
   return state.players.find((p) => p.id === tag.playerId) ?? null;
 }
 
-/**
- * Exclusive franchise-tag tender: greater of the average of the top five
- * cap hits at the position or 120% of this player's current hit.
- * Published CBA shape; see `docs/nfl-reference.md` §4.
- */
-export function franchiseTagSalary(state: GameState, p: Player): number {
-  const lastYear = p.contract ? capHit(p.contract) : LEAGUE_MINIMUM;
+function liveTopFiveAverage(state: GameState, pos: Position): number | null {
   const hits: number[] = [];
   for (const x of state.players) {
-    if (x.retired || x.prospect || x.pos !== p.pos || !x.contract) continue;
+    if (x.retired || x.prospect || x.pos !== pos || !x.contract) continue;
     const h = capHit(x.contract);
     if (h > 0) hits.push(h);
   }
   hits.sort((a, b) => b - a);
   const top = hits.slice(0, 5);
-  const avg = top.length ? Math.round(top.reduce((a, b) => a + b, 0) / top.length) : lastYear;
+  if (!top.length) return null;
+  return Math.round(top.reduce((a, b) => a + b, 0) / top.length);
+}
+
+/** Freeze top-five averages as they stand now. A later tag cannot move them. */
+export function ensureFranchiseTagSnapshot(state: GameState): FranchiseTagSnapshot {
+  if (state.franchiseTagSnapshot && state.franchiseTagSnapshot.season === state.season) {
+    return state.franchiseTagSnapshot;
+  }
+  const averages: Partial<Record<Position, number>> = {};
+  for (const pos of POSITIONS) {
+    const avg = liveTopFiveAverage(state, pos);
+    if (avg !== null) averages[pos] = avg;
+  }
+  state.franchiseTagSnapshot = { season: state.season, averages };
+  return state.franchiseTagSnapshot;
+}
+
+function snapshotAverage(state: GameState, pos: Position, fallback: number): number {
+  const snap = ensureFranchiseTagSnapshot(state);
+  return snap.averages[pos] ?? fallback;
+}
+
+/** First-tag shape: max(position top-five snapshot, 120% of last year's hit). */
+function firstTagSalary(state: GameState, pos: Position, lastYear: number): number {
+  const avg = snapshotAverage(state, pos, lastYear);
   return Math.max(LEAGUE_MINIMUM, Math.max(avg, Math.round(lastYear * 1.2)));
+}
+
+/**
+ * How many consecutive tags this club has already applied to this player.
+ * A missing / 0 field on last year's record still counts as one tag.
+ */
+export function previousConsecutiveTags(state: GameState, teamId: number, playerId: number): number {
+  const prev = state.franchiseTags?.find(
+    (t) => t.playerId === playerId && t.teamId === teamId && t.season === state.season - 1
+  );
+  if (!prev) return 0;
+  return Math.max(1, prev.consecutiveTags ?? 0);
+}
+
+/**
+ * Exclusive franchise-tag tender. First tag keeps the published CBA shape
+ * (snapshot top-five or 120% of last year). Second consecutive = 120% of
+ * the first tender. Third = max(144% of the second, the QB tender).
+ * See `docs/nfl-reference.md` §4.
+ */
+export function franchiseTagSalary(state: GameState, p: Player): number {
+  const lastYear = p.contract ? capHit(p.contract) : LEAGUE_MINIMUM;
+  const prev = p.teamId === null ? 0 : previousConsecutiveTags(state, p.teamId, p.id);
+  const n = prev + 1;
+  if (n === 2) {
+    return Math.max(LEAGUE_MINIMUM, Math.round(lastYear * 1.2));
+  }
+  if (n === 3) {
+    const qbTender = snapshotAverage(state, "QB", lastYear);
+    return Math.max(LEAGUE_MINIMUM, Math.max(Math.round(lastYear * 1.44), qbTender));
+  }
+  return firstTagSalary(state, p.pos, lastYear);
 }
 
 /** Apply this club's one exclusive tag for the year. Same cap block as Sign. */
@@ -83,7 +143,12 @@ export function applyFranchiseTag(
   if (!p.contract || p.contract.yearsRemaining !== 1) {
     return { ok: false, reason: "Only a player entering free agency can be tagged." };
   }
+  const consecutive = previousConsecutiveTags(state, teamId, playerId) + 1;
+  if (consecutive > 3) {
+    return { ok: false, reason: "This club has already tagged this player three consecutive years." };
+  }
 
+  ensureFranchiseTagSnapshot(state);
   const currentHit = capHit(p.contract);
   const apy = franchiseTagSalary(state, p);
   const contract = makeContract(rng, apy, 1, state.season, defaultGuaranteedYears(apy, 1));
@@ -99,7 +164,9 @@ export function applyFranchiseTag(
 
   p.contract = contract;
   if (!state.franchiseTags) state.franchiseTags = [];
-  state.franchiseTags.push({ season: state.season, teamId, playerId: p.id });
+  state.franchiseTags.push({
+    season: state.season, teamId, playerId: p.id, consecutiveTags: consecutive,
+  });
   state.log.push({
     season: state.season,
     week: state.week,
@@ -109,22 +176,94 @@ export function applyFranchiseTag(
   return { ok: true };
 }
 
+/** Cap hit after one expire step. Expiring deals (1 year left) are $0. */
+function nextSeasonCapHit(c: NonNullable<Player["contract"]> | null): number {
+  if (!c || c.yearsRemaining <= 1) return 0;
+  const nextBase = c.baseSalary[1] ?? 0;
+  const elapsed = Math.max(0, c.years - c.yearsRemaining);
+  const nextElapsed = elapsed + 1;
+  const nextRemaining = c.yearsRemaining - 1;
+  const prorationLeft = Math.max(
+    0, Math.min(c.bonusProrationYears - nextElapsed, nextRemaining)
+  );
+  const annual = c.bonusProrationYears > 0 ? c.signingBonus / c.bonusProrationYears : 0;
+  return Math.round(nextBase + (prorationLeft > 0 ? annual : 0));
+}
+
+/**
+ * What the club will have on the books next season.
+ * Tag window (pre-expire): remaining years of multi-year deals.
+ * After expire: current `teamCap` committed (hits already rolled).
+ */
+function upcomingSeasonCommitted(state: GameState, teamId: number): number {
+  if (state.phase === "offseason-tag" || state.phase === "offseason-recap") {
+    let sum = 0;
+    for (const p of state.players) {
+      if (p.teamId !== teamId || p.retired || p.prospect) continue;
+      sum += nextSeasonCapHit(p.contract);
+    }
+    return sum;
+  }
+  return teamCap(state, teamId).committed;
+}
+
+function clubAboveCommitHeadroom(state: GameState, teamId: number): boolean {
+  const cap = teamCap(state, teamId).cap;
+  return upcomingSeasonCommitted(state, teamId) > cap * COMMITTED_HEADROOM;
+}
+
+function tenderFitsHeadroom(state: GameState, teamId: number, tender: number): boolean {
+  const cap = teamCap(state, teamId).cap;
+  return upcomingSeasonCommitted(state, teamId) + tender <= cap * COMMITTED_HEADROOM;
+}
+
+/**
+ * evaluate() surplus vs tender dollars in the same units trades use.
+ * `surplus * cap / 340` is dollars; invert: tender * 340 / cap.
+ */
+function surplusExceedsTender(
+  state: GameState, teamId: number, p: Player, tender: number
+): boolean {
+  const { posture } = teamOutlook(state, teamId);
+  const surplus = evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]);
+  const cap = teamCap(state, teamId).cap;
+  const tenderCost = (tender / Math.max(1, cap)) * CAP_TO_VALUE;
+  return surplus > tenderCost;
+}
+
+/** Child stream keyed (seed, season, week, feature). Does not touch parent. */
+function featureChildRng(state: GameState, feature: string): Rng {
+  let h = state.seed >>> 0;
+  h = Math.imul(h ^ state.season, 0x9e3779b9);
+  h = Math.imul(h ^ ((state.week + 1) * 0xc2b2ae35), 0x85ebca6b);
+  for (let i = 0; i < feature.length; i++) h = Math.imul(h ^ feature.charCodeAt(i), 0x27d4eb2f);
+  return new Rng((h >>> 0) || 0x9e3779b9);
+}
+
 /**
  * Each CPU club may apply at most one exclusive tag on this window.
- * Ranks by evaluate / posture; must fit the cap. User club is skipped.
+ * Priced, not automatic: tender must fit ~90% next-season committed,
+ * evaluate() surplus must exceed the tender in trade currency, and
+ * rebuild clubs do not tag. User club is skipped.
  */
-export function runCpuFranchiseTags(state: GameState, rng: Rng): void {
+export function runCpuFranchiseTags(state: GameState, _rng: Rng): void {
+  ensureFranchiseTagSnapshot(state);
+  const rng = featureChildRng(state, "franchiseTags");
   for (const t of state.teams) {
     if (t.id === state.userTeamId) continue;
     if (clubHasFranchiseTag(state, t.id)) continue;
     const { posture } = teamOutlook(state, t.id);
+    if (posture === "rebuild") continue;
     const ranked = expiringPlayers(state, t.id).slice().sort(
       (a, b) =>
         evaluate(state, t.id, b, posture, POSITION_VALUE[b.pos]) -
         evaluate(state, t.id, a, posture, POSITION_VALUE[a.pos])
     );
     for (const p of ranked) {
-      if (evaluate(state, t.id, p, posture, POSITION_VALUE[p.pos]) <= 0) continue;
+      if (previousConsecutiveTags(state, t.id, p.id) >= 3) continue;
+      const tender = franchiseTagSalary(state, p);
+      if (!tenderFitsHeadroom(state, t.id, tender)) continue;
+      if (!surplusExceedsTender(state, t.id, p, tender)) continue;
       if (applyFranchiseTag(state, t.id, p.id, rng).ok) break;
     }
   }
@@ -249,12 +388,16 @@ export function declineFifthYearOption(
 
 /**
  * CPU clubs may pick up every eligible R1 they can afford on this
- * window, via evaluate / cap / posture. User club is skipped.
+ * window, via evaluate / cap / posture. Rebuild clubs do not add.
+ * A club already above ~90% committed next season does not add.
+ * User club is skipped.
  */
 export function runCpuFifthYearOptions(state: GameState): void {
   for (const t of state.teams) {
     if (t.id === state.userTeamId) continue;
     const { posture } = teamOutlook(state, t.id);
+    if (posture === "rebuild") continue;
+    if (clubAboveCommitHeadroom(state, t.id)) continue;
     const ranked = fifthYearOptionPlayers(state, t.id).slice().sort(
       (a, b) =>
         evaluate(state, t.id, b, posture, POSITION_VALUE[b.pos]) -
@@ -370,12 +513,16 @@ export function skipTagExtension(
 
 /**
  * CPU clubs may extend their own tagged man on this window, via
- * evaluate / cap / posture. User club is skipped.
+ * evaluate / cap / posture. Rebuild clubs do not add. A club already
+ * above ~90% committed next season does not add. User club is skipped.
  */
-export function runCpuTagExtensions(state: GameState, rng: Rng): void {
+export function runCpuTagExtensions(state: GameState, _rng: Rng): void {
+  const rng = featureChildRng(state, "tagExtensions");
   for (const t of state.teams) {
     if (t.id === state.userTeamId) continue;
     const { posture } = teamOutlook(state, t.id);
+    if (posture === "rebuild") continue;
+    if (clubAboveCommitHeadroom(state, t.id)) continue;
     const ranked = tagExtensionPlayers(state, t.id).slice().sort(
       (a, b) =>
         evaluate(state, t.id, b, posture, POSITION_VALUE[b.pos]) -

@@ -17,6 +17,7 @@ import {
   applyFranchiseTag, clubFranchiseTaggedPlayer, clubHasFranchiseTag, expireContracts,
   expiringPlayers, franchiseTagSalary, isFranchiseTagged, runCpuFranchiseTags,
 } from "./offseason/contracts";
+import { teamOutlook } from "./frontOffice";
 import { advanceOffseason, faPool } from "./offseason";
 
 function clubActive(st: ReturnType<typeof newGame>, teamId: number) {
@@ -195,4 +196,109 @@ function plantExpiring(st: ReturnType<typeof newGame>, teamId: number): Player {
   assert.equal(leagueFirst!.id, theirs.id, "league-wide find hits the other club");
   assert.notEqual(leagueFirst!.id, ours.id);
   assert.equal(clubFranchiseTaggedPlayer(st, st.userTeamId)!.id, ours.id);
+}
+
+function ok(label: string) { console.log("ok   ", label); }
+
+// Three consecutive tags: 120% then 144%/QB; no fourth.
+{
+  const st = newGame({ seed: 21 });
+  const p = clubActive(st, st.userTeamId)
+    .filter((x) => x.pos !== "QB" && x.contract)
+    .sort((a, b) => b.ovr - a.ovr)[0] ?? plantExpiring(st, st.userTeamId);
+  p.age = 25;
+  p.retired = false;
+  p.contract!.yearsRemaining = 1;
+  p.contract!.baseSalary = [p.contract!.baseSalary[0] ?? LEAGUE_MINIMUM];
+  const rng = new Rng(st.rngState);
+  const first = applyFranchiseTag(st, st.userTeamId, p.id, rng);
+  assert.equal(first.ok, true, first.reason ?? "first tag");
+  const tag1 = (st.franchiseTags ?? []).find((t) => t.playerId === p.id);
+  assert.equal(tag1?.consecutiveTags, 1);
+  const tender1 = capHit(p.contract);
+  assert.ok(tender1 > 0);
+
+  st.season += 1;
+  assert.equal(p.contract?.yearsRemaining, 1);
+  const tender2 = franchiseTagSalary(st, p);
+  assert.equal(tender2, Math.round(tender1 * 1.2));
+  const second = applyFranchiseTag(st, st.userTeamId, p.id, rng);
+  assert.equal(second.ok, true, second.reason ?? "second tag");
+  const tag2 = (st.franchiseTags ?? []).find((t) => t.playerId === p.id && t.season === st.season);
+  assert.equal(tag2?.consecutiveTags, 2);
+  assert.equal(capHit(p.contract), tender2);
+
+  st.season += 1;
+  const qbHits = st.players
+    .filter((x) => !x.retired && !x.prospect && x.pos === "QB" && x.contract)
+    .map((x) => capHit(x.contract))
+    .filter((h) => h > 0)
+    .sort((a, b) => b - a)
+    .slice(0, 5);
+  const qbTender = qbHits.length
+    ? Math.round(qbHits.reduce((a, b) => a + b, 0) / qbHits.length)
+    : tender2;
+  const tender3 = franchiseTagSalary(st, p);
+  assert.equal(tender3, Math.max(Math.round(tender2 * 1.44), qbTender));
+  const third = applyFranchiseTag(st, st.userTeamId, p.id, rng);
+  assert.equal(third.ok, true, third.reason ?? "third tag");
+  const tag3 = (st.franchiseTags ?? []).find((t) => t.playerId === p.id && t.season === st.season);
+  assert.equal(tag3?.consecutiveTags, 3);
+
+  st.season += 1;
+  const fourth = applyFranchiseTag(st, st.userTeamId, p.id, rng);
+  assert.equal(fourth.ok, false);
+  assert.match(fourth.reason ?? "", /three consecutive/i);
+  ok("three-tag escalator; no fourth");
+}
+
+// Rebuild club never tags.
+{
+  const st = newGame({ seed: 22 });
+  const cpuId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  plantExpiring(st, cpuId);
+  for (const p of clubActive(st, cpuId)) {
+    if (p.ovr >= 75) p.ovr = 74;
+    p.age = 22;
+  }
+  if (st.teams[cpuId].frontOffice) {
+    st.teams[cpuId].frontOffice!.winNow = 0.05;
+  }
+  assert.equal(teamOutlook(st, cpuId).posture, "rebuild");
+  const rng = new Rng(st.rngState);
+  runCpuFranchiseTags(st, rng);
+  assert.equal((st.franchiseTags ?? []).some((t) => t.teamId === cpuId), false);
+  ok("rebuild club never tags");
+}
+
+// A tag in the same window does not change another club's tender.
+{
+  const st = newGame({ seed: 23 });
+  const otherId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  const ours = plantExpiring(st, st.userTeamId);
+  const theirs = (() => {
+    const samePos = clubActive(st, otherId).find((p) => p.pos === ours.pos && p.contract);
+    assert.ok(samePos, "need a same-position player on the other club");
+    samePos.age = 25;
+    samePos.retired = false;
+    samePos.contract!.yearsRemaining = 1;
+    samePos.contract!.baseSalary = [LEAGUE_MINIMUM];
+    samePos.contract!.signingBonus = 0;
+    return samePos;
+  })();
+  // Make this club's tag large enough that a live re-average would move.
+  st.teams[st.userTeamId].deadCap = 0;
+  for (const x of clubActive(st, st.userTeamId)) {
+    if (x.id === ours.id || !x.contract) continue;
+    x.contract.baseSalary = x.contract.baseSalary.map(() => LEAGUE_MINIMUM);
+    x.contract.signingBonus = 0;
+  }
+  ours.contract = makeContract(new Rng(1), teamCap(st, st.userTeamId).cap * 0.18, 1, st.season, 0);
+  const before = franchiseTagSalary(st, theirs);
+  const rng = new Rng(st.rngState);
+  const tagged = applyFranchiseTag(st, st.userTeamId, ours.id, rng);
+  assert.equal(tagged.ok, true, tagged.reason ?? "tag");
+  const after = franchiseTagSalary(st, theirs);
+  assert.equal(after, before, "same-window tag must not raise another club's tender");
+  ok("snapshot: same-window tag does not move another tender");
 }
