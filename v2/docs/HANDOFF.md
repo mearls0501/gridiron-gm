@@ -45,7 +45,6 @@ death are still short; deadline/in-season are not. An always-on
 quality filter (not shipped) moved year-0 `statcheck` — camp extras
 are the defect, so the 53-man path stays `positionCount`.
 
-<<<<<<< HEAD
 **Gate** (`npm run gate:serial`, 4 cores). Typecheck / determinism /
 verify 348/348 / sweep / calibrate / scout ok. Calibrate / statcheck
 `##M` lines byte-identical to `main` @ `5af8ef0`. The two inherited
@@ -56,11 +55,6 @@ FAIL  leverage.wrongSign  1  expected <= 0
 FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
 GATE FAIL  2 problems
 ```
-=======
-**Gate.** Calibrate / statcheck `##M` lines byte-identical to
-`main` @ `5af8ef0`. Fast serial gate in progress — inherited
-`leverage.wrongSign 1` and `statcheck.wr10RecYds 1018` only.
->>>>>>> 5ba68f5 (docs: Packet E drift 12 trades mean and window split)
 
 **Untouched.** Packet B/C/D files beyond this caller, `scripts/`,
 `baselines.json`, `POSITION_VALUE` values, PR #9. Tags and waivers
