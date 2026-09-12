@@ -20,6 +20,22 @@ keep converting a tagged tender to a multi-year deal at
 `years > 1` at `negotiatedApy` (APY on terms and on the signed
 total).
 
+**`npx tsx scripts/drift.ts 12`** seed 12345 on this agent
+(pre-#70 `active()` filter — ovrDrift still the old −4.2
+population). Key lines:
+
+```
+topCap% peak 27.9 (2029); capBustSeasons 0; peak 28%
+##M drift.franchiseTagsPerSeason 13.166666666666666
+##M drift.tradesPerSeason 22.25
+##M drift.capBustSeasons 0
+trades: 89 / 47 / 46 / 46 / 39 / then 0×7
+```
+
+Tags in the low teens. No contract over 28%. Trades still die
+after season 5 — same franchise-arc leftover, not a volume knob.
+Studio 20 + 5-seed panel remains orchestrator follow-up.
+
 ---
 
 ## 2026-09-12 — Wave 3.4 Packet B: franchise-tag rules (consecutive / priced / snapshot)
