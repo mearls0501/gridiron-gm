@@ -1,10 +1,13 @@
-import { GameState, Player, POSITION_MIN, PRACTICE_SQUAD_LIMIT, rosterLimit, WaiverClaim } from "./types";
-import { addDeadCap, capHit, deadMoney, getPlayer, positionCount, practiceSquadCount, rosterCount, teamCap } from "./select";
+import { GameState, Player, POSITION_MIN, PRACTICE_SQUAD_LIMIT, rosterLimit, salaryCap, WaiverClaim } from "./types";
+import { addDeadCap, capHit, deadMoney, getPlayer, isActiveRoster, rosterCount, startSeason } from "./select";
 import { placeOnPs, clearRosterSlot } from "./rosterStatus";
 import { compareTeamsCore, leagueStandings } from "./season/standings";
-import { evaluate, teamOutlook } from "./frontOffice";
+import { evaluate, teamOutlook, TeamOutlook } from "./frontOffice";
 import { POSITION_VALUE } from "./ratings";
 import { cutPlayer, draftCapitalHold } from "./offseason/contracts";
+
+const TIME = typeof process !== "undefined" && process.env.WAIVER_TIME === "1";
+let resolvePass = 0;
 
 /**
  * Waiver wire.
@@ -86,62 +89,131 @@ export function withdrawWaiverClaim(state: GameState, playerId: number): { ok: b
   return { ok: true };
 }
 
-function bodyWorth(state: GameState, teamId: number, p: Player): number {
-  const { posture } = teamOutlook(state, teamId);
-  return evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season);
+type TeamBag = {
+  members: Player[];
+  outlook: TeamOutlook | null;
+};
+
+type WaiverIdx = {
+  byId: Map<number, Player>;
+  order: Map<number, number>;
+  bags: TeamBag[];
+};
+
+/** One pass over `state.players` per window. Bags stay in players-array order. */
+function buildWaiverIndex(state: GameState): WaiverIdx {
+  const byId = new Map<number, Player>();
+  const order = new Map<number, number>();
+  const bags: TeamBag[] = state.teams.map(() => ({ members: [], outlook: null }));
+  for (let i = 0; i < state.players.length; i++) {
+    const p = state.players[i];
+    byId.set(p.id, p);
+    order.set(p.id, i);
+    if (p.teamId === null || p.retired || p.prospect) continue;
+    bags[p.teamId].members.push(p);
+  }
+  return { byId, order, bags };
+}
+
+function insertMember(idx: WaiverIdx, teamId: number, p: Player): void {
+  const bag = idx.bags[teamId];
+  const pi = idx.order.get(p.id) ?? 1e9;
+  let i = 0;
+  while (i < bag.members.length && (idx.order.get(bag.members[i].id) ?? 0) < pi) i++;
+  bag.members.splice(i, 0, p);
+  bag.outlook = null;
+}
+
+function removeMember(idx: WaiverIdx, teamId: number, playerId: number): void {
+  const bag = idx.bags[teamId];
+  const i = bag.members.findIndex((x) => x.id === playerId);
+  if (i >= 0) bag.members.splice(i, 1);
+  bag.outlook = null;
+}
+
+function rosterN(bag: TeamBag): number {
+  let n = 0;
+  for (const p of bag.members) if (isActiveRoster(p)) n++;
+  return n;
+}
+
+function posN(bag: TeamBag, pos: Player["pos"]): number {
+  let n = 0;
+  for (const p of bag.members) if (p.pos === pos && isActiveRoster(p)) n++;
+  return n;
+}
+
+function psN(bag: TeamBag): number {
+  let n = 0;
+  for (const p of bag.members) if (p.status === "ps") n++;
+  return n;
+}
+
+function spaceOf(state: GameState, bag: TeamBag, teamId: number): number {
+  const cap = salaryCap(state.season, startSeason(state));
+  let committed = 0;
+  for (const p of bag.members) committed += capHit(p.contract);
+  return cap - committed - (state.teams[teamId]?.deadCap ?? 0);
+}
+
+function bagOutlook(state: GameState, teamId: number, bag: TeamBag): TeamOutlook {
+  if (!bag.outlook) bag.outlook = teamOutlook(state, teamId);
+  return bag.outlook;
+}
+
+function bodyWorth(state: GameState, teamId: number, p: Player, outlook: TeamOutlook): number {
+  return evaluate(state, teamId, p, outlook.posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season);
 }
 
 /** Same-position surplus worse than `incoming`, or null. Cross-position dumps are not need. */
-function worseSurplus(state: GameState, teamId: number, incoming: Player): Player | null {
-  const incomingWorth = bodyWorth(state, teamId, incoming);
-  const roster = state.players.filter(
-    (p) =>
-      p.teamId === teamId &&
-      p.pos === incoming.pos &&
-      !p.retired &&
-      !p.prospect &&
-      p.status !== "ir" &&
-      p.status !== "ps"
-  );
-  if (positionCount(state, teamId, incoming.pos) <= POSITION_MIN[incoming.pos]) return null;
-  const worst = roster.slice().sort((a, b) => bodyWorth(state, teamId, a) - bodyWorth(state, teamId, b))[0];
+function worseSurplus(state: GameState, idx: WaiverIdx, teamId: number, incoming: Player): Player | null {
+  const bag = idx.bags[teamId];
+  const outlook = bagOutlook(state, teamId, bag);
+  const incomingWorth = bodyWorth(state, teamId, incoming, outlook);
+  const roster = bag.members.filter((p) => p.pos === incoming.pos && isActiveRoster(p));
+  if (roster.length <= POSITION_MIN[incoming.pos]) return null;
+  const worst = roster.slice().sort((a, b) => bodyWorth(state, teamId, a, outlook) - bodyWorth(state, teamId, b, outlook))[0];
   if (!worst) return null;
-  if (bodyWorth(state, teamId, worst) < incomingWorth) return worst;
+  if (bodyWorth(state, teamId, worst, outlook) < incomingWorth) return worst;
   return null;
 }
 
-function cpuWants(state: GameState, teamId: number, p: Player): boolean {
+function cpuWants(state: GameState, idx: WaiverIdx, teamId: number, p: Player): boolean {
   const hold = rosterLimit(state.phase);
-  if (rosterCount(state, teamId) < hold) {
-    if (positionCount(state, teamId, p.pos) < POSITION_MIN[p.pos]) return true;
-    return bodyWorth(state, teamId, p) > 0;
+  const bag = idx.bags[teamId];
+  if (rosterN(bag) < hold) {
+    if (posN(bag, p.pos) < POSITION_MIN[p.pos]) return true;
+    return bodyWorth(state, teamId, p, bagOutlook(state, teamId, bag)) > 0;
   }
-  return worseSurplus(state, teamId, p) !== null;
+  return worseSurplus(state, idx, teamId, p) !== null;
 }
 
-function wantsClaim(state: GameState, teamId: number, p: Player, entry: WaiverClaim): boolean {
+function wantsClaim(state: GameState, idx: WaiverIdx, teamId: number, p: Player, entry: WaiverClaim): boolean {
   if (teamId === entry.originalTeamId) return false;
   if (teamId === state.userTeamId) return userHasClaim(entry, teamId);
-  return cpuWants(state, teamId, p);
+  return cpuWants(state, idx, teamId, p);
 }
 
-function awardClaim(state: GameState, teamId: number, p: Player): boolean {
+function awardClaim(state: GameState, idx: WaiverIdx, teamId: number, p: Player): boolean {
   const hold = rosterLimit(state.phase);
   const incoming = capHit(p.contract);
-  if (rosterCount(state, teamId) >= hold) {
+  const bag = idx.bags[teamId];
+  if (rosterN(bag) >= hold) {
     if (teamId === state.userTeamId) return false;
-    const worse = worseSurplus(state, teamId, p);
+    const worse = worseSurplus(state, idx, teamId, p);
     if (!worse) return false;
     // Cut first, then the incoming hit must still fit. Dead money on the
     // cut lands when he clears, not here.
-    if (teamCap(state, teamId).space + capHit(worse.contract) < incoming) return false;
+    if (spaceOf(state, bag, teamId) + capHit(worse.contract) < incoming) return false;
     cutPlayer(state, worse.id);
-  } else if (teamId !== state.userTeamId && teamCap(state, teamId).space < incoming) {
+    removeMember(idx, teamId, worse.id);
+  } else if (teamId !== state.userTeamId && spaceOf(state, bag, teamId) < incoming) {
     return false;
   }
-  if (rosterCount(state, teamId) >= hold) return false;
+  if (rosterN(idx.bags[teamId]) >= hold) return false;
   p.teamId = teamId;
   clearRosterSlot(p);
+  insertMember(idx, teamId, p);
   state.log.push({
     season: state.season,
     week: state.week,
@@ -151,17 +223,21 @@ function awardClaim(state: GameState, teamId: number, p: Player): boolean {
   return true;
 }
 
-function stashOrFreeAgent(state: GameState, p: Player, originalTeamId: number): void {
+function stashOrFreeAgent(state: GameState, idx: WaiverIdx, p: Player, originalTeamId: number): void {
   const hit = capHit(p.contract);
-  const space = teamCap(state, originalTeamId).space;
+  const bag = idx.bags[originalTeamId];
+  const space = spaceOf(state, bag, originalTeamId);
   if (
-    practiceSquadCount(state, originalTeamId) < PRACTICE_SQUAD_LIMIT &&
+    psN(bag) < PRACTICE_SQUAD_LIMIT &&
     space >= hit
   ) {
     p.teamId = originalTeamId;
     clearRosterSlot(p);
     const parked = placeOnPs(state, p.id);
-    if (parked.ok) return;
+    if (parked.ok) {
+      insertMember(idx, originalTeamId, p);
+      return;
+    }
   }
   const dead = deadMoney(p.contract);
   if (space >= dead) {
@@ -180,6 +256,7 @@ function stashOrFreeAgent(state: GameState, p: Player, originalTeamId: number): 
   }
   // Cannot stash or eat the dead money. Leave him on the next window so
   // the club stays legal. Settle stops when this set stops moving.
+  if (p.teamId === originalTeamId) insertMember(idx, originalTeamId, p);
   if (!state.waivers) state.waivers = [];
   if (!state.waivers.some((w) => w.playerId === p.id)) {
     state.waivers.push({ playerId: p.id, originalTeamId });
@@ -190,28 +267,37 @@ function stashOrFreeAgent(state: GameState, p: Player, originalTeamId: number): 
  * Close the current window. Snapshot first so a club that cuts to make a
  * claim slot puts that man on the NEXT window, not this one.
  */
-export function resolveWaivers(state: GameState): void {
+export function resolveWaivers(state: GameState): boolean {
   const pending = state.waivers ?? [];
-  if (pending.length === 0) return;
+  if (pending.length === 0) return false;
   state.waivers = [];
 
+  resolvePass++;
+  const timeLabel = `resolveWaivers#${resolvePass} n=${pending.length}`;
+  if (TIME) console.time(timeLabel);
+
+  const idx = buildWaiverIndex(state);
   const order = waiverPriority(state);
+  let claimed = 0;
   for (const entry of pending) {
-    const p = getPlayer(state, entry.playerId);
+    const p = idx.byId.get(entry.playerId);
     if (!p || p.retired || p.teamId !== null) continue;
 
     let taken = false;
     for (const teamId of order) {
-      if (!wantsClaim(state, teamId, p, entry)) continue;
-      if (awardClaim(state, teamId, p)) {
+      if (!wantsClaim(state, idx, teamId, p, entry)) continue;
+      if (awardClaim(state, idx, teamId, p)) {
         taken = true;
+        claimed++;
         break;
       }
     }
-    if (!taken) stashOrFreeAgent(state, p, entry.originalTeamId);
+    if (!taken) stashOrFreeAgent(state, idx, p, entry.originalTeamId);
   }
 
   if ((state.waivers ?? []).length === 0) delete state.waivers;
+  if (TIME) console.timeEnd(timeLabel);
+  return claimed > 0;
 }
 
 /**
@@ -222,14 +308,18 @@ export function resolveWaivers(state: GameState): void {
  * not a league rate.
  */
 export function settleWaivers(state: GameState): void {
+  if (TIME) console.time("settleWaivers");
+  resolvePass = 0;
   let prev = "";
   for (let i = 0; i < 64; i++) {
     const ids = (state.waivers ?? []).map((w) => w.playerId).sort((a, b) => a - b).join(",");
     if (!ids || ids === prev) {
       if ((state.waivers ?? []).length === 0) delete state.waivers;
+      if (TIME) console.timeEnd("settleWaivers");
       return;
     }
     prev = ids;
     resolveWaivers(state);
   }
+  if (TIME) console.timeEnd("settleWaivers");
 }
