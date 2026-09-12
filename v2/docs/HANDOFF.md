@@ -57,6 +57,18 @@ inside the existing band — no band move asked.
 **Untouched.** Engine, `baselines.json`, AGENTS.md, Packet B emit,
 draft **#63**, PR **#9**. Forbidden constants not touched.
 
+**Gate** (`npm run gate:serial`, 4 cores, ~17.7 min). Typecheck /
+determinism / verify 348/348 / sweep / calibrate / scout ok. The
+two inherited single-seed reds only — not this packet:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
+GATE FAIL  2 problems
+```
+
+No UI change; no browser evidence.
+
 ---
 
 ## Wave 3.4 Packet A results
