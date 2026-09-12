@@ -68,9 +68,9 @@ Wave 3.4 Packet A reported the first-bad commits (see `HANDOFF.md`).
 Packets B/C launching. **No feature lanes / no tuning.** Parent 1
 exclude is not "fully green." `tradesPerSeason` panel mean ~13.25 is
 the collapse symptom, not a leftover knob. Serial path stays the
-right tool on 4-core VMs (`#64`, `npm run gate:full:serial`);
-AGENTS.md ratification of that additive `scripts/` serial mode is
-still owed as a lead edit. Use `--seeds 1` or a dedicated
+right tool on 4-core VMs and is the supported long-panel / Mac Studio
+measurement path (`#64`, `npm run gate:full:serial`; ratified in
+AGENTS.md). Use `--seeds 1` or a dedicated
 `npx tsx scripts/drift.ts 20` on that class of box. Do not retry stock
 `Promise.all` `gate:full` on 4 cores. Do not merge #9 or #63.
 
@@ -117,17 +117,15 @@ partial confirm are in `HANDOFF.md`. Packets B/C launching. **No
 feature lanes. No tuning.** Do not edit `baselines.json`. Do not merge
 #9 or #63.
 
-After the bisect reports: retire stale AGENTS.md rows; ratify the #64
-serial runner (additive `scripts/` progress + serial mode) in AGENTS.md
-as a lead edit — that paragraph is still owed. Then the published-rules
+After the bisect reports: retire stale AGENTS.md rows. Then the published-rules
 leftovers: restructure advice text; rookie slot scale and the
 compensatory-pick formula (published CBA math, no calibration argument);
 `askingPrice` onto the club's belief. Year-2 waiver desk ~267 is the
 #41/#49 cap-stuck residue — product decision whether to age them to the
 street after the window; not a settle miss. Do not wipe as a "bug fix."
-Write the "registering a new test in `gate.ts` is the one permitted
-`scripts/` edit" exception into AGENTS.md (PR #47 did it; make it a
-rule). Re-run the scouting challenge audit when the arc is green again:
+The #64 serial runner and the #47 test-registration exception are
+ratified in AGENTS.md. Re-run the scouting challenge audit when the
+arc is green again:
 the "solved line" existed because CPU reads were noise; private signal +
 veteran beliefs were meant to fix that and nobody has measured whether
 they did.

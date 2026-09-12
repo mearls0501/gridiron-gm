@@ -28,10 +28,13 @@ and `v2/docs/nfl-reference.md` when a packet touches a calibrated number.
 
 - `scripts/` and `docs/baselines.json` are **read-only**. Do not edit, do not "fix" a
   harness, do not move a baseline. If you believe a baseline is wrong, write it up in
-  your HANDOFF note and stop.
+  your HANDOFF note and stop. **Exception (AGENTS.md):** register a new
+  `*.test.ts` in `package.json` `test` and in `scripts/gate.ts` FAST + FULL.
+  That is the only permitted `scripts/` edit.
 - Never delete, weaken, or comment out an assertion. Never reduce `verify`'s check count.
-- `npm run gate` (~40s) after every edit. `npm run gate:full` before you open a PR.
-  A **missing** metric is a failure, not a skip.
+- `npm run gate` (~40s) after every edit. `npm run gate:full` before you open a PR
+  on a big box. Long-panel / Mac Studio measurement is `npm run gate:full:serial`
+  (#64). A **missing** metric is a failure, not a skip.
 - **Three strikes and stop.** If the gate is not green after three attempts, stop and
   report: what you changed, what the gate said each time, what you now think is wrong.
   An honest dead end beats a hack that goes green.
@@ -97,13 +100,15 @@ READ FIRST: v2/AGENTS.md in full; v2/docs/HANDOFF.md top 300 lines;
 GOAL: <what exists when you are done, from the user's side of the screen>
 
 YOU OWN: <exact file list>
-DO NOT TOUCH: <exact file list from the lane table> + scripts/ + docs/baselines.json
+DO NOT TOUCH: <exact file list from the lane table> + scripts/ (except gate.ts
+              test registration — AGENTS.md) + docs/baselines.json
 RNG: <"zero draws — prove metrics byte-identical" | "child stream keyed (seed, season, week, '<feature>')">
 
 ACCEPTANCE:
   - npm run gate green (the two inherited reds excepted)
   - npm run determinism clean
-  - a unit test in lib/core/<feature>.test.ts wired into the `test` script chain
+  - a unit test in lib/core/<feature>.test.ts wired into `package.json` `test`
+    and `scripts/gate.ts` FAST + FULL
   - old save loads (export one from main first, import after)
   - browser evidence: one described walkthrough on the affected page(s)
 
@@ -121,8 +126,10 @@ Stop cleanly, write the handoff, report.
 2. Dispatch lanes. Do not dispatch two packets into the same lane in one wave.
 3. As PRs land: rebase each on current `main`, run `npm run gate`, merge **one at a
    time**, run `gate` again after each merge. Never batch-merge.
-4. After the wave: `npm run gate:full` on `main`. If a metric moved, bisect by lane —
-   the lane that moved it either consumed parent RNG or touched an outcome; bounce it.
+4. After the wave: `npm run gate:full` on `main` (big box). Long-panel / Mac Studio
+   measurement is `npm run gate:full:serial` (#64). If a metric moved, bisect by
+   lane — the lane that moved it either consumed parent RNG or touched an
+   outcome; bounce it.
 5. Run `npm run test` and both browser suites (`node scripts/e2e.mjs`,
    `scripts/e2e-interact.mjs`) on `main` after every wave.
 6. Write one wave summary to HANDOFF.md: what merged, what bounced, what moved.
