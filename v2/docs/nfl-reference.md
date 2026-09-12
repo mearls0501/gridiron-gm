@@ -1569,6 +1569,9 @@ Parent 1 (population) is this row. Parent 2 (cap bust / `topCap%` 30.5%)
 is unchanged by the filter — that is Packet B. Residual `ovrDrift`
 **−1.68** sits inside the locked baseline (−0.52 ±1.5) and still fails
 the harness's own `|x| < 1.5` P0. That leftover is recorded, not tuned.
+Matt SIGNED Wave 3.5 #2 (2026-09-12): that harness P0 is now
+`|x − (−0.52)| ≤ 1.5`, the same band as `docs/baselines.json`; the
+locked baseline number itself was not moved.
 
 **`playerWeeksLost` after #33.** The formula is unchanged: for every
 player in `active()` with >100 snaps, `17 - games`, summed. After #33 a
