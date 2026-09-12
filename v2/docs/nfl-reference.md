@@ -1436,6 +1436,12 @@ every dressed player rather than only to those who take a scrimmage snap — whi
 is a change to what `games` MEANS across `statcheck`, `careers` and the player
 pages, so it is a design pass, not a tuning step. Until then the metric is a
 churn-plus-absence composite and should be read as one.
+
+The *who* of the rotation set changed in 2026-09-12 (§6.9). The metric is
+still `17 - games` over players with >100 snaps; it no longer includes
+practice-squad and IR bodies that #33 left on `teamId`. IR minimum weeks
+are still inside the total — see §6.9.
+
 ### 6.8 The record guard, reconditioned — and the era-matched QB refit
 
 Added 2026-08-03 for `task/308-qb-close`. Two numbers, both computed here
@@ -1503,4 +1509,59 @@ per-seed spread is large: 60-seed sd **154**, paired sd across a code change
 code can differ by 150 yards. Read it at 60 seeds — `statcheck` simulates one
 season and a 60-seed sweep costs about fifteen seconds — and treat any panel
 movement smaller than ~170 as noise.
+
+### 6.9 `drift.active()` is the 53-man, not every body on `teamId`
+
+Added 2026-09-12 for Wave 3.4 Packet C. Changing WHAT the franchise-arc
+guards measure, not the engine. `docs/baselines.json` is not moved in this
+packet.
+
+**Before.** `scripts/drift.ts` `active()` was every non-retired, non-prospect
+player with `teamId !== null`. That was the 53-man when the only rostered
+bodies were the 53. After #33 (IR + 16-man practice squad, landed
+after `c2d4a58`), IR and PS stay on `state.players` with `teamId` set
+(invariant 4) and **do not count against 53**. `rosterCount` /
+`isActiveRoster` already excluded them. The harness did not.
+
+**What that mixed in.** Practice-squad bodies are replacement-level by
+construction. IR bodies are the ones a club just took off the 53. Both
+pull `ovrMean` down, flatten the age/OVR table, and inflate the >100-snap
+rotation set that `playerWeeksLost` sums. Wave 3.3's five-anchor table
+read this as a franchise-arc break at `a62d235`: `ovrMean` opened ~67 and
+**dropped to 64.5 in 2027**, `ovrDrift` **−4.12**, age-ordering P0 FAIL,
+`playerWeeksLost` **2955** (above 2158 ±700).
+
+**After.** `active()` is the 53-man: `isActiveRoster` (`status` is not
+`"ps"` and not `"ir"`; missing status is active). Same population
+`rosterCount` already used.
+
+**Packet A.1, confirmed on `a62d235` with only this filter patched**
+(`npx tsx scripts/drift.ts 12`, seed 12345):
+
+| | before (all `teamId`) | after (53-man) |
+|---|---|---|
+| `ovrDrift` | **−4.12** | **−1.68** |
+| `ovrMean` arc | 67.1 → **64.5** → ~63 | **68.0 → 66.3**, cliff gone |
+| age ordering (34 < 27) | P0 FAIL 5/12 | ok 10/12 |
+| `playerWeeksLost` | **2955** (red) | **2586** (inside 2158 ±700) |
+| cap bust / peak `topCap%` | **30.5%** | **30.5% unchanged** |
+| `saveMbAtEnd` (12-season) | 8.25 | 8.25 unchanged |
+
+Parent 1 (population) is this row. Parent 2 (cap bust / `topCap%` 30.5%)
+is unchanged by the filter — that is Packet B. Residual `ovrDrift`
+**−1.68** sits inside the locked baseline (−0.52 ±1.5) and still fails
+the harness's own `|x| < 1.5` P0. That leftover is recorded, not tuned.
+
+**`playerWeeksLost` after #33.** The formula is unchanged: for every
+player in `active()` with >100 snaps, `17 - games`, summed. After #33 a
+designation cannot return before `IR_MIN_GAMES` (4), so those four weeks
+sit in `17 - games` for anyone who served IR and is still in the
+rotation set at recap. The metric is still the §6.7 churn-plus-absence
+composite; the IR floor is inside the total, not a new claim and not a
+reason to move the band.
+
+**What this is not.** Save-size growth (`saveMbAtEnd` / `saveGrowthMbPerSeason`)
+is the new schema — PS/IR/waivers/camp-90 bodies in the encoded save —
+not this filter. Those locks are Matt's to sign; this packet does not
+edit `baselines.json`. Engine and sim behavior are untouched.
 

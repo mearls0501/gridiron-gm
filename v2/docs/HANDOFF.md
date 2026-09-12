@@ -5,6 +5,72 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-12 — Wave 3.4 Packet C: re-condition `drift.active()` to the 53-man
+
+Lead. Docs + harness population definition only. Rebased onto
+`origin/main` `9fe2578` (#69 Packet A). Zero RNG. Engine / sim
+untouched. `baselines.json` **not edited**. `franchiseTagsPerSeason`
+does not exist on this tip — Packet B's emit left alone. PR **#9**
+not touched.
+
+**Diagnosis (Packet A.1, confirmed on #69).** Parent 1 is a
+measurement confound, not an engine deflation. After #33, IR and PS
+stay on `teamId` and do not count against 53. `drift.active()` still
+counted them. On `a62d235`, patching `active()` to exclude
+`p.status === "ps" || "ir"` (12 seasons, seed 12345) changed:
+
+| | before | after exclude |
+|---|---|---|
+| `ovrDrift` | **−4.12** | **−1.68** |
+| `ovrMean` cliff | 67.1 → **64.5** → ~63 | gone (stays **68.0 → 66.3**) |
+| age ordering | P0 FAIL 5/12 | ok 10/12 |
+| `playerWeeksLost` | **2955** (red) | **2586** (inside 2158 ±700) |
+| cap bust / peak `topCap%` | **30.5%** | **30.5% UNCHANGED** |
+| `saveMbAtEnd` (12-season) | 8.25 | 8.25 unchanged |
+
+Parent 2 (cap bust / `topCap%`) is Packet B — first-bad `#42`
+`e5e15de`. Residual `ovrDrift` **−1.68** after the exclude is inside
+the locked baseline (−0.52 ±1.5) and still fails the harness's own
+`|x| < 1.5` P0. Not ≈−0.3. Do not tune it here. This is re-lock +
+`active()` re-condition, not "fully green after exclude."
+
+**Change.** `scripts/drift.ts` `active()` now uses `isActiveRoster`
+(same 53-man `rosterCount` already used). Comment on
+`playerWeeksLost`: the total includes IR minimum weeks
+(`IR_MIN_GAMES` = 4) after #33. Definition written in
+`docs/nfl-reference.md` §6.9 (pointer from §6.7).
+
+**MATT — please SIGN the re-lock of `drift.saveMbAtEnd` /
+`drift.saveGrowthMbPerSeason` for the new schema.** Those numbers
+grew because PS/IR/waivers/camp-90 bodies live in the encoded save,
+not because this filter changed (`saveMbAtEnd` 8.25 unchanged on the
+A.1 patch). This packet must not move the locks. Residual `ovrDrift`
+**−1.68** after the exclude is the other number on the same
+sign-off: keep the locked −0.52 ±1.5, or re-lock the harness
+`|x| < 1.5` P0 so it matches the baseline. Either way is a lead
+edit to `baselines.json` / the harness threshold, not this PR.
+
+**Leftover.** Cap bust / `topCap%` 30.5% (Parent 2 / Packet B).
+Save-size locks unsigned. Residual −1.68. `playerWeeksLost` 2586 is
+inside the existing band — no band move asked.
+
+**Untouched.** Engine, `baselines.json`, AGENTS.md, Packet B emit,
+draft **#63**, PR **#9**. Forbidden constants not touched.
+
+**Gate** (`npm run gate:serial`, 4 cores, ~17.7 min). Typecheck /
+determinism / verify 348/348 / sweep / calibrate / scout ok. The
+two inherited single-seed reds only — not this packet:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
+GATE FAIL  2 problems
+```
+
+No UI change; no browser evidence.
+
+---
+
 ## Wave 3.4 Packet A results
 
 Docs only. Mac Studio, seed 12345, `npx tsx scripts/drift.ts 12`. Zero
