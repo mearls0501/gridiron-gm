@@ -207,6 +207,21 @@ participating, of which ~5 involve a first-round pick.**
 - Contract status (years remaining, cap hit, guarantees) at the trade date.
   Not in T; would need an Over The Cap join.
 
+### 1.7 Sim measurement trap — `trimLog` was deleting `Trade:` rows
+
+Added 2026-09-12. This is a harness / save-log caveat, not a new NFL
+figure. Wave 3.6 autopsy (#76, do not merge): on tip `7328da1`,
+`drift.ts` printed `trades=0` from season 6 onward while `executeTrade`
+still returned ok 20–50 times a year. `trimLog` (`LOG_MAX_ENTRIES` 4000)
+drops the oldest non-permanent rows; camp-90 / waiver finalize writes
+newer `transaction` rows after the year's trades, so the ceiling wiped
+the `Trade:` lines the harness counts. Control `190cbd0` does not
+hard-zero. The 20-season mean vs `min: 5` hid a front-loaded-then-zero
+series. `Trade:` rows are now permanent in `trimLog` (same prefix
+`drift.ts` already uses). Do not retune volume knobs toward 60–120 from
+that false zero. Live exec on the autopsy tip stayed mid-teens to
+dozens; `cannot_fit_the_contracts` is a separate leftover.
+
 ---
 
 ## 2. The draft

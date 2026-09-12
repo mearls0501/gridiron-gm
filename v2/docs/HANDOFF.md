@@ -5,6 +5,51 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-12 — Wave 3.6 fix: trade-death was a log trim, not a dead market
+
+Worker. `lib/core/housekeeping.ts` `trimLog` + `housekeeping.test.ts`.
+Zero new RNG. `baselines.json` not edited. Forbidden knobs / PR #9 not
+touched. `scripts/drift.ts` count unchanged — the product log now keeps
+`Trade:` rows, so the harness and the GM feed read the same history.
+No `TRADE_AUTOPSY` instrumentation (that stays on throwaway #76).
+
+**Diagnosis (Wave 3.6 autopsy / #76 — given).** On tip `7328da1`,
+`drift` prints `trades=0` from season 6 (2031) onward while
+`executeTrade` still returns ok 20–50 times every year. Exact branch:
+`executeTrade` appends `kind: "transaction"` / `text: "Trade: …"` →
+`finalizeOffseason` increments season → `trimLog` keeps two seasons of
+detail, then if `kept.length > LOG_MAX_ENTRIES` (4000) drops the oldest
+non-milestone rows → camp-90 / waiver finalize flood sits newer than
+the year's trades → the ceiling deletes the `Trade:` lines → `drift.ts`
+counts remaining `Trade:` lines for the season that just finished.
+Control `190cbd0` does **not** hard-zero (exec 27–41; drift mean ~27.9);
+`trimLog` already existed — tip log volume after camp-90 / waivers is
+what changed. The 20-season mean vs `min: 5` also hid a
+front-loaded-then-zero series.
+
+Live exec on the autopsy tip never died:
+`63 / 24 / 26 / 45 / 40 / 20 / 24 / 33 / 35 / 47 / 48 / 50`.
+`cannot_fit_the_contracts` still dominates `checkTrade` rejects; that
+is out of scope here.
+
+**Change.** `isPermanentLogEntry` treats `Trade:` transactions the same
+as milestones. `trimLog` cannot drop them at the two-season cutoff or
+the 4000 ceiling. Kind stays `transaction` — same predicate `drift.ts`
+and briefing already use. GM history keeps trades.
+
+**Leftover.** Do not tune toward 60–120. The known-open
+`drift.tradesPerSeason` "today 7.8" figure was this measurement bug;
+live volume is mid-teens to dozens (autopsy exec mean ~38 on tip,
+control drift 27.9). `cannot_fit_the_contracts`, needsOf further, tag
+rules, and waiver leftover are other lanes. Matt can re-lock the
+known-open "today" cell after a panel.
+
+**Untouched.** `trades.ts` execute path, `scripts/drift.ts` (count),
+`baselines.json`, `POSITION_VALUE`, `CONTENDER_PULL`, `GUARANTEE_PULL`,
+`CARRY_SHARE`, `cpuProspectView`, PR #9, volume knobs.
+
+---
+
 ## 2026-09-12 — Wave 3.6: ratify #64 serial runner + test-registration exception
 
 Docs only. Lead edit. `AGENTS.md` now states what was already true on
