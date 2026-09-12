@@ -574,28 +574,44 @@ const UPGRADE_APPETITE = 6;
 const MAX_NEEDS = 5;
 
 /**
+ * Active bodies at or above replacement. Camp extras sit ~50 OVR and
+ * fill `positionCount` without filling the 53; they must not hide a need.
+ * Same line `evaluate()` uses.
+ */
+function qualityPositionCount(state: GameState, teamId: number, pos: Position): number {
+  let n = 0;
+  for (const p of state.players) {
+    if (
+      p.teamId === teamId &&
+      p.pos === pos &&
+      !p.retired &&
+      !p.prospect &&
+      isActiveRoster(p) &&
+      p.ovr >= REPLACEMENT_OVR
+    ) {
+      n++;
+    }
+  }
+  return n;
+}
+
+/**
  * What a club is shopping for.
  *
- * This used to be purely a headcount: a need existed only where the roster held
- * fewer men at a position than `POSITION_TARGET` wanted. The problem is that
- * `fillRoster` runs every offseason and brings every club up to target at every
- * position, so by the time the trade window opens almost nobody has a hole —
- * and `proposeTrade` walks away because there is nothing anyone wants. That is
- * most of why the league struck a fraction of the deals it should.
+ * Headcount is the 53-man-quality roster (`qualityPositionCount`), not
+ * every camp body. Street signings at ~50 OVR used to make `positionCount`
+ * look full at every position once `fillCampRosters` ran, so needs
+ * collapsed to starter-deficit only and CPU clubs stopped shopping.
  *
- * Real front offices do not trade to fill empty chairs; they trade to upgrade
- * the weakest man who is starting. So a need is now either shape — a genuine
- * headcount shortage, or a starting job held by somebody the club would replace
- * given the chance.
- *
- * Capped at the five most valuable, so a bad club shops where it hurts most
- * rather than declaring itself in the market for everything.
+ * A need is still either shape: a quality shortage against
+ * `POSITION_TARGET`, or a starting job held by somebody the club would
+ * replace. Capped at the five most valuable.
  */
-function needsOf(state: GameState, teamId: number): Position[] {
+export function needsOf(state: GameState, teamId: number): Position[] {
   return (Object.keys(POSITION_TARGET) as Position[])
     .map((pos) => ({
       pos,
-      short: positionCount(state, teamId, pos) < POSITION_TARGET[pos],
+      short: qualityPositionCount(state, teamId, pos) < POSITION_TARGET[pos],
       deficit: starterDeficit(state, teamId, pos),
     }))
     .filter((x) => x.short || x.deficit > 0)

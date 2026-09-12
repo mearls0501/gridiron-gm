@@ -5,6 +5,63 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-12 — Wave 3.5 Packet E: `needsOf` counts 53-man quality, not camp bodies
+
+Worker. `lib/core/trades.ts` `needsOf` + callers unchanged besides the
+count. Test in `lib/core/needs.test.ts`. Zero new RNG. `baselines.json`
+not edited. Forbidden knobs / PR #9 not touched. Rebased onto
+`origin/main` `a2d0f96` (#74 / #73 / #71). Tags and waivers not touched.
+
+**Diagnosis (Packet A — given).** Parent of the trade-volume drop is
+`7d09a8b` (#39 camp-90 fill): trades mean **31.4 → 19.5** before tags
+exist. `needsOf` marked a position short when `positionCount <
+POSITION_TARGET`. After every club fills to 90 from the street, no
+club is short at any position, so needs collapse to starter-deficit
+only and CPU clubs stop shopping. Street bodies mask need.
+
+**Change.** Under camp (draft / cutdown) or any roster over 53,
+`needsOf` counts active bodies at or above `REPLACEMENT_OVR` (58),
+the same line `evaluate()` uses. ~50 OVR camp extras no longer make
+a club "not short at CB." The in-season 53-man headcount is the
+existing `positionCount`, so year-0 calibrate / statcheck stay on
+the same path. `POSITION_TARGET` values, `checkTrade`, `evaluate()`,
+`pickValue`, `TRADE_WEEK_WEIGHTS`, and `fillCampRosters` are
+untouched.
+
+**Trades mean (seed 12345, `npx tsx scripts/drift.ts 12`).** After on
+this branch: **21.25**. Packet A at #39 (`7d09a8b`): **19.5**.
+`c2d4a58`: **30.8**. Year-1 window split vs `main` @ `5af8ef0`
+(same seed): in-season 19=19, deadline 18=18, FA+draft 31=31,
+**cutdown 4 → 8**. The +4 is the whole year-1 lift (87 → 91).
+
+**Series.** 91 / 47 / 54 / 50 / 8 / 5 / then 0×6. Still
+front-loaded. Same franchise-arc death after season 5 as Wave 3.1
+(87 / 55 / 40 / 63 / 1 / 6 / 0×14). Not a needsOf leftover.
+
+**Leftover.** Do not tune toward 60–120. Cutdown recovered 4 → 8
+against a sourced ~16 (`nfl-reference.md` §1.2) and a hard cap of
+16 in `runCutdownTrades`. March FA (7) and the post-season-5 market
+death are still short; deadline/in-season are not. An always-on
+quality filter (not shipped) moved year-0 `statcheck` — camp extras
+are the defect, so the 53-man path stays `positionCount`.
+
+**Gate** (`npm run gate:serial`, 4 cores). Typecheck / determinism /
+verify 348/348 / sweep / calibrate / scout ok. Calibrate / statcheck
+`##M` lines byte-identical to `main` @ `5af8ef0`. The two inherited
+single-seed reds only — not this packet:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
+GATE FAIL  2 problems
+```
+
+**Untouched.** Packet B/C/D files beyond this caller, `scripts/`,
+`baselines.json`, `POSITION_VALUE` values, PR #9. Tags and waivers
+not touched.
+
+---
+
 ## 2026-09-12 — Wave 3.5 sign-off 2: harness ovrDrift P0 aligned to baseline band
 
 Matt SIGNED Wave 3.5 #2. Lead edit. Rebased onto `origin/main` `65b35be`
@@ -181,6 +238,7 @@ FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97  (NFL ~1208)
 
 GATE FAIL  2 problems
 ```
+
 ---
 
 ## 2026-09-12 — Wave 3.4 Packet C: re-condition `drift.active()` to the 53-man

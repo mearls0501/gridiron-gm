@@ -448,6 +448,9 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   published NFL training-camp holding limit is 90 before the single cut to 53
   (`docs/front-office-design-2026-07-28.md`). No dataset here enumerates camp
   headcount. Ungated; the number is the published rule, not a computed target.
+  A club is short at a position when it has fewer than `POSITION_TARGET`
+  active bodies at or above replacement (`REPLACEMENT_OVR` = 58); camp
+  extras below that line do not fill the need.
 - **Practice squad (16) and IR (8 return designations, min 4 games, 3
   elevations).** Added 2026-09-02. Not in T/D/S/P. Same calendar source as the
   90-man camp note (`docs/front-office-design-2026-07-28.md` Part 5). Skip the
