@@ -10,6 +10,21 @@ import {
 import { Posture, REPLACEMENT_OVR, evaluate, frontOffice, teamOutlook } from "./frontOffice";
 import { askingPrice } from "./offseason/contracts";
 import { draftOrder } from "./season/standings";
+import {
+  autopsyAccept,
+  autopsyAttempt,
+  autopsyBeginWindow,
+  autopsyCheckReject,
+  autopsyEndWindow,
+  autopsyExec,
+  autopsyLine,
+  autopsyNull,
+  autopsyOn,
+  autopsyPrint,
+  autopsyProposed,
+  autopsySeasonRollup,
+  type AutopsyShape,
+} from "./tradeAutopsy";
 
 /**
  * Trades.
@@ -507,6 +522,70 @@ export interface OfferVerdict {
   illegalReason?: string;
 }
 
+function autopsyDumpRecap(state: GameState): void {
+  if (!autopsyOn()) return;
+  const cpuIds = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);
+  const owned = cpuIds.map((id) => picksOwnedBy(state, id).length);
+  const postures = { contend: 0, retool: 0, rebuild: 0 };
+  let evalGt0 = 0;
+  for (const id of cpuIds) {
+    const { posture } = teamOutlook(state, id);
+    postures[posture]++;
+    for (const p of teamRoster(state, id)) {
+      if (!isActiveRoster(p)) continue;
+      if (evaluate(state, id, p, posture, POSITION_VALUE[p.pos]) > 0) evalGt0++;
+    }
+  }
+  const mid = (a: number[]) => {
+    if (!a.length) return 0;
+    const b = [...a].sort((x, y) => x - y);
+    return b[Math.floor(b.length / 2)];
+  };
+  const order = draftOrder(state, state.season - 1);
+  const missing = state.teams.filter((t) => !order.includes(t.id)).map((t) => t.abbr);
+  const horizon: string[] = [];
+  for (let d = 1; d <= 3; d++) {
+    const yr = state.season + d;
+    let clubs = 0;
+    let full7 = 0;
+    for (const id of state.teams.map((t) => t.id)) {
+      const rows = (state.pickOwners ?? []).filter((p) => p.originalTeamId === id && p.season === yr);
+      if (rows.length) clubs++;
+      if (new Set(rows.map((p) => p.round)).size >= 7) full7++;
+    }
+    horizon.push(`s+${d}:${yr} clubs=${clubs}/32 full7=${full7}/32`);
+  }
+  const zeroLive = owned.filter((n) => n === 0).length;
+  autopsyPrint(
+    `AUTOPSY recap season=${state.season} pickOwners=${state.pickOwners?.length ?? 0}` +
+      ` picksPerClub=${owned.length ? `${Math.min(...owned)}/${mid(owned)}/${Math.max(...owned)}` : "0/0/0"}` +
+      ` zeroLiveClubs=${zeroLive}` +
+      ` posture=contend=${postures.contend}/retool=${postures.retool}/rebuild=${postures.rebuild}` +
+      ` evalGt0=${evalGt0}` +
+      ` draftOrderPrev=${order.length} missing=[${missing.join(",")}]` +
+      ` horizon ${horizon.join(" ")}`
+  );
+}
+
+/** Recap snapshot: inventory / posture / live surplus. Called from runRecap. */
+export function dumpTradeAutopsyRecap(state: GameState): void {
+  autopsyDumpRecap(state);
+}
+
+/** Full-year funnel after cutdown, before the calendar rolls. */
+export function dumpTradeAutopsySeasonEnd(state: GameState): void {
+  if (!autopsyOn()) return;
+  const w = autopsySeasonRollup(state.season);
+  if (w) autopsyPrint(autopsyLine(w, "season-end"));
+  else autopsyPrint(`AUTOPSY season-end season=${state.season} kind=all attempts=0 (no windows)`);
+  autopsyDumpRecap(state);
+}
+
+function autopsyCloseWindow(state: GameState): void {
+  const order = draftOrder(state, state.season - 1);
+  autopsyEndWindow(`draftOrder=${order.length} pickOwners=${state.pickOwners?.length ?? 0}`);
+}
+
 /** Does the receiving club like this enough to say yes. */
 export function evaluateOffer(state: GameState, offer: TradeOffer): OfferVerdict {
   const { posture } = teamOutlook(state, offer.toTeamId);
@@ -514,6 +593,7 @@ export function evaluateOffer(state: GameState, offer: TradeOffer): OfferVerdict
   const outgoing = packageValue(state, offer.toTeamId, offer.get, posture);
   const legality = checkTrade(state, offer);
   if (outgoing <= 0 && incoming <= 0) {
+    autopsyAccept(false, legality.ok, legality.reason);
     return { accept: false, margin: 0, incoming, outgoing, legal: legality.ok, illegalReason: legality.reason };
   }
 
@@ -523,8 +603,10 @@ export function evaluateOffer(state: GameState, offer: TradeOffer): OfferVerdict
   // At 1.08 the window was so narrow that a whole league managed one trade a
   // year.
   const margin = incoming - outgoing * 1.03;
+  const accept = margin > 0 && legality.ok;
+  autopsyAccept(accept, legality.ok, legality.reason);
   return {
-    accept: margin > 0 && legality.ok,
+    accept,
     margin,
     incoming,
     outgoing,
@@ -653,12 +735,17 @@ function rationaleFor(posture: Posture, wantsPlayer: boolean): string {
 export function proposeTrade(
   state: GameState, fromTeamId: number, toTeamId: number, rng: Rng
 ): TradeOffer | null {
-  if (fromTeamId === toTeamId) return null;
+  if (fromTeamId === toTeamId) {
+    autopsyNull("trade", "sameClub");
+    return null;
+  }
   const { posture } = teamOutlook(state, fromTeamId);
   const { posture: theirs } = teamOutlook(state, toTeamId);
 
-  const wants = new Set(needsOf(state, fromTeamId));
-  const targets = tradeableFrom(state, toTeamId, theirs)
+  const needList = needsOf(state, fromTeamId);
+  const wants = new Set(needList);
+  const tradeable = tradeableFrom(state, toTeamId, theirs);
+  const targets = tradeable
     .filter((p) => wants.has(p.pos))
     .sort(
       (a, b) =>
@@ -666,9 +753,18 @@ export function proposeTrade(
         playerTradeValue(state, fromTeamId, a, posture)
     )
     .slice(0, 5);
-  if (targets.length === 0) return null;
+  if (targets.length === 0) {
+    if (needList.length === 0) autopsyNull("trade", "needsOfEmpty");
+    else if (tradeable.length === 0) autopsyNull("trade", "tradeableEmpty");
+    else autopsyNull("trade", "targetFilterEmpty");
+    return null;
+  }
 
   const target = rng.weighted(targets, (_, i) => Math.max(0.1, 1 - i * 0.22));
+  if (!target) {
+    autopsyNull("trade", "weightedEmpty");
+    return null;
+  }
   // Build the package a shade above what the seller thinks he is worth: the
   // seller then still has to come out ahead on his own books, so aiming at
   // exactly his valuation produced a deal that was rejected almost every time.
@@ -705,7 +801,10 @@ export function proposeTrade(
     }
   }
 
-  if (give.length === 0 || offered < price * 0.85) return null;
+  if (give.length === 0 || offered < price * 0.85) {
+    autopsyNull("trade", picksOwnedBy(state, fromTeamId).length === 0 ? "picksOwnedByEmpty" : "packageShort");
+    return null;
+  }
 
   // A 53-man club taking a player and sending only picks goes to 54.
   const except = new Set<number>([
@@ -721,7 +820,10 @@ export function proposeTrade(
     && !state.phase.startsWith("offseason")
   ) {
     const chip = pickDepthChip(state, fromTeamId, rng, except);
-    if (!chip) return null;
+    if (!chip) {
+      autopsyNull("trade", "rosterChipEmpty");
+      return null;
+    }
     give.push({ kind: "player", playerId: chip.id });
   }
 
@@ -734,7 +836,10 @@ export function proposeTrade(
   const myGain =
     packageValue(state, fromTeamId, [{ kind: "player", playerId: target.id }], posture) -
     packageValue(state, fromTeamId, give, posture);
-  if (myGain <= 0) return null;
+  if (myGain <= 0) {
+    autopsyNull("trade", "proposerValue");
+    return null;
+  }
 
   const offer: TradeOffer = {
     id: state.nextTradeId ?? 1,
@@ -775,7 +880,10 @@ function proposePickSwap(
   const { posture: theirs } = teamOutlook(state, toTeamId);
 
   const theirPicks = picksOwnedBy(state, toTeamId);
-  if (!theirPicks.length) return null;
+  if (!theirPicks.length) {
+    autopsyNull("swap", "picksOwnedByEmpty");
+    return null;
+  }
 
   // Buy what THEY rate less than we do.
   //
@@ -797,6 +905,10 @@ function proposePickSwap(
     const gap = theirs > 0.01 ? ours / theirs : 1;
     return Math.pow(pk.round, 1.6) * Math.pow(Math.max(0.2, gap), 3);
   });
+  if (!target) {
+    autopsyNull("swap", "weightedEmpty");
+    return null;
+  }
   // Just past the 1.03 margin the receiving club demands. Anything more
   // generous and the proposer's own test rejects it; the two tests together
   // leave a narrow band that only opens when the clubs genuinely disagree
@@ -815,7 +927,10 @@ function proposePickSwap(
       edge: pickValue(state, toTeamId, pk) / Math.max(0.01, pickValue(state, fromTeamId, pk)),
     }))
     .sort((a, b) => b.edge - a.edge);
-  if (!mine.length) return null;
+  if (!mine.length) {
+    autopsyNull("swap", "mineFilterEmpty");
+    return null;
+  }
 
   // Fill toward the price without blowing past it.
   //
@@ -841,7 +956,10 @@ function proposePickSwap(
     give.push({ kind: "pick", season: fit.pk.season, round: fit.pk.round, originalTeamId: fit.pk.originalTeamId });
     offered += fit.v;
   }
-  if (!give.length || offered < price) return null;
+  if (!give.length || offered < price) {
+    autopsyNull("swap", "packageShort");
+    return null;
+  }
 
   const get: TradeAsset[] = [
     { kind: "pick", season: target.season, round: target.round, originalTeamId: target.originalTeamId },
@@ -850,6 +968,7 @@ function proposePickSwap(
   // Both clubs price it themselves, and both have to come out ahead. A club
   // that would be paying three real picks for one it does not rate walks.
   if (packageValue(state, fromTeamId, get, posture) <= packageValue(state, fromTeamId, give, posture)) {
+    autopsyNull("swap", "proposerValue");
     return null;
   }
 
@@ -875,6 +994,7 @@ function proposePickSwap(
 export function runCpuTrades(state: GameState, rng: Rng, attempts = 120): number {
   if (!tradeWindowOpen(state)) return 0;
   ensurePickInventory(state);
+  autopsyBeginWindow(state.season, state.phase, state.week, "cpu");
 
   let done = 0;
   const ids = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);
@@ -885,19 +1005,25 @@ export function runCpuTrades(state: GameState, rng: Rng, attempts = 120): number
   // start from a player; the offseason keeps the year-round mix.
   const pickSwapShare = state.phase === "regular" ? 0 : 0.55;
 
+  const tryOnce = (shape: AutopsyShape, build: () => TradeOffer | null): void => {
+    autopsyAttempt(shape);
+    const offer = build();
+    if (!offer) return;
+    autopsyProposed(shape);
+    const verdict = evaluateOffer(state, offer);
+    if (!verdict.accept) return;
+    state.nextTradeId = (state.nextTradeId ?? 1) + 1;
+    const ok = executeTrade(state, offer).ok;
+    autopsyExec(ok);
+    if (ok) done++;
+  };
+
   for (let i = 0; i < attempts; i++) {
     const from = rng.pick(ids);
     const to = rng.pick(ids.filter((id) => id !== from));
-    const offer = rng.next() < pickSwapShare
-      ? proposePickSwap(state, from, to, rng)
-      : proposeTrade(state, from, to, rng);
-    if (!offer) continue;
-
-    const verdict = evaluateOffer(state, offer);
-    if (!verdict.accept) continue;
-
-    state.nextTradeId = (state.nextTradeId ?? 1) + 1;
-    if (executeTrade(state, offer).ok) done++;
+    const wantSwap = rng.next() < pickSwapShare;
+    if (wantSwap) tryOnce("swap", () => proposePickSwap(state, from, to, rng));
+    else tryOnce("trade", () => proposeTrade(state, from, to, rng));
   }
 
   // Same builder, more search: weeks 8-9 are 53% of in-season volume
@@ -907,13 +1033,10 @@ export function runCpuTrades(state: GameState, rng: Rng, attempts = 120): number
     for (let i = 0; i < extra; i++) {
       const from = rng.pick(ids);
       const to = rng.pick(ids.filter((id) => id !== from));
-      const offer = proposeTrade(state, from, to, rng);
-      if (!offer) continue;
-      if (!evaluateOffer(state, offer).accept) continue;
-      state.nextTradeId = (state.nextTradeId ?? 1) + 1;
-      if (executeTrade(state, offer).ok) done++;
+      tryOnce("trade", () => proposeTrade(state, from, to, rng));
     }
   }
+  autopsyCloseWindow(state);
   return done;
 }
 
@@ -935,16 +1058,22 @@ export function runDraftDayTrades(state: GameState, rng: Rng, attempts = 260): n
   let done = 0;
   const ids = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);
   if (ids.length < 2) return 0;
+  autopsyBeginWindow(state.season, state.phase, state.week, "draftDay");
 
   for (let i = 0; i < attempts; i++) {
     const from = rng.pick(ids);
     const to = rng.pick(ids.filter((id) => id !== from));
+    autopsyAttempt("swap");
     const offer = proposePickSwap(state, from, to, rng);
     if (!offer) continue;
+    autopsyProposed("swap");
     if (!evaluateOffer(state, offer).accept) continue;
     state.nextTradeId = (state.nextTradeId ?? 1) + 1;
-    if (executeTrade(state, offer).ok) done++;
+    const ok = executeTrade(state, offer).ok;
+    autopsyExec(ok);
+    if (ok) done++;
   }
+  autopsyCloseWindow(state);
   return done;
 }
 
@@ -972,9 +1101,13 @@ function pickDepthChip(
 function proposeCutdownDump(
   state: GameState, sellerId: number, buyerId: number, rng: Rng
 ): TradeOffer | null {
-  if (sellerId === buyerId) return null;
+  if (sellerId === buyerId) {
+    autopsyNull("cutdown", "sameClub");
+    return null;
+  }
   const { posture: buyerP } = teamOutlook(state, buyerId);
-  const wants = new Set(needsOf(state, buyerId));
+  const needList = needsOf(state, buyerId);
+  const wants = new Set(needList);
   const chips = teamRoster(state, sellerId).filter((p) => {
     if (!p.contract || !wants.has(p.pos)) return false;
     if (positionCount(state, sellerId, p.pos) <= POSITION_MIN[p.pos]) return false;
@@ -982,31 +1115,43 @@ function proposeCutdownDump(
     const idx = chart.indexOf(p.id);
     return idx < 0 || idx >= STARTERS[p.pos];
   });
-  if (!chips.length) return null;
+  if (!chips.length) {
+    autopsyNull("cutdown", needList.length === 0 ? "needsOfEmpty" : "targetFilterEmpty");
+    return null;
+  }
 
   const target = rng.weighted(chips, (p) => {
     const chart = state.teams[sellerId].depthChart[p.pos] ?? [];
     const idx = chart.indexOf(p.id);
     return idx < 0 ? 8 : Math.max(0.5, idx);
   });
+  if (!target) {
+    autopsyNull("cutdown", "weightedEmpty");
+    return null;
+  }
 
   // One Day-3 pick. The seller is about to cut this man for nothing
   // (§1.4: 70% of veterans fetch a fifth or worse). Bundling three
   // late picks, as the regular builder does, emptied the pool that
   // in-season deals also spend.
   const buyerVal = playerTradeValue(state, buyerId, target, buyerP);
-  const pick = picksOwnedBy(state, buyerId)
+  const buyerPicks = picksOwnedBy(state, buyerId);
+  const pick = buyerPicks
     .filter((pk) => pk.round >= 5)
     .map((pk) => ({ pk, cost: pickValue(state, buyerId, pk) }))
     .filter((x) => x.cost > 0 && x.cost < buyerVal)
     .sort((a, b) => a.cost - b.cost)[0];
-  if (!pick) return null;
+  if (!pick) {
+    autopsyNull("cutdown", buyerPicks.length === 0 ? "picksOwnedByEmpty" : "packageShort");
+    return null;
+  }
 
   const give: TradeAsset[] = [
     { kind: "pick", season: pick.pk.season, round: pick.pk.round, originalTeamId: pick.pk.originalTeamId },
   ];
   const get: TradeAsset[] = [{ kind: "player", playerId: target.id }];
   if (packageValue(state, buyerId, get, buyerP) <= packageValue(state, buyerId, give, buyerP)) {
+    autopsyNull("cutdown", "proposerValue");
     return null;
   }
 
@@ -1036,6 +1181,7 @@ export function runCutdownTrades(state: GameState, rng: Rng, attempts = 120): nu
   let done = 0;
   const ids = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);
   if (ids.length < 2) return 0;
+  autopsyBeginWindow(state.season, state.phase, state.week, "cutdown");
 
   // §1.2: final cutdowns are ~16 trades a year. The one-pick dump
   // clears easily, and uncapped it spent the Day-3 pool in two seasons
@@ -1044,12 +1190,21 @@ export function runCutdownTrades(state: GameState, rng: Rng, attempts = 120): nu
   for (let i = 0; i < attempts && done < cap; i++) {
     const seller = rng.pick(ids);
     const buyer = rng.pick(ids.filter((id) => id !== seller));
+    autopsyAttempt("cutdown");
     const offer = proposeCutdownDump(state, seller, buyer, rng);
     if (!offer) continue;
-    if (!checkTrade(state, offer).ok) continue;
+    autopsyProposed("cutdown");
+    const check = checkTrade(state, offer);
+    if (!check.ok) {
+      autopsyCheckReject(check.reason ?? "unknown");
+      continue;
+    }
     state.nextTradeId = (state.nextTradeId ?? 1) + 1;
-    if (executeTrade(state, offer).ok) done++;
+    const ok = executeTrade(state, offer).ok;
+    autopsyExec(ok);
+    if (ok) done++;
   }
+  autopsyCloseWindow(state);
   return done;
 }
 

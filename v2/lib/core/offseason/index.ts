@@ -9,7 +9,7 @@ import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, runCpuFif
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
 import { ensureScouting, pruneScouting } from "../scouting";
-import { ensurePickInventory, generateUserOffers, prunePickInventory, pruneStaleTradeInbox, runCpuTrades, runDraftDayTrades } from "../trades";
+import { dumpTradeAutopsyRecap, dumpTradeAutopsySeasonEnd, ensurePickInventory, generateUserOffers, prunePickInventory, pruneStaleTradeInbox, runCpuTrades, runDraftDayTrades } from "../trades";
 import { runHousekeeping } from "../housekeeping";
 import { refreshCpuStaff } from "../staff";
 import { runPsychology } from "../psychology";
@@ -75,6 +75,7 @@ export interface OffseasonState {
 
 /** Season review: history, awards, aging, development, retirement. */
 export function runRecap(state: GameState): OffseasonReport {
+  dumpTradeAutopsyRecap(state);
   const rng = new Rng(state.rngState);
 
   const history = recordSeasonHistory(state);
@@ -250,6 +251,8 @@ export function finalizeOffseason(state: GameState): void {
   }
   foldPracticeSquad(state, state.userTeamId);
   reconcileRoster(state, state.userTeamId, rng, ROSTER_LIMIT, true);
+
+  dumpTradeAutopsySeasonEnd(state);
 
   // Roll the calendar.
   state.season += 1;
