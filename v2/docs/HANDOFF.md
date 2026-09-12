@@ -37,12 +37,42 @@ as milestones. `trimLog` cannot drop them at the two-season cutoff or
 the 4000 ceiling. Kind stays `transaction` — same predicate `drift.ts`
 and briefing already use. GM history keeps trades.
 
+**`npx tsx scripts/drift.ts 12` seed 12345 (this 4-core VM, 865 s).**
+Acceptance met. No hard-zero streak. Series tracks live execute
+volume (mid-teens to dozens, here 44–87):
+
+```
+trades= 87 / 48 / 50 / 69 / 64 / 44 / 48 / 57 / 59 / 71 / 72 / 74
+##M drift.tradesPerSeason 61.92
+```
+
+Autopsy tip on the same seed was `87 / 47 / 50 / 58 / 45 / 0×7` in
+the log while exec stayed `63 / 24 / 26 / 45 / 40 / 20 / 24 / 33 /
+35 / 47 / 48 / 50`. After this fix the log series stays alive
+through 2037 and rises late (71 / 72 / 74), in the same band as
+autopsy exec.
+
 **Leftover.** Do not tune toward 60–120. The known-open
 `drift.tradesPerSeason` "today 7.8" figure was this measurement bug;
-live volume is mid-teens to dozens (autopsy exec mean ~38 on tip,
-control drift 27.9). `cannot_fit_the_contracts`, needsOf further, tag
-rules, and waiver leftover are other lanes. Matt can re-lock the
-known-open "today" cell after a panel.
+honest 12-season mean on this seed is **61.9** (NFL ~90, known-open
+target 60–120). `scripts/drift.ts` still has an internal
+`trades <= 20` P0 from the old 7.8 era — that now prints FAIL and
+ticks `p0Failures`. That guard is lead-owned; this packet did not
+edit it. Other drift 12 P0s on this run (age-ordering 9/12, one cap
+bust at 31%, one poor-house season, save growth +0.47) are not this
+lane. `cannot_fit_the_contracts`, needsOf further, tag rules, and
+waiver leftover are other lanes. Matt can re-lock the known-open
+"today" cell and the stale `<= 20` internal ceiling after a panel.
+
+**Gate** (`npm run gate:serial`, 4 cores). Typecheck / housekeeping /
+determinism / verify 348/348 / sweep / calibrate / scout ok. The two
+inherited single-seed reds only — not this packet:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
+GATE FAIL  2 problems
+```
 
 **Untouched.** `trades.ts` execute path, `scripts/drift.ts` (count),
 `baselines.json`, `POSITION_VALUE`, `CONTENDER_PULL`, `GUARANTEE_PULL`,

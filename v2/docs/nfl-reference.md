@@ -219,8 +219,13 @@ the `Trade:` lines the harness counts. Control `190cbd0` does not
 hard-zero. The 20-season mean vs `min: 5` hid a front-loaded-then-zero
 series. `Trade:` rows are now permanent in `trimLog` (same prefix
 `drift.ts` already uses). Do not retune volume knobs toward 60–120 from
-that false zero. Live exec on the autopsy tip stayed mid-teens to
-dozens; `cannot_fit_the_contracts` is a separate leftover.
+that false zero. After `Trade:` rows were marked permanent,
+`npx tsx scripts/drift.ts 12` seed 12345 reads
+`87 / 48 / 50 / 69 / 64 / 44 / 48 / 57 / 59 / 71 / 72 / 74`
+(mean **61.9**). `cannot_fit_the_contracts` is a separate leftover.
+The harness still carries a stale internal `trades <= 20` P0 from
+the 7.8-era measurement; that is lead-owned, not a reason to
+narrow volume.
 
 ---
 
