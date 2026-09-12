@@ -43,8 +43,17 @@ follow-up.
 `baselines.json`, `cpuProspectView`, `POSITION_VALUE`,
 `CONTENDER_PULL`, `GUARANTEE_PULL`, `CARRY_SHARE`, PR #9.
 
-**Gate.** Unit tests + fast gate on this PR. Inherited
-`leverage.wrongSign 1` and `statcheck.wr10RecYds 1018` left alone.
+**Gate.** `npm run gate:serial` (fast, 1 seed, 4 cores). Every
+harness exited 0 (`franchisetag`, `fifthyearoption`, `tagextension`,
+`verify` 348/348, `sweep` 5×2 clean). Metric FAIL lines are only
+the two inherited single-seed reds — left alone:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97  (NFL ~1208)
+
+GATE FAIL  2 problems
+```
 
 ---
 
