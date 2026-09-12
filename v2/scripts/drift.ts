@@ -205,7 +205,11 @@ guard(pick1 === flat.length, "draft order tracks the standings",
 
 // P1 — the franchise arc.
 const ovrDrift = mean(last.map((r) => r.ovrMean)) - mean(first.map((r) => r.ovrMean));
-guard(Math.abs(ovrDrift) < 1.5, "league OVR does not inflate",
+// −0.52 ±1.5, matching the panel-locked `drift.ovrDrift` baseline, which
+// is the authority. This guard carried `|x| < 1.5` while the baseline
+// allowed down to about −2.02, so a reading between the two (Packet C's
+// residual −1.68) counted a P0 the locked number said was fine.
+guard(Math.abs(ovrDrift - (-0.52)) <= 1.5, "league OVR does not inflate",
   `mean OVR moved ${ovrDrift >= 0 ? "+" : ""}${ovrDrift.toFixed(1)} over ${SEASONS} seasons`);
 
 const eliteGrowth = mean(last.map((r) => r.n85)) / Math.max(1, mean(first.map((r) => r.n85)));

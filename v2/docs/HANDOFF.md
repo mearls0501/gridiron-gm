@@ -5,6 +5,36 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-12 — Wave 3.5 sign-off 2: harness ovrDrift P0 aligned to baseline band
+
+Matt SIGNED Wave 3.5 #2. Lead edit. Rebased onto `origin/main` `65b35be`
+(#73 Packet D / #71 Packet B). `scripts/drift.ts` threshold only (plus this
+note and one sentence in `nfl-reference.md` §6.9). `docs/baselines.json`
+**not edited** — the locked `ovrDrift` number stays −0.52 ±1.5. That
+re-lock waits for the post-B/D/E panel. Save-size re-lock
+(`saveMbAtEnd` / `saveGrowthMbPerSeason`) is still after that panel.
+`drift.franchiseTagsPerSeason` emit and Packet C `active()` kept.
+Packet B/D/E engine paths not touched. PR **#9** not touched.
+
+**Change.** The franchise-arc P0 was `Math.abs(ovrDrift) < 1.5`. Residual
+−1.68 after Packet C's `active()` filter sits inside the locked baseline
+(−0.52 ±1.5, floor about −2.02) and failed that harness check — same
+class of conflict as the August save-growth 0.4 / 0.45. The harness now
+uses `|x − (−0.52)| ≤ 1.5`, matching the baseline. The baseline number
+itself is not moved.
+
+**Gate** (`npm run gate:serial`, 4 cores, ~17.9 min on the pre-#71/#73
+tip). Typecheck / determinism / verify 348/348 / sweep / calibrate /
+scout ok. The two inherited single-seed reds only — not this packet:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
+GATE FAIL  2 problems
+```
+
+---
+
 ## 2026-09-12 — Wave 3.5 Packet D: waiver settle perf
 
 Worker. Rebased onto `origin/main` `67ceb37` (#71 Packet B). Zero new RNG.
@@ -151,7 +181,6 @@ FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97  (NFL ~1208)
 
 GATE FAIL  2 problems
 ```
-
 ---
 
 ## 2026-09-12 — Wave 3.4 Packet C: re-condition `drift.active()` to the 53-man
