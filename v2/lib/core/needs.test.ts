@@ -43,6 +43,7 @@ function flattenNeeds(active: Player[]): void {
 
 {
   const st = newGame({ seed: 1 });
+  st.phase = "offseason-final";
   const teamId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
   const active = clubActive(st, teamId);
   flattenNeeds(active);
@@ -62,10 +63,17 @@ function flattenNeeds(active: Player[]): void {
     needsOf(st, teamId).includes("CB"),
     "50-OVR camp bodies must not make a club not-short at CB",
   );
+
+  st.phase = "regular";
+  assert.ok(
+    !needsOf(st, teamId).includes("CB"),
+    "in-season 53-man headcount is unchanged — street mix on a 53 is not this packet",
+  );
 }
 
 {
   const st = newGame({ seed: 1 });
+  st.phase = "offseason-final";
   const teamId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
   flattenNeeds(clubActive(st, teamId));
   assert.ok(!needsOf(st, teamId).includes("CB"), "a full quality CB room is not a need");
@@ -73,6 +81,7 @@ function flattenNeeds(active: Player[]): void {
 
 {
   const st = newGame({ seed: 2 });
+  st.phase = "offseason-final";
   const teamId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
   const active = clubActive(st, teamId);
   flattenNeeds(active);
@@ -89,6 +98,7 @@ function flattenNeeds(active: Player[]): void {
 
 {
   const st = newGame({ seed: 3 });
+  st.phase = "offseason-final";
   const teamId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
   const active = clubActive(st, teamId);
   flattenNeeds(active);

@@ -2,7 +2,7 @@ import { Rng, clamp } from "./rng";
 import { POSITION_VALUE } from "./ratings";
 import {
   DraftPick, GameState, PICK_HORIZON, PickOwnership, Player, POSITION_MIN, POSITION_TARGET,
-  Position, ROSTER_LIMIT, STARTERS, TRADE_DEADLINE_WEEK, TradeAsset, TradeOffer,
+  Position, ROSTER_LIMIT, STARTERS, TRADE_DEADLINE_WEEK, TradeAsset, TradeOffer, isCampPhase,
 } from "./types";
 import {
   addDeadCap, capHit, deadMoney, isActiveRoster, positionCount, rosterCount, teamCap, teamRoster,
@@ -595,13 +595,22 @@ function qualityPositionCount(state: GameState, teamId: number, pos: Position): 
   return n;
 }
 
+/** Camp extras only. A 53-man roster keeps the existing headcount. */
+function needHeadcount(state: GameState, teamId: number, pos: Position): number {
+  if (isCampPhase(state.phase) || rosterCount(state, teamId) > ROSTER_LIMIT) {
+    return qualityPositionCount(state, teamId, pos);
+  }
+  return positionCount(state, teamId, pos);
+}
+
 /**
  * What a club is shopping for.
  *
- * Headcount is the 53-man-quality roster (`qualityPositionCount`), not
- * every camp body. Street signings at ~50 OVR used to make `positionCount`
- * look full at every position once `fillCampRosters` ran, so needs
- * collapsed to starter-deficit only and CPU clubs stopped shopping.
+ * Headcount under camp (or any roster over 53) is 53-man quality, not
+ * every camp body. Street signings at ~50 OVR used to make
+ * `positionCount` look full at every position once `fillCampRosters`
+ * ran, so needs collapsed to starter-deficit only and CPU clubs stopped
+ * shopping. In-season 53-man path is unchanged.
  *
  * A need is still either shape: a quality shortage against
  * `POSITION_TARGET`, or a starting job held by somebody the club would
@@ -611,7 +620,7 @@ export function needsOf(state: GameState, teamId: number): Position[] {
   return (Object.keys(POSITION_TARGET) as Position[])
     .map((pos) => ({
       pos,
-      short: qualityPositionCount(state, teamId, pos) < POSITION_TARGET[pos],
+      short: needHeadcount(state, teamId, pos) < POSITION_TARGET[pos],
       deficit: starterDeficit(state, teamId, pos),
     }))
     .filter((x) => x.short || x.deficit > 0)
