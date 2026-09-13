@@ -7,6 +7,7 @@ import { useGame } from "@/lib/store/game";
 import { toastDismissApplies } from "@/lib/store/simToast";
 import { showNewGameScreen } from "@/lib/view/newGameRoute";
 import { computeRecords, recordString, teamCap, formatMoney } from "@/lib/core/select";
+import { isPendingForcedMove } from "@/lib/core/owner";
 import { cx, TeamMark } from "./ui";
 import { NewGameScreen } from "./NewGameScreen";
 
@@ -58,6 +59,13 @@ export function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    if (!state) return;
+    if (!isPendingForcedMove(state) && !state.forcedMove?.retired) return;
+    if (pathname === "/forced-move" || pathname === "/saves" || pathname === "/settings") return;
+    router.replace("/forced-move");
+  }, [state, pathname, router]);
 
   useEffect(() => {
     if (!toast) return;

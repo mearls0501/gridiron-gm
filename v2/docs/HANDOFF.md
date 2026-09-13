@@ -5,6 +5,78 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-13 — Wave 3.7 Packet 3b: people-layer teeth
+
+Worker. Rebased onto `main` @ `47de094` (#81 /play live state;
+includes #80 Wave 2.5 bugs). People-layer teeth on the Wave 2.5
+scaffolding (#57/#60/#59/#61). Signed dials not retuned. Void years +
+cap carryover are SIGNED and **not this PR** — Phase 3 after Packet 3
+is green. Gate keeps `peopleteeth` plus landed `wave25bugs` /
+`livegame`. Forbidden knobs / PR #9 / capBust / minPayroll / volume
+not retuned. Sibling packets 3a/3c are on main; this PR does not
+re-implement them.
+
+**Matt SIGNED 2026-09-13 (reiterated).**
+
+1. Owner dials (#57) as-is: patience 0.35–0.80, win targets 10/8/6,
+   fire heat `62 + 28×patience`, no firing before year two.
+2. Holdout dials (#60) as-is: role 62% market / P=0.16 cap 12;
+   trade-request P=0.11 role / 0.05 money, cap 14.
+3. Void + carryover: signed for later Phase 3 — **do not build here**.
+4. User-GM firing = forced move, not game over: season ends for the
+   user; CPU clubs with open GM chairs offered; retire-save path;
+   rebuild posture on arrival; patience is the new owner's.
+
+**Diagnosis.** Coach `yearsRemaining` was decorative. `runCoachCarousel`
+only filled chairs the user had already emptied. `wouldFire` was a
+Staff-page sentence. Holdouts were briefing flags; they still played.
+`applyOfficeExtension` built terms at premium 1.0 and always accepted.
+`plantUserDesk` filed a bonus demand on the user club only.
+
+**Change.**
+
+- `tickCoachContracts` at recap: every chair counts down; 0 → market.
+- `fireCpuHeadCoaches` uses the signed heat/threshold/two-season look
+  on HC tenure. `firingEnabled` does not gate this (settings must not
+  change the sim). Then the existing carousel fills vacancies.
+- Holdouts are gameday inactive (`sitHoldouts` inside
+  `declareGamedayInactives`) until resolved or `HOLDOUT_AUTO_REPORT_WEEKS`
+  (4). Same-season re-file is blocked after auto-report.
+- User-desk extensions: club market offer refuses;
+  `EXTENSION_ASK_PREMIUM` 1.08 is the ask. Meeting it accepts and
+  clears a holdout. CPU `negotiatedApy` / tag path untouched.
+- `plantUserDesk` removed. Frequency still 10.0 / 3.75 on the #60
+  8-seed camp (signed dials, no user-club extra).
+- User `wouldFire` writes `state.forcedMove` (open chairs = other
+  clubs on the fire line, else three worst records). `/forced-move`
+  take-chair or retire+export. Arrival sets `gmHiredSeason` and
+  `forcedRebuildUntil`. Store Advance/Sim is blocked; headless
+  `advanceOffseason` is not, so harnesses keep the same `userTeamId`.
+
+**Measure (not a new dial).** Planted half-league 3–14 contend /
+11–6: **15** CPU HC fires. Real-year volume is whatever the signed
+dials produce; target ~6–8. Do not invent a fire-rate knob.
+
+**Leftover.** Void years + cap carryover stay Phase 3. Packets 3a
+(#80) and 3c (#81) are on main. Year-0 holdouts are desk flags only
+(`history.length === 0` does not sit) so calibrate/statcheck stay on
+the year-0 path; they sit from year 1.
+
+**Untouched.** `cpuProspectView`, `POSITION_VALUE`, `CONTENDER_PULL`,
+`GUARANTEE_PULL`, `CARRY_SHARE`, PR #9, capBust/minPayroll, trade
+volume knobs, `docs/baselines.json` except the #47 test-registration
+pair.
+
+**Gate.** `nproc`=4. First `gate:serial` went red on year-0 holdout
+sits (`leadPassYds` / `qb5` / `qb10` / `leadTackles` / `maxGameRecYds`).
+Year-0 sit skipped; then `npx tsx scripts/statcheck.ts` exit 0 and
+`npx tsx scripts/calibrate.ts 300` exit 0. People unit tests green.
+Inherited `leverage.wrongSign` / `statcheck.wr10RecYds` 1018 are not
+this packet. Determinism 0 / 0. Verify 348/348 on the first serial
+run (sits on year 1+ did not break checks).
+
+---
+
 ## 2026-09-13 — Wave 3.7 Packet 3c: /play live state
 
 Wave 2.5 packet 4. Base `main@d54ca50` (#79); rebased onto #80 /

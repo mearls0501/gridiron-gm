@@ -8,11 +8,15 @@ import { newGame } from "./newGame";
 import { blankRecord } from "./select";
 import {
   OWNER_MIN_SEASONS,
+  acceptGmChair,
+  applyUserGmFiring,
   ensureOwners,
   fireHeatThreshold,
   ownerHeatFor,
   ownerJobView,
+  retireFromLeague,
 } from "./owner";
+import { teamOutlook } from "./frontOffice";
 import { GameState, SeasonHistory, TeamRecord } from "./types";
 
 function ok(label: string) { console.log("ok   ", label); }
@@ -82,6 +86,7 @@ function plantYear(st: GameState, season: number, userWins: number): SeasonHisto
   const st = newGame({ seed: 53 });
   ensureOwners(st);
   st.teams[st.userTeamId].owner!.patience = 0.35;
+  st.teams[st.userTeamId].gmHiredSeason = st.season - 2;
   plantYear(st, st.season - 2, 3);
   plantYear(st, st.season - 1, 3);
 
@@ -109,6 +114,55 @@ function plantYear(st: GameState, season: number, userWins: number): SeasonHisto
   ensureOwners(raw);
   assert.ok(raw.teams.every((t) => t.owner), "stripped save gets an owner");
   ok("old save without owner loads");
+}
+
+function forceContend(st: GameState, teamId: number): void {
+  if (st.teams[teamId].frontOffice) st.teams[teamId].frontOffice!.winNow = 1;
+  for (const p of st.players) {
+    if (p.teamId === teamId && !p.retired && !p.prospect) p.ovr = Math.max(p.ovr, 82);
+  }
+}
+
+{
+  const st = newGame({ seed: 55 });
+  ensureOwners(st);
+  st.settings = { ...(st.settings!), firingEnabled: true };
+  st.teams[st.userTeamId].owner!.patience = 0.35;
+  forceContend(st, st.userTeamId);
+  st.teams[st.userTeamId].gmHiredSeason = st.season - 2;
+  plantYear(st, st.season - 2, 3);
+  plantYear(st, st.season - 1, 3);
+  const job = ownerJobView(st, st.userTeamId)!;
+  assert.equal(job.wouldFire, true, "impatient contend 3-14 twice fires the user GM");
+  const before = st.userTeamId;
+  const move = applyUserGmFiring(st);
+  assert.ok(move, "forced move is written");
+  assert.equal(move!.fromTeamId, before);
+  assert.ok(move!.openChairs.length > 0, "open chairs are offered");
+  assert.equal(st.userTeamId, before, "taking a chair is the GM's choice");
+  const chair = move!.openChairs[0];
+  const r = acceptGmChair(st, chair);
+  assert.equal(r.ok, true, r.reason ?? "accept");
+  assert.equal(st.userTeamId, chair);
+  assert.equal(st.forcedMove?.resolved, true);
+  assert.equal(teamOutlook(st, chair).posture, "rebuild");
+  ok("user-GM fire is a forced move; arrival is rebuild");
+}
+
+{
+  const st = newGame({ seed: 56 });
+  ensureOwners(st);
+  st.settings = { ...(st.settings!), firingEnabled: true };
+  st.teams[st.userTeamId].owner!.patience = 0.35;
+  forceContend(st, st.userTeamId);
+  st.teams[st.userTeamId].gmHiredSeason = st.season - 2;
+  plantYear(st, st.season - 2, 3);
+  plantYear(st, st.season - 1, 3);
+  applyUserGmFiring(st);
+  const r = retireFromLeague(st);
+  assert.equal(r.ok, true);
+  assert.equal(st.forcedMove?.retired, true);
+  ok("retire-save path is available");
 }
 
 console.log("ok    owner people layer");

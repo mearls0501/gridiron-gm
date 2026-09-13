@@ -4,7 +4,8 @@ import {
   CAMP_ROSTER_LIMIT, FranchiseTagSnapshot, GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player,
   PRACTICE_SQUAD_LIMIT, ROSTER_LIMIT, Position, POSITION_MIN, POSITIONS, rosterLimit,
 } from "../types";
-import { capHit, deadMoney, isActiveRoster, isOnWaivers, positionCount, practiceSquadCount, rosterCount, startSeason, teamCap } from "../select";
+import { capHit, deadMoney, formatMoney, isActiveRoster, isOnWaivers, positionCount, practiceSquadCount, rosterCount, startSeason, teamCap } from "../select";
+import { resolveDemand } from "../psychology";
 import { clearRosterSlot } from "../rosterStatus";
 import { POSITION_VALUE } from "../ratings";
 import { evaluate, frontOffice, targetSpend, teamOutlook, SPEND_FLOOR, payroll } from "../frontOffice";
@@ -773,6 +774,9 @@ export function isOfficeExtensionEligible(state: GameState, p: Player): boolean 
   return p.contract.yearsRemaining >= 1;
 }
 
+/** Player ask over market. Club market offer refuses; meeting this accepts. */
+export const EXTENSION_ASK_PREMIUM = 1.08;
+
 export function officeExtensionTerms(
   state: GameState, teamId: number, p: Player
 ): { years: number; apy: number } {
@@ -781,8 +785,14 @@ export function officeExtensionTerms(
   return { years, apy: beliefNegotiatedApy(state, teamId, p, 1) };
 }
 
+export function extensionAskingApy(state: GameState, teamId: number, p: Player): number {
+  const ask = askingPrice(state, p, teamId);
+  const ceiling = teamCap(state, teamId).cap * MAX_CONTRACT_SHARE;
+  return Math.max(LEAGUE_MINIMUM, Math.min(Math.round(ask * EXTENSION_ASK_PREMIUM), Math.round(ceiling)));
+}
+
 export function applyOfficeExtension(
-  state: GameState, teamId: number, playerId: number
+  state: GameState, teamId: number, playerId: number, offeredApy?: number
 ): SignResult {
   const p = state.players.find((x) => x.id === playerId);
   if (!p) return { ok: false, reason: "No such player" };
@@ -793,12 +803,13 @@ export function applyOfficeExtension(
   }
 
   const currentHit = capHit(p.contract);
-  const { years: yrs, apy } = officeExtensionTerms(state, teamId, p);
-  const asking = askingPrice(state, p, teamId);
-  if (apy < asking * 0.92) {
+  const { years: yrs, apy: clubOffer } = officeExtensionTerms(state, teamId, p);
+  const apy = offeredApy ?? clubOffer;
+  const ask = extensionAskingApy(state, teamId, p);
+  if (apy < ask) {
     return {
       ok: false,
-      reason: `${p.lastName} wants at least $${(asking / 1e6).toFixed(1)}M per year.`,
+      reason: `${p.lastName} wants ${formatMoney(ask)} per year and turned down ${formatMoney(apy)}.`,
     };
   }
 
@@ -816,6 +827,7 @@ export function applyOfficeExtension(
   }
 
   p.contract = contract;
+  if (p.psychology?.holdout) resolveDemand(state, p.id);
   state.log.push({
     season: state.season,
     week: state.week,

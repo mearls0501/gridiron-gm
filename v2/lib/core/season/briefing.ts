@@ -191,8 +191,8 @@ function buildActionItems(state: GameState): { action: ActionItem[]; review: str
   if (psych.holdouts.length > 0) {
     const names = psych.holdouts.slice(0, 3).map((p) => playerName(p));
     action.push({
-      label: `${psych.holdouts.length} holdout${psych.holdouts.length > 1 ? "s" : ""} in camp`,
-      detail: `${names.join(", ")} — ${psych.holdouts.length === 1 ? holdoutDetail(state, psych.holdouts[0]) : "extend, trade, or play through it."}`,
+      label: `${psych.holdouts.length} holdout${psych.holdouts.length > 1 ? "s" : ""} — inactive`,
+      detail: `${names.join(", ")} — inactive until extended, traded, or the 4-week report. ${psych.holdouts.length === 1 ? holdoutDetail(state, psych.holdouts[0]) : ""}`.trim(),
       href: "/finances",
       urgent: true,
     });

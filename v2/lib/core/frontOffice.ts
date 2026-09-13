@@ -233,8 +233,10 @@ export function teamOutlook(state: GameState, teamId: number): TeamOutlook {
   const contendScore =
     (wins - 8.5) * 0.30 + (quality - 12) * 0.16 + (fo.winNow - 0.5) * 2.2 + (coreAge - 26) * 0.18;
 
-  const posture: Posture =
+  let posture: Posture =
     contendScore > 0.75 ? "contend" : contendScore < -0.75 ? "rebuild" : "retool";
+  const forcedUntil = state.teams[teamId]?.forcedRebuildUntil;
+  if (forcedUntil != null && state.season <= forcedUntil) posture = "rebuild";
 
   return { posture, wins, coreAge, quality };
 }

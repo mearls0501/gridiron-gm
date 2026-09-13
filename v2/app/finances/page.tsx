@@ -13,6 +13,7 @@ import {
 import {
   applyOfficeExtension,
   applyRestructure,
+  extensionAskingApy,
   isOfficeExtensionEligible,
   officeExtensionTerms,
   restructurePreview,
@@ -94,12 +95,13 @@ export default function FinancesPage() {
   const top5 = contracts.slice(0, 5).reduce((sum, p) => sum + capHit(p.contract), 0);
   const restructureTargets = contracts.filter((p) => restructurePreview(state, teamId, p).ok);
 
-  function extend(p: Player) {
+  function extend(p: Player, meetAsk: boolean) {
     apply((s) => {
       const terms = officeExtensionTerms(s, s.userTeamId, p);
-      const r = applyOfficeExtension(s, s.userTeamId, p.id);
+      const ask = extensionAskingApy(s, s.userTeamId, p);
+      const r = applyOfficeExtension(s, s.userTeamId, p.id, meetAsk ? ask : terms.apy);
       if (!r.ok) return r.reason ?? "That extension was turned down.";
-      return `Extended ${p.firstName} ${p.lastName} — ${terms.years}yr / ${formatMoney(terms.apy)} per year`;
+      return `Extended ${p.firstName} ${p.lastName} — ${terms.years}yr / ${formatMoney(meetAsk ? ask : terms.apy)} per year`;
     });
   }
 
@@ -226,11 +228,16 @@ export default function FinancesPage() {
               const savings = capSavingsFromCut(p.contract);
               const canExtend = isOfficeExtensionEligible(state, p);
               const ext = canExtend ? officeExtensionTerms(state, teamId, p) : null;
+              const ask = canExtend ? extensionAskingApy(state, teamId, p) : null;
+              const holding = !!p.psychology?.holdout;
               const rest = restructurePreview(state, teamId, p);
               return (
                 <Row key={p.id}>
                   <Cell align="left">
                     <PlayerLink p={p} className="font-medium" />
+                    {holding && (
+                      <div className="text-[10px] uppercase tracking-wider text-[var(--color-bad)]">Holding out · inactive</div>
+                    )}
                   </Cell>
                   <Cell>
                     <PosBadge pos={p.pos} />
@@ -253,13 +260,21 @@ export default function FinancesPage() {
                         size="sm"
                         disabled={!canExtend}
                         title={
-                          ext
-                            ? `${ext.years}yr / ${formatMoney(ext.apy)} per year`
+                          ext && ask
+                            ? `Club offer ${ext.years}yr / ${formatMoney(ext.apy)} — they want ${formatMoney(ask)}`
                             : "A tagged tender is extended on the Hub."
                         }
-                        onClick={() => extend(p)}
+                        onClick={() => extend(p, false)}
                       >
-                        Extend
+                        Offer
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={!canExtend}
+                        title={ask ? `Meet the ${formatMoney(ask)} ask` : undefined}
+                        onClick={() => extend(p, true)}
+                      >
+                        Meet asking
                       </Button>
                       <Button
                         size="sm"

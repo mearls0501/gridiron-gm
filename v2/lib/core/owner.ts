@@ -1,8 +1,8 @@
 import { teamOutlook, type Posture } from "./frontOffice";
 import { makeCoachName } from "./names";
 import { Rng, clamp } from "./rng";
-import { GameState, Owner } from "./types";
-import { computeRecords } from "./select";
+import { ForcedMove, GameState, Owner } from "./types";
+import { computeRecords, startSeason } from "./select";
 
 /**
  * Club owners. Patience is generated once on a child stream keyed
@@ -46,17 +46,33 @@ export function ownerChildRng(state: GameState): Rng {
 
 export function ensureOwners(state: GameState): void {
   const rng = ownerChildRng(state);
+  const hired = startSeason(state);
   for (const team of state.teams) {
-    if (team.owner) continue;
-    team.owner = {
-      name: makeCoachName(rng),
-      patience: clamp(
-        rng.normal(OWNER_PATIENCE.mean, OWNER_PATIENCE.sd),
-        OWNER_PATIENCE.lo,
-        OWNER_PATIENCE.hi,
-      ),
-    };
+    if (!team.owner) {
+      team.owner = {
+        name: makeCoachName(rng),
+        patience: clamp(
+          rng.normal(OWNER_PATIENCE.mean, OWNER_PATIENCE.sd),
+          OWNER_PATIENCE.lo,
+          OWNER_PATIENCE.hi,
+        ),
+      };
+    }
+    if (team.gmHiredSeason == null) team.gmHiredSeason = hired;
   }
+}
+
+export function gmHiredSeasonOf(state: GameState, teamId: number): number {
+  return state.teams[teamId]?.gmHiredSeason ?? startSeason(state);
+}
+
+export function seasonsWithGm(state: GameState, teamId: number): number {
+  const hired = gmHiredSeasonOf(state, teamId);
+  return state.history.filter((h) => h.season >= hired).length;
+}
+
+export function isPendingForcedMove(state: GameState): boolean {
+  return !!state.forcedMove && !state.forcedMove.resolved;
 }
 
 export interface OwnerJobView {
@@ -127,11 +143,11 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
   const { posture } = teamOutlook(state, teamId);
   const expectedWins = OWNER_WIN_TARGET[posture];
   const recentWins = lastSeasonWins(state, teamId);
-  const seasonsWithGm = state.history.length;
+  const seasonsOnJob = seasonsWithGm(state, teamId);
   const heat = heatFromSeasons(state, teamId, team.owner.patience);
   const threshold = fireHeatThreshold(team.owner.patience);
   const firingEnabled = state.settings?.firingEnabled ?? true;
-  const wouldFire = firingEnabled && seasonsWithGm >= OWNER_MIN_SEASONS && heat >= threshold;
+  const wouldFire = firingEnabled && seasonsOnJob >= OWNER_MIN_SEASONS && heat >= threshold;
 
   let seat: OwnerJobView["seat"] = "safe";
   if (wouldFire) seat = "fired";
@@ -144,10 +160,10 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
   let line: string;
   if (!firingEnabled) {
     line = "Firing is off — the chair is guaranteed, whatever the record.";
-  } else if (seasonsWithGm < OWNER_MIN_SEASONS) {
+  } else if (seasonsOnJob < OWNER_MIN_SEASONS) {
     line = `${team.owner.name} is ${patienceWord}. The first two seasons are a look, not a verdict.`;
   } else if (wouldFire) {
-    line = `${team.owner.name} has seen enough. If the orchestrator wires the recap hook, you are out.`;
+    line = `${team.owner.name} has seen enough. The season is over — take an open chair or retire the save.`;
   } else if (seat === "hot") {
     line = `${team.owner.name} is ${patienceWord} and the seat is hot. Another year like the last one ends it.`;
   } else if (seat === "watched") {
@@ -161,7 +177,7 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
     posture,
     expectedWins,
     recentWins,
-    seasonsWithGm,
+    seasonsWithGm: seasonsOnJob,
     heat,
     threshold,
     firingEnabled,
@@ -169,4 +185,109 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
     seat,
     line,
   };
+}
+
+function nextSeasonCoaching(state: GameState): number {
+  if (
+    state.phase === "offseason-recap" ||
+    state.phase === "offseason-tag" ||
+    state.phase === "offseason-fa" ||
+    state.phase === "offseason-draft"
+  ) {
+    return state.season + 1;
+  }
+  return state.season;
+}
+
+function worstCpuChairs(state: GameState, n: number): number[] {
+  const rows = state.history[state.history.length - 1]?.standings ?? [];
+  return rows
+    .filter((r) => r.teamId !== state.userTeamId)
+    .slice()
+    .sort((a, b) => (a.w + a.t * 0.5) - (b.w + b.t * 0.5) || a.teamId - b.teamId)
+    .slice(0, n)
+    .map((r) => r.teamId);
+}
+
+/** CPU clubs whose owner would have fired that GM — open chairs for a forced move. */
+export function openGmChairs(state: GameState): number[] {
+  const chairs: number[] = [];
+  for (const team of state.teams) {
+    if (team.id === state.userTeamId) continue;
+    const job = ownerJobView(state, team.id);
+    if (job && job.heat >= job.threshold && seasonsWithGm(state, team.id) >= OWNER_MIN_SEASONS) {
+      chairs.push(team.id);
+    }
+  }
+  if (chairs.length > 0) return chairs.sort((a, b) => a - b);
+  return worstCpuChairs(state, 3);
+}
+
+/**
+ * After recap history is written: if the user's owner has had enough,
+ * end the season for the user and offer open CPU chairs. Not game over.
+ */
+export function applyUserGmFiring(state: GameState): ForcedMove | null {
+  if (isPendingForcedMove(state)) return state.forcedMove ?? null;
+  const job = ownerJobView(state, state.userTeamId);
+  if (!job?.wouldFire) return null;
+  const from = state.teams[state.userTeamId];
+  const openChairs = openGmChairs(state);
+  state.forcedMove = {
+    fromTeamId: state.userTeamId,
+    season: state.season,
+    openChairs,
+  };
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "milestone",
+    text: `${from.owner?.name ?? "The owner"} fired the ${from.city} ${from.name} general manager. The season is over — take an open chair or retire.`,
+  });
+  return state.forcedMove;
+}
+
+export function acceptGmChair(
+  state: GameState, teamId: number,
+): { ok: boolean; reason?: string } {
+  if (!isPendingForcedMove(state)) {
+    return { ok: false, reason: "You still have a chair." };
+  }
+  if (state.forcedMove!.retired) {
+    return { ok: false, reason: "This franchise has already retired." };
+  }
+  if (!state.forcedMove!.openChairs.includes(teamId)) {
+    return { ok: false, reason: "That chair is not open." };
+  }
+  const team = state.teams[teamId];
+  if (!team) return { ok: false, reason: "No such club." };
+  const start = nextSeasonCoaching(state);
+  state.userTeamId = teamId;
+  team.gmHiredSeason = start;
+  team.forcedRebuildUntil = start + 1;
+  state.forcedMove!.resolved = true;
+  state.forcedMove!.toTeamId = teamId;
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "milestone",
+    text: `Hired as general manager of the ${team.city} ${team.name}. Rebuild clock starts; patience is ${team.owner?.name ?? "the new owner"}'s.`,
+  });
+  return { ok: true };
+}
+
+export function retireFromLeague(state: GameState): { ok: boolean; reason?: string } {
+  if (!isPendingForcedMove(state)) {
+    return { ok: false, reason: "You still have a chair." };
+  }
+  state.forcedMove!.resolved = true;
+  state.forcedMove!.retired = true;
+  const from = state.teams[state.forcedMove!.fromTeamId];
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "milestone",
+    text: `Retired from the ${from.city} ${from.name} chair. The save remains.`,
+  });
+  return { ok: true };
 }

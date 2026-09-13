@@ -1,4 +1,5 @@
 import { makeCoachName } from "./names";
+import { OWNER_MIN_SEASONS, ownerJobView } from "./owner";
 import { Rng, clamp } from "./rng";
 import {
   Coach,
@@ -199,12 +200,26 @@ function takeFromMarket(state: GameState, id: number): CoachPerson | null {
   return person ?? null;
 }
 
-export function fireCoach(
-  state: GameState, teamId: number, role: CoachRole,
-): { ok: boolean; reason?: string } {
-  if (teamId !== state.userTeamId) {
-    return { ok: false, reason: "Only your own staff can be fired from this desk." };
+/** First season this person will actually coach. Recap hires start next year. */
+export function firstSeasonCoaching(state: GameState): number {
+  if (
+    state.phase === "offseason-recap" ||
+    state.phase === "offseason-tag" ||
+    state.phase === "offseason-fa" ||
+    state.phase === "offseason-draft"
+  ) {
+    return state.season + 1;
   }
+  return state.season;
+}
+
+function hcTenureSeasons(state: GameState, person: CoachPerson): number {
+  return state.history.filter((h) => h.season >= person.hiredSeason).length;
+}
+
+export function releaseCoach(
+  state: GameState, teamId: number, role: CoachRole, kind: "fired" | "expired",
+): { ok: boolean; reason?: string } {
   const team = state.teams[teamId];
   const staff = team?.coaches;
   const person = staff?.[role];
@@ -213,11 +228,22 @@ export function fireCoach(
   if (!state.coachMarket) state.coachMarket = [];
   state.coachMarket.push(person);
   delete staff[role];
+  const verb = kind === "expired" ? "let" : "fired";
+  const tail = kind === "expired" ? "'s contract expire." : ".";
   state.log.push({
     season: state.season, week: state.week, kind: "transaction",
-    text: `The ${team.city} ${team.name} fired ${roleLabel(role)} ${person.name}.`,
+    text: `The ${team.city} ${team.name} ${verb} ${roleLabel(role)} ${person.name}${tail}`,
   });
   return { ok: true };
+}
+
+export function fireCoach(
+  state: GameState, teamId: number, role: CoachRole,
+): { ok: boolean; reason?: string } {
+  if (teamId !== state.userTeamId) {
+    return { ok: false, reason: "Only your own staff can be fired from this desk." };
+  }
+  return releaseCoach(state, teamId, role, "fired");
 }
 
 export function hireCoach(
@@ -236,7 +262,7 @@ export function hireCoach(
   if (!person) return { ok: false, reason: "That coach is no longer available." };
   person.role = role;
   person.teamId = teamId;
-  person.hiredSeason = state.season;
+  person.hiredSeason = firstSeasonCoaching(state);
   const band = COACH_CONTRACT[role];
   if (person.yearsRemaining < 1) person.yearsRemaining = band.yearsLo;
   if (!team.coaches) team.coaches = {};
@@ -270,6 +296,44 @@ export interface CarouselEvent {
  * (after history is written) or `offseason-tag`. Do not call from this
  * module on a timer — there is no phase hook in the files this lane owns.
  */
+export function tickCoachContracts(state: GameState): CoachPerson[] {
+  ensureCoaches(state);
+  const expired: CoachPerson[] = [];
+  for (const team of state.teams) {
+    if (!team.coaches) continue;
+    for (const role of COACH_ROLES) {
+      const person = team.coaches[role];
+      if (!person) continue;
+      person.yearsRemaining -= 1;
+      if (person.yearsRemaining > 0) continue;
+      expired.push(person);
+      releaseCoach(state, team.id, role, "expired");
+    }
+  }
+  return expired;
+}
+
+/**
+ * Owner heat fires CPU head coaches. Same signed dials as the GM chair
+ * (patience / win targets / fire heat / two-season look). `firingEnabled`
+ * does not gate this — settings must not change the sim.
+ */
+export function fireCpuHeadCoaches(state: GameState): number {
+  ensureCoaches(state);
+  let n = 0;
+  for (const team of state.teams) {
+    if (team.id === state.userTeamId) continue;
+    const hc = team.coaches?.hc;
+    if (!hc) continue;
+    if (hcTenureSeasons(state, hc) < OWNER_MIN_SEASONS) continue;
+    const job = ownerJobView(state, team.id);
+    if (!job || job.heat < job.threshold) continue;
+    const r = releaseCoach(state, team.id, "hc", "fired");
+    if (r.ok) n++;
+  }
+  return n;
+}
+
 export function runCoachCarousel(state: GameState): CarouselEvent[] {
   const rng = coachesChildRng(state);
   ensureCoaches(state);
@@ -309,7 +373,7 @@ function poachUserOc(state: GameState, hiring: Team, rng: Rng): CarouselEvent | 
   delete user.coaches!.oc;
   oc.role = "hc";
   oc.teamId = hiring.id;
-  oc.hiredSeason = state.season;
+  oc.hiredSeason = firstSeasonCoaching(state);
   oc.years = COACH_CONTRACT.hc.yearsLo;
   oc.yearsRemaining = COACH_CONTRACT.hc.yearsLo;
   oc.salary = Math.max(oc.salary, COACH_CONTRACT.hc.salaryLo);
@@ -341,7 +405,12 @@ function fillCpuChair(
   }
   person.role = role;
   person.teamId = team.id;
-  person.hiredSeason = state.season;
+  person.hiredSeason = firstSeasonCoaching(state);
+  const band = COACH_CONTRACT[role];
+  if (person.yearsRemaining < 1) {
+    person.years = band.yearsLo;
+    person.yearsRemaining = band.yearsLo;
+  }
   if (!team.coaches) team.coaches = {};
   team.coaches[role] = person;
   state.log.push({

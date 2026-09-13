@@ -13,7 +13,7 @@ import { capHit, startSeason, teamCap } from "./select";
 import { LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player } from "./types";
 import {
   applyFranchiseTag, applyOfficeExtension, applyRestructure, askingPrice,
-  beliefNegotiatedApy, expireContracts, isOfficeExtensionEligible,
+  beliefNegotiatedApy, expireContracts, extensionAskingApy, isOfficeExtensionEligible,
   isTagExtensionEligible, negotiatedApy, officeExtensionTerms, restructurePreview,
 } from "./offseason/contracts";
 import { cpuVeteranView } from "./scouting";
@@ -55,7 +55,11 @@ function ok(label: string) { console.log("ok   ", label); }
   assert.equal(isOfficeExtensionEligible(st, p), true);
   const terms = officeExtensionTerms(st, st.userTeamId, p);
   assert.ok(terms.years > beforeYears, "extension must add years");
-  const r = applyOfficeExtension(st, st.userTeamId, p.id);
+  const clubOffer = applyOfficeExtension(st, st.userTeamId, p.id, terms.apy);
+  assert.equal(clubOffer.ok, false, "market offer refuses against the asking premium");
+  assert.match(clubOffer.reason ?? "", /turned down/i);
+  const ask = extensionAskingApy(st, st.userTeamId, p);
+  const r = applyOfficeExtension(st, st.userTeamId, p.id, ask);
   assert.equal(r.ok, true, r.reason ?? "extend");
   assert.ok(p.contract);
   assert.equal(p.contract.years, terms.years);
@@ -123,7 +127,7 @@ function ok(label: string) { console.log("ok   ", label); }
   const st = newGame({ seed: 15 });
   const p = plantMultiYear(st, st.userTeamId);
   st.teams[st.userTeamId].deadCap = teamCap(st, st.userTeamId).cap;
-  const r = applyOfficeExtension(st, st.userTeamId, p.id);
+  const r = applyOfficeExtension(st, st.userTeamId, p.id, extensionAskingApy(st, st.userTeamId, p));
   assert.equal(r.ok, false);
   assert.match(r.reason ?? "", /cap/i);
   ok("extension blocked when it does not fit");
@@ -193,7 +197,7 @@ function ok(label: string) { console.log("ok   ", label); }
   const q = clubActive(st, st.userTeamId).find((x) => x.id !== p.id);
   assert.ok(q && q.contract);
   q.contract = JSON.parse(JSON.stringify(q.contract));
-  const ext = applyOfficeExtension(st, st.userTeamId, q.id);
+  const ext = applyOfficeExtension(st, st.userTeamId, q.id, extensionAskingApy(st, st.userTeamId, q));
   assert.equal(ext.ok, true, ext.reason ?? "old contract extend");
   ok("old contract fields load and act");
 }
