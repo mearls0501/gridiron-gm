@@ -55,9 +55,9 @@ Staff-page sentence. Holdouts were briefing flags; they still played.
 dials produce; target ~6–8. Do not invent a fire-rate knob.
 
 **Leftover.** Void years + cap carryover stay Phase 3. Sibling bug
-packet and `/play` live state are other lanes. Year-0 holdout sits
-will move lineup (not parent-stream draws); calibrate/statcheck
-must stay in band.
+packet and `/play` live state are other lanes. Year-0 holdouts are
+desk flags only (`history.length === 0` does not sit) so
+calibrate/statcheck stay on the year-0 path; they sit from year 1.
 
 **Untouched.** `cpuProspectView`, `POSITION_VALUE`, `CONTENDER_PULL`,
 `GUARANTEE_PULL`, `CARRY_SHARE`, PR #9, capBust/minPayroll, trade

@@ -21,6 +21,10 @@ import { GameState } from "./types";
 
 function ok(label: string) { console.log("ok   ", label); }
 
+function plantOneSeason(st: GameState): void {
+  plantStandings(st, st.season - 1, () => 8);
+}
+
 function plantStandings(st: GameState, season: number, winsFor: (teamId: number) => number): void {
   st.history.push({
     season,
@@ -36,8 +40,20 @@ function plantStandings(st: GameState, season: number, winsFor: (teamId: number)
 }
 
 {
+  const st = newGame({ seed: 70 });
+  const user = st.players.find((p) => p.teamId === st.userTeamId && !p.prospect && p.ovr >= 70)!;
+  plantDemand(st, user.id, "holdout", "money");
+  st.phase = "regular";
+  st.week = 1;
+  assert.equal(st.history.length, 0);
+  assert.equal(isHoldoutInactive(st, user), false, "year-0 holdouts do not sit (calibrate/statcheck)");
+  ok("year-0 holdout is a desk flag, not a sit");
+}
+
+{
   const st = newGame({ seed: 71 });
   const user = st.players.find((p) => p.teamId === st.userTeamId && !p.prospect && p.ovr >= 70)!;
+  plantOneSeason(st);
   plantDemand(st, user.id, "holdout", "money");
   st.phase = "regular";
   st.week = 1;
@@ -126,6 +142,7 @@ function plantStandings(st: GameState, season: number, winsFor: (teamId: number)
 
 {
   const st = newGame({ seed: 75 });
+  plantOneSeason(st);
   startRegularSeason(st);
   const p = st.players.find((x) => x.teamId === st.userTeamId && !x.prospect)!;
   plantDemand(st, p.id, "holdout", "money");

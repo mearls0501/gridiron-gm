@@ -232,6 +232,7 @@ export function holdoutElapsedWeeks(state: GameState, p: Player): number {
 /** On the 53 but does not play until the holdout resolves or auto-reports. */
 export function isHoldoutInactive(state: GameState, p: Player): boolean {
   if (!p.psychology?.holdout) return false;
+  if (state.history.length === 0) return false;
   if (state.phase !== "regular" && state.phase !== "playoffs") return false;
   return holdoutElapsedWeeks(state, p) <= HOLDOUT_AUTO_REPORT_WEEKS;
 }
