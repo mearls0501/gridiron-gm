@@ -50,6 +50,22 @@ clock / Last snap / Drive Log must move from that spot. Coach finish →
 Play Week. Box on `/game/[id]` is the live result, not a second kickoff
 sim.
 
+**Gate** (`npm run gate:serial`, 4 cores). Typecheck / livegame /
+playbyplay / callsheet / determinism / verify / sweep / calibrate /
+statcheck / scout ok. The two inherited single-seed reds only —
+same FAIL lines as Packet 2 / #53:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
+GATE FAIL  2 problems
+```
+
+`calibrate` and `statcheck` `##M` lines are byte-identical to
+`main@d54ca50` (diff empty on every metric, including
+`calibrate.passYds` 237.328… and `statcheck.wr10RecYds` 1018).
+Zero new RNG — the live yield is off the bulk-sim path.
+
 File cluster: `sim/game.ts` (generator wrapper + live yield),
 `callSheet.ts` (`live` flag), `liveGame.ts`, `events.ts` comment,
 `liveGame.test.ts`, gate/package.json registration, this note.
