@@ -5,6 +5,63 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-13 — Wave 3.7 Packet 3a: Wave 2.5 bugs
+
+Worker. Four Wave 2.5 leftovers only. Base `main@d54ca50` (#79). One PR
+against main. People-teeth / `/play` live state / void years / cap
+carryover not implemented. Forbidden knobs / PR #9 / capBust /
+minPayroll / volume retune not touched.
+
+**Diagnosis.**
+
+1. `rookieSlotApy` derived the round band from overall pick number
+   (`ceil(overall/32)`). Compensatory slots append after the 32 regulars
+   of their published round, so a R3 comp at overall 97 (and every
+   later regular whose overall crossed the next multiple of 32) paid
+   the next band's flat.
+2. Wave 2 wired `runPsychology` on `startRegularSeason` / `advance` /
+   camp finalize (#61). `saveGame` still called it, so a persist mutated
+   holdouts / trade requests / `psychTick`.
+3. Contract-office child RNG used a custom mix with no feature key.
+   Coaches already use the standard keyed recipe with `'coaches'`.
+   Same-family streams must fold a distinct key or they can share
+   entropy.
+4. Comp-pick UFA eligibility inferred a cut by scraping
+   `log.text.includes("waived …")`. Prose is not an event. `trimLog`
+   can drop the line and invent a UFA loss.
+
+**Change.**
+
+- `rookieSlotApy(state, overall, round?)` bands on the pick's published
+  `round` and clamps the slot-scale shape inside that 32-pick window.
+  `rookieContract` always passes `pick.round`.
+- `saveGame` no longer calls `runPsychology`. Season / camp hooks stay.
+  `migrate` still evaluates once when `psychTick` is missing so an old
+  save does not load mute.
+- `contractOfficeChildRng` uses the same mix as coaches / psychology /
+  owner, keyed `'contractOffice'`. `coachesChildRng` stays `'coaches'`.
+- `cutPlayer` writes `Player.waivedSeason` and `LogEntry.cut` +
+  `playerId`. `qualifyingUfaMoves` reads those fields. A log line that
+  only says "waived" is not a cut.
+
+**Leftover.** Void years / cap carryover remain Phase 3. People-teeth
+and `/play` live state are sibling packets. `makeContract` still voids
+its `rng` argument — the office stream is now independently keyed for
+when that draw returns.
+
+**Untouched.** `cpuProspectView`, `POSITION_VALUE`, `CONTENDER_PULL`,
+`GUARANTEE_PULL`, `CARRY_SHARE`, PR #9, `docs/baselines.json` values,
+capBust / minPayroll guards, people-layer teeth, `/play` live state,
+void years / cap carryover.
+
+**Gate.** `npm run gate:serial` pending on this VM; paste below after
+the run. Inherited single-seed reds (`leverage.wrongSign 1`,
+`statcheck.wr10RecYds 1018`) are not this packet.
+
+**Regression.** `lib/core/wave25Bugs.test.ts` (gate `wave25bugs`).
+
+---
+
 ## 2026-09-13 — Wave 3.7 Packet 2: LEAD re-lock (Matt SIGNED)
 
 Lead. Rebased onto `9079873` (#78 panel docs) after Matt SIGNED

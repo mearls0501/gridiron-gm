@@ -70,7 +70,6 @@ export interface SaveSummary {
 export async function saveGame(state: GameState): Promise<void> {
   ensureCoaches(state);
   ensureOwners(state);
-  runPsychology(state);
   state.updatedAt = Date.now();
   // The JSON round trip is still here on purpose: it strips anything the
   // structured-clone algorithm would choke on before it reaches the store.

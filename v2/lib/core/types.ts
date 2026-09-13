@@ -276,6 +276,13 @@ export interface Player {
    * request is a discrete flag from role / rating / money.
    */
   psychology?: PlayerPsychology;
+
+  /**
+   * Season this player was last waived. Missing = never, so saves written
+   * before the cut flag still load. Comp-pick UFA math reads this instead
+   * of scraping log prose.
+   */
+  waivedSeason?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -936,6 +943,9 @@ export interface LogEntry {
   week: number;
   kind: "transaction" | "injury" | "result" | "milestone" | "draft" | "system";
   text: string;
+  /** True when this row is a cut/waiver. Missing = not a cut. */
+  cut?: boolean;
+  playerId?: number;
 }
 
 // ---------------------------------------------------------------------------

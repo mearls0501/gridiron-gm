@@ -236,6 +236,19 @@ function overallRoundBand(overallPick: number): number {
   return clamp(Math.ceil(Math.max(1, overallPick) / 32), 1, 7);
 }
 
+/** Published round when the caller has it; otherwise the 7×32 overall band. */
+export function rookieRoundBand(overallPick: number, round?: number): number {
+  if (round != null) return clamp(Math.round(round), 1, 7);
+  return overallRoundBand(overallPick);
+}
+
+/** Keep slot-scale shape inside the published band — comps must not spill it. */
+function slotInBand(overallPick: number, round: number): number {
+  const lo = 32 * (round - 1) + 1;
+  const hi = 32 * round;
+  return clamp(Math.round(overallPick), lo, hi);
+}
+
 const ROOKIE_BAND_MEAN_SHARE: number[] = (() => {
   const means = [0];
   for (let rd = 1; rd <= 7; rd++) {
@@ -267,12 +280,13 @@ function midRoundOverall(round: number): number {
  */
 const ROOKIE_SLOT_AMPLITUDE = 0.32;
 
-export function rookieSlotApy(state: GameState, overallPick: number): number {
+export function rookieSlotApy(state: GameState, overallPick: number, round?: number): number {
   const cap = salaryCap(state.season, startSeason(state));
-  const rd = overallRoundBand(overallPick);
+  const rd = rookieRoundBand(overallPick, round);
+  const slot = slotInBand(overallPick, rd);
   const target = Math.max(LEAGUE_MINIMUM, LEAGUE_MINIMUM * (ROOKIE_ROUND_FLAT[rd] ?? 0.9));
   const meanShare = ROOKIE_BAND_MEAN_SHARE[rd] ?? ROOKIE_BAND_MEAN_SHARE[7];
-  const raw = cap * rookieSlotShare(overallPick);
+  const raw = cap * rookieSlotShare(slot);
   const shape = meanShare > 0 ? raw / (cap * meanShare) : 1;
   const blended = 1 + ROOKIE_SLOT_AMPLITUDE * (shape - 1);
   const scaled = target * blended;
@@ -283,7 +297,7 @@ export function rookieContract(
   state: GameState, round: number, rng: Rng, overallPick?: number
 ) {
   const slot = overallPick ?? midRoundOverall(round);
-  const apy = rookieSlotApy(state, slot);
+  const apy = rookieSlotApy(state, slot, round);
   return makeContract(rng, apy, 4, state.season, 2);
 }
 
@@ -313,9 +327,9 @@ function lastClubThisSeason(p: Player, season: number): number | null {
 }
 
 function waivedThisOffseason(state: GameState, p: Player): boolean {
-  const needle = `waived ${p.firstName} ${p.lastName}`;
+  if (p.waivedSeason === state.season) return true;
   return state.log.some(
-    (e) => e.season === state.season && e.kind === "transaction" && e.text.includes(needle)
+    (e) => e.season === state.season && e.cut === true && e.playerId === p.id
   );
 }
 
