@@ -1056,6 +1056,25 @@ export interface TagExtension {
   extended: boolean;
 }
 
+/**
+ * Per-league-year mechanical counters. Missing = zeros so older saves load.
+ * Drift volume reads these, not the `Trade:` product log.
+ */
+export interface SeasonCounters {
+  /**
+   * Deals closed by `executeTrade` this league year (in-season plus the
+   * offseason that follows). Incremented in executeTrade. Reset to 0 at
+   * rollover. `Trade:` log rows stay permanent for the GM history page.
+   */
+  tradesExecuted?: number;
+  /**
+   * `tradesExecuted` as it stood when the calendar rolled. Drift snapshots
+   * after finalizeOffseason, so the live counter is already 0; this is the
+   * year that just closed.
+   */
+  tradesExecutedLast?: number;
+}
+
 export const STATE_VERSION = 1;
 
 export interface GameState {
@@ -1136,6 +1155,11 @@ export interface GameState {
 
   /** Player-chosen gameplay options. Older saves are backfilled by migrate(). */
   settings?: GameSettings;
+  /**
+   * Per-league-year counters. Missing = zeros so older saves load.
+   * `tradesExecuted` is incremented in executeTrade and reset at rollover.
+   */
+  seasonCounters?: SeasonCounters;
 }
 
 /**

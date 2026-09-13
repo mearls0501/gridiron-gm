@@ -346,21 +346,21 @@
       "note": "Yards per TARGET a shutdown corner costs a WR1 by shadowing him, against a defence with no shutdown corner. Was gated on yards per GAME, which read +8.3/-9.6/+3.5 across three seeds against a min of 4 -- it passed or failed at random. FLOOR IS DIRECTIONAL ONLY, NOT MAGNITUDE. Four seeds now: 0.56 / 0.78 / 1.25 / 1.46. The 0.4 floor was set from three of those and seed 5 came in at 0.56, leaving 0.16 of margin -- the same too-few-samples mistake this file exists to prevent, made one commit after writing it up. 0.2 tests the SIGN, which is the claim. A magnitude floor needs the 5-seed re-lock in docs/HANDOFF.md item 1."
     },
     "drift.saveGrowthMbPerSeason": {
-      "max": 0.45,
-      "note": "was +1.07 before the save codec and housekeeping landed; now +0.32"
+      "max": 0.52,
+      "note": "RE-LOCKED 2026-09-13 Wave 3.7 Packet 2 (Matt SIGNED). Mac Studio gate:full:serial 5-seed panel at 2752729 (#77) read 0.47; max is panel + 0.05. Reason: PS/IR/waiver/camp-90 bodies plus Wave 1/2 fields on the encoded save (nfl-reference.md S6.9). 20 MB quota unchanged."
     },
     "drift.saveMbAtEnd": {
-      "max": 10.5,
-      "note": "20 seasons; was 22.9 MB before the codec. RAISED 10 -> 10.5 on 2026-07-30 (LEAD DECISION, needs Matt's sign-off): the priority-UDFA chase adds ~100 real played careers a season and the record book keeps played careers forever by design, which is +0.2 MB of genuine history at season 20. Growth guard unchanged (0.45 here, 0.40 internal) and reads +0.39."
+      "max": 13.1,
+      "note": "RE-LOCKED 2026-09-13 Wave 3.7 Packet 2 (Matt SIGNED). 20 seasons. Mac Studio 5-seed panel at 2752729 (#77) read 12.10; max is panel + 1.0 MB. Same S6.9 reason as saveGrowth. 20 MB quota guard unchanged."
     },
     "drift.passRecordSeasons": {
       "max": 3,
       "note": "RECONDITIONED 2026-08-03 (task/308): the harness read this AFTER playoffs.ts wrote into the season line, so it counted REG+POST yards against a REG-only 5,477 record (5,316 with playoffs vs 4,735 without on matched seasons). Now snapshotted at the end of the regular season. Max set from nfl-reference S6.4/S6.8 discipline (<=3 of 20), NOT from the sim's reading. WARNING: the sim currently reads 0 of 20, which BREACHES S6.4's floor -- the record is unreachable because elite per-play production is too flat (top-to-mid 1.23x vs a real 1.48x), the same defect under qb5PassYds/qb10PassYds. A min:1 belongs here the moment that lands; until then this guard passes for the wrong reason."
     },
     "drift.tradesPerSeason": {
-      "min": 5,
+      "min": 30,
       "nfl": 90,
-      "note": "KNOWN-OPEN. Real volume is ~90 a year (nfl-reference.md S1.1); this guard used to read nfl:3 with a target of 1.44. Matched-seed 20-season comparison: 1.2 before the pick-swap and draft-weekend work, 7.75 after. The floor was briefly set to 8 off a 12-season run, which is a shorter and more generous window -- my error, and the same mistake this file exists to prevent. 5 is below every measurement taken."
+      "note": "KNOWN-OPEN, target 60-120. RE-LOCKED 2026-09-13 Wave 3.7 Packet 2 (Matt SIGNED). Today is ~65 (Mac Studio 5-seed panel ~64.8 at 2752729 / #77). The old 7.8 figure was a trimLog artifact: the harness counted Trade: log rows that the 4000 ceiling deleted from season 6 on. Volume now reads seasonCounters.tradesExecuted, not the log. Internal trades <= 20 P0 deleted. min: 30 is a real floor. Do not retune volume knobs toward 60-120."
     },
     "drift.medianPayrollPct": {
       "target": 90.602,
@@ -374,10 +374,16 @@
       "note": "rotation player-weeks lost league-wide per season"
     },
     "drift.ovrDrift": {
-      "target": -0.52,
+      "target": -1.7,
       "tol": 1.5,
       "nfl": 0,
-      "note": "20-season ratings inflation, must stay near zero"
+      "note": "RE-LOCKED 2026-09-13 Wave 3.7 Packet 2 (Matt SIGNED). Panel mean -1.70. The 53-man population no longer counts injured starters at full OVR; it counts the street body who replaced them. That is the NFL (nfl-reference.md S6.9)."
+    },
+    "drift.franchiseTagsPerSeason": {
+      "target": 14,
+      "tol": 4,
+      "nfl": 10,
+      "note": "RE-LOCKED 2026-09-13 Wave 3.7 Packet 2 (Matt SIGNED). Band 14 +/-4. Real league volume is ~10 tags a year (nfl-reference.md S4 franchise tag). Do not retune tag rules toward the band."
     },
     "drift.eliteGrowthRatio": {
       "target": 1.04,

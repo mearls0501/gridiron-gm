@@ -484,8 +484,19 @@ export function executeTrade(state: GameState, offer: TradeOffer): TradeCheck {
       `Trade: ${to.abbr} receive ${offer.give.map((a) => describeAsset(state, a)).join(", ") || "nothing"} ` +
       `from ${from.abbr} for ${offer.get.map((a) => describeAsset(state, a)).join(", ") || "nothing"}`,
   });
+  // Mechanical volume. The Trade: row stays for the GM history page;
+  // drift reads this counter, not the log (Wave 3.7 Packet 2).
+  if (!state.seasonCounters) state.seasonCounters = {};
+  state.seasonCounters.tradesExecuted = (state.seasonCounters.tradesExecuted ?? 0) + 1;
 
   return { ok: true };
+}
+
+/** Close the league-year trade counter. Called at rollover after cutdown. */
+export function rolloverTradeCounter(state: GameState): void {
+  if (!state.seasonCounters) state.seasonCounters = {};
+  state.seasonCounters.tradesExecutedLast = state.seasonCounters.tradesExecuted ?? 0;
+  state.seasonCounters.tradesExecuted = 0;
 }
 
 // ---------------------------------------------------------------------------

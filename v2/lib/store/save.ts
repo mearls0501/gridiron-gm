@@ -156,6 +156,14 @@ function migrate(state: GameState): GameState {
       if (typeof tag.consecutiveTags !== "number") tag.consecutiveTags = 0;
     }
   }
+  // Per-league-year trade counter. Pre-field saves default to 0.
+  if (!state.seasonCounters) state.seasonCounters = { tradesExecuted: 0 };
+  if (typeof state.seasonCounters.tradesExecuted !== "number") {
+    state.seasonCounters.tradesExecuted = 0;
+  }
+  if (typeof state.seasonCounters.tradesExecutedLast !== "number") {
+    state.seasonCounters.tradesExecutedLast = 0;
+  }
 
   if (state.version === STATE_VERSION) return state;
   state.version = STATE_VERSION;
