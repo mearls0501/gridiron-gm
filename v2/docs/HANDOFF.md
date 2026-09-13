@@ -54,9 +54,17 @@ when that draw returns.
 capBust / minPayroll guards, people-layer teeth, `/play` live state,
 void years / cap carryover.
 
-**Gate.** `npm run gate:serial` pending on this VM; paste below after
-the run. Inherited single-seed reds (`leverage.wrongSign 1`,
-`statcheck.wr10RecYds 1018`) are not this packet.
+**Gate** (`npm run gate:serial`, 4 cores, 1 seed, ~382 s). Typecheck /
+wave25bugs / determinism / verify 348/348 / sweep / calibrate / scout
+ok. Two inherited single-seed reds only — same pair and same
+`statcheck.wr10RecYds 1018` as Packet 2 on this seed. Calibrate
+`passYds` 237.33 / `scoreMismatches` 0. No baseline edits.
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
+GATE FAIL  2 problems
+```
 
 **Regression.** `lib/core/wave25Bugs.test.ts` (gate `wave25bugs`).
 
