@@ -47,8 +47,8 @@ export const TRADE_CAP = 14;
 
 /** Rookie-scale deals do not hold out. */
 export const ROOKIE_SCALE_YEARS = 3;
-/** User-desk plant: file the loudest eligible complaint if nobody has. */
-export const USER_PLANT_SCORE = 0.32;
+/** Regular-season weeks a holdout sits before auto-reporting. */
+export const HOLDOUT_AUTO_REPORT_WEEKS = 4;
 
 const SKIP_POS = new Set(["K", "P"]);
 
@@ -218,8 +218,27 @@ export function resolveDemand(state: GameState, playerId: number): boolean {
   return true;
 }
 
+export function holdoutElapsedWeeks(state: GameState, p: Player): number {
+  const psy = p.psychology;
+  if (!psy?.holdout) return 0;
+  const filedSeason = psy.filedSeason ?? state.season;
+  const filedWeek = psy.filedWeek ?? 0;
+  if (filedSeason < state.season) return HOLDOUT_AUTO_REPORT_WEEKS + 1;
+  if (state.phase !== "regular" && state.phase !== "playoffs") return 0;
+  const start = filedWeek < 1 ? 1 : filedWeek;
+  return state.week - start + 1;
+}
+
+/** On the 53 but does not play until the holdout resolves or auto-reports. */
+export function isHoldoutInactive(state: GameState, p: Player): boolean {
+  if (!p.psychology?.holdout) return false;
+  if (state.phase !== "regular" && state.phase !== "playoffs") return false;
+  return holdoutElapsedWeeks(state, p) <= HOLDOUT_AUTO_REPORT_WEEKS;
+}
+
 function holdoutEligible(state: GameState, p: Player): boolean {
   if (liveDemand(p) || !moneyDiscontent(state, p)) return false;
+  if (p.psychology?.autoReportedSeason === state.season) return false;
   return isStarter(state, p) || p.ovr >= HOLDOUT_OVR + 4;
 }
 
@@ -236,6 +255,19 @@ export function runPsychology(state: GameState): void {
   if (state.psychTick?.season === state.season && state.psychTick?.week === state.week) return;
 
   for (const p of state.players) {
+    if (p.psychology?.holdout && holdoutElapsedWeeks(state, p) > HOLDOUT_AUTO_REPORT_WEEKS) {
+      p.psychology.autoReportedSeason = state.season;
+      clearDemand(p);
+      if (p.teamId === state.userTeamId) {
+        state.log.push({
+          season: state.season,
+          week: state.week,
+          kind: "transaction",
+          text: `Holdout ended: ${playerName(p)} (${p.pos}) reported after ${HOLDOUT_AUTO_REPORT_WEEKS} weeks.`,
+        });
+      }
+      continue;
+    }
     if (liveDemand(p) && demandResolved(state, p)) clearDemand(p);
   }
 
@@ -261,30 +293,7 @@ export function runPsychology(state: GameState): void {
     }
   }
 
-  plantUserDesk(state);
   state.psychTick = { season: state.season, week: state.week };
-}
-
-/** Guarantee the GM screen has a path when someone on the roster qualifies. */
-function plantUserDesk(state: GameState): void {
-  const club = state.players.filter((p) => p.teamId === state.userTeamId && rostered(p));
-  if (club.some(liveDemand)) return;
-  let best: Player | null = null;
-  let bestScore = 0;
-  for (const p of club) {
-    const score = discontentScore(state, p);
-    if (score > bestScore) {
-      best = p;
-      bestScore = score;
-    }
-  }
-  if (!best || bestScore < USER_PLANT_SCORE) return;
-  const reason = psychReason(state, best);
-  if (!reason) return;
-  const kind = moneyDiscontent(state, best) && (isStarter(state, best) || best.ovr >= HOLDOUT_OVR)
-    ? "holdout"
-    : "tradeRequest";
-  fileDemand(state, best, kind, reason);
 }
 
 export interface PsychologyView {

@@ -13,7 +13,8 @@ import { ensurePickInventory, generateUserOffers, prunePickInventory, pruneStale
 import { runHousekeeping } from "../housekeeping";
 import { refreshCpuStaff } from "../staff";
 import { runPsychology } from "../psychology";
-import { runCoachCarousel } from "../coaches";
+import { fireCpuHeadCoaches, runCoachCarousel, tickCoachContracts } from "../coaches";
+import { applyUserGmFiring } from "../owner";
 
 export * from "./contracts";
 export * from "./draft";
@@ -79,7 +80,10 @@ export function runRecap(state: GameState): OffseasonReport {
 
   const history = recordSeasonHistory(state);
   state.history.push(history);
+  tickCoachContracts(state);
+  fireCpuHeadCoaches(state);
   runCoachCarousel(state);
+  applyUserGmFiring(state);
 
   const report = runProgression(state, rng);
 
@@ -303,6 +307,9 @@ export function finalizeOffseason(state: GameState): void {
  * Returns a human-readable description of what just happened.
  */
 export function advanceOffseason(state: GameState): string {
+  if (state.forcedMove?.retired) {
+    return "You retired from the chair. The save remains.";
+  }
   settleWaivers(state);
   pruneStaleTradeInbox(state);
   switch (state.phase) {

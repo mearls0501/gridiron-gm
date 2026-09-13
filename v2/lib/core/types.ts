@@ -150,7 +150,7 @@ export interface Contract {
 
 export type PsychReason = "role" | "money" | "roleAndMoney";
 
-/** Discrete locker-room demand. Optional on Player so older saves load. */
+  /** Discrete locker-room demand. Optional on Player so older saves load. */
 export interface PlayerPsychology {
   holdout?: boolean;
   tradeRequest?: boolean;
@@ -159,6 +159,8 @@ export interface PlayerPsychology {
   filedWeek?: number;
   /** Club he filed against. A trade clears the demand. */
   teamId?: number;
+  /** Season the 4-week auto-report landed. Blocks a same-season re-file. */
+  autoReportedSeason?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -379,6 +381,10 @@ export interface Team {
   coaches?: CoachingStaff;
   /** Club owner. Missing = older save; backfilled on load. */
   owner?: Owner;
+  /** First season this GM coaches. Missing = franchise start. */
+  gmHiredSeason?: number;
+  /** Force rebuild posture through this season (inclusive). */
+  forcedRebuildUntil?: number;
 }
 
 /**
@@ -471,6 +477,19 @@ export interface Owner {
   name: string;
   /** 0 = short fuse, 1 = very patient. Generated in ~0.35–0.80. */
   patience: number;
+}
+
+/**
+ * User-GM firing is a forced move, not game over. Pending until the GM
+ * takes an open CPU chair or retires the save.
+ */
+export interface ForcedMove {
+  fromTeamId: number;
+  season: number;
+  openChairs: number[];
+  resolved?: boolean;
+  retired?: boolean;
+  toTeamId?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -1158,6 +1177,11 @@ export interface GameState {
    * evaluate once on migrate. Idempotent per (season, week).
    */
   psychTick?: { season: number; week: number };
+  /**
+   * User-GM forced move. Missing = none, so older saves load.
+   * Pending while `resolved` is missing/false.
+   */
+  forcedMove?: ForcedMove;
 
   history: SeasonHistory[];
   records: RecordBook;

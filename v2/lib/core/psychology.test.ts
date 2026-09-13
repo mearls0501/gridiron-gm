@@ -122,8 +122,8 @@ function stripPsych(st: GameState): GameState {
     runPsychology(st);
     assert.equal(st.rngState, before, `parent moved on seed ${seed}`);
     const c = psychologyCensus(st);
-    assert.ok(c.holdouts <= HOLDOUT_CAP + 1, `holdouts ${c.holdouts} over cap+plant`);
-    assert.ok(c.tradeRequests <= TRADE_CAP + 1, `trades ${c.tradeRequests} over cap+plant`);
+    assert.ok(c.holdouts <= HOLDOUT_CAP, `holdouts ${c.holdouts} over cap`);
+    assert.ok(c.tradeRequests <= TRADE_CAP, `trades ${c.tradeRequests} over cap`);
     rows.push(c);
   }
   const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;

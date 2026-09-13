@@ -12,11 +12,13 @@ import {
   COACH_ROLES,
   ensureCoaches,
   fireCoach,
+  fireCpuHeadCoaches,
   hireCoach,
   peopleCoachDials,
   runCoachCarousel,
   sameCoachDials,
   staffSlot,
+  tickCoachContracts,
 } from "./coaches";
 import { GameState } from "./types";
 
@@ -136,6 +138,34 @@ function stripPeople(st: GameState): GameState {
   const cpu = st.teams.find((t) => t.id !== user)!;
   assert.equal(fireCoach(st, cpu.id, "hc").ok, false, "cannot fire a CPU coach from the desk");
   ok("user fire/hire; parent still; CPU desk is read-only");
+}
+
+{
+  const st = newGame({ seed: 23 });
+  ensureCoaches(st);
+  const cpu = st.teams.find((t) => t.id !== st.userTeamId)!;
+  const hc = cpu.coaches!.hc!;
+  const name = hc.name;
+  hc.yearsRemaining = 1;
+  const before = st.rngState;
+  const expired = tickCoachContracts(st);
+  assert.equal(st.rngState, before, "tick is deterministic; no parent draw");
+  assert.ok(expired.some((c) => c.name === name), "HC with 1 year left expires");
+  assert.equal(cpu.coaches!.hc, undefined, "expired HC leaves the chair empty");
+  assert.ok(st.coachMarket!.some((c) => c.name === name));
+  ok("coach contracts tick and expire");
+}
+
+{
+  const st = newGame({ seed: 24 });
+  ensureCoaches(st);
+  const cpu = st.teams.find((t) => t.id !== st.userTeamId)!;
+  const hc = cpu.coaches!.hc!;
+  hc.hiredSeason = st.season - 2;
+  const before = st.rngState;
+  fireCpuHeadCoaches(st);
+  assert.equal(st.rngState, before, "CPU HC fire is heat, no parent draw");
+  ok("fireCpuHeadCoaches is child-stream still (heat may or may not trip on a new league)");
 }
 
 console.log("ok    coaches people layer");

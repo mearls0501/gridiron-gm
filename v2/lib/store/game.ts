@@ -7,6 +7,7 @@ import { advance as advanceSeason } from "../core/season/engine";
 import { advanceOffseason } from "../core/offseason";
 import { saveGame, loadGame, listSaves, lastSaveId, deleteSave } from "./save";
 import { runSimTo, type SimTarget } from "./simTo";
+import { isPendingForcedMove } from "../core/owner";
 
 export type { SimTarget };
 
@@ -121,13 +122,23 @@ export const useGame = create<Store>((set, get) => ({
 
   advance() {
     get().apply((s) => {
+      if (isPendingForcedMove(s)) {
+        return "The owner has ended your time here. Take an open chair or retire the save.";
+      }
+      if (s.forcedMove?.retired) return "You retired from the chair. The save remains.";
       if (s.phase.startsWith("offseason")) return advanceOffseason(s);
       return advanceSeason(s);
     });
   },
 
   simTo(target) {
-    get().apply((s) => runSimTo(s, target));
+    get().apply((s) => {
+      if (isPendingForcedMove(s)) {
+        return "The owner has ended your time here. Take an open chair or retire the save.";
+      }
+      if (s.forcedMove?.retired) return "You retired from the chair. The save remains.";
+      return runSimTo(s, target);
+    });
   },
 
   setToast: (t) => set({ toast: t }),

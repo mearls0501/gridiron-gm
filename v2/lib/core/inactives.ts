@@ -2,6 +2,7 @@ import {
   GAMEDAY_ACTIVE_LIMIT, GAMEDAY_ACTIVE_LIMIT_EIGHT_OL, GAMEDAY_OL_FOR_EXTRA,
   GameState, POSITION_GROUP, Player, ROTATION, Team,
 } from "./types";
+import { isHoldoutInactive } from "./psychology";
 import { isActiveRoster, rosterCount } from "./select";
 import { RosterMoveResult } from "./rosterStatus";
 
@@ -38,6 +39,24 @@ export function injuredOnActive53(state: GameState, teamId: number): Player[] {
     (p) =>
       p.teamId === teamId && !p.retired && !p.prospect && isActiveRoster(p) && p.injuryWeeks > 0
   );
+}
+
+export function holdoutsOnActive53(state: GameState, teamId: number): Player[] {
+  return state.players.filter(
+    (p) =>
+      p.teamId === teamId && !p.retired && !p.prospect && isActiveRoster(p) && isHoldoutInactive(state, p)
+  );
+}
+
+/** Force-sit live holdouts. They stay on the 53 and count toward the 47/48. */
+export function sitHoldouts(state: GameState, teamId: number): void {
+  const team = state.teams[teamId];
+  if (!team) return;
+  for (const p of holdoutsOnActive53(state, teamId)) {
+    if (isSat(team, p.id)) continue;
+    if (!team.inactives) team.inactives = [];
+    team.inactives.push(p.id);
+  }
 }
 
 export function creditedInactives(state: GameState, teamId: number): number {
@@ -151,6 +170,7 @@ function nextCpuScratch(state: GameState, teamId: number): Player | undefined {
 /** Sit remaining extras so the club is at the 47/48 gameday cap. */
 export function fillGamedayInactives(state: GameState, teamId: number): void {
   if (state.phase !== "regular" && state.phase !== "playoffs") return;
+  sitHoldouts(state, teamId);
   while (stillNeedToSit(state, teamId) > 0) {
     const pick = nextCpuScratch(state, teamId);
     if (!pick) break;

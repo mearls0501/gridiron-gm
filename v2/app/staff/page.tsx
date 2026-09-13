@@ -16,7 +16,7 @@ import {
   roleLabel,
   staffSlot,
 } from "@/lib/core/coaches";
-import { ensureOwners, ownerJobView } from "@/lib/core/owner";
+import { ensureOwners, isPendingForcedMove, ownerJobView } from "@/lib/core/owner";
 import { schemeById } from "@/lib/core/staff";
 import { formatMoney } from "@/lib/core/select";
 import {
@@ -187,6 +187,11 @@ export default function StaffPage() {
             />
           </div>
           <p className="text-sm text-[var(--color-muted)]">{job.line}</p>
+          {isPendingForcedMove(state) && (
+            <p className="text-sm text-[var(--color-bad)] mt-2">
+              Forced move is on the desk — <a className="underline" href="/forced-move">take an open chair or retire</a>.
+            </p>
+          )}
         </Card>
       )}
 
