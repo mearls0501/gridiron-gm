@@ -7,11 +7,14 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ## 2026-09-13 — Wave 3.7 Packet 3b: people-layer teeth
 
-Worker. Base `main` @ `d54ca50` (#79 Packet 2). People-layer teeth on
-the Wave 2.5 scaffolding (#57/#60/#59/#61). Signed dials not retuned.
-Void years + cap carryover are SIGNED and **not this PR** — Phase 3
-after Packet 3 is green. Forbidden knobs / PR #9 / capBust / minPayroll
-/ volume / `/play` live state / sibling bug packet not touched.
+Worker. Rebased onto `main` @ `47de094` (#81 /play live state;
+includes #80 Wave 2.5 bugs). People-layer teeth on the Wave 2.5
+scaffolding (#57/#60/#59/#61). Signed dials not retuned. Void years +
+cap carryover are SIGNED and **not this PR** — Phase 3 after Packet 3
+is green. Gate keeps `peopleteeth` plus landed `wave25bugs` /
+`livegame`. Forbidden knobs / PR #9 / capBust / minPayroll / volume
+not retuned. Sibling packets 3a/3c are on main; this PR does not
+re-implement them.
 
 **Matt SIGNED 2026-09-13 (reiterated).**
 
@@ -54,10 +57,10 @@ Staff-page sentence. Holdouts were briefing flags; they still played.
 11–6: **15** CPU HC fires. Real-year volume is whatever the signed
 dials produce; target ~6–8. Do not invent a fire-rate knob.
 
-**Leftover.** Void years + cap carryover stay Phase 3. Sibling bug
-packet and `/play` live state are other lanes. Year-0 holdouts are
-desk flags only (`history.length === 0` does not sit) so
-calibrate/statcheck stay on the year-0 path; they sit from year 1.
+**Leftover.** Void years + cap carryover stay Phase 3. Packets 3a
+(#80) and 3c (#81) are on main. Year-0 holdouts are desk flags only
+(`history.length === 0` does not sit) so calibrate/statcheck stay on
+the year-0 path; they sit from year 1.
 
 **Untouched.** `cpuProspectView`, `POSITION_VALUE`, `CONTENDER_PULL`,
 `GUARANTEE_PULL`, `CARRY_SHARE`, PR #9, capBust/minPayroll, trade
