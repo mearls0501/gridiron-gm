@@ -50,6 +50,11 @@ clock / Last snap / Drive Log must move from that spot. Coach finish →
 Play Week. Box on `/game/[id]` is the live result, not a second kickoff
 sim.
 
+Verified on this packet: `/play` opened on Q1 15:00, 1st & 10 own 25,
+Play by Play "Kickoff — touchback" (1 snap). Run: same opening
+touchback stayed row 1; Last snap "Jackson run for 5 yards"; clock
+14:30, 2nd & 5, Drive Log +5, 2 snaps. No second kickoff.
+
 **Gate** (`npm run gate:serial`, 4 cores). Typecheck / livegame /
 playbyplay / callsheet / determinism / verify / sweep / calibrate /
 statcheck / scout ok. The two inherited single-seed reds only —
