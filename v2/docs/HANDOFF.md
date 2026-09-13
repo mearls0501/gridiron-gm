@@ -56,8 +56,31 @@ volume / needsOf / tags toward a target. Do not merge PR #9.
 `CARRY_SHARE`, `cpuProspectView`, PR #9, tag/needsOf/volume rules,
 capBust / minPayroll guards, people-layer engine.
 
-**Gate.** Fast gate + `npx tsx scripts/drift.ts 12` seed 12345 after
-this note. Counter must show healthy trades (not hard zero).
+**Gate** (`npm run gate:serial`, 4 cores). Typecheck / housekeeping
+(counter increment + rollover) / determinism / verify / sweep /
+calibrate / scout ok. The two inherited single-seed reds only —
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
+GATE FAIL  2 problems
+```
+
+**`npx tsx scripts/drift.ts 12` seed 12345.** Counter, not the log.
+Series matches the Wave 3.6 permanent-log run on this seed (no hard
+zero):
+
+```
+trades= 87 / 48 / 50 / 69 / 64 / 44 / 48 / 57 / 59 / 71 / 72 / 74
+##M drift.tradesPerSeason 61.92
+##M drift.ovrDrift -1.43
+##M drift.franchiseTagsPerSeason 14
+##M drift.saveGrowthMbPerSeason 0.47
+```
+
+`clubs trade with each other` is now ok at 61.9 (floor 30). Remaining
+P0s on this 12-season run are the known findings, not this packet:
+age-ordering 9/12, one cap bust (peak 31%), one poor-house season.
 
 ---
 
