@@ -115,9 +115,12 @@ function plantUfa(
   const from = cut.teams.find((t) => t.id !== cut.userTeamId)!.id;
   const to = cut.teams.find((t) => t.id !== cut.userTeamId && t.id !== from)!.id;
   const p = plantUfa(cut, from, to, 15_000_000, 16);
+  p.waivedSeason = cut.season;
   cut.log.push({
     season: cut.season, week: 0, kind: "transaction",
     text: `${cut.teams[from].abbr} waived ${p.firstName} ${p.lastName} (${p.pos})`,
+    cut: true,
+    playerId: p.id,
   });
   assert.equal(qualifyingUfaMoves(cut).length, 0, "a cut is not a UFA loss");
   assert.equal(computeCompensatoryAwards(cut).length, 0);

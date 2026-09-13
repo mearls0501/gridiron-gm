@@ -580,6 +580,7 @@ export function cutPlayer(state: GameState, playerId: number): CutResult {
   const savings = capHit(p.contract) - dead;
 
   p.teamId = null;
+  p.waivedSeason = state.season;
   clearRosterSlot(p);
   if (!state.waivers) state.waivers = [];
   if (!state.waivers.some((w) => w.playerId === p.id)) {
@@ -591,6 +592,8 @@ export function cutPlayer(state: GameState, playerId: number): CutResult {
     week: state.week,
     kind: "transaction",
     text: `${state.teams[teamId].abbr} waived ${p.firstName} ${p.lastName} (${p.pos})`,
+    cut: true,
+    playerId: p.id,
   });
 
   return { ok: true, dead, savings };
@@ -744,12 +747,15 @@ export function suggestedYears(p: Player): number {
 
 /**
  * Child stream keyed (seed, season, week, 'contractOffice').
- * Does not read or write `state.rngState`.
+ * Same mix as coaches / psychology / owner — a distinct key, not the
+ * coaches stream. Does not read or write `state.rngState`.
  */
-function contractOfficeRng(state: GameState): Rng {
-  let h = (state.seed ^ 0x0c0ff1ce) >>> 0;
-  h = Math.imul(h ^ (state.season * 0x9e3779b9), 0x85ebca6b);
-  h = Math.imul(h ^ ((state.week + 1) * 0xc2b2ae35), 0x27d4eb2f);
+export function contractOfficeChildRng(state: GameState): Rng {
+  let h = state.seed >>> 0;
+  h = Math.imul(h ^ state.season, 0x9e3779b9);
+  h = Math.imul(h ^ (state.week + 1), 0x85ebca6b);
+  const tag = "contractOffice";
+  for (let i = 0; i < tag.length; i++) h = Math.imul(h ^ tag.charCodeAt(i), 0xc2b2ae35);
   return new Rng((h >>> 0) || 0x9e3779b9);
 }
 
@@ -797,7 +803,7 @@ export function applyOfficeExtension(
   }
 
   const contract = makeContract(
-    contractOfficeRng(state), apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)
+    contractOfficeChildRng(state), apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)
   );
   const hit = capHit(contract);
   const cap = teamCap(state, teamId);
