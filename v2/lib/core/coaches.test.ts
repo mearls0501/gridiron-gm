@@ -157,6 +157,25 @@ function stripPeople(st: GameState): GameState {
 }
 
 {
+  const st = newGame({ seed: 25 });
+  ensureCoaches(st);
+  for (const t of st.teams) {
+    if (t.id === st.userTeamId) continue;
+    if (t.coaches?.hc) t.coaches.hc.yearsRemaining = 1;
+  }
+  tickCoachContracts(st);
+  const vacant = st.teams.filter((t) => t.id !== st.userTeamId && !t.coaches?.hc);
+  assert.ok(vacant.length > 0, "some CPU HC chairs emptied");
+  runCoachCarousel(st);
+  for (const t of vacant) {
+    const hc = t.coaches?.hc;
+    assert.ok(hc, `${t.abbr} carousel did not fill HC`);
+    assert.ok(hc.yearsRemaining >= 1, `${t.abbr} hired an expired 0-year deal`);
+  }
+  ok("carousel grants a new deal when hiring an expired coach");
+}
+
+{
   const st = newGame({ seed: 24 });
   ensureCoaches(st);
   const cpu = st.teams.find((t) => t.id !== st.userTeamId)!;

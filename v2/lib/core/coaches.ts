@@ -406,6 +406,11 @@ function fillCpuChair(
   person.role = role;
   person.teamId = team.id;
   person.hiredSeason = firstSeasonCoaching(state);
+  const band = COACH_CONTRACT[role];
+  if (person.yearsRemaining < 1) {
+    person.years = band.yearsLo;
+    person.yearsRemaining = band.yearsLo;
+  }
   if (!team.coaches) team.coaches = {};
   team.coaches[role] = person;
   state.log.push({
