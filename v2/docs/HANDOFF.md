@@ -5,6 +5,84 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-12 — Wave 3.7 panel (Mac Studio, main@2752729 / #77)
+
+Wave 3.7 panel numbers. Docs only. Ran on Matt's Mac Studio via
+`npm run gate:full:serial` at `main@2752729` (#77 Keep Trade: log
+rows). Orchestrator run finished 2026-09-12 ~20:51 ET. Zero RNG.
+`baselines.json` **not edited**. Engine not touched. PR **#9** not
+touched. Forbidden constants not touched.
+
+**Command.** `npm run gate:full:serial` (default 5 seeds). Wall
+**~19555 s (~5.4 h)**. EXIT 1. GATE FAIL — 9 problems.
+
+This is the post–Wave 3.4 B/C / 3.5 / 3.6 read. Trade-death was a
+`trimLog` measurement bug (#77); the market did not die. Do not
+reconstruct a FAIL-line paste — the 5-seed `##M` aggregate below is
+the source. Do not invent numbers. Do not tune. Do not edit
+`baselines.json`. Packet 2 (re-lock) awaits Matt sign.
+
+### 5-seed means (gate FAIL / ##M aggregate)
+
+| metric | panel mean | expect (Wave 3.7) | verdict |
+|---|---:|---|---|
+| `drift.ovrDrift` | **−1.70** (seeds −1.55/−1.53/−1.80/−1.80/−1.80) | ≈ −1.7 inside −0.52 ±1.5 | **PASS** (not in gate FAIL list) |
+| `drift.playerWeeksLost` | **~2621** (2618/2597/2600/2612/2677) | 2158 ±700 | **PASS** |
+| `drift.capBustSeasons` | **2.60** (2/1/4/4/2) | 0–1 | **FINDING** — tag rules leak; report, do not tune |
+| `drift.p0Failures` | **4.40** | only stale trades≤20 | **FINDING** — more than the stale ceiling (age/cap/payroll/etc.) |
+| `drift.tradesPerSeason` | **~64.8** (62.7/64/67.7/64.0/65.8) | 40–70 | **PASS** |
+| `drift.franchiseTagsPerSeason` | **~14.0** (15.1/13.8/12.3/14.3/14.4) | 8–16 | **PASS** |
+| `drift.saveMbAtEnd` | **12.10** | over old 10.5 (schema) | expected red → Packet 2 re-lock |
+| `drift.saveGrowthMbPerSeason` | **0.47** | over old 0.45 | expected red → Packet 2 |
+| `drift.minPayrollSeasonsUnder55` | **4.40** | not on expect table | **FINDING** — report |
+| `tails.milestonesOff` | **19.60** | stream / KNOWN-HIGH | record |
+| `statcheck.rb5RushYds` | **1301.80** vs 1191±95 | stream | record |
+| `statcheck.wr10RecYds` | **1099.60** vs 1208±97 | stream | record |
+
+`ovrDrift` −1.70 sits inside the locked −0.52 ±1.5 band (Wave 3.5 #2
+harness P0 already matches that band). `playerWeeksLost` ~2621 is
+inside 2158 ±700. `tradesPerSeason` ~64.8 is the honest volume after
+#77 kept `Trade:` log rows — not the Sep-10 ~13.25 collapse (that
+was the trim). Tags ~14.0 sit in 8–16.
+
+### Findings — report, do not tune
+
+- `capBustSeasons` **2.60** (2/1/4/4/2) vs expect 0–1. Tag rules
+  leak. Report. Do not tune.
+- `p0Failures` **4.40** vs "only stale trades≤20." More than that
+  ceiling (age / cap / payroll / etc.). The Wave 3.6 leftover
+  (`scripts/drift.ts` internal `trades <= 20` P0 from the old 7.8
+  era) is one of those ticks; it is not the only one.
+- `minPayrollSeasonsUnder55` **4.40**. Not on the Wave 3.7 expect
+  table. Report.
+
+### Packet 2 (proposed — Matt sign; do not edit `baselines.json` here)
+
+HANDOFF note only. Lead re-lock after sign:
+
+- `saveMbAtEnd` max → 12.10 + 1.0 = **13.1**
+- `saveGrowthMbPerSeason` max → 0.47 + 0.05 = **0.52**
+- `ovrDrift` baseline → **−1.70 ±1.5**
+- `tradesPerSeason` today ≈ **65**, min **30**, drop internal ≤20 P0
+- `franchiseTagsPerSeason` band → **14 ±4**, nfl 10
+
+Save-size reds are the schema / camp-90 / record-book growth the
+old 10.5 / 0.45 locks predate. Expected red until Packet 2.
+
+### How to read vs the 2026-09-10 panel
+
+Sep-10 (`c2233e1` / #64) `ovrDrift` −4.31 / `playerWeeksLost` 2976
+/ `tradesPerSeason` ~13.25 were the franchise-arc + log-trim
+picture. After Packet C `active()` (53-man), Wave 3.5 #2 harness
+align, and #77 Trade: log keep, this panel's ovr / weeks / trades
+are **inside the Wave 3.7 expect bands**. The nine FAIL ticks are
+not a license to chase stream leftovers or to move a baseline
+without Matt.
+
+**Untouched.** Engine, `scripts/`, `docs/baselines.json`, PR **#9**.
+
+---
+
 ## 2026-09-12 — Wave 3.6 fix: trade-death was a log trim, not a dead market
 
 Worker. `lib/core/housekeeping.ts` `trimLog` + `housekeeping.test.ts`.
