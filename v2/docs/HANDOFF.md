@@ -64,8 +64,13 @@ calibrate/statcheck stay on the year-0 path; they sit from year 1.
 volume knobs, `docs/baselines.json` except the #47 test-registration
 pair.
 
-**Gate.** See PR. Inherited single-seed reds (`leverage.wrongSign`,
-`statcheck.wr10RecYds`) are not this packet.
+**Gate.** `nproc`=4. First `gate:serial` went red on year-0 holdout
+sits (`leadPassYds` / `qb5` / `qb10` / `leadTackles` / `maxGameRecYds`).
+Year-0 sit skipped; then `npx tsx scripts/statcheck.ts` exit 0 and
+`npx tsx scripts/calibrate.ts 300` exit 0. People unit tests green.
+Inherited `leverage.wrongSign` / `statcheck.wr10RecYds` 1018 are not
+this packet. Determinism 0 / 0. Verify 348/348 on the first serial
+run (sits on year 1+ did not break checks).
 
 ---
 
