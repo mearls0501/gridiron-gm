@@ -32,6 +32,11 @@ export interface SimOpts {
    * `"auto"` (or a short list) falls through to choosePass.
    */
   playCaller?: (info: SnapInfo) => SnapCall;
+  /**
+   * Pause at user-club offensive snaps so `/play` can resume the same sim.
+   * Bulk-sim never sets this.
+   */
+  live?: boolean;
 }
 
 export function effectiveCoach(team: Team): Coach {

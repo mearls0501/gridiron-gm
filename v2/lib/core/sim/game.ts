@@ -2,13 +2,13 @@ import { schemeAttrMultiplier } from "../staff";
 import { Rng, clamp } from "../rng";
 import {
   BoxScore, CARRY_SHARE, Coach, Game, GameState, PlayEvent, PlayKind, PlayResult,
-  Player, PlayerGameStat, Position, ROTATION, ScoringPlay, STARTERS, Team, TeamGameStats,
+  Player, PlayerGameStat, Position, ROTATION, ScoringPlay, SnapCall, STARTERS, Team, TeamGameStats,
 } from "../types";
 import { buildDrives, emitPlay } from "./events";
 import { CLEAR, HOME_FIELD, restEffect, weatherEffects } from "../weather";
 import { blankPlayerGameStat, blankTeamGameStats } from "../season/stats";
 import { isSat } from "../inactives";
-import { effectiveCoach, type SimOpts } from "../callSheet";
+import { effectiveCoach, type SimOpts, type SnapInfo } from "../callSheet";
 
 /**
  * Drive-and-play simulation.
@@ -275,7 +275,30 @@ export interface SimResult {
   plays: PlayEvent[];
 }
 
+/**
+ * Bulk-sim / Play Week stay a single sync run. `/play` uses `openGameSim`
+ * so a snap call resumes the same play loop instead of re-simming kickoff.
+ */
 export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimOpts): SimResult {
+  const step = runGameSim(state, game, rng, opts).next();
+  if (!step.done) throw new Error("simulateGame yielded; use openGameSim for live play");
+  return step.value;
+}
+
+export function openGameSim(
+  state: GameState,
+  game: Game,
+  rng: Rng,
+): Generator<SnapInfo, SimResult, SnapCall | undefined> {
+  return runGameSim(state, game, rng, { live: true });
+}
+
+function* runGameSim(
+  state: GameState,
+  game: Game,
+  rng: Rng,
+  opts?: SimOpts,
+): Generator<SnapInfo, SimResult, SnapCall | undefined> {
   const byId = new Map<number, Player>();
   for (const p of state.players) byId.set(p.id, p);
 
@@ -1766,10 +1789,15 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
     if (isThird) off().stats.thirdDownAtt++;
 
     let call: "run" | "pass" | "auto" = "auto";
-    if (opts?.playCaller && off().team.id === state.userTeamId) {
-      call = opts.playCaller({
+    if (off().team.id === state.userTeamId) {
+      const info = {
         down, toGo, yardLine, quarter, clock, homeScore, awayScore, offenseIsHome,
-      });
+      };
+      if (opts?.playCaller) {
+        call = opts.playCaller(info);
+      } else if (opts?.live) {
+        call = (yield info) ?? "auto";
+      }
     }
     const doPass = call === "pass" ? true : call === "run" ? false : choosePass();
     // Quarterback keeps it: sneaks in short yardage, designed runs for the

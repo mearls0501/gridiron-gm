@@ -6,7 +6,7 @@ import {
  * Play-by-play capture. Observation only — callers must never draw RNG here.
  *
  * `simulateGame` always writes a local log. Live peek also subscribes so a
- * thrown NeedSnapCall still has every snap that already finished.
+ * paused `/play` session still has every snap that already finished.
  */
 
 type Listener = (e: PlayEvent) => void;
