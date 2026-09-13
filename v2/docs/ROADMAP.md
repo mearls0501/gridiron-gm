@@ -1,20 +1,15 @@
 # Gridiron GM — Roadmap
 
 Standing roadmap. Read after `AGENTS.md`, before `HANDOFF.md`. Updated
-2026-09-12 against Wave 3.4 Packet A (Studio, seed 12345, `drift.ts 12`).
-The 2026-09-10 panel framing in #66 is **wrong**: five metrics that
-were inside on the last green 5-seed panel (`190cbd0`, 2026-08-03) are
-now red and are not on the known-open list. Those are **regressions**.
-Wave 3.3 five-anchor + Wave 3.4 Packet A narrow bisect **reported**.
-First-bad: `capBustSeasons` at `e5e15de` (#42); `ovrDrift` starts
-`e069d03` / worst `7d09a8b`; trades mean drop at `7d09a8b`; wall 8× at
-`c2e6661` (#41). Parent 1 (`active()` exclude PS/IR) is a **partial**
-confirm — cliff / age / lost, not cap bust / trade death. Residual
-`ovrDrift` −1.68 ≠ ≈−0.3. Packets B/C launching. **No feature lanes.
-No tuning. Do not edit `baselines.json`.** The engine is the mature
+2026-09-13 against Wave 3.7 panel (Mac Studio,
+`npm run gate:full:serial` at `2752729` / #77). **Wave 3.7 panel
+posted** in `HANDOFF.md`. Packet 2 (baseline re-lock) awaits Matt
+sign. `capBustSeasons` **2.60** and `minPayrollSeasonsUnder55`
+**4.40** are findings — report, do not tune. **No feature lanes. No
+tuning. Do not edit `baselines.json`.** The engine is the mature
 half; the franchise half — people, contracts you can work, a game you
-can watch — is what remains, but that work waits on a green panel.
-Dispatch rules for parallel agents are in `ORCHESTRATION.md`.
+can watch — is what remains. Dispatch rules for parallel agents are
+in `ORCHESTRATION.md`.
 
 ## Where we are
 
@@ -34,45 +29,47 @@ phase, fifth-year option, July 15 extension. PRs #46–49: playtest-chain
 fixes (stale prior-year picks + inbox into tag window; defenders as
 receiving leaders; camp copy /53→/90; waiver-hundreds accepted as
 cap-stuck residue). `rb5RushYds` was **inside** on the last green panel
-(1254 vs 1191 ±95). The 2026-09-10 Mac Studio panel reads **1301.80**.
-That is a regression, not a leftover to record.
+(1254 vs 1191 ±95). Wave 3.7 records `rb5RushYds` **1301.80** (stream).
+Do not chase with `CARRY_SHARE`.
 
 ### Gate status
+
+Wave 3.7 5-seed means (`2752729` / #77). Full table in `HANDOFF.md`.
 
 | metric | reads | target | status | note |
 |---|---|---|---|---|
 | `leverage.wrongSign` | 1 | ≤ 0 | non-defect | OT.sta knife-edge probe rounding to 0.0. Do not invent a leverage fix. |
-| `statcheck.wr10RecYds` | **1099.60** | 1208 ±97 | panel-red | Inherited family historically; this panel is also red (was 1,136 on a prior panel; fast-tier single-seed 1018). One of the nine FAIL ticks. Do not invent a receiving fix while Packet 1 is in flight. |
-| `statcheck.rb5RushYds` | **1301.80** | 1191 ±95 | **regression** | Inside on `190cbd0` (1254). Not on the known-open list. Provisional shipped tick until the panel is green. Do not chase with `CARRY_SHARE`. |
-| `drift.tradesPerSeason` | **~13.25** | 60–120 | **symptom** | Mac Studio 5-seed panel: 12.45 / 12.45 / 14.05 / 12.65 / 14.65. Dedicated Wave 3.1B `drift.ts 20` seed 12345 still **12.6**. Passes `min: 5`. The 87/55/40/63/1/6/then 0×14 collapse is the same franchise-arc event as `capBustSeasons` (~31% of clubs in 2030–31) and `ovrDrift`: cap-stuck clubs fail `checkTrade`; deflated OVR shrinks `evaluate()` surplus above `REPLACEMENT_OVR=58`. Not a volume-tuning leftover. |
-| `drift.p0Failures` | **3** | ≤ 0 | **regression** | Inside on `190cbd0`. Not known-open. Internal p0s: save growth, OVR deflation, age ordering. Not the trades floor. |
-| `drift.saveGrowthMbPerSeason` | **0.46** | ≤ 0.45 | **regression** | Was +0.402 and retired green. Dedicated 0.462. Do not move the locked max. |
-| `drift.saveMbAtEnd` | **11.91** | ≤ 10.5 | **regression** | Inside on `190cbd0`. Not known-open. Dedicated 20-season was 12.02. Do not move the locked max. |
-| `drift.playerWeeksLost` | **2976.25** | 2158 ±700 | **regression** | Inside on `190cbd0`. Not known-open. Dedicated 20-season was 3041. |
-| `drift.ovrDrift` | **−4.31** | −0.52 ±1.5 | **regression** | Inside on `190cbd0`. Not known-open. Dedicated 20-season was −4.13. Deflation. |
-| `careers.survivalMae` | 5.94 | < 4 | open | R1–R3 over-survive. Cannot close from a late-round hold. Careers **ok** on this panel (16527 s ×5); no new MAE claimed. |
+| `statcheck.wr10RecYds` | **1099.60** | 1208 ±97 | stream / record | Wave 3.7. Do not invent a receiving fix. |
+| `statcheck.rb5RushYds` | **1301.80** | 1191 ±95 | stream / record | Wave 3.7. Do not chase with `CARRY_SHARE`. |
+| `drift.tradesPerSeason` | **~64.8** | 40–70 | **PASS** | Wave 3.7: 62.7/64/67.7/64.0/65.8. #77 kept `Trade:` log rows. Packet 2 proposed today ≈65, min 30, drop internal ≤20 P0. |
+| `drift.franchiseTagsPerSeason` | **~14.0** | 8–16 | **PASS** | Wave 3.7: 15.1/13.8/12.3/14.3/14.4. Packet 2 proposed 14 ±4, nfl 10. |
+| `drift.p0Failures` | **4.40** | only stale trades≤20 | **FINDING** | More than the stale ceiling (age/cap/payroll/etc.). Report, do not tune. |
+| `drift.capBustSeasons` | **2.60** | 0–1 | **FINDING** | 2/1/4/4/2. Tag rules leak. Report, do not tune. |
+| `drift.minPayrollSeasonsUnder55` | **4.40** | not on expect table | **FINDING** | Report, do not tune. |
+| `drift.saveGrowthMbPerSeason` | **0.47** | ≤ 0.45 | expected red | Packet 2 proposed max 0.52. Do not move the lock here. |
+| `drift.saveMbAtEnd` | **12.10** | ≤ 10.5 | expected red | Packet 2 proposed max 13.1. Do not move the lock here. |
+| `drift.playerWeeksLost` | **~2621** | 2158 ±700 | **PASS** | Wave 3.7: 2618/2597/2600/2612/2677. |
+| `drift.ovrDrift` | **−1.70** | −0.52 ±1.5 | **PASS** | Seeds −1.55/−1.53/−1.80/−1.80/−1.80. Not in gate FAIL list. Packet 2 proposed −1.70 ±1.5. |
+| `careers.survivalMae` | 5.94 | < 4 | open | R1–R3 over-survive. Cannot close from a late-round hold. No new MAE claimed. |
 | `careers.careerLenMae` | 0.57 | < 0.5 | open | Residue is R1/R2/R4 one–two-season careers; must not be shortened. |
 | `conditions.coldPointsDelta` | −0.5 | −2.4 | unconfirmed | Single seed, 6 seasons. Check on a matched-seed baseline first. |
-| `tails.milestonesOff` | **19.60** | 0 | panel-worse | Mac Studio panel vs max 16 (KNOWN-HIGH already in `baselines.json`). Prior lock 16.0 (14/15/15/18/18). Known-open got worse. One of the nine FAIL ticks. Do not tune against the aggregate. |
+| `tails.milestonesOff` | **19.60** | 0 | stream / KNOWN-HIGH | Wave 3.7 record. Max 16 already in `baselines.json`. Do not tune against the aggregate. |
 | `drift.passRecordSeasons` | 0/20 | 1–3/20 | accepted | Leader averages 4,742 vs 5,477 record. Reopen only with a pass-volume mechanism that leaves the mix alone. |
 | QB availability 2nd moment | 41% at 16+ | 46% | accepted | Needs a per-position duration table — design change. |
 
-**Standing prerequisite:** five-seed panel is **FAIL** (2026-09-10,
-Matt's Mac Studio, 14 cores, `npm run gate:full:serial` at
-`main@c2233e1` / #64). Wall ~50937 s (~14.1 h). GATE FAIL — 9
-problems. Five of them (`ovrDrift`, `playerWeeksLost`, `p0Failures`,
-`saveMbAtEnd`, `rb5RushYds`) were inside on `190cbd0` and are not
-known-open — **regressions**. The nine reds are provisional shipped
-ticks until the panel is green again. Do not edit `baselines.json`.
-Wave 3.4 Packet A reported the first-bad commits (see `HANDOFF.md`).
-Packets B/C launching. **No feature lanes / no tuning.** Parent 1
-exclude is not "fully green." `tradesPerSeason` panel mean ~13.25 is
-the collapse symptom, not a leftover knob. Serial path stays the
-right tool on 4-core VMs and is the supported long-panel / Mac Studio
-measurement path (`#64`, `npm run gate:full:serial`; ratified in
-AGENTS.md). Use `--seeds 1` or a dedicated
-`npx tsx scripts/drift.ts 20` on that class of box. Do not retry stock
-`Promise.all` `gate:full` on 4 cores. Do not merge #9 or #63.
+**Standing prerequisite:** Wave 3.7 panel posted (2026-09-12 ~20:51 ET,
+Matt's Mac Studio, `npm run gate:full:serial` at `main@2752729` / #77).
+Wall ~19555 s (~5.4 h). EXIT 1. GATE FAIL — 9. `ovrDrift` −1.70,
+`playerWeeksLost` ~2621, `tradesPerSeason` ~64.8, tags ~14.0 are
+**PASS**. Save-size reds (`saveMbAtEnd` 12.10 / `saveGrowth` 0.47)
+await Packet 2 re-lock. `capBustSeasons` 2.60 and
+`minPayrollSeasonsUnder55` 4.40 are findings. Packet 2 awaits Matt
+sign. **No feature lanes / no tuning.** Do not edit `baselines.json`.
+Serial path stays the supported long-panel / Mac Studio measurement
+path (`#64`, `npm run gate:full:serial`; ratified in AGENTS.md). Use
+`--seeds 1` or a dedicated `npx tsx scripts/drift.ts 20` on 4-core
+boxes. Do not retry stock `Promise.all` `gate:full` on 4 cores. Do
+not merge #9 or #63.
 
 ## What is missing
 
@@ -108,14 +105,11 @@ the contract: one task, one branch, one file cluster, gate green, HANDOFF note.
 
 ### Phase 0 — recover the last green panel (NOW)
 
-The 2026-09-10 panel is a FAIL, not a finished re-lock. Five metrics that
-were inside on `190cbd0` are red and not on the known-open list:
-regressions. ~40 engine-touching commits landed with no full-tier read;
-some broke the franchise arc. Wave 3.4 Packet A (narrow bisect +
-`active()` exclude) **reported**. First-bad commits and Parent 1
-partial confirm are in `HANDOFF.md`. Packets B/C launching. **No
-feature lanes. No tuning.** Do not edit `baselines.json`. Do not merge
-#9 or #63.
+Wave 3.7 panel posted (`HANDOFF.md`). Packet 2 awaits Matt sign.
+`capBustSeasons` 2.60 and `minPayrollSeasonsUnder55` 4.40 are
+findings — report, do not tune. Save-size re-lock is Packet 2, not a
+worker edit. **No feature lanes. No tuning.** Do not edit
+`baselines.json`. Do not merge #9 or #63.
 
 After the bisect reports: retire stale AGENTS.md rows. Then the published-rules
 leftovers: restructure advice text; rookie slot scale and the
