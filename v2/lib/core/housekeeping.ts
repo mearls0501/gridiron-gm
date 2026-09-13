@@ -21,10 +21,10 @@ export const LOG_DETAIL_SEASONS = 2;
  * Kinds worth keeping forever. A milestone is a record falling, a title, a
  * retirement — the franchise's actual story, and cheap: a few dozen a year.
  *
- * Trades stay `kind: "transaction"` (same row `executeTrade` / `drift.ts` /
- * briefing already share). They are permanent by the `Trade:` prefix, not a
- * new kind: camp-90 / waiver finalize floods the log with later transactions,
- * and the 4000 ceiling was deleting the year's trades (Wave 3.6 / #76).
+ * Trades stay `kind: "transaction"` (same row `executeTrade` / briefing
+ * already share). They are permanent by the `Trade:` prefix, not a new
+ * kind, so the GM history page keeps them. Drift volume reads
+ * `seasonCounters.tradesExecuted`, not the log (Wave 3.7 Packet 2).
  */
 const PERMANENT_KINDS: ReadonlySet<LogEntry["kind"]> = new Set(["milestone"]);
 

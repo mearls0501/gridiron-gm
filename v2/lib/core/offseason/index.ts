@@ -9,7 +9,7 @@ import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, runCpuFif
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
 import { ensureScouting, pruneScouting } from "../scouting";
-import { ensurePickInventory, generateUserOffers, prunePickInventory, pruneStaleTradeInbox, runCpuTrades, runDraftDayTrades } from "../trades";
+import { ensurePickInventory, generateUserOffers, prunePickInventory, pruneStaleTradeInbox, rolloverTradeCounter, runCpuTrades, runDraftDayTrades } from "../trades";
 import { runHousekeeping } from "../housekeeping";
 import { refreshCpuStaff } from "../staff";
 import { runPsychology } from "../psychology";
@@ -250,6 +250,11 @@ export function finalizeOffseason(state: GameState): void {
   }
   foldPracticeSquad(state, state.userTeamId);
   reconcileRoster(state, state.userTeamId, rng, ROSTER_LIMIT, true);
+
+  // Close the league-year trade counter after cutdown (the last
+  // executeTrade window of the year). Drift snapshots after this
+  // function returns, so the closed year lives on tradesExecutedLast.
+  rolloverTradeCounter(state);
 
   // Roll the calendar.
   state.season += 1;

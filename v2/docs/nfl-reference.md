@@ -209,23 +209,25 @@ participating, of which ~5 involve a first-round pick.**
 
 ### 1.7 Sim measurement trap — `trimLog` was deleting `Trade:` rows
 
-Added 2026-09-12. This is a harness / save-log caveat, not a new NFL
-figure. Wave 3.6 autopsy (#76, do not merge): on tip `7328da1`,
-`drift.ts` printed `trades=0` from season 6 onward while `executeTrade`
-still returned ok 20–50 times a year. `trimLog` (`LOG_MAX_ENTRIES` 4000)
+Added 2026-09-12. Closed for good 2026-09-13 (Wave 3.7 Packet 2, Matt
+SIGNED). This is a harness / save-log caveat, not a new NFL figure.
+Wave 3.6 autopsy (#76, do not merge): on tip `7328da1`, `drift.ts`
+printed `trades=0` from season 6 onward while `executeTrade` still
+returned ok 20–50 times a year. `trimLog` (`LOG_MAX_ENTRIES` 4000)
 drops the oldest non-permanent rows; camp-90 / waiver finalize writes
 newer `transaction` rows after the year's trades, so the ceiling wiped
-the `Trade:` lines the harness counts. Control `190cbd0` does not
+the `Trade:` lines the harness counted. Control `190cbd0` does not
 hard-zero. The 20-season mean vs `min: 5` hid a front-loaded-then-zero
-series. `Trade:` rows are now permanent in `trimLog` (same prefix
-`drift.ts` already uses). Do not retune volume knobs toward 60–120 from
-that false zero. After `Trade:` rows were marked permanent,
-`npx tsx scripts/drift.ts 12` seed 12345 reads
-`87 / 48 / 50 / 69 / 64 / 44 / 48 / 57 / 59 / 71 / 72 / 74`
-(mean **61.9**). `cannot_fit_the_contracts` is a separate leftover.
-The harness still carries a stale internal `trades <= 20` P0 from
-the 7.8-era measurement; that is lead-owned, not a reason to
-narrow volume.
+series. The old known-open **7.8** was that log-trim artifact (#77).
+
+`Trade:` rows stay permanent in `trimLog` for the GM history page.
+Volume is no longer a log scan: `executeTrade` increments
+`state.seasonCounters.tradesExecuted` (migrate-defaulted, reset at
+rollover; drift reads the closed year via `tradesExecutedLast`).
+The internal `trades ≤ 20` P0 is deleted. Baseline floor is `min: 30`.
+Today ≈ **65** (Mac Studio 5-seed panel ~64.8 at `2752729`); target
+**60–120** stays. Do not retune volume knobs toward that band.
+`cannot_fit_the_contracts` is a separate leftover.
 
 ---
 
@@ -530,10 +532,11 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   CPU tags only when the tender fits next-season committed + tender
   ≤ ~90% of the cap, `evaluate()` surplus exceeds the tender in the
   same currency trades use, and posture is contend or retool —
-  rebuild clubs do not tag. Real league volume is ~10 tags a year;
-  the sim emits `drift.franchiseTagsPerSeason` and does not invent a
-  baseline band until the first green panel / Matt. One window, then
-  FA opens — the game has no wall-clock. Ungated published rule.
+  rebuild clubs do not tag. Real league volume is ~10 tags a year
+  (`nfl: 10`). Wave 3.7 Packet 2 (Matt SIGNED 2026-09-13) locked
+  `drift.franchiseTagsPerSeason` at **14 ±4**. Do not retune tag rules
+  toward the band. One window, then FA opens — the game has no
+  wall-clock. Published rule; the band is the signed lock.
 - **Fifth-year option (first-rounders only).** Added 2026-09-03. Not in
   T/D/S/P. Same calendar source as the franchise tag
   (`docs/front-office-design-2026-07-28.md` Part 5): post-draft, May 1
@@ -1608,6 +1611,16 @@ reason to move the band.
 
 **What this is not.** Save-size growth (`saveMbAtEnd` / `saveGrowthMbPerSeason`)
 is the new schema — PS/IR/waivers/camp-90 bodies in the encoded save —
-not this filter. Those locks are Matt's to sign; this packet does not
-edit `baselines.json`. Engine and sim behavior are untouched.
+not this filter. Engine and sim behavior are untouched.
+
+**Wave 3.7 Packet 2 (Matt SIGNED 2026-09-13).** Save-size re-lock from
+the Mac Studio `gate:full:serial` 5-seed panel at `2752729` (#77):
+`saveMbAtEnd` max **13.1** (panel 12.10 + 1.0 MB),
+`saveGrowthMbPerSeason` max **0.52** (panel 0.47 + 0.05). Reason:
+PS/IR/waiver/camp-90 bodies plus Wave 1/2 fields on the encoded save.
+The **20 MB quota** guard is unchanged. `ovrDrift` baseline moved to
+**−1.70 ±1.5** (panel mean): the 53-man population no longer counts
+injured starters at full OVR; it counts the street body who replaced
+them. That is the NFL. `capBustSeasons` / `minPayrollSeasonsUnder55`
+are findings, not retuned.
 

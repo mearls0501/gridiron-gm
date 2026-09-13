@@ -477,6 +477,7 @@ export function createNewGame(opts: NewGameOptions = {}): GameState {
     history: [],
     records: blankRecordBook(),
     log: [],
+    seasonCounters: { tradesExecuted: 0, tradesExecutedLast: 0 },
   };
 
   const offices = assignFrontOffices(rng, FRANCHISES.length);

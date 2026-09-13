@@ -156,12 +156,13 @@ function runOne(seed: number): Snapshot[] {
       minPayrollPct: (Math.min(...payrolls) / cap) * 100,
       medPayrollPct: (median(payrolls) / cap) * 100,
       pick1FromBottom6: pick1Ok,
-      // Counted by the season stamped on the entry, not as a delta on a running
-      // total: the log is trimmed at each rollover, so a cumulative counter is
-      // no longer monotonic. This also reads correctly — a league-year's trades
-      // are the in-season ones plus the offseason that follows, and both carry
-      // that season on the entry.
-      trades: st.log.filter((l) => l.season === season && l.text.startsWith("Trade:")).length,
+      // Mechanical counter, not the Trade: log. Those rows stay permanent
+      // for the GM history page (Wave 3.6 / #77); volume is not a log scan
+      // — trimLog was a measurement trap (§1.7). After rollover the live
+      // counter is 0; tradesExecutedLast is the year that just closed.
+      trades: st.seasonCounters?.tradesExecutedLast
+        ?? st.seasonCounters?.tradesExecuted
+        ?? 0,
       franchiseTags: (st.franchiseTags ?? []).filter((t) => t.season === season).length,
     });
     const snap = out[out.length - 1];
@@ -205,11 +206,11 @@ guard(pick1 === flat.length, "draft order tracks the standings",
 
 // P1 — the franchise arc.
 const ovrDrift = mean(last.map((r) => r.ovrMean)) - mean(first.map((r) => r.ovrMean));
-// −0.52 ±1.5, matching the panel-locked `drift.ovrDrift` baseline, which
-// is the authority. This guard carried `|x| < 1.5` while the baseline
-// allowed down to about −2.02, so a reading between the two (Packet C's
-// residual −1.68) counted a P0 the locked number said was fine.
-guard(Math.abs(ovrDrift - (-0.52)) <= 1.5, "league OVR does not inflate",
+// −1.70 ±1.5, matching the panel-locked `drift.ovrDrift` baseline
+// (Wave 3.7 Packet 2, Matt SIGNED 2026-09-13). The 53-man no longer
+// counts injured starters at full OVR; it counts the street body who
+// replaced them. That is the NFL.
+guard(Math.abs(ovrDrift - (-1.70)) <= 1.5, "league OVR does not inflate",
   `mean OVR moved ${ovrDrift >= 0 ? "+" : ""}${ovrDrift.toFixed(1)} over ${SEASONS} seasons`);
 
 const eliteGrowth = mean(last.map((r) => r.n85)) / Math.max(1, mean(first.map((r) => r.n85)));
@@ -247,7 +248,9 @@ guard(poorHouse === 0, "no CPU team parks at replacement-level payroll",
 // currency, so the volume is a direct read on whether the front offices
 // actually disagree with each other about anything.
 const trades = mean(flat.map((r) => r.trades));
-guard(trades >= 2 && trades <= 20, "clubs trade with each other",
+// Floor matches the locked baseline min: 30. The old trades ≤ 20 P0
+// was a 7.8-era log-trim artifact (#77) and is deleted.
+guard(trades >= 30, "clubs trade with each other",
   `${trades.toFixed(1)} trades per season`);
 
 const medPay = mean(flat.map((r) => r.medPayrollPct));
@@ -266,10 +269,9 @@ guard(injuryLoad > 1500 && injuryLoad < 4000, "injuries cost a realistic amount 
   `${injuryLoad.toFixed(0)} rotation player-weeks lost league-wide per season`);
 
 const growth = mean(all.map((s) => (s[s.length - 1].saveMB - s[0].saveMB) / (SEASONS - 1)));
-// 0.45, matching the panel-locked `drift.saveGrowthMbPerSeason` baseline, which
-// is the authority. This guard carried 0.4 while the baseline carried 0.45, so
-// a reading between the two counted a P0 that the locked number said was fine.
-guard(growth < 0.45, "save growth is bounded",
+// 0.52, matching the panel-locked `drift.saveGrowthMbPerSeason` baseline
+// (Wave 3.7 Packet 2: panel 0.47 + 0.05). The 20 MB quota is unchanged.
+guard(growth < 0.52, "save growth is bounded",
   `+${growth.toFixed(2)} MB per season, ending at ${mean(last.map((r) => r.saveMB)).toFixed(1)} MB`);
 
 // A franchise that has to be abandoned because the browser refuses to store it

@@ -5,6 +5,62 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-13 — Wave 3.7 Packet 2: LEAD re-lock (Matt SIGNED)
+
+Lead. Rebased onto `9079873` (#78 panel docs) after Matt SIGNED
+Packet 2. `docs/baselines.json` + `scripts/drift.ts` thresholds as
+signed. Trade volume is a mechanical counter, not a log scan.
+Forbidden knobs / PR #9 / capBust / minPayroll / volume retune not
+touched. People-layer teeth not implemented here.
+
+**Diagnosis.** Mac Studio `gate:full:serial` at `2752729`, 5-seed
+means (table in the #78 panel note below). `ovrDrift` −1.70 is the
+53-man after IR: the population counts the street body who replaced
+an injured starter, not the injured starter at full OVR — that is
+the NFL (`nfl-reference.md` §6.9). Save-size growth is
+PS/IR/waiver/camp-90 bodies plus Wave 1/2 fields on the encoded
+save; 20 MB quota stays. `tradesPerSeason` "today 7.8" and the
+internal `trades ≤ 20` P0 were the `trimLog` artifact (#77); honest
+panel mean is ~64.8. Counting `Trade:` rows can still lie if the
+log is trimmed again — §1.7 / the measurement trap closes only when
+volume is a counter. The panel note's "Packet 2 awaits Matt sign"
+line is closed by this packet.
+
+**Change.**
+
+- `drift.saveMbAtEnd` max **13.1** (panel 12.10 + 1.0 MB).
+- `drift.saveGrowthMbPerSeason` max **0.52** (panel 0.47 + 0.05).
+  Internal growth P0 aligned to 0.52 so the August 0.4 / 0.45 conflict
+  does not recur.
+- `drift.ovrDrift` **−1.70 ±1.5**. Harness P0 matches the band.
+- `drift.tradesPerSeason` known-open rewritten: today ≈ **65**, target
+  **60–120**, baseline **`min: 30`**. Internal `trades ≤ 20` P0 deleted.
+- `drift.franchiseTagsPerSeason` **14 ±4**, `nfl: 10`.
+- `state.seasonCounters?.tradesExecuted` incremented in `executeTrade`,
+  migrate-defaulted, reset at rollover. Closed year is
+  `tradesExecutedLast` so drift (which snapshots after finalize) reads
+  the counter, not the log. `Trade:` rows stay permanent for the GM
+  history page.
+
+**People layer — SIGNED for Packet 3, not this PR.** Matt signed all
+four people-layer decisions: owner / holdout dials as-is, void +
+carryover, forced-move on fire. Recorded so Packet 3 can ship them.
+Do not implement people-teeth here.
+
+**Leftover.** `capBustSeasons` 2.60 and `minPayrollSeasonsUnder55`
+4.40 are findings for Matt — not retuned. Inherited fast-tier
+`statcheck.wr/rb` and `tails.milestonesOff` may remain. Do not retune
+volume / needsOf / tags toward a target. Do not merge PR #9.
+
+**Untouched.** `POSITION_VALUE`, `CONTENDER_PULL`, `GUARANTEE_PULL`,
+`CARRY_SHARE`, `cpuProspectView`, PR #9, tag/needsOf/volume rules,
+capBust / minPayroll guards, people-layer engine.
+
+**Gate.** Fast gate + `npx tsx scripts/drift.ts 12` seed 12345 after
+this note. Counter must show healthy trades (not hard zero).
+
+---
+
 ## 2026-09-12 — Wave 3.7 panel (Mac Studio, main@2752729 / #77)
 
 Wave 3.7 panel numbers. Docs only. Ran on Matt's Mac Studio via

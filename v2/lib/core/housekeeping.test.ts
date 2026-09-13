@@ -10,7 +10,9 @@
  */
 import assert from "node:assert/strict";
 import { LOG_DETAIL_SEASONS, LOG_MAX_ENTRIES, trimLog } from "./housekeeping";
-import { GameState, LogEntry } from "./types";
+import { newGame } from "./newGame";
+import { executeTrade, rolloverTradeCounter } from "./trades";
+import { GameState, LogEntry, TradeOffer } from "./types";
 
 function entry(season: number, text: string, kind: LogEntry["kind"] = "transaction"): LogEntry {
   return { season, week: 0, kind, text };
@@ -61,3 +63,30 @@ function stub(season: number, log: LogEntry[]): GameState {
 }
 
 console.log("ok    housekeeping — Trade: rows survive trimLog under a flood");
+
+{
+  const st = newGame({ seed: 12345 });
+  assert.equal(st.seasonCounters?.tradesExecuted ?? 0, 0, "new game starts at 0");
+  const from = st.userTeamId;
+  const to = from === 0 ? 1 : 0;
+  const offer: TradeOffer = {
+    id: 1,
+    fromTeamId: from,
+    toTeamId: to,
+    give: [{ kind: "pick", season: st.season + 1, round: 6, originalTeamId: from }],
+    get: [{ kind: "pick", season: st.season + 1, round: 6, originalTeamId: to }],
+    season: st.season,
+    week: 0,
+    rationale: "counter test",
+  };
+  const res = executeTrade(st, offer);
+  assert.equal(res.ok, true, res.reason ?? "pick swap should execute");
+  assert.equal(st.seasonCounters?.tradesExecuted, 1, "counter increments on executeTrade");
+  assert.ok(st.log.some((e) => e.text.startsWith("Trade:")), "Trade: row still written");
+
+  rolloverTradeCounter(st);
+  assert.equal(st.seasonCounters?.tradesExecuted, 0, "rollover resets the live counter");
+  assert.equal(st.seasonCounters?.tradesExecutedLast, 1, "closed year is readable after rollover");
+}
+
+console.log("ok    housekeeping — tradesExecuted increments and resets at rollover");
