@@ -5,6 +5,78 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-13 — Wave 3.7 Packet 3c: /play live state
+
+Wave 2.5 packet 4. Base `main@d54ca50` (#79); rebased onto #80 /
+`1691488`. `/play` must advance the
+running game — no kickoff re-sim when the user continues or steps
+forward. Same-seed box must match `simulateGame`. Sibling bugs /
+people-teeth / forbidden knobs / PR #9 not touched.
+
+**Diagnosis.** Confirmed. Phase 1 Lane A (#53) cached `peek()` so a
+re-render did not re-run the game, but `call()` / `finishAuto()` still
+cloned the kickoff snapshot and ran `simulateGame` from 0:00, replaying
+the snap list through `playCaller` and throwing `NeedSnapCall` at the
+next user snap. That discarded the in-progress loop (clock, score,
+possession, drives, injuries, parent RNG). The UI looked like a step
+forward; the engine started over every click.
+
+**Change.** `runGameSim` is the existing play loop as a generator.
+`simulateGame` still drains it in one sync call — bulk-sim / Play Week
+unchanged; no yield on that path. `openGameSim` sets `SimOpts.live` and
+yields at user-club offensive snaps. `createLiveGame` holds that
+iterator on one kickoff clone: `peek` / `call` / `finishAuto` resume it.
+Inactives still declared once on the clone so they do not stack.
+
+**Leftover.** No Madden formation tree. No timeout / defensive-call
+buttons. CPU boxes still get a drive chart, not a full snap log.
+Refreshing `/play` starts a new session (live state is the in-memory
+sim, not a save field). People-layer teeth stay Packet 3.
+
+**Untouched.** `cpuProspectView`, `POSITION_VALUE`, `CONTENDER_PULL`,
+`GUARANTEE_PULL`, `CARRY_SHARE`, PR #9, baselines / volume knobs,
+people-teeth engine.
+
+**Regression.** `lib/core/liveGame.test.ts` (gate `livegame`) — opening
+play object-identity across calls (no kickoff re-sim); clock / drives /
+possession move forward; `finishAuto` and mixed calls + `finishAuto`
+box-match `simulateGame` on the same seed after the same inactives
+declare; live session does not write the save.
+
+**Browser.** New Franchise → Start the Season → `/play`. Note the
+opening kickoff line and the Q1 clock. Run or Pass. The first play-by-
+play row must stay the same opening kickoff (not a new kickoff) and the
+clock / Last snap / Drive Log must move from that spot. Coach finish →
+Play Week. Box on `/game/[id]` is the live result, not a second kickoff
+sim.
+
+Verified on this packet: `/play` opened on Q1 15:00, 1st & 10 own 25,
+Play by Play "Kickoff — touchback" (1 snap). Run: same opening
+touchback stayed row 1; Last snap "Jackson run for 5 yards"; clock
+14:30, 2nd & 5, Drive Log +5, 2 snaps. No second kickoff.
+
+**Gate** (`npm run gate:serial`, 4 cores). Typecheck / livegame /
+playbyplay / callsheet / determinism / verify / sweep / calibrate /
+statcheck / scout ok. The two inherited single-seed reds only —
+same FAIL lines as Packet 2 / #53:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
+GATE FAIL  2 problems
+```
+
+`calibrate` and `statcheck` `##M` lines are byte-identical to
+`main@d54ca50` (diff empty on every metric, including
+`calibrate.passYds` 237.328… and `statcheck.wr10RecYds` 1018).
+Zero new RNG — the live yield is off the bulk-sim path.
+
+File cluster: `sim/game.ts` (generator wrapper + live yield),
+`callSheet.ts` (`live` flag), `liveGame.ts`, `events.ts` comment,
+`liveGame.test.ts`, gate/package.json registration, this note.
+
+---
+
 ## 2026-09-13 — Wave 3.7 Packet 3a: Wave 2.5 bugs
 
 Worker. Four Wave 2.5 leftovers only. Base `main@d54ca50` (#79). One PR
@@ -67,6 +139,7 @@ GATE FAIL  2 problems
 ```
 
 **Regression.** `lib/core/wave25Bugs.test.ts` (gate `wave25bugs`).
+
 
 ---
 
