@@ -1665,3 +1665,21 @@ injured starters at full OVR; it counts the street body who replaced
 them. That is the NFL. `capBustSeasons` / `minPayrollSeasonsUnder55`
 are findings, not retuned.
 
+**Wave 3.8 Packet 5 (Matt SIGNED 2026-09-14). Ability on the 53,
+money on the cap sheet.** After #70, `drift.active()` is the 53-man
+— the right population for ability (`ovrMean`, `ovrAtAge`, `fade`,
+`n85`, `n90`). `payrolls[]` was still summed from that same set, so
+IR (and PS) cap hits vanished from `minPayrollPct` /
+`medianPayrollPct` while real clubs sit at 84–100% of cap.
+`minPayrollSeasonsUnder55` **4.40** on the Wave 3.7 panel is that
+measurement artifact: the money guard was reading the 53, not
+`payroll()`.
+
+`payrolls[]` now calls `payroll(state, t.id)` — every rostered body
+(IR + PS) plus dead money, the same function the engine's spend
+floor already uses. Ability metrics stay on `active()`. Report-only
+`##M drift.irCapPctMean` is league IR cap hits / (32 × the salary
+cap) at recap; it is not gated and `docs/baselines.json` is not
+moved. `capBust` is not retuned. Expect
+`minPayrollSeasonsUnder55` → ~0 on the next panel.
+
