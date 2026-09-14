@@ -199,10 +199,9 @@
       "nfl": 22.5
     },
     "statcheck.leadPassYds": {
-      "target": 4233,
+      "target": 5085.8,
       "tol": 700,
-      "nfl": 4800,
-      "note": "RE-LOCKED 2026-09-14 (Wave 3.8 Packet 3, Matt SIGNED). Year-0 holdouts now sit. Single-seed 4233 (carve-out 4478 / old lock 5085.8). Panel remains authority — Aug 6 rule: single-seed reads carry no information beyond the lock."
+      "nfl": 4800
     },
     "statcheck.leadRushYds": {
       "target": 1726.8,
@@ -220,10 +219,9 @@
       "nfl": 20
     },
     "statcheck.leadTackles": {
-      "target": 131,
+      "target": 177,
       "tol": 40,
-      "nfl": 180,
-      "note": "RE-LOCKED 2026-09-14 (Wave 3.8 Packet 3, Matt SIGNED). Year-0 holdouts now sit. Single-seed 131 (carve-out 157 / old lock 177). Panel remains authority — Aug 6 rule."
+      "nfl": 180
     },
     "statcheck.maxGamePassYds": {
       "target": 473.2,
@@ -236,10 +234,9 @@
       "nfl": 296
     },
     "statcheck.maxGameRecYds": {
-      "target": 322,
+      "target": 234.6,
       "tol": 80,
-      "nfl": 336,
-      "note": "RE-LOCKED 2026-09-14 (Wave 3.8 Packet 3, Matt SIGNED). Year-0 holdouts now sit. Single-seed 322 (carve-out 274 / old lock 234.6). Panel remains authority — Aug 6 rule."
+      "nfl": 336
     },
     "statcheck.shutouts": {
       "target": 5.4,
@@ -483,16 +480,16 @@
       "note": "STRUCTURAL: the priority-UDFA chase after pick 224 signs a real number of men without cornering the pool. 160 at lock; real clubs sign 10-15 UDFAs each into 90-man camps, v2 has no 90-man so CPU appetite is thresholded on each club's own board."
     },
     "statcheck.qb5PassYds": {
-      "target": 4057,
+      "target": 4497,
       "tol": 360,
       "nfl": 4497,
-      "note": "RE-LOCKED 2026-09-14 (Wave 3.8 Packet 3, Matt SIGNED). Year-0 holdouts now sit. Single-seed 4057 (carve-out 4237 / NFL lock 4497). nfl stays 4497 (nfl-reference.md S5.1). Panel remains authority — Aug 6 rule: single-seed reads carry no information beyond the lock."
+      "note": "NEW 2026-08-02. 5th-best passing season, real mean 4497 +/- 176 across 2018-2024 (nfl-reference.md S5.1). tol ~8%."
     },
     "statcheck.qb10PassYds": {
-      "target": 3594,
+      "target": 4028,
       "tol": 322,
       "nfl": 4028,
-      "note": "RE-LOCKED 2026-09-14 (Wave 3.8 Packet 3, Matt SIGNED). Year-0 holdouts now sit. Single-seed 3594 (carve-out 3883 / NFL lock 4028). nfl stays 4028 (nfl-reference.md S5.1). Panel remains authority — Aug 6 rule."
+      "note": "NEW 2026-08-02. 10th-best passing season, real mean 4028 +/- 198 (nfl-reference.md S5.1). tol ~8%. This is the rank a leader-only guard cannot see."
     },
     "statcheck.qb20PassYds": {
       "target": 3046,

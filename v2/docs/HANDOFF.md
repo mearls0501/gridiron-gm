@@ -5,15 +5,19 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
-## 2026-09-14 — Wave 3.8 Packet 3: year-0 holdouts sit + re-lock
+## 2026-09-14 — Wave 3.8 Packet 3: year-0 holdouts sit
 
-Lead. Rebased onto `main` @ `61c4cb6` (#83 liveGame tidy). Files
-disjoint except this note; `livegame` gate registration untouched.
-**Matt SIGNED 2026-09-14:** remove the year-0 carve-out and re-lock
-whichever single-seed `statcheck` rows move. Panel is the authority
-for those rows (Aug 6 rule — single-seed reads carry no information
-beyond the lock). Void years / carryover are sibling packets.
-Forbidden knobs / PR #9 / capBust / minPayroll / volume not retuned.
+Lead. Sit + peopleTeeth landed as #85 on `main` @ `cae18be`.
+**Matt SIGNED 2026-09-14 addendum supersedes the same-day re-lock
+instruction:** Packet 3 deletes the year-0 carve-out and **lists**
+moved `statcheck` / `calibrate` rows here. **Do not edit
+`baselines.json` for a lock.** The lead re-locks from the next
+panel (Aug 6 rule — single-seed reads carry no information beyond
+the lock). #85's premature single-seed re-locks of `leadPassYds` /
+`qb5PassYds` / `qb10PassYds` / `leadTackles` / `maxGameRecYds` are
+reverted to the pre-#85 locks. Void years / carryover are sibling
+packets. Forbidden knobs / PR #9 / capBust / minPayroll / volume
+not retuned.
 
 **Change.** Deleted `history.length === 0` early return in
 `isHoldoutInactive`. Holdouts sit in year 0 the same as later seasons.
@@ -23,24 +27,25 @@ Forbidden knobs / PR #9 / capBust / minPayroll / volume not retuned.
 `npx tsx scripts/calibrate.ts 300` on this box (`nproc`=4), same
 default seeds as the gate. Calibrate 300-game synthetic loop is
 byte-identical to the carve-out / Packet 2 baseline (`passYds`
-237.328…). Season-level calibrate moved but stayed in band (not
-re-locked): `seasonPfg` 21.755→21.406, `seasonYdsPerGame`
+237.328…). Season-level calibrate moved but stayed in band (not a
+lock): `seasonPfg` 21.755→21.406, `seasonYdsPerGame`
 337.307→336.990, `seasonPfgSpread` 17.706→16.196.
 
-### statcheck ##M — rows that left the band (re-locked)
+### statcheck ##M — rows that left the band (findings for the next panel)
 
 Same five Packet 3b listed when year-0 sits first went red. `nfl`
-notes and tols unchanged. No new dials.
+notes and tols unchanged. No new dials. These are not locks — the
+next panel is the re-lock authority.
 
-| metric | before (carve-out) | after (sit) | old lock | new lock |
-|---|---:|---:|---|---|
-| `statcheck.leadPassYds` | 4478 | **4233** | 5085.8 ±700 | **4233** ±700 |
-| `statcheck.qb5PassYds` | 4237 | **4057** | 4497 ±360 | **4057** ±360 |
-| `statcheck.qb10PassYds` | 3883 | **3594** | 4028 ±322 | **3594** ±322 |
-| `statcheck.leadTackles` | 157 | **131** | 177 ±40 | **131** ±40 |
-| `statcheck.maxGameRecYds` | 274 | **322** | 234.6 ±80 | **322** ±80 |
+| metric | before (carve-out) | after (sit) | current lock (pre-#85, unchanged) |
+|---|---:|---:|---|
+| `statcheck.leadPassYds` | 4478 | **4233** | 5085.8 ±700 |
+| `statcheck.qb5PassYds` | 4237 | **4057** | 4497 ±360 |
+| `statcheck.qb10PassYds` | 3883 | **3594** | 4028 ±322 |
+| `statcheck.leadTackles` | 157 | **131** | 177 ±40 |
+| `statcheck.maxGameRecYds` | 274 | **322** | 234.6 ±80 |
 
-### moved, still in band — not re-locked
+### moved, still in band — not a lock
 
 `playersWithStats` 1564→1587, `maxGamePassYds` 454→482,
 `maxGameRushYds` 224→230, `leadRushYds` 1473→1500, `leadRecYds`
@@ -58,17 +63,23 @@ chased.
 volume knobs, void years, carryover, liveGame tidy.
 
 **Leftover.** `leverage.wrongSign` 1 is the inherited knife-edge
-probe — not this packet. Panel remains authority for the five
-re-locked rows.
+probe — not this packet. After the sit, the five after-sit rows
+FAIL the pre-#85 bands on this seed. That is expected; do not
+re-lock from this seed.
 
-**Gate** (`npm run gate:serial`, 4 cores, ~412 s). Typecheck /
-peopleteeth (year-0 sit) / psychology / determinism / verify / sweep /
-calibrate / statcheck / scout ok. One inherited red only — wr10 is
-gone on this seed after sits:
+**Gate** (`npm run gate:serial` on #85 before the revert, 4 cores,
+~412 s). Typecheck / peopleteeth (year-0 sit) / psychology /
+determinism / verify / sweep / calibrate / scout ok. After restoring
+the pre-#85 locks, the five listed rows are red on this seed plus
+the inherited leverage probe:
 
 ```
 FAIL  leverage.wrongSign  1  expected <= 0
-GATE FAIL  1 problem
+FAIL  statcheck.leadPassYds  4233  expected 5085.8 +/-700
+FAIL  statcheck.qb5PassYds  4057  expected 4497 +/-360
+FAIL  statcheck.qb10PassYds  3594  expected 4028 +/-322
+FAIL  statcheck.leadTackles  131  expected 177 +/-40
+FAIL  statcheck.maxGameRecYds  322  expected 234.6 +/-80
 ```
 
 ---
