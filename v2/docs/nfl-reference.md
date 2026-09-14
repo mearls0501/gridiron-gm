@@ -613,6 +613,14 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   It is a player control, not a measured league rate. No new mix target
   and no formation tree — the play loop has down / toGo / yardLine /
   passBias / aggression and a victory kneel, nothing else. Ungated.
+- **Holdouts sit from year 0.** Added 2026-09-14 (Wave 3.8 Packet 3,
+  Matt SIGNED). The year-0 `history.length === 0` carve-out in
+  `isHoldoutInactive` is removed. Holdouts are gameday inactive in the
+  opening season the same as later seasons. Frequency remains untraced
+  — this file has no holdout / trade-request block in T/D/S/P — so this
+  is a mechanism note, not a rate. Single-seed `statcheck` rows that
+  moved out of band were re-locked; the panel remains authority (Aug 6
+  rule: single-seed reads carry no information beyond the lock).
 
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 

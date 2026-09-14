@@ -5,6 +5,64 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-14 — Wave 3.8 Packet 3: year-0 holdouts sit + re-lock
+
+Lead. Rebased onto `main` @ `61c4cb6` (#83 liveGame tidy). Files
+disjoint except this note; `livegame` gate registration untouched.
+**Matt SIGNED 2026-09-14:** remove the year-0 carve-out and re-lock
+whichever single-seed `statcheck` rows move. Panel is the authority
+for those rows (Aug 6 rule — single-seed reads carry no information
+beyond the lock). Void years / carryover are sibling packets.
+Forbidden knobs / PR #9 / capBust / minPayroll / volume not retuned.
+
+**Change.** Deleted `history.length === 0` early return in
+`isHoldoutInactive`. Holdouts sit in year 0 the same as later seasons.
+`peopleTeeth.test.ts` now asserts a year-0 holdout is gameday inactive.
+
+**Measure.** `npx tsx scripts/statcheck.ts` and
+`npx tsx scripts/calibrate.ts 300` on this box (`nproc`=4), same
+default seeds as the gate. Calibrate 300-game synthetic loop is
+byte-identical to the carve-out / Packet 2 baseline (`passYds`
+237.328…). Season-level calibrate moved but stayed in band (not
+re-locked): `seasonPfg` 21.755→21.406, `seasonYdsPerGame`
+337.307→336.990, `seasonPfgSpread` 17.706→16.196.
+
+### statcheck ##M — rows that left the band (re-locked)
+
+Same five Packet 3b listed when year-0 sits first went red. `nfl`
+notes and tols unchanged. No new dials.
+
+| metric | before (carve-out) | after (sit) | old lock | new lock |
+|---|---:|---:|---|---|
+| `statcheck.leadPassYds` | 4478 | **4233** | 5085.8 ±700 | **4233** ±700 |
+| `statcheck.qb5PassYds` | 4237 | **4057** | 4497 ±360 | **4057** ±360 |
+| `statcheck.qb10PassYds` | 3883 | **3594** | 4028 ±322 | **3594** ±322 |
+| `statcheck.leadTackles` | 157 | **131** | 177 ±40 | **131** ±40 |
+| `statcheck.maxGameRecYds` | 274 | **322** | 234.6 ±80 | **322** ±80 |
+
+### moved, still in band — not re-locked
+
+`playersWithStats` 1564→1587, `maxGamePassYds` 454→482,
+`maxGameRushYds` 224→230, `leadRushYds` 1473→1500, `leadRecYds`
+1803→1825, `leadSacks` 15→18, `meanTeamScore` 22.189→21.978,
+`shutouts` 7→4, `fortyPlusGames` 31→20, `qb20PassYds` 3071→3138,
+`rb5RushYds` 1269→1260. Persistence / implausible / 1700+ / 4800+
+unchanged at 0.
+
+`statcheck.wr10RecYds` **1018→1188** — the inherited single-seed red
+is gone on this seed (now inside 1208 ±97). NFL lock left alone; not
+chased.
+
+**Untouched.** `cpuProspectView`, `POSITION_VALUE`, `CONTENDER_PULL`,
+`GUARANTEE_PULL`, `CARRY_SHARE`, PR #9, capBust / minPayroll, trade
+volume knobs, void years, carryover, liveGame tidy.
+
+**Leftover.** `leverage.wrongSign` 1 is the inherited knife-edge
+probe — not this packet. Panel remains authority for the five
+re-locked rows.
+
+---
+
 ## 2026-09-14 — Wave 3.8 Packet 2: liveGame tidy
 
 Worker. Base `main@a88b0b9` (#82). #81 `/play` live state is already
