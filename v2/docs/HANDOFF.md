@@ -38,9 +38,21 @@ called by hand, `deepEqual` on `result.box` AND `result.plays` vs
 `simulateGame`; partial calls + `finishAuto` matches sync; bulk path
 completes in one `next()`. Live session does not write the save.
 
-**Gate.** Pending on this packet (see follow-up in this note after
-the fast run). Inherited `leverage.wrongSign` /
-`statcheck.wr10RecYds` 1018 are not this packet.
+**Gate** (`npm run gate:serial`, 4 cores). Typecheck / livegame /
+playbyplay / callsheet / determinism / verify / sweep / calibrate /
+statcheck / scout ok. The two inherited single-seed reds only —
+same FAIL lines as Packet 3c / #81 / #82:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
+GATE FAIL  2 problems
+```
+
+`calibrate` and `statcheck` `##M` lines are byte-identical to
+`main@a88b0b9` (diff empty on every metric, including
+`calibrate.passYds` 237.328… and `statcheck.wr10RecYds` 1018).
+Zero new RNG — the live yield is off the bulk-sim path.
 
 File cluster: `lib/core/liveGame.ts`, `lib/core/sim/game.ts` (yield
 value only), `lib/core/liveGame.test.ts`, this note.
