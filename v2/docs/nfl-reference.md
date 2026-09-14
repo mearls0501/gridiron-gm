@@ -619,8 +619,10 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   opening season the same as later seasons. Frequency remains untraced
   — this file has no holdout / trade-request block in T/D/S/P — so this
   is a mechanism note, not a rate. Single-seed `statcheck` rows that
-  moved out of band were re-locked; the panel remains authority (Aug 6
-  rule: single-seed reads carry no information beyond the lock).
+  moved out of band are listed in HANDOFF as findings for the next
+  panel — the lead re-locks from that panel (Aug 6 rule: single-seed
+  reads carry no information beyond the lock). Do not edit
+  `baselines.json` here.
 
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 
