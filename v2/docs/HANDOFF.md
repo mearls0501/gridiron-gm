@@ -32,7 +32,10 @@ have vanished at expiry.
   `finalizeOffseason` snapshots leftover space before `season += 1`
   and writes it after.
 - User desk: `/finances` "Add void years". CPU: `runCpuVoidYears`
-  after the 53-man cutdown, contend + ~90% committed only.
+  after the 53-man cutdown, contend + ~90% committed, one deal
+  with ≥3 years left (a shorter void dumps uncuttable dead at the
+  next expire). After `settleWaivers`, a club that rounded over
+  the new cap+carryover room is reconciled so the desk opens legal.
 - `drift.deadMoneyPct` additive emit (`nfl` ~5–8%). No band.
 - `lib/core/capMechanics.test.ts` registered in `package.json` and
   `scripts/gate.ts` FAST+FULL (#47). Gate keeps `livegame` /

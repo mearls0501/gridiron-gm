@@ -980,24 +980,28 @@ function clubCommittedTight(state: GameState, teamId: number): boolean {
 /**
  * CPU clubs add void years only when they are contending and already over
  * the ~90% committed gate tags use. Rebuild / retool / user club skipped.
+ * One deal, and only if three or more years remain — voiding a short
+ * deal dumps the remainder at the next expire as uncuttable dead money.
  */
-export function runCpuVoidYears(state: GameState): void {
-  for (const t of state.teams) {
+export function runCpuVoidYears(state: GameState, onlyTeamId?: number): void {
+  const clubs = onlyTeamId !== undefined
+    ? state.teams.filter((t) => t.id === onlyTeamId)
+    : state.teams;
+  for (const t of clubs) {
     if (t.id === state.userTeamId) continue;
     const { posture } = teamOutlook(state, t.id);
     if (posture !== "contend") continue;
     if (!clubCommittedTight(state, t.id)) continue;
     const roster = state.players.filter(
       (p) => p.teamId === t.id && !p.retired && !p.prospect && p.contract
+        && (p.contract.yearsRemaining ?? 0) >= 3
     );
     const ranked = roster
       .map((p) => ({ p, preview: addVoidYearsPreview(state, t.id, p) }))
       .filter((x) => x.preview.ok && x.preview.savings > 0)
       .sort((a, b) => b.preview.savings - a.preview.savings || a.p.id - b.p.id);
-    for (const { p } of ranked) {
-      if (!clubCommittedTight(state, t.id)) break;
-      applyVoidYears(state, t.id, p.id);
-    }
+    const pick = ranked[0];
+    if (pick) applyVoidYears(state, t.id, pick.p.id);
   }
 }
 
