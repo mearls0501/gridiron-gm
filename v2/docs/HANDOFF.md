@@ -5,6 +5,125 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-14 — Wave 3.8 Packet 6: contract ceilings
+
+Worker. Base `main` @ `fd30b2762b1336b8a93b35e498930f3f6e30706d` (#87
+drift payroll). Matt SIGNED 2026-09-14 #2 + #3. Claude Finding 2:
+cap busts were the tag escalator on APYs that had already saturated
+at 26%. **`docs/baselines.json` was not edited.** Studio 5-seed
+panel is the orchestrator after merge.
+
+**Sequence.** §4 OTC numbers first, then the two constants, then
+the additive emit, then the regression file.
+
+**OTC (written into `docs/nfl-reference.md` §4 before the
+constants moved).** 2025 cap $279.2M. Top-five QB APY (Prescott
+$60.0M + four $55.0M deals) = **20.06%** of the cap. Record
+single-season hit ≈ **25%**. EDGE / WR typical APY **12–13%**
+(Bosa 12.18, Jefferson 12.54, Lamb 12.18; Garrett 14.32 is the
+outlier). `drift.topCapPctMean` nfl **≈18–20%** (2025 Dak cap
+hit 18.09%). Signed band ±3 waits for the post-Packet-6 panel.
+
+**Change.**
+
+- `marketApy` QB saturation **0.26 → 0.21**. Positional scaling
+  `Math.pow(posMult / 3.4, 0.7)` unchanged, so EDGE lands
+  **12.9%** and WR **11.3%**.
+- `MAX_CONTRACT_SHARE` **0.25 → 0.22**.
+- `##M drift.topCapPctMean` additive emit (mean of each season's
+  highest cap hit). No band. `capBustSeasons` stays 28% /
+  `max: 0`.
+- `lib/core/contractCeiling.test.ts` registered in `package.json`
+  and `scripts/gate.ts` FAST+FULL (#47).
+
+**Untouched.** Tag escalator, CPU tag / option / extension gates,
+`askingPrice` / `negotiatedApy` shape below the knee,
+`CONTENDER_PULL`, `GUARANTEE_PULL`, `POSITION_VALUE`,
+`CARRY_SHARE`, `cpuProspectView`, PR #9, void/carry engine,
+year-0 holdout. Packet 5 payroll-on-the-cap-sheet kept.
+
+**Expect.** Fast-gate `calibrate` / `statcheck` rows move — stream
+shift from cheaper stars, not a defect. Do not chase by editing
+`baselines.json`. `topCap%` peak under 28 on a 12-season read of
+seed 12345; year-0 top QB market ≈ 20–21%.
+
+**Regression** (`npx tsx lib/core/contractCeiling.test.ts`).
+
+```
+ok    marketApy ceilings QB 21.0% EDGE 12.9% WR 11.2%
+ok    no negotiated APY above 0.22 of the cap (n=1836)
+ok    year-0 top QB 19.6%, top-five mean 18.3%
+ok    max QB first tag 21.0%, second 25.2%
+ok    12-season seed 12345: peak topCap 27.3%, busts 0
+```
+
+**`npx tsx scripts/drift.ts 12 12345`** (this 4-core VM). Peak
+under 28. `topCapPctMean` **21.82** sits on the OTC 18–20 note
+(signed ±3 waits for the panel). Year-0 `topCap%` 21.7.
+
+```
+topCap%: 21.7 22.0 21.3 27.3 22.9 20.2 22.6 21.2 24.6 21.3 17.4 19.3
+##M drift.topCapPctMean 21.82
+##M drift.capBustSeasons 0
+##M drift.minPayrollSeasonsUnder55 0
+##M drift.medianPayrollPct 98.19
+##M drift.irCapPctMean 5.89
+##M drift.ovrDrift -1.33
+##M drift.p0Failures 0
+##M drift.franchiseTagsPerSeason 18.08
+```
+
+`no contract exceeds 28% of the cap` ok, peak 27%. Tags 18.1 on
+this 12-season single seed is stream, not a retune (locked band
+is 14 ±4; do not touch tag rules).
+
+**Seed 1 leftover (Finding 2 residue, not this packet).** 12
+seasons, **2 busts, peak 34.5%**. Both over-28 hits are a third
+consecutive exclusive tag on a QB (CPU still applies tag 3 when
+the 90% gate and surplus pass — tag rules were not touched):
+
+| season | topCap% | player | tags |
+|---|---:|---|---|
+| 2031 | 28.4 | Rowan Fairchild QB 82 | 2028:1 / 2029:2 / 2030:3 |
+| 2034 | **34.5** | Ivan Gatlin QB 82 | 2031:1 / 2032:2 / 2033:3 |
+
+First and second tags on this seed sit at 21–26%, which is the
+ceiling working. The third tender is `1.44 ×` the second and is
+the remaining leak. `capBustSeasons` stays the 28% backstop.
+Do not retune the escalator here.
+
+**Gate** (`npm run gate:serial`, 4 cores). Typecheck /
+contractceiling (788s, peak 27.3%) / determinism / verify
+348/348 / sweep / scout ok. Synthetic `calibrate` 300-game
+loop is byte-identical (`passYds` 237.328). Four reds, none
+chased — two Packet 3 after-sit leftovers, one stream, one
+inherited probe:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.leadTackles  133  expected 177 +/-40
+FAIL  statcheck.qb10PassYds  3593  expected 4028 +/-322
+FAIL  statcheck.wr10RecYds  1105  expected 1208 +/-97
+GATE FAIL  4 problems
+```
+
+Packet 3 after-sit rows that moved **back in band** on this
+seed (stream, not a lock): `leadPassYds` 4233→**4921** (5085.8
+±700), `qb5PassYds` 4057→**4189** (4497 ±360),
+`maxGameRecYds` 322→**286** (234.6 ±80). `wr10RecYds`
+1188→**1105** left the band (1208 ±97). Do not edit
+`baselines.json`.
+
+**Leftover.** `leverage.wrongSign` 1 is the inherited knife-edge
+probe. `leadTackles` / `qb10PassYds` are Packet 3 after-sit
+findings. `wr10RecYds` is this packet's stream shift on one
+seed. `minPayrollSeasonsUnder55` is Packet 5's measurement
+fix (expect ~0 on the next panel). `topCapPctMean` is the
+primary money guard once the panel locks it. Seed 1 third-tag
+busts are a tag-gate leftover, not a ceiling miss.
+
+---
+
 ## 2026-09-14 — Wave 3.8 Packet 5: drift payroll on the cap sheet
 
 Lead. Claude Finding 1. Rebased onto `main` @ `6f34880` (#84 void
