@@ -37,7 +37,33 @@ Do not treat a leftover 4.40 as an engine spend-floor bug.
 `POSITION_VALUE`, `CONTENDER_PULL`, `GUARANTEE_PULL`,
 `CARRY_SHARE`, PR #9. Packet 4's `drift.deadMoneyPct` emit kept.
 
-**Gate.** Fast gate / drift smoke pending on this box (`nproc`=4).
+**Gate** (`npm run gate:serial`, 4 cores, ~385 s). Typecheck /
+determinism / verify 348/348 / sweep / calibrate / statcheck /
+scout ok. One inherited red only — not this packet:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+GATE FAIL  1 problem
+```
+
+**`npx tsx scripts/drift.ts 8` seed 12345 (this 4-core VM, 415 s).**
+Money is the cap sheet. Poor-house seasons are gone on this
+horizon. Ability still on the 53 (`ovrMean` 67.9 → 66.8):
+
+```
+pay min: 83 / 89 / 98 / 95 / 91 / 89 / 86 / 92
+##M drift.minPayrollSeasonsUnder55 0
+##M drift.medianPayrollPct 98.71
+##M drift.irCapPctMean 5.81
+##M drift.ovrDrift -1.06
+##M drift.capBustSeasons 0
+##M drift.p0Failures 0
+```
+
+`no CPU team parks at replacement-level payroll` is ok at lowest
+83%. 1-season smoke (`drift.ts 1`) already emitted
+`irCapPctMean` 5.35 and min 83%. Full 20-season / 5-seed panel
+is the next-panel authority; expect ~0 there too.
 
 ---
 
