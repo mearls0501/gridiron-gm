@@ -5,6 +5,57 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-14 — Wave 3.8 Packet 6: contract ceilings
+
+Worker. Base `main` @ `fd30b2762b1336b8a93b35e498930f3f6e30706d` (#87
+drift payroll). Matt SIGNED 2026-09-14 #2 + #3. Claude Finding 2:
+cap busts were the tag escalator on APYs that had already saturated
+at 26%. **`docs/baselines.json` was not edited.** Studio 5-seed
+panel is the orchestrator after merge.
+
+**Sequence.** §4 OTC numbers first, then the two constants, then
+the additive emit, then the regression file.
+
+**OTC (written into `docs/nfl-reference.md` §4 before the
+constants moved).** 2025 cap $279.2M. Top-five QB APY (Prescott
+$60.0M + four $55.0M deals) = **20.06%** of the cap. Record
+single-season hit ≈ **25%**. EDGE / WR typical APY **12–13%**
+(Bosa 12.18, Jefferson 12.54, Lamb 12.18; Garrett 14.32 is the
+outlier). `drift.topCapPctMean` nfl **≈18–20%** (2025 Dak cap
+hit 18.09%). Signed band ±3 waits for the post-Packet-6 panel.
+
+**Change.**
+
+- `marketApy` QB saturation **0.26 → 0.21**. Positional scaling
+  `Math.pow(posMult / 3.4, 0.7)` unchanged, so EDGE lands
+  **12.9%** and WR **11.3%**.
+- `MAX_CONTRACT_SHARE` **0.25 → 0.22**.
+- `##M drift.topCapPctMean` additive emit (mean of each season's
+  highest cap hit). No band. `capBustSeasons` stays 28% /
+  `max: 0`.
+- `lib/core/contractCeiling.test.ts` registered in `package.json`
+  and `scripts/gate.ts` FAST+FULL (#47).
+
+**Untouched.** Tag escalator, CPU tag / option / extension gates,
+`askingPrice` / `negotiatedApy` shape below the knee,
+`CONTENDER_PULL`, `GUARANTEE_PULL`, `POSITION_VALUE`,
+`CARRY_SHARE`, `cpuProspectView`, PR #9, void/carry engine,
+year-0 holdout. Packet 5 payroll-on-the-cap-sheet kept.
+
+**Expect.** Fast-gate `calibrate` / `statcheck` rows move — stream
+shift from cheaper stars, not a defect. Do not chase by editing
+`baselines.json`. `topCap%` peak under 28 on a 12-season read;
+year-0 top-five QB market ≈ 20–22%.
+
+**Leftover.** `leverage.wrongSign` 1 is the inherited knife-edge
+probe. The five Packet 3 after-sit `statcheck` rows still FAIL
+the pre-#85 locks on a single seed. `minPayrollSeasonsUnder55`
+is Packet 5's measurement fix (expect ~0 on the next panel).
+`capBustSeasons` is now the backstop; `topCapPctMean` is the
+primary money guard once the panel locks it.
+
+---
+
 ## 2026-09-14 — Wave 3.8 Packet 5: drift payroll on the cap sheet
 
 Lead. Claude Finding 1. Rebased onto `main` @ `6f34880` (#84 void

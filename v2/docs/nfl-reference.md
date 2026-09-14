@@ -654,6 +654,75 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   panel — the lead re-locks from that panel (Aug 6 rule: single-seed
   reads carry no information beyond the lock). Do not edit
   `baselines.json` here.
+- **Contract ceilings (QB / EDGE / WR APY as a share of the cap).**
+  Added 2026-09-14 (Wave 3.8 Packet 6, Matt SIGNED #2 + #3). Not in
+  T/D/S/P. Written here **before** the two constants moved. Over The
+  Cap publishes the yearly cap and the positional APY / cap-hit
+  tables that this packet is fitted to:
+
+  - Cap history: https://overthecap.com/salary-cap
+    (2024 **$255.4M**, 2025 **$279.2M** — the 2025 figure matches the
+    NFL / NFLPA number Pelissero reported).
+  - QB APY: https://overthecap.com/position/quarterback and
+    https://overthecap.com/contracts
+  - QB 2025 cap hits: https://overthecap.com/position/quarterback/2025
+  - EDGE / WR APY: https://overthecap.com/position/edge-rusher and
+    https://overthecap.com/position/wide-receiver
+    (player pages: Garrett `/player/myles-garrett/5585`, Bosa
+    `/player/nick-bosa/7793`, Jefferson `/player/justin-jefferson/8762`,
+    Lamb `/player/ceedee-lamb/8757`).
+
+  **Top-five QB APY ≈ 20% of the cap.** 2025-market APYs against the
+  2025 cap, taking the five highest deals that are not the Mahomes
+  $64.0M renegotiation (22.9% — the current outlier, not the typical
+  ceiling):
+
+  | player | APY | / $279.2M |
+  |---|---:|---:|
+  | Dak Prescott | $60.0M | 21.49% |
+  | Joe Burrow | $55.0M | 19.70% |
+  | Josh Allen | $55.0M | 19.70% |
+  | Jordan Love | $55.0M | 19.70% |
+  | Trevor Lawrence | $55.0M | 19.70% |
+  | **mean** | **$56.0M** | **20.06%** |
+
+  That is the number `marketApy` saturates toward for a quarterback
+  (0.26 → **0.21**). A 99 OVR peak-age QB was already through the
+  knee; the old 26% asymptote was above every real book.
+
+  **Record single-season hit ≈ 25%.** OTC's 2025 QB cap-hit table
+  opens Dak $50,518,430 / $279.2M = **18.09%**, Stafford
+  $47,466,666 = 17.00%, Burrow $45,999,784 = 16.48%. The modern
+  peak is Dak 2024 on the $255.4M cap (high-20s of millions →
+  ~23%). Earlier megadeals on smaller caps reach **≈25%**. That is
+  why `MAX_CONTRACT_SHARE` moves 0.25 → **0.22**: the hard
+  negotiation backstop sits under the record hit, so a back-loaded
+  year of a max deal does not open the book at the record. Tag
+  tenders are **not** subject to this share (a QB tag may exceed
+  20%; see the franchise-tag block above).
+
+  **EDGE / WR real ≈ 12–13%.** Same 2025 cap. Garrett $40.0M =
+  14.32% (the current EDGE outlier); Bosa $34.0M = 12.18%.
+  Jefferson $35.0M = 12.54%; Lamb $34.0M = 12.18%. Typical
+  positional ceiling is 12–13%, not the old sim ~16% / ~14%.
+  Positional scaling below the QB ceiling is unchanged
+  (`0.21 × (posMult / 3.4)^0.7`): EDGE lands **12.9%**, WR
+  **11.3%**. WR sits a point under the real cluster because
+  `POSITION_VALUE` is not this packet.
+
+  **Claude Finding 2.** Cap busts (`topCap%` > 28) were the tag
+  escalator (120% / 144%) firing on APYs that had already
+  saturated at 26%. A max QB's first tag should now land
+  ≈21–22% (top-five average) and the second ≈26%; a third-tag
+  28%+ bust is the backstop, not the expected path.
+
+  **`drift.topCapPctMean`.** Mean of each season's highest cap
+  hit (one player, league-wide — the same `topCap%` column the
+  harness already prints). OTC's seasonal maxima in the 2020s
+  sit at **≈18–20%** of that year's cap (2025 Dak 18.09% is the
+  current reading). Additive emit; `nfl` note 18–20, signed band
+  ±3 **after** the post-Packet-6 panel. Do not lock it here.
+  `capBustSeasons` stays 28% / `max: 0` as the backstop.
 
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 

@@ -239,6 +239,12 @@ const capBust = flat.filter((r) => r.topCapPct > 28).length;
 guard(capBust === 0, "no contract exceeds 28% of the cap",
   `${capBust}/${flat.length} seasons had one, peak ${Math.max(...flat.map((r) => r.topCapPct)).toFixed(0)}%`);
 
+// Primary money guard after Packet 6. Mean of each season's highest
+// cap hit. OTC seasonal maxima sit at ≈18–20% (`nfl-reference.md` §4).
+// Additive emit — do not band until the post-Packet-6 panel (±3).
+// `capBustSeasons` stays the 28% / max: 0 backstop.
+const topCapPctMean = mean(flat.map((r) => r.topCapPct));
+
 // Two guards, because one number cannot say this honestly.
 //
 // A club's payroll is bounded by its own roster: 53 replacement-level players
@@ -298,6 +304,7 @@ emitAll({
   "drift.minPayrollSeasonsUnder55": poorHouse,
   "drift.irCapPctMean": mean(flat.map((r) => r.irCapPct)),
   "drift.capBustSeasons": capBust,
+  "drift.topCapPctMean": topCapPctMean,
   "drift.passRecordSeasons": overPass,
   "drift.playerWeeksLost": injuryLoad,
   "drift.ovrDrift": ovrDrift,

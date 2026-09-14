@@ -103,9 +103,13 @@ export function marketApy(ovr: number, pos: Position, age: number, season: numbe
   //
   // Below the knee the price is untouched — the convexity is the point, it is
   // what makes "three good players or one great one" a real decision. Above
-  // it, price saturates toward a positional ceiling: ~26% of the cap for a
-  // quarterback, ~16% for an edge rusher, ~14% for a receiver.
-  const ceiling = 0.26 * Math.pow(posMult / 3.4, 0.7) * ageMult;
+  // it, price saturates toward a positional ceiling: ~21% of the cap for a
+  // quarterback, ~13% for an edge rusher, ~11% for a receiver. OTC top-five
+  // QB APY is ≈20% of the cap; EDGE / WR cluster at 12–13%
+  // (`docs/nfl-reference.md` §4). The 0.26 / ~16 / ~14 asymptote was above
+  // every real book and is what fed Claude Finding 2 (tag escalator on an
+  // inflated APY).
+  const ceiling = 0.21 * Math.pow(posMult / 3.4, 0.7) * ageMult;
   const knee = ceiling * 0.62;
   const frac =
     raw <= knee

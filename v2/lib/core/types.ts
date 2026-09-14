@@ -1216,8 +1216,12 @@ export interface GameState {
  * contract by up to 3.0x to hit a club's target payroll, which handed one 89
  * OVR quarterback a deal averaging 29% of the cap in the league's first season
  * and tripped the cap guard forever after.
+ *
+ * 0.22 (was 0.25). OTC record single-season hit is ≈25% of that year's
+ * cap; the hard negotiation backstop sits under it. Tag tenders are not
+ * subject to this share. See `docs/nfl-reference.md` §4.
  */
-export const MAX_CONTRACT_SHARE = 0.25;
+export const MAX_CONTRACT_SHARE = 0.22;
 
 export const SALARY_CAP_BASE = 255_000_000;
 export const CAP_GROWTH = 0.06;
