@@ -61,6 +61,16 @@ volume knobs, void years, carryover, liveGame tidy.
 probe — not this packet. Panel remains authority for the five
 re-locked rows.
 
+**Gate** (`npm run gate:serial`, 4 cores, ~412 s). Typecheck /
+peopleteeth (year-0 sit) / psychology / determinism / verify / sweep /
+calibrate / statcheck / scout ok. One inherited red only — wr10 is
+gone on this seed after sits:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+GATE FAIL  1 problem
+```
+
 ---
 
 ## 2026-09-14 — Wave 3.8 Packet 2: liveGame tidy
