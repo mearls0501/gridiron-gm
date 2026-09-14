@@ -44,15 +44,41 @@ year-0 holdout. Packet 5 payroll-on-the-cap-sheet kept.
 
 **Expect.** Fast-gate `calibrate` / `statcheck` rows move — stream
 shift from cheaper stars, not a defect. Do not chase by editing
-`baselines.json`. `topCap%` peak under 28 on a 12-season read;
-year-0 top-five QB market ≈ 20–22%.
+`baselines.json`. `topCap%` peak under 28 on a 12-season read of
+seed 12345; year-0 top QB market ≈ 20–21%.
+
+**Regression** (`npx tsx lib/core/contractCeiling.test.ts`).
+
+```
+ok    marketApy ceilings QB 21.0% EDGE 12.9% WR 11.2%
+ok    no negotiated APY above 0.22 of the cap (n=1836)
+ok    year-0 top QB 19.6%, top-five mean 18.3%
+ok    max QB first tag 21.0%, second 25.2%
+ok    12-season seed 12345: peak topCap 27.3%, busts 0
+```
+
+**Seed 1 leftover (Finding 2 residue, not this packet).** 12
+seasons, **2 busts, peak 34.5%**. Both over-28 hits are a third
+consecutive exclusive tag on a QB (CPU still applies tag 3 when
+the 90% gate and surplus pass — tag rules were not touched):
+
+| season | topCap% | player | tags |
+|---|---:|---|---|
+| 2031 | 28.4 | Rowan Fairchild QB 82 | 2028:1 / 2029:2 / 2030:3 |
+| 2034 | **34.5** | Ivan Gatlin QB 82 | 2031:1 / 2032:2 / 2033:3 |
+
+First and second tags on this seed sit at 21–26%, which is the
+ceiling working. The third tender is `1.44 ×` the second and is
+the remaining leak. `capBustSeasons` stays the 28% backstop.
+Do not retune the escalator here.
 
 **Leftover.** `leverage.wrongSign` 1 is the inherited knife-edge
 probe. The five Packet 3 after-sit `statcheck` rows still FAIL
 the pre-#85 locks on a single seed. `minPayrollSeasonsUnder55`
 is Packet 5's measurement fix (expect ~0 on the next panel).
-`capBustSeasons` is now the backstop; `topCapPctMean` is the
-primary money guard once the panel locks it.
+`topCapPctMean` is the primary money guard once the panel locks
+it. Seed 1 third-tag busts are a tag-gate leftover, not a
+ceiling miss.
 
 ---
 
