@@ -46,8 +46,10 @@ function plantStandings(st: GameState, season: number, winsFor: (teamId: number)
   st.phase = "regular";
   st.week = 1;
   assert.equal(st.history.length, 0);
-  assert.equal(isHoldoutInactive(st, user), false, "year-0 holdouts do not sit (calibrate/statcheck)");
-  ok("year-0 holdout is a desk flag, not a sit");
+  assert.equal(isHoldoutInactive(st, user), true, "year-0 holdout is gameday inactive");
+  sitHoldouts(st, st.userTeamId);
+  assert.equal(isSat(st.teams[st.userTeamId], user.id), true, "year-0 holdout is gameday inactive");
+  ok("year-0 holdout sits the same as later seasons");
 }
 
 {
