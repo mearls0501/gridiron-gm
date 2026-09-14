@@ -56,8 +56,16 @@ retuned.
 `GUARANTEE_PULL`, `CARRY_SHARE`, PR #9, tag / fifth-year / extension
 decision logic, `freeAgency.ts`, trades, `docs/baselines.json`.
 
-**Gate.** Fast: year-0 calibrate/statcheck byte-identical; capMechanics
-green; inherited `leverage.wrongSign` / `statcheck.wr10RecYds` only.
+**Gate.** `npm run gate:serial` (`nproc`=4, 1 seed). capmechanics /
+sweep / determinism / verify 348/348 / calibrate `passYds` 237.33 /
+`scoreMismatches` 0. Year-0 statcheck `wr10RecYds` **1018** — same
+inherited single-seed red as Packet 3b/3c. Two inherited reds only:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1018  expected 1208 +/-97
+GATE FAIL  2 problems
+```
 
 ---
 
