@@ -62,8 +62,10 @@ pay min: 83 / 89 / 98 / 95 / 91 / 89 / 86 / 92
 
 `no CPU team parks at replacement-level payroll` is ok at lowest
 83%. 1-season smoke (`drift.ts 1`) already emitted
-`irCapPctMean` 5.35 and min 83%. Full 20-season / 5-seed panel
-is the next-panel authority; expect ~0 there too.
+`irCapPctMean` 5.35 and min 83%. That smoke was on `cae18be`
+before this rebase onto #84; Packet 4 void/carryover now sits
+inside `payroll()`. Full 20-season / 5-seed panel is the
+next-panel authority; expect ~0 there too.
 
 ---
 
