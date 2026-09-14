@@ -128,6 +128,7 @@ function migrate(state: GameState): GameState {
   }
   for (const t of state.teams) {
     if (typeof t.deadCap !== "number") t.deadCap = 0;
+    if (typeof t.capCarryover !== "number") t.capCarryover = 0;
     if (t.coach && typeof t.coach.shadowTendency !== "number") t.coach.shadowTendency = 0.42;
     // Staff budgets arrived after these saves were written. An even split is
     // the neutral point of the whole model — every multiplier in `staff.ts` is
@@ -140,8 +141,10 @@ function migrate(state: GameState): GameState {
   }
   // Point-pool leftovers become a real calendar; does not crash old saves.
   ensureScouting(state);
-  // Contract office (extend / restructure) writes existing Contract fields
-  // only — signingBonus / baseSalary / bonusProrationYears. No backfill.
+  // Void years are additive; missing = 0 so an old deal loads unchanged.
+  for (const p of state.players) {
+    if (p.contract && typeof p.contract.voidYears !== "number") p.contract.voidYears = 0;
+  }
   // HC / OC / DC + owner: child-stream backfill. Copies Team.coach dials
   // onto the people so play-calling does not move on an old save.
   ensureCoaches(state);

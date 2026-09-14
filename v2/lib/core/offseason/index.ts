@@ -1,11 +1,11 @@
 import { Rng } from "../rng";
 import { refreshDepthCharts } from "../generate";
-import { clearDeadCap } from "../select";
+import { applyCapCarryover, captureCapCarryover, clearDeadCap } from "../select";
 import { GameState, Phase, ROSTER_LIMIT } from "../types";
 import { foldPracticeSquad, resetSeasonRosterFlags } from "../rosterStatus";
 import { settleWaivers } from "../waivers";
 import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
-import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, runCpuFifthYearOptions, runCpuFranchiseTags, runCpuTagExtensions, spendToFloor, upgradeRoster } from "./contracts";
+import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, runCpuFifthYearOptions, runCpuFranchiseTags, runCpuTagExtensions, runCpuVoidYears, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
 import { ensureScouting, pruneScouting } from "../scouting";
@@ -252,6 +252,7 @@ export function finalizeOffseason(state: GameState): void {
     upgradeRoster(state, t.id, rng);
     reconcileRoster(state, t.id, rng, ROSTER_LIMIT, true);
   }
+  runCpuVoidYears(state);
   foldPracticeSquad(state, state.userTeamId);
   reconcileRoster(state, state.userTeamId, rng, ROSTER_LIMIT, true);
 
@@ -260,8 +261,14 @@ export function finalizeOffseason(state: GameState): void {
   // function returns, so the closed year lives on tradesExecutedLast.
   rolloverTradeCounter(state);
 
+  // Unused room carries into the next league year in full. Capture
+  // before the calendar rolls so the new year's larger cap is not
+  // counted as leftover; write after so settleWaivers sees one copy.
+  const carryover = captureCapCarryover(state);
+
   // Roll the calendar.
   state.season += 1;
+  applyCapCarryover(state, carryover);
   state.week = 0;
   state.phase = "preseason";
   resetSeasonRosterFlags(state);
