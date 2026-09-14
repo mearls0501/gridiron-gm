@@ -1,7 +1,7 @@
 import { declareGamedayInactives } from "./inactives";
 import { SnapInfo } from "./callSheet";
-import { openGameSim, type SimResult } from "./sim/game";
-import { buildDrives, lastCalledSnap, onPlayEvent } from "./sim/events";
+import { openGameSim, type LiveSnap, type SimResult } from "./sim/game";
+import { buildDrives, lastCalledSnap } from "./sim/events";
 import { Rng } from "./rng";
 import { DriveSummary, GameState, PlayEvent, SnapCall } from "./types";
 
@@ -13,17 +13,9 @@ import { DriveSummary, GameState, PlayEvent, SnapCall } from "./types";
  * Peek returns the last computed view so a re-render does not re-run the game.
  * call() / finishAuto() resume the paused play loop — they do not re-sim from
  * kickoff. Injuries apply once, on the live clone, not on the save.
+ * Views are built from the engine playLog yielded at each pause — no module
+ * listener, so a CPU sim cannot leak plays into an open session.
  */
-
-export class NeedSnapCall extends Error {
-  readonly info: SnapInfo;
-  plays: PlayEvent[] = [];
-  constructor(info: SnapInfo) {
-    super("need-snap-call");
-    this.name = "NeedSnapCall";
-    this.info = info;
-  }
-}
 
 export type LiveView =
   | {
@@ -49,10 +41,8 @@ export function createLiveGame(state: GameState, gameId: number) {
   if (!game) throw new Error("No such game");
   declareGamedayInactives(kickoff, [game.homeId, game.awayId]);
   const calls: SnapCall[] = [];
-  const plays: PlayEvent[] = [];
-  const stop = onPlayEvent((e) => plays.push(e));
   const gen = openGameSim(kickoff, game, new Rng(kickoff.rngState));
-  let step: IteratorResult<SnapInfo, SimResult> = gen.next();
+  let step: IteratorResult<LiveSnap, SimResult> = gen.next();
   let cached: LiveView | null = null;
 
   const pack = (
@@ -71,11 +61,10 @@ export function createLiveGame(state: GameState, gameId: number) {
 
   const viewOf = (): LiveView => {
     if (step.done) {
-      stop();
       const result = step.value;
-      return pack(result.plays.length ? result.plays : plays, { done: true, result });
+      return pack(result.plays, { done: true, result });
     }
-    return pack(plays, { done: false, info: step.value });
+    return pack(step.value.plays, { done: false, info: step.value.info });
   };
 
   const peek = (): LiveView => {

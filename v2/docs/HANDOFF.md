@@ -5,6 +5,48 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-14 — Wave 3.8 Packet 2: liveGame tidy
+
+Worker. Base `main@a88b0b9` (#82). #81 `/play` live state is already
+correct. Two leftover seams only. Forbidden knobs / PR #9 / baselines
+/ volume / capBust / minPayroll / void years / carryover / year-0
+holdouts not touched.
+
+**Diagnosis.** Confirmed. `createLiveGame` subscribed to the module-
+global `onPlayEvent` for the session lifetime, so a CPU sim while a
+`/play` session is open can leak plays into the live log. `NeedSnapCall`
+is leftover from the kickoff-replay path and is dead.
+
+**Change.** `openGameSim` / the live yield is `{ info, plays }` where
+`plays` is the engine's own `playLog`. `liveGame` builds views from
+that yield and drops the `onPlayEvent` subscription. `NeedSnapCall`
+deleted. `simulateGame` / bulk-sim still one sync `.next()` — no yield
+on that path. Play loop unchanged.
+
+**Leftover.** No Madden formation tree. No timeout / defensive-call
+buttons. CPU boxes still get a drive chart, not a full snap log.
+Refreshing `/play` starts a new session.
+
+**Untouched.** `cpuProspectView`, `POSITION_VALUE`, `CONTENDER_PULL`,
+`GUARANTEE_PULL`, `CARRY_SHARE`, PR #9, baselines / volume knobs,
+capBust / minPayroll. Void years, carryover, year-0 holdouts not
+implemented. `sim/game.ts` play loop not redesigned — yield value only.
+
+**Regression.** `lib/core/liveGame.test.ts` (gate `livegame`) —
+object-identity / no-kickoff re-sim; three seeds every user snap
+called by hand, `deepEqual` on `result.box` AND `result.plays` vs
+`simulateGame`; partial calls + `finishAuto` matches sync; bulk path
+completes in one `next()`. Live session does not write the save.
+
+**Gate.** Pending on this packet (see follow-up in this note after
+the fast run). Inherited `leverage.wrongSign` /
+`statcheck.wr10RecYds` 1018 are not this packet.
+
+File cluster: `lib/core/liveGame.ts`, `lib/core/sim/game.ts` (yield
+value only), `lib/core/liveGame.test.ts`, this note.
+
+---
+
 ## 2026-09-13 — Wave 3.7 Packet 3b: people-layer teeth
 
 Worker. Rebased onto `main` @ `47de094` (#81 /play live state;

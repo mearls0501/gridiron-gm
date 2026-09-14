@@ -285,11 +285,17 @@ export function simulateGame(state: GameState, game: Game, rng: Rng, opts?: SimO
   return step.value;
 }
 
+/** Live pause: the snap to call, plus the engine's own playLog so far. */
+export type LiveSnap = {
+  info: SnapInfo;
+  plays: PlayEvent[];
+};
+
 export function openGameSim(
   state: GameState,
   game: Game,
   rng: Rng,
-): Generator<SnapInfo, SimResult, SnapCall | undefined> {
+): Generator<LiveSnap, SimResult, SnapCall | undefined> {
   return runGameSim(state, game, rng, { live: true });
 }
 
@@ -298,7 +304,7 @@ function* runGameSim(
   game: Game,
   rng: Rng,
   opts?: SimOpts,
-): Generator<SnapInfo, SimResult, SnapCall | undefined> {
+): Generator<LiveSnap, SimResult, SnapCall | undefined> {
   const byId = new Map<number, Player>();
   for (const p of state.players) byId.set(p.id, p);
 
@@ -1796,7 +1802,7 @@ function* runGameSim(
       if (opts?.playCaller) {
         call = opts.playCaller(info);
       } else if (opts?.live) {
-        call = (yield info) ?? "auto";
+        call = (yield { info, plays: playLog }) ?? "auto";
       }
     }
     const doPass = call === "pass" ? true : call === "run" ? false : choosePass();

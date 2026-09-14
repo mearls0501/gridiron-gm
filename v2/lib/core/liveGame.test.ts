@@ -1,15 +1,17 @@
 /**
- * Regression: /play advances the running sim (Wave 3.7 Packet 3c).
+ * Regression: /play advances the running sim (Wave 3.7 Packet 3c)
+ * and reads the engine playLog from the live yield (Wave 3.8 Packet 2).
  *
  * call() / finishAuto() must resume mid-game — no kickoff re-sim.
- * Same-seed live advance must match simulateGame's box.
+ * Same-seed live advance must match simulateGame's box AND plays.
+ * Bulk-sim / simulateGame drains in one next() — no live yield.
  *
  * Run: npx tsx lib/core/liveGame.test.ts
  */
 import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { Rng } from "./rng";
-import { simulateGame } from "./sim/game";
+import { openGameSim, simulateGame } from "./sim/game";
 import { startRegularSeason, advance } from "./season/engine";
 import { declareGamedayInactives } from "./inactives";
 import { createLiveGame } from "./liveGame";
@@ -109,6 +111,26 @@ function boxOf(r: { homeScore: number; awayScore: number; box: ReturnType<typeof
   }
 }
 
+const HAND_CALLS: SnapCall[] = ["run", "pass", "auto"];
+
+for (const seed of [46, 47, 48]) {
+  const st = newGame({ seed });
+  untilKickoff(st);
+  const g = userGame(st)!;
+  const live = createLiveGame(st, g.id);
+  let view = live.peek();
+  let i = 0;
+  while (!view.done) {
+    view = live.call(HAND_CALLS[i++ % HAND_CALLS.length]);
+    assert.ok(i < 400, `seed ${seed} live hand-call did not finish`);
+  }
+  assert.equal(view.done, true);
+  if (!view.done) throw new Error("expected a finished live game");
+  const sim = simWithInactives(st, view.calls);
+  assert.deepEqual(view.result.box, sim.box, `seed ${seed} hand-called live box matches simulateGame`);
+  assert.deepEqual(view.result.plays, sim.plays, `seed ${seed} hand-called live plays match simulateGame`);
+}
+
 {
   const st = newGame({ seed: 47 });
   untilKickoff(st);
@@ -119,6 +141,8 @@ function boxOf(r: { homeScore: number; awayScore: number; box: ReturnType<typeof
   if (!view.done) throw new Error("expected a finished live game");
   const sim = simWithInactives(st);
   assert.deepEqual(boxOf(view.result), boxOf(sim), "same-seed live finishAuto matches simulateGame box");
+  assert.deepEqual(view.result.box, sim.box, "finishAuto box matches simulateGame");
+  assert.deepEqual(view.result.plays, sim.plays, "finishAuto plays match simulateGame");
 }
 
 {
@@ -143,6 +167,8 @@ function boxOf(r: { homeScore: number; awayScore: number; box: ReturnType<typeof
     boxOf(sim),
     "same-seed live calls + finishAuto match simulateGame box",
   );
+  assert.deepEqual(view.result.box, sim.box, "partial calls + finishAuto box matches simulateGame");
+  assert.deepEqual(view.result.plays, sim.plays, "partial calls + finishAuto plays match simulateGame");
 }
 
 {
@@ -161,4 +187,29 @@ function boxOf(r: { homeScore: number; awayScore: number; box: ReturnType<typeof
   );
 }
 
-console.log("ok    liveGame — resume mid-game; same-seed box matches simulateGame");
+{
+  const st = newGame({ seed: 50 });
+  untilKickoff(st);
+  const copy = cloneState(st);
+  const g = userGame(copy)!;
+  declareGamedayInactives(copy, [g.homeId, g.awayId]);
+  // simulateGame is one .next() on the non-live generator; it throws if that yields.
+  const result = simulateGame(copy, g, new Rng(copy.rngState));
+  assert.ok(result.plays.length > 20, "non-interactive / bulk path completes in one next() — no yield");
+}
+
+{
+  const st = newGame({ seed: 51 });
+  untilKickoff(st);
+  const copy = cloneState(st);
+  const g = userGame(copy)!;
+  declareGamedayInactives(copy, [g.homeId, g.awayId]);
+  const gen = openGameSim(copy, g, new Rng(copy.rngState));
+  const step = gen.next();
+  assert.equal(step.done, false, "live path yields at the first user snap");
+  if (step.done) throw new Error("expected a live yield");
+  assert.ok(step.value.info.down >= 1 && step.value.info.down <= 4);
+  assert.ok(step.value.plays.length >= 1, "live yield includes the engine playLog");
+}
+
+console.log("ok    liveGame — resume mid-game; same-seed box and plays match simulateGame");
