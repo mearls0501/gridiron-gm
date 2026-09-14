@@ -57,6 +57,26 @@ ok    max QB first tag 21.0%, second 25.2%
 ok    12-season seed 12345: peak topCap 27.3%, busts 0
 ```
 
+**`npx tsx scripts/drift.ts 12 12345`** (this 4-core VM). Peak
+under 28. `topCapPctMean` **21.82** sits on the OTC 18–20 note
+(signed ±3 waits for the panel). Year-0 `topCap%` 21.7.
+
+```
+topCap%: 21.7 22.0 21.3 27.3 22.9 20.2 22.6 21.2 24.6 21.3 17.4 19.3
+##M drift.topCapPctMean 21.82
+##M drift.capBustSeasons 0
+##M drift.minPayrollSeasonsUnder55 0
+##M drift.medianPayrollPct 98.19
+##M drift.irCapPctMean 5.89
+##M drift.ovrDrift -1.33
+##M drift.p0Failures 0
+##M drift.franchiseTagsPerSeason 18.08
+```
+
+`no contract exceeds 28% of the cap` ok, peak 27%. Tags 18.1 on
+this 12-season single seed is stream, not a retune (locked band
+is 14 ±4; do not touch tag rules).
+
 **Seed 1 leftover (Finding 2 residue, not this packet).** 12
 seasons, **2 busts, peak 34.5%**. Both over-28 hits are a third
 consecutive exclusive tag on a QB (CPU still applies tag 3 when
