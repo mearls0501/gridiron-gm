@@ -56,15 +56,21 @@ retuned.
 `GUARANTEE_PULL`, `CARRY_SHARE`, PR #9, tag / fifth-year / extension
 decision logic, `freeAgency.ts`, trades, `docs/baselines.json`.
 
-**Gate.** `npm run gate:serial` (`nproc`=4, 1 seed) on `cae18be`
-(#85). capmechanics / peopleteeth (year-0 sit) / livegame /
+**Gate.** `npm run gate:serial` (`nproc`=4, 1 seed) on `abee5b6`
+(#86). capmechanics / peopleteeth (year-0 sit) / livegame /
 wave25bugs / sweep / determinism / verify. Year-0 path is unchanged
-vs #85 (no voids, no carryover). `statcheck.wr10RecYds` inherited
-red is gone on this seed (Packet 3). One inherited red only:
+vs #86 (no voids, no carryover). `statcheck.wr10RecYds` inherited
+red is gone on this seed (Packet 3 sit). The five after-sit
+statcheck rows FAIL the restored pre-#85 locks — #86 findings, not
+this packet. Plus inherited leverage:
 
 ```
 FAIL  leverage.wrongSign  1  expected <= 0
-GATE FAIL  1 problem
+FAIL  statcheck.leadPassYds  4233  expected 5085.8 +/-700
+FAIL  statcheck.qb5PassYds  4057  expected 4497 +/-360
+FAIL  statcheck.qb10PassYds  3594  expected 4028 +/-322
+FAIL  statcheck.leadTackles  131  expected 177 +/-40
+FAIL  statcheck.maxGameRecYds  322  expected 234.6 +/-80
 ```
 
 ---
