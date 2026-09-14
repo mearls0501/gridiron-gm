@@ -92,13 +92,35 @@ ceiling working. The third tender is `1.44 ×` the second and is
 the remaining leak. `capBustSeasons` stays the 28% backstop.
 Do not retune the escalator here.
 
+**Gate** (`npm run gate:serial`, 4 cores). Typecheck /
+contractceiling (788s, peak 27.3%) / determinism / verify
+348/348 / sweep / scout ok. Synthetic `calibrate` 300-game
+loop is byte-identical (`passYds` 237.328). Four reds, none
+chased — two Packet 3 after-sit leftovers, one stream, one
+inherited probe:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.leadTackles  133  expected 177 +/-40
+FAIL  statcheck.qb10PassYds  3593  expected 4028 +/-322
+FAIL  statcheck.wr10RecYds  1105  expected 1208 +/-97
+GATE FAIL  4 problems
+```
+
+Packet 3 after-sit rows that moved **back in band** on this
+seed (stream, not a lock): `leadPassYds` 4233→**4921** (5085.8
+±700), `qb5PassYds` 4057→**4189** (4497 ±360),
+`maxGameRecYds` 322→**286** (234.6 ±80). `wr10RecYds`
+1188→**1105** left the band (1208 ±97). Do not edit
+`baselines.json`.
+
 **Leftover.** `leverage.wrongSign` 1 is the inherited knife-edge
-probe. The five Packet 3 after-sit `statcheck` rows still FAIL
-the pre-#85 locks on a single seed. `minPayrollSeasonsUnder55`
-is Packet 5's measurement fix (expect ~0 on the next panel).
-`topCapPctMean` is the primary money guard once the panel locks
-it. Seed 1 third-tag busts are a tag-gate leftover, not a
-ceiling miss.
+probe. `leadTackles` / `qb10PassYds` are Packet 3 after-sit
+findings. `wr10RecYds` is this packet's stream shift on one
+seed. `minPayrollSeasonsUnder55` is Packet 5's measurement
+fix (expect ~0 on the next panel). `topCapPctMean` is the
+primary money guard once the panel locks it. Seed 1 third-tag
+busts are a tag-gate leftover, not a ceiling miss.
 
 ---
 
