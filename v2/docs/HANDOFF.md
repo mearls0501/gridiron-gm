@@ -5,6 +5,42 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-14 — Wave 3.8 Packet 5: drift payroll on the cap sheet
+
+Lead. Claude Finding 1. Rebased onto `main` @ `6f34880` (#84 void
+years + carryover). Originally from `cae18be` (#85). Scripts + docs
+only. Engine / sim byte-identical. `baselines.json` **not edited**.
+`capBust` not retuned. Forbidden knobs / PR #9 / Packet 6 ceiling
+not touched. **Matt SIGNED the addendum 2026-09-14.**
+
+**Diagnosis.** `minPayrollSeasonsUnder55` **4.40** is a measurement
+artifact. After #70, `drift.active()` is the 53-man (correct for
+ability). `payrolls[]` was built from that same set, so IR cap hits
+vanished from the money guard while real clubs sit at 84–100% of
+cap. Ability on the 53, money on the cap sheet.
+
+**Change.**
+
+- `payrolls[]` now reads `payroll(state, t.id)` — all rostered
+  (IR + PS) plus dead. User club still excluded.
+- Ability metrics (`ovrMean`, `ovrAtAge`, `fade`, `n85`, `n90`)
+  stay on the 53.
+- Report-only `##M drift.irCapPctMean` — league IR cap hits /
+  (32 × the salary cap) at recap. Not added to `baselines.json`.
+- Rule written into `docs/nfl-reference.md` §6.9.
+
+**Expect.** `minPayrollSeasonsUnder55` → ~0 on the next panel.
+Do not treat a leftover 4.40 as an engine spend-floor bug.
+
+**Untouched.** Packet 4 engine (`voidYears` / `capCarryover`),
+`docs/baselines.json`, `capBust` threshold, Packet 6 ceiling,
+`POSITION_VALUE`, `CONTENDER_PULL`, `GUARANTEE_PULL`,
+`CARRY_SHARE`, PR #9. Packet 4's `drift.deadMoneyPct` emit kept.
+
+**Gate.** Fast gate / drift smoke pending on this box (`nproc`=4).
+
+---
+
 ## 2026-09-14 — Wave 3.8 Packet 4: void years + cap carryover
 
 Worker. Rebased onto `main` @ `abee5b6` (#86 restore pre-#85 locks;

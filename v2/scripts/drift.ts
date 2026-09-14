@@ -16,6 +16,7 @@ import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { advanceOffseason, isOffseason } from "../lib/core/offseason";
 import { leagueStandings } from "../lib/core/season/standings";
+import { payroll } from "../lib/core/frontOffice";
 import { capHit, isActiveRoster } from "../lib/core/select";
 import { GameState, Player, Position, salaryCap } from "../lib/core/types";
 import { encodeSave } from "../lib/store/codec";
@@ -41,10 +42,9 @@ const median = (a: number[]) => {
 };
 // 53-man active roster. After #33, IR and practice-squad stay on
 // teamId (invariant 4) but do not count against 53 — `rosterCount`
-// already uses `isActiveRoster`. Including them here mixed
-// replacement-level PS and IR bodies into ovrMean / age / fade /
-// payroll, which is not the population the franchise-arc guards
-// claim to measure. Missing `status` is active.
+// already uses `isActiveRoster`. Ability metrics (ovrMean / age /
+// fade / n85 / n90) stay on this set. Money reads `payroll()` —
+// the cap sheet, including IR/PS + dead. Missing `status` is active.
 const active = (s: GameState) =>
   s.players.filter((p) => !p.retired && !p.prospect && p.teamId !== null && isActiveRoster(p));
 
@@ -53,7 +53,7 @@ interface Snapshot {
   ageMean: number; ovrAt27: number; ovrAt34: number; fade: number[];
   passLead: number; rushLead: number; recLead: number;
   players: number; saveMB: number; playerWeeksLost: number;
-  topCapPct: number; minPayrollPct: number; medPayrollPct: number; pick1FromBottom6: boolean;
+  topCapPct: number; minPayrollPct: number; medPayrollPct: number; irCapPct: number; pick1FromBottom6: boolean;
   trades: number;
   franchiseTags: number;
   deadMoneyPct: number;
@@ -115,14 +115,18 @@ function runOne(seed: number): Snapshot[] {
     const cap = salaryCap(season, season - st.history.length);
     // The user's club is excluded for the same reason checkParity excludes it:
     // headlessly nobody works that roster, and nothing forces a human to spend.
+    // Money is the cap sheet (`payroll()`), not the 53. IR and PS hits
+    // still count; ability stays on `A`. §6.9.
     const payrolls = st.teams
       .filter((t) => t.id !== st.userTeamId)
-      .map((t) => {
-        let sum = 0;
-        for (const p of A) if (p.teamId === t.id) sum += capHit(p.contract);
-        return sum + (t.deadCap ?? 0);
-      });
+      .map((t) => payroll(st, t.id));
     const topCap = Math.max(...A.map((p) => capHit(p.contract)));
+    let irHits = 0;
+    for (const p of st.players) {
+      if (p.teamId === null || p.retired || p.prospect || p.status !== "ir") continue;
+      irHits += capHit(p.contract);
+    }
+    const irCapPct = st.teams.length > 0 ? (irHits / (st.teams.length * cap)) * 100 : 0;
 
     const table = leagueStandings(st, season);
     const bottom6 = new Set(table.slice(-6).map((r) => r.teamId));
@@ -156,6 +160,7 @@ function runOne(seed: number): Snapshot[] {
       topCapPct: (topCap / cap) * 100,
       minPayrollPct: (Math.min(...payrolls) / cap) * 100,
       medPayrollPct: (median(payrolls) / cap) * 100,
+      irCapPct,
       pick1FromBottom6: pick1Ok,
       // Mechanical counter, not the Trade: log. Those rows stay permanent
       // for the GM history page (Wave 3.6 / #77); volume is not a log scan
@@ -291,6 +296,7 @@ emitAll({
   "drift.tradesPerSeason": trades,
   "drift.medianPayrollPct": medPay,
   "drift.minPayrollSeasonsUnder55": poorHouse,
+  "drift.irCapPctMean": mean(flat.map((r) => r.irCapPct)),
   "drift.capBustSeasons": capBust,
   "drift.passRecordSeasons": overPass,
   "drift.playerWeeksLost": injuryLoad,
