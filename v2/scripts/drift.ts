@@ -56,6 +56,7 @@ interface Snapshot {
   topCapPct: number; minPayrollPct: number; medPayrollPct: number; pick1FromBottom6: boolean;
   trades: number;
   franchiseTags: number;
+  deadMoneyPct: number;
 }
 
 function runOne(seed: number): Snapshot[] {
@@ -164,6 +165,9 @@ function runOne(seed: number): Snapshot[] {
         ?? st.seasonCounters?.tradesExecuted
         ?? 0,
       franchiseTags: (st.franchiseTags ?? []).filter((t) => t.season === season).length,
+      // League dead money / cap. Additive emit so a panel can see if CPU
+      // void-year use runs away. nfl-reference.md §4 notes ~5–8%.
+      deadMoneyPct: st.teams.reduce((n, t) => n + (t.deadCap ?? 0), 0) / Math.max(1, cap * 32) * 100,
     });
     const snap = out[out.length - 1];
     progress(
@@ -293,6 +297,7 @@ emitAll({
   "drift.ovrDrift": ovrDrift,
   "drift.eliteGrowthRatio": eliteGrowth,
   "drift.franchiseTagsPerSeason": mean(flat.map((r) => r.franchiseTags)),
+  "drift.deadMoneyPct": mean(flat.map((r) => r.deadMoneyPct)),
 });
 console.log(failures === 0 ? "\nno P0 regressions" : `\n${failures} P0 REGRESSIONS`);
 process.exit(failures > 0 ? 1 : 0);

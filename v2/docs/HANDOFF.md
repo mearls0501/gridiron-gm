@@ -5,6 +5,76 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-14 — Wave 3.8 Packet 4: void years + cap carryover
+
+Worker. Rebased onto `main` @ `abee5b6` (#86 restore pre-#85 locks;
+sit stays from #85; includes #83). Phase 3 contract-office leftover
+Matt SIGNED on 2026-09-13: void years + unused-cap carryover. N=4
+confirmed in Matt's Wave 3.8 addendum. Tag / fifth-year / extension
+**decision** logic, `freeAgency.ts`, trades, and `docs/baselines.json`
+were not touched. Forbidden knobs / PR #9 / capBust / minPayroll
+not retuned.
+
+**Diagnosis.** `/finances` could convert base into bonus (Lane B) but
+could not dummy-extend the proration term. Unused room died at the
+calendar roll. `capHit` / `deadMoney` already charged one bonus slice
+per real year and accelerated leftover proration on a cut; they did
+not count years past `yearsRemaining`, so a void-year remainder would
+have vanished at expiry.
+
+**Change.**
+
+- `Contract.voidYears` (missing = 0). Adding voids re-spreads leftover
+  bonus over remaining real years + dummy years (default / max N=4).
+  When `expireContracts` voids the deal, leftover proration goes onto
+  `deadCap` — the next league year's dead money.
+- `Team.capCarryover` (missing = 0). `teamCap` adds it to room.
+  `finalizeOffseason` snapshots leftover space before `season += 1`
+  and writes it after.
+- User desk: `/finances` "Add void years". CPU: `runCpuVoidYears`
+  after the 53-man cutdown, contend + ~90% committed, one deal
+  with ≥3 years left (a shorter void dumps uncuttable dead at the
+  next expire). After `settleWaivers`, a club that rounded over
+  the new cap+carryover room is reconciled so the desk opens legal.
+- `drift.deadMoneyPct` additive emit (`nfl` ~5–8%). No band.
+- `lib/core/capMechanics.test.ts` registered in `package.json` and
+  `scripts/gate.ts` FAST+FULL (#47). Gate keeps `livegame` /
+  `wave25bugs` / `peopleteeth` / `capmechanics`.
+
+**CBA.** `docs/nfl-reference.md` §4: 2020 NFL-NFLPA CBA Article 13
+§§6–7 (proration over the term, including voidable years; unused Room
+carries in full). N=4 is Matt's call (CBA allows more; nobody uses
+them). Dead-money share is OTC's published 5–8%, not a T/D/S/P number.
+
+**Leftover.** liveGame tidy (#83) and year-0 holdout sits (#85) are
+on main. #86 restored the pre-#85 statcheck locks — those five
+after-sit rows are findings, not this packet. `negotiatedApy` still
+true-OVR (CPU FA stream). capBust / minPayroll are findings, not
+retuned.
+
+**Untouched.** `cpuProspectView`, `POSITION_VALUE`, `CONTENDER_PULL`,
+`GUARANTEE_PULL`, `CARRY_SHARE`, PR #9, tag / fifth-year / extension
+decision logic, `freeAgency.ts`, trades, `docs/baselines.json`.
+
+**Gate.** `npm run gate:serial` (`nproc`=4, 1 seed) on `abee5b6`
+(#86). capmechanics / peopleteeth (year-0 sit) / livegame /
+wave25bugs / sweep / determinism / verify. Year-0 path is unchanged
+vs #86 (no voids, no carryover). `statcheck.wr10RecYds` inherited
+red is gone on this seed (Packet 3 sit). The five after-sit
+statcheck rows FAIL the restored pre-#85 locks — #86 findings, not
+this packet. Plus inherited leverage:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.leadPassYds  4233  expected 5085.8 +/-700
+FAIL  statcheck.qb5PassYds  4057  expected 4497 +/-360
+FAIL  statcheck.qb10PassYds  3594  expected 4028 +/-322
+FAIL  statcheck.leadTackles  131  expected 177 +/-40
+FAIL  statcheck.maxGameRecYds  322  expected 234.6 +/-80
+```
+
+---
+
 ## 2026-09-14 — Wave 3.8 Packet 3: year-0 holdouts sit
 
 Lead. Sit + peopleTeeth landed as #85 on `main` @ `cae18be`.
@@ -89,7 +159,7 @@ FAIL  statcheck.maxGameRecYds  322  expected 234.6 +/-80
 Worker. Base `main@a88b0b9` (#82). #81 `/play` live state is already
 correct. Two leftover seams only. Forbidden knobs / PR #9 / baselines
 / volume / capBust / minPayroll / void years / carryover / year-0
-holdouts not touched.
+holdouts not touched. Landed on main as squash `61c4cb6` (#83).
 
 **Diagnosis.** Confirmed. `createLiveGame` subscribed to the module-
 global `onPlayEvent` for the session lifetime, so a CPU sim while a

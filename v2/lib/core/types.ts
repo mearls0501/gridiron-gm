@@ -146,6 +146,12 @@ export interface Contract {
   bonusProrationYears: number;
   signedSeason: number;
   guaranteedYears: number; // leading years that cannot be cut without full cost
+  /**
+   * Dummy years after the real term over which leftover bonus is prorated.
+   * Missing = 0 so older saves and generated deals load unchanged.
+   * Cap is MAX_VOID_YEARS (4). See `docs/nfl-reference.md` §4.
+   */
+  voidYears?: number;
 }
 
 export type PsychReason = "role" | "money" | "roleAndMoney";
@@ -358,6 +364,11 @@ export interface Team {
   defScheme?: string;
   /** Dead money charged to this season from cuts. Reset at the season rollover. */
   deadCap: number;
+  /**
+   * Unused cap space carried into this league year in full. Missing = 0 so
+   * older saves and year-0 generation load unchanged. See `docs/nfl-reference.md` §4.
+   */
+  capCarryover?: number;
   /**
    * IR return designations used this season (max 8). Missing = 0 so older
    * saves start the season with a full allotment.

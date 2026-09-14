@@ -576,6 +576,37 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   next season does not add. The user club is not auto-extended. Must
   fit the cap; Extend is blocked with a Sign-shaped reason. Ungated
   published rule.
+- **Void years (signing-bonus proration).** Added 2026-09-14
+  (Wave 3.8 Packet 4, Matt SIGNED). Not in T/D/S/P. 2020 NFL-NFLPA
+  CBA Article 13 (Salary Cap), Sections 6–7: a signing bonus is
+  prorated in equal amounts over the term of the Player Contract,
+  and that term may include years that automatically void. The
+  published CBA does not cap dummy years at four — clubs can write
+  more — but OTC / Spotrac reconstructions of executed deals show
+  nobody using more than four, so the desk default and the CPU
+  ceiling are **N=4** (Matt). When the real years expire the deal
+  voids and remaining unamortized bonus accelerates onto the next
+  league year as dead money (the same acceleration a mid-term cut
+  already applied via `deadMoney`). User adds voids on `/finances`
+  ("add void years") without converting base. CPU adds them only
+  when posture is contend and current committed is already above
+  the same ~90% gate tags use. Generated year-0 deals have zero
+  void years so calibrate / statcheck stay byte-identical. Ungated
+  published rule. `drift.deadMoneyPct` (league `deadCap` / cap) is
+  an additive emit with an `nfl` note of **~5–8%** so a panel can
+  see whether CPU void-year use runs away — no band unless already
+  required. The 5–8% range is Over The Cap's published league-wide
+  dead-money share of the cap in the 2020s
+  (https://overthecap.com/salary-cap), not a T/D/S/P computation.
+- **Cap carryover (unused Room).** Added 2026-09-14 (Wave 3.8
+  Packet 4, Matt SIGNED). Not in T/D/S/P. 2020 NFL-NFLPA CBA
+  Article 13: unused Salary Cap Room from a League Year is added
+  to that Club's Salary Cap in the succeeding League Year **in
+  full** — there is no haircut and no expiration. `teamCap` adds
+  `capCarryover` to room; `finalizeOffseason` snapshots leftover
+  space before the calendar rolls and writes it after, so the new
+  year's larger cap is not counted as leftover. Missing field = 0
+  so year-0 generation is unchanged. Ungated published rule.
 - **Rookie slot scale (per-pick APY).** Added 2026-09-05. Not in T/D/S/P.
   The 2011 CBA replaced negotiated rookie deals with a slotted wage scale.
   Over The Cap publishes the yearly chart

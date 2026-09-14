@@ -11,8 +11,10 @@ import {
   teamRoster,
 } from "@/lib/core/select";
 import {
+  addVoidYearsPreview,
   applyOfficeExtension,
   applyRestructure,
+  applyVoidYears,
   extensionAskingApy,
   isOfficeExtensionEligible,
   officeExtensionTerms,
@@ -39,8 +41,8 @@ import {
  *
  * Cap hit = base salary + prorated signing bonus; cutting accelerates the
  * remaining proration into dead money. Extend replaces an own-roster deal.
- * Restructure converts this year's base into bonus and spreads it — the
- * button the Hub already told the GM to press.
+ * Restructure converts this year's base into bonus and spreads it.
+ * Add void years dummy-extends the proration term; unused room carries over.
  */
 
 const GROUP_ORDER: string[] = Array.from(new Set(POSITIONS.map((p) => POSITION_GROUP[p])));
@@ -94,6 +96,7 @@ export default function FinancesPage() {
   const rows = showAll ? contracts : contracts.slice(0, 25);
   const top5 = contracts.slice(0, 5).reduce((sum, p) => sum + capHit(p.contract), 0);
   const restructureTargets = contracts.filter((p) => restructurePreview(state, teamId, p).ok);
+  const voidTargets = contracts.filter((p) => addVoidYearsPreview(state, teamId, p).ok);
 
   function extend(p: Player, meetAsk: boolean) {
     apply((s) => {
@@ -114,10 +117,24 @@ export default function FinancesPage() {
     });
   }
 
+  function addVoids(p: Player) {
+    apply((s) => {
+      const preview = addVoidYearsPreview(s, s.userTeamId, p);
+      const r = applyVoidYears(s, s.userTeamId, p.id);
+      if (!r.ok) return r.reason ?? "Void years could not be added.";
+      return `Added ${preview.add} void year${preview.add === 1 ? "" : "s"} to ${p.firstName} ${p.lastName} — saved ${formatMoney(preview.savings)} this season`;
+    });
+  }
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <Stat label="Salary Cap" value={formatMoney(cap.cap)} sub={`${state.season} season`} />
+        <Stat
+          label="Carryover"
+          value={formatMoney(cap.carryover)}
+          sub={cap.carryover > 0 ? "Unused room from last year" : "None this season"}
+        />
         <Stat
           label="Committed"
           value={formatMoney(cap.committed)}
@@ -141,18 +158,26 @@ export default function FinancesPage() {
         <Card
           title={`Over the cap by ${formatMoney(-cap.space)}`}
           subtitle={
-            restructureTargets.length > 0
-              ? `${restructureTargets.length} deal${restructureTargets.length === 1 ? "" : "s"} can be restructured on this desk — convert this year's base into bonus.`
+            restructureTargets.length > 0 || voidTargets.length > 0
+              ? `${restructureTargets.length} deal${restructureTargets.length === 1 ? "" : "s"} can convert base into bonus; ${voidTargets.length} can add void years.`
               : "No multi-year deal has convertible base. Release someone on the roster."
           }
         >
-          {restructureTargets.length > 0 && (
+          {(restructureTargets.length > 0 || voidTargets.length > 0) && (
             <div className="flex flex-wrap gap-2">
               {restructureTargets.slice(0, 8).map((p) => {
                 const preview = restructurePreview(state, teamId, p);
                 return (
                   <Button key={p.id} size="sm" onClick={() => restructure(p)}>
                     {p.lastName} · save {formatMoney(preview.savings)}
+                  </Button>
+                );
+              })}
+              {voidTargets.slice(0, 8).map((p) => {
+                const preview = addVoidYearsPreview(state, teamId, p);
+                return (
+                  <Button key={`void-${p.id}`} size="sm" onClick={() => addVoids(p)}>
+                    {p.lastName} · +{preview.add} void · save {formatMoney(preview.savings)}
                   </Button>
                 );
               })}
@@ -222,7 +247,7 @@ export default function FinancesPage() {
             hint="Every cap figure on this page is zero until the roster has signed players."
           />
         ) : (
-          <Table head={["Player", "Pos", "Age", "OVR", "Cap Hit", "Base", "Bonus", "Yrs", "Dead if Cut", "Save if Cut", ""]}>
+          <Table head={["Player", "Pos", "Age", "OVR", "Cap Hit", "Base", "Bonus", "Yrs", "Void", "Dead if Cut", "Save if Cut", ""]}>
             {rows.map((p) => {
               const dead = deadMoney(p.contract);
               const savings = capSavingsFromCut(p.contract);
@@ -231,6 +256,7 @@ export default function FinancesPage() {
               const ask = canExtend ? extensionAskingApy(state, teamId, p) : null;
               const holding = !!p.psychology?.holdout;
               const rest = restructurePreview(state, teamId, p);
+              const voids = addVoidYearsPreview(state, teamId, p);
               return (
                 <Row key={p.id}>
                   <Cell align="left">
@@ -250,6 +276,7 @@ export default function FinancesPage() {
                   <Cell className="text-[var(--color-muted)]">{formatMoney(baseSalary(p))}</Cell>
                   <Cell className="text-[var(--color-muted)]">{formatMoney(proration(p))}</Cell>
                   <Cell>{p.contract?.yearsRemaining ?? 0}</Cell>
+                  <Cell>{p.contract?.voidYears ?? 0}</Cell>
                   <Cell className={cx(dead > 0 && "text-[var(--color-bad)]")}>{formatMoney(dead)}</Cell>
                   <Cell className={cx(savings > 0 ? "text-[var(--color-good)]" : savings < 0 && "text-[var(--color-bad)]")}>
                     {formatMoney(savings)}
@@ -283,6 +310,14 @@ export default function FinancesPage() {
                         onClick={() => restructure(p)}
                       >
                         Restructure
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={!voids.ok}
+                        title={voids.ok ? `Add ${voids.add} void year${voids.add === 1 ? "" : "s"} — save ${formatMoney(voids.savings)} this year` : voids.reason}
+                        onClick={() => addVoids(p)}
+                      >
+                        Add void years
                       </Button>
                     </div>
                   </Cell>

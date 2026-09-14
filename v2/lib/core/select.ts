@@ -101,31 +101,44 @@ function annualProration(c: Contract): number {
   return c.bonusProrationYears > 0 ? c.signingBonus / c.bonusProrationYears : 0;
 }
 
-/** Proration years still to be charged, derived from how far the deal has run. */
-function prorationYearsLeft(c: Contract): number {
-  const elapsed = Math.max(0, c.years - c.yearsRemaining);
-  return Math.max(0, Math.min(c.bonusProrationYears - elapsed, c.yearsRemaining));
+function elapsedYears(c: Contract): number {
+  return Math.max(0, c.years - c.yearsRemaining);
+}
+
+/**
+ * Years of bonus still uncharged, including void-year remainder.
+ * Existing deals keep `bonusProrationYears <= years`, so this equals the old
+ * `min(bonusProrationYears - elapsed, yearsRemaining)` on that shape.
+ */
+export function prorationYearsUncharged(c: Contract): number {
+  return Math.max(0, c.bonusProrationYears - elapsedYears(c));
+}
+
+/** Uncharged bonus dollars, including void-year remainder. */
+export function remainingBonusProration(c: Contract | null): number {
+  if (!c) return 0;
+  return annualProration(c) * prorationYearsUncharged(c);
 }
 
 /** This season's cap charge for a contract: base salary + bonus proration. */
 export function capHit(c: Contract | null): number {
   if (!c || c.yearsRemaining <= 0) return 0;
   const base = c.baseSalary[0] ?? 0;
-  return Math.round(base + (prorationYearsLeft(c) > 0 ? annualProration(c) : 0));
+  return Math.round(base + (prorationYearsUncharged(c) > 0 ? annualProration(c) : 0));
 }
 
 /**
  * What it costs to cut this player: all remaining bonus proration accelerates
- * into this year, plus any remaining guaranteed base salary.
+ * into this year (void-year remainder included), plus any remaining guaranteed
+ * base salary.
  */
 export function deadMoney(c: Contract | null): number {
   if (!c || c.yearsRemaining <= 0) return 0;
-  const remainingProration = annualProration(c) * prorationYearsLeft(c);
   let guaranteed = 0;
   for (let i = 0; i < Math.min(c.guaranteedYears, c.yearsRemaining); i++) {
     guaranteed += c.baseSalary[i] ?? 0;
   }
-  return Math.round(remainingProration + guaranteed);
+  return Math.round(remainingBonusProration(c) + guaranteed);
 }
 
 /** Net cap change from cutting: positive means savings. */
@@ -139,6 +152,8 @@ export interface CapSummary {
   dead: number;
   space: number;
   players: number;
+  /** Unused prior-year space added to this year's room. Missing team field = 0. */
+  carryover: number;
 }
 
 export function teamCap(state: GameState, teamId: number): CapSummary {
@@ -151,7 +166,32 @@ export function teamCap(state: GameState, teamId: number): CapSummary {
     players++;
   }
   const dead = state.teams[teamId]?.deadCap ?? 0;
-  return { cap, committed: committed + dead, dead, space: cap - committed - dead, players };
+  const carryover = state.teams[teamId]?.capCarryover ?? 0;
+  return {
+    cap,
+    committed: committed + dead,
+    dead,
+    carryover,
+    space: cap + carryover - committed - dead,
+    players,
+  };
+}
+
+/** Unused room this league year, floored at 0. Includes unused prior carryover. */
+export function unusedCapSpace(state: GameState, teamId: number): number {
+  return Math.max(0, Math.round(teamCap(state, teamId).space));
+}
+
+/** Snapshot leftover space per club before the calendar rolls. */
+export function captureCapCarryover(state: GameState): number[] {
+  return state.teams.map((t) => unusedCapSpace(state, t.id));
+}
+
+/** Write captured leftovers as this league year's carryover. */
+export function applyCapCarryover(state: GameState, amounts: number[]): void {
+  for (let i = 0; i < state.teams.length; i++) {
+    state.teams[i].capCarryover = Math.max(0, Math.round(amounts[i] ?? 0));
+  }
 }
 
 /**

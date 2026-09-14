@@ -4,7 +4,7 @@ import {
   CAMP_ROSTER_LIMIT, FranchiseTagSnapshot, GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player,
   PRACTICE_SQUAD_LIMIT, ROSTER_LIMIT, Position, POSITION_MIN, POSITIONS, rosterLimit,
 } from "../types";
-import { capHit, deadMoney, formatMoney, isActiveRoster, isOnWaivers, positionCount, practiceSquadCount, rosterCount, startSeason, teamCap } from "../select";
+import { addDeadCap, capHit, deadMoney, formatMoney, isActiveRoster, isOnWaivers, positionCount, practiceSquadCount, remainingBonusProration, rosterCount, startSeason, teamCap } from "../select";
 import { resolveDemand } from "../psychology";
 import { clearRosterSlot } from "../rosterStatus";
 import { POSITION_VALUE } from "../ratings";
@@ -13,6 +13,12 @@ import { cpuVeteranView } from "../scouting";
 
 /** Next-season committed + add must stay at or under this share of the cap. */
 const COMMITTED_HEADROOM = 0.90;
+
+/**
+ * Dummy years a deal may carry for bonus proration. CBA term can run longer;
+ * nobody uses more than four. See `docs/nfl-reference.md` §4.
+ */
+export const MAX_VOID_YEARS = 4;
 
 /**
  * Dollars → evaluate() units. Same factor `playerTradeValue` uses in trades.ts
@@ -552,8 +558,11 @@ export function expireContracts(state: GameState): Player[] {
     p.contract.guaranteedYears = Math.max(0, p.contract.guaranteedYears - 1);
 
     if (p.contract.yearsRemaining <= 0 || p.contract.baseSalary.length === 0) {
+      const leftover = remainingBonusProration(p.contract);
+      const teamId = p.teamId;
+      if (teamId !== null && leftover > 0) addDeadCap(state, teamId, leftover);
       p.contract = null;
-      if (p.teamId !== null) {
+      if (teamId !== null) {
         expiring.push(p);
         p.teamId = null;
         clearRosterSlot(p);
@@ -761,10 +770,7 @@ export function contractOfficeChildRng(state: GameState): Rng {
 }
 
 function remainingBonus(c: NonNullable<Player["contract"]>): number {
-  const elapsed = Math.max(0, c.years - c.yearsRemaining);
-  const left = Math.max(0, Math.min(c.bonusProrationYears - elapsed, c.yearsRemaining));
-  const annual = c.bonusProrationYears > 0 ? c.signingBonus / c.bonusProrationYears : 0;
-  return annual * left;
+  return remainingBonusProration(c);
 }
 
 /** Tagged 1-year tender stays on the Hub July 15 desk. */
@@ -863,7 +869,8 @@ export function restructurePreview(
   }
   const oldHit = capHit(c);
   const leftover = remainingBonus(c);
-  const spread = Math.min(c.yearsRemaining, 5);
+  const voids = c.voidYears ?? 0;
+  const spread = Math.min(c.yearsRemaining, 5) + voids;
   const newHit = Math.round((c.baseSalary[0] - convert) + (leftover + convert) / spread);
   return { ok: true, convert, savings: oldHit - newHit, oldHit, newHit };
 }
@@ -881,7 +888,8 @@ export function applyRestructure(
   const c = p.contract;
   const leftover = remainingBonus(c);
   const elapsed = Math.max(0, c.years - c.yearsRemaining);
-  const spread = Math.min(c.yearsRemaining, 5);
+  const voids = c.voidYears ?? 0;
+  const spread = Math.min(c.yearsRemaining, 5) + voids;
   const convert = preview.convert;
   const newBonusPool = leftover + convert;
   const newProrationYears = elapsed + spread;
@@ -897,6 +905,104 @@ export function applyRestructure(
     text: `${state.teams[teamId].abbr} restructured ${p.firstName} ${p.lastName} (${p.pos}) — converted $${(convert / 1e6).toFixed(1)}M of this year's base, saved $${(preview.savings / 1e6).toFixed(1)}M this season`,
   });
   return { ok: true };
+}
+
+/**
+ * Add dummy years so leftover bonus spreads further. Default N=4, cap 4.
+ * A one-year deal can take voids — that is the usual last-year restructure.
+ */
+export function addVoidYearsPreview(
+  state: GameState, teamId: number, p: Player, n = MAX_VOID_YEARS
+): { ok: boolean; reason?: string; add: number; savings: number; oldHit: number; newHit: number } {
+  const empty = { add: 0, savings: 0, oldHit: 0, newHit: 0 };
+  if (p.retired || p.prospect || p.teamId !== teamId || !p.contract) {
+    return { ok: false, reason: "Player is not on this roster", ...empty };
+  }
+  if (isTagExtensionEligible(state, p)) {
+    return { ok: false, reason: "A tagged tender is extended on the Hub, not restructured here.", ...empty };
+  }
+  const c = p.contract;
+  if (c.yearsRemaining < 1) {
+    return { ok: false, reason: "This deal has already expired.", ...empty };
+  }
+  const have = c.voidYears ?? 0;
+  const add = clamp(Math.round(n), 1, MAX_VOID_YEARS - have);
+  if (add <= 0) {
+    return { ok: false, reason: "This deal already has the maximum void years.", ...empty };
+  }
+  const leftover = remainingBonus(c);
+  if (leftover <= 0) {
+    return { ok: false, reason: "No leftover signing bonus to spread.", ...empty };
+  }
+  const oldHit = capHit(c);
+  const newUncharged = c.yearsRemaining + have + add;
+  const newHit = Math.round((c.baseSalary[0] ?? 0) + leftover / newUncharged);
+  return { ok: true, add, savings: oldHit - newHit, oldHit, newHit };
+}
+
+export function applyVoidYears(
+  state: GameState, teamId: number, playerId: number, n = MAX_VOID_YEARS
+): SignResult {
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p) return { ok: false, reason: "No such player" };
+  const preview = addVoidYearsPreview(state, teamId, p, n);
+  if (!preview.ok || !p.contract) {
+    return { ok: false, reason: preview.reason ?? "Void years cannot be added to that deal." };
+  }
+
+  const c = p.contract;
+  const leftover = remainingBonus(c);
+  const elapsed = Math.max(0, c.years - c.yearsRemaining);
+  const have = c.voidYears ?? 0;
+  const add = preview.add;
+  const newVoids = have + add;
+  const newUncharged = c.yearsRemaining + newVoids;
+  const newProrationYears = elapsed + newUncharged;
+
+  c.signingBonus = Math.round(leftover * newProrationYears / newUncharged);
+  c.bonusProrationYears = newProrationYears;
+  c.voidYears = newVoids;
+
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "transaction",
+    text: `${state.teams[teamId].abbr} added ${add} void year${add === 1 ? "" : "s"} to ${p.firstName} ${p.lastName} (${p.pos}) — saved $${(preview.savings / 1e6).toFixed(1)}M this season`,
+  });
+  return { ok: true };
+}
+
+function clubCommittedTight(state: GameState, teamId: number): boolean {
+  const cap = teamCap(state, teamId);
+  return cap.committed > cap.cap * COMMITTED_HEADROOM;
+}
+
+/**
+ * CPU clubs add void years only when they are contending and already over
+ * the ~90% committed gate tags use. Rebuild / retool / user club skipped.
+ * One deal, and only if three or more years remain — voiding a short
+ * deal dumps the remainder at the next expire as uncuttable dead money.
+ */
+export function runCpuVoidYears(state: GameState, onlyTeamId?: number): void {
+  const clubs = onlyTeamId !== undefined
+    ? state.teams.filter((t) => t.id === onlyTeamId)
+    : state.teams;
+  for (const t of clubs) {
+    if (t.id === state.userTeamId) continue;
+    const { posture } = teamOutlook(state, t.id);
+    if (posture !== "contend") continue;
+    if (!clubCommittedTight(state, t.id)) continue;
+    const roster = state.players.filter(
+      (p) => p.teamId === t.id && !p.retired && !p.prospect && p.contract
+        && (p.contract.yearsRemaining ?? 0) >= 3
+    );
+    const ranked = roster
+      .map((p) => ({ p, preview: addVoidYearsPreview(state, t.id, p) }))
+      .filter((x) => x.preview.ok && x.preview.savings > 0)
+      .sort((a, b) => b.preview.savings - a.preview.savings || a.p.id - b.p.id);
+    const pick = ranked[0];
+    if (pick) applyVoidYears(state, t.id, pick.p.id);
+  }
 }
 
 // ---------------------------------------------------------------------------
