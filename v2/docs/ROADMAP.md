@@ -118,11 +118,17 @@ compensatory-pick formula (published CBA math, no calibration argument);
 #41/#49 cap-stuck residue — product decision whether to age them to the
 street after the window; not a settle miss. Do not wipe as a "bug fix."
 The #64 serial runner and the #47 test-registration exception are
-ratified in AGENTS.md. Re-run the scouting challenge audit when the
-arc is green again:
-the "solved line" existed because CPU reads were noise; private signal +
+ratified in AGENTS.md. ~~Re-run the scouting challenge audit: the
+solved line existed because CPU reads were noise; private signal +
 veteran beliefs were meant to fix that and nobody has measured whether
-they did.
+they did.~~ **CLOSED 2026-09-15 (Wave 3.9 scout-audit).** Write-up:
+`v2/docs/scouting-challenge-audit-2026-09-14.md`. Verdict: **the
+solved line is closed** — information ceiling buys +0.1 true points
+per slot over auto-pick (+0.6 in R1–2), inside seed noise; the
+exploit arms have fewer starter-seasons per pick and twice the
+R1–2 bust rate. Packets 7/8/9 (film/pro-day caps, risk-grade teeth,
++2 probe) are Phase 4 addendum after Packets 3–5 — consequences, not
+tuning; none reopen the line.
 
 ### Phase 1 — make the engine visible (after the panel is green)
 

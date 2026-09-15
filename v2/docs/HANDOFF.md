@@ -5,6 +5,58 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## Wave 3.9 Packet 1 — panel @ 748036a (2026-09-14/15 Studio)
+
+Mac Studio `npm run gate:full:serial` 5 seeds / 14 cores on
+`main @ 748036a` (#88). GATE FAIL 7. This table is the authority
+for Packet 2 re-locks (Matt must sign before any baseline edit).
+`baselines.json` **not edited**. Engine not touched.
+
+### Panel means (5-seed)
+
+| metric | panel mean | verdict |
+|---|---:|---|
+| `drift.topCapPctMean` | **22.14** (21.82/21.75/23.09/22.32/21.72) | on target ~21–22 |
+| `drift.capBustSeasons` | **0.40** (0/0/2/0/0) | **FAIL** ≤0 — Claude diagnosis lane |
+| `drift.minPayrollSeasonsUnder55` | **0** | **CLOSED** (was 4.40 Wave 3.7) |
+| `drift.franchiseTagsPerSeason` | **16.62** (17.1/16.7/15.8/17.55/15.95) | ≥17 band; real NFL ~10. REPORT leak-or-behaviour; never tune |
+| `drift.irCapPctMean` | **6.35** | in ~5–7 |
+| `drift.deadMoneyPct` | **3.96** | slightly under ~5–8 note |
+| `drift.ovrDrift` | **−1.73** | inside −1.70±1.5 |
+| `drift.tradesPerSeason` | **78.0** | record |
+| `drift.saveMbAtEnd` | **14.89** | **FAIL** ≤13.1 — re-lock candidate after Matt signs |
+| `drift.saveGrowthMbPerSeason` | **0.56** | **FAIL** ≤0.52 — re-lock candidate |
+| `drift.p0Failures` | **1.40** | **FAIL** ≤0 |
+| `tails.milestonesOff` | **21** | **FAIL** ≤16 (KNOWN-HIGH) |
+| `statcheck.qb5PassYds` | **4089.8** | **FAIL** 4497±360 (moved row) |
+| `statcheck.leadPassYds` | **4730** | record |
+| `statcheck.qb10PassYds` | **3710** | record |
+| `statcheck.leadTackles` | **165.2** | record |
+| `statcheck.maxGameRecYds` | **249.6** | record |
+| `psychology.holdoutsMean` | **8.63** | first people-layer emit; identical across seeds |
+| `psychology.tradeRequestsMean` | **2.63** | first people-layer emit; identical across seeds |
+| `psychology.contractYearMean` | **656.13** | first people-layer emit; identical across seeds |
+| `people.cpuHcFiresPlanted` | **15** | peopleteeth; `peoplecheck` emitted 0 metrics |
+
+Packet 2 re-lock still awaits Matt sign-off on this table. Do not
+edit `baselines.json`.
+
+---
+
+## Wave 3.9 scout-audit harness (docs-class)
+
+Landed `v2/scout-audit.ts` (read-only policy bot; not gate-registered)
+and `v2/docs/scouting-challenge-audit-2026-09-14.md`. Verdict for the
+record: **the solved line is closed** — information ceiling buys +0.1
+true points per slot over auto-pick (+0.6 in R1–2), inside seed noise;
+the exploit arms have fewer starter-seasons per pick and twice the
+R1–2 bust rate. Retire ROADMAP line "re-run the scouting challenge
+audit". Packets 7/8/9 (film/pro-day caps, risk-grade teeth, +2 probe)
+are Phase 4 addendum after Packets 3–5 — consequences, not tuning;
+none reopen the line.
+
+---
+
 ## 2026-09-14 — Wave 3.8 Packet 6: contract ceilings
 
 Worker. Base `main` @ `fd30b2762b1336b8a93b35e498930f3f6e30706d` (#87
