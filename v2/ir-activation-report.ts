@@ -117,7 +117,10 @@ function run(seasons: number, seed: number): SeasonRow[] {
     for (const [id, was] of prevIr) {
       const cur = now.get(id);
       if (cur?.status === "ir") continue;
-      if (cur && cur.status !== "ir" && cur.status !== "ps" && cur.teamId === was.teamId) {
+      // Missing status is active (Player.status?: "ir" | "ps"). After the IR
+      // continue, status is "ps" | undefined — compare only against "ps".
+      const activated = cur !== undefined && cur.status !== "ps" && cur.teamId === was.teamId;
+      if (activated) {
         target.activations++;
         if (was.teamId !== USER) target.cpuActivations++;
         if (designatedThisSeason.has(id)) target.sameSeasonReturns++;
