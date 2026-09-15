@@ -5,6 +5,35 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-15 — Wave 3.9 Packet 6: IR activation report-only
+
+Worker. Base `main @ d6b7dcf` (#89). **Docs + additive harness only.**
+Engine / `baselines.json` / gate / `nfl-reference.md` not edited.
+Write-up: `v2/docs/ir-activation-report-2026-09-15.md`. Harness:
+`v2/ir-activation-report.ts` (not registered).
+
+**Diagnosis.** No IR headcount cap — only 8 return designations, and
+those gate *activate*, not place. CPU IRs every 4+ week injury and
+activates the instant the man is healthy, has 4 IR games, and a
+designation remains. User club is never auto-IR'd (headless = 0).
+
+**8-season seed 12345** (`npx tsx ir-activation-report.ts 8 12345`,
+4-core VM, 372 s). CPU weekly headcount **2.07**/club, recap
+**2.24**/club, **7.0** designations/club, same-season return
+**71%**, return-budget used **6.0 / 8**, **10.4** CPU clubs at the
+8-cap. `irCapPctMean` **5.92** sits on Packet 5/6 5.81 / 5.89;
+Studio panel 6.35 is the longer-horizon read. `nfl-reference.md` §4
+has the published rules and **no** volume/return target — ungated.
+
+**Leftover.** Studio 12- or 20-season / 5-seed if the lead wants to
+lock a headcount emit. Proposed `##M` names are in the report; do
+not add them to `drift.ts` or `baselines.json` here.
+
+**Untouched.** `lib/core/**`, `scripts/**`, injury tables, forbidden
+knobs, PR #9.
+
+---
+
 ## Wave 3.9 Packet 1 — panel @ 748036a (2026-09-14/15 Studio)
 
 Mac Studio `npm run gate:full:serial` 5 seeds / 14 cores on
