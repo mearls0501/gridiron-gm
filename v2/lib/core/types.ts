@@ -291,6 +291,22 @@ export interface Player {
    * of scraping log prose.
    */
   waivedSeason?: number;
+
+  /**
+   * Recap year he retired. Missing = infer from the last played season,
+   * so older saves still load.
+   */
+  retiredSeason?: number;
+  /**
+   * Outcomes-label star seasons (Pro Bowl stand-in). Ticked in recap.
+   * Missing = 0, so older saves load.
+   */
+  starSeasons?: number;
+  /**
+   * Outcomes-label elite seasons (All-Pro stand-in). Ticked in recap.
+   * Missing = 0, so older saves load.
+   */
+  eliteSeasons?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -978,6 +994,20 @@ export interface LogEntry {
   playerId?: number;
 }
 
+/**
+ * One league Hall of Fame induction. Player bodies stay on `state.players`
+ * (invariant 4). Missing `state.hallOfFame` = none, so older saves load.
+ */
+export interface HofEntry {
+  playerId: number;
+  inductedSeason: number;
+  teamId: number | null;
+  seasons: number;
+  firstSeason: number | null;
+  lastSeason: number | null;
+  championships: number;
+}
+
 // ---------------------------------------------------------------------------
 // Root state
 // ---------------------------------------------------------------------------
@@ -1197,6 +1227,11 @@ export interface GameState {
   history: SeasonHistory[];
   records: RecordBook;
   log: LogEntry[];
+  /**
+   * League Hall of Fame, one class per recap. Missing = none, so older
+   * saves load. The franchise ring is still derived at render time.
+   */
+  hallOfFame?: HofEntry[];
 
   /** Player-chosen gameplay options. Older saves are backfilled by migrate(). */
   settings?: GameSettings;

@@ -724,6 +724,20 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   ±3 **after** the post-Packet-6 panel. Do not lock it here.
   `capBustSeasons` stays 28% / `max: 0` as the backstop.
 
+- **Hall of Fame class size and wait.** Added 2026-09-15 (Wave 3.9
+  Packet 3). Not in T/D/S/P. The published Pro Football Hall of Fame
+  rule is a **five-season wait after retirement**
+  ([Pro Football Hall of Fame selection process](https://www.profootballhof.com/hall-of-famers/selection-process/),
+  same wait restated on
+  [Wikipedia: List of Pro Football Hall of Fame inductees](https://en.wikipedia.org/wiki/List_of_Pro_Football_Hall_of_Fame_inductees)).
+  Modern-era player classes have sat at the **maximum of 5** for 17
+  consecutive years ([The Athletic, 2025-02-06](https://www.nytimes.com/athletic/6111416/2025/02/06/nfl-hall-of-fame-rules-class-of-2025/)).
+  Total enshrinement including seniors / coaches / contributors has
+  averaged **~7.8 per year since 2015** (same article; excludes the
+  2020 Centennial slate). The sim inducts players only, one class per
+  year, capped at 8, so `careers.hofInducteesPerClass` is the modern
+  5–8 band. Ungated; no baseline in this packet.
+
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 
 ---
