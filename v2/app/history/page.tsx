@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import {
   HofReason,
@@ -8,15 +9,16 @@ import {
   presentLeagueHall,
   reasonLine,
 } from "@/lib/core/hallOfFame";
+import { retireUserNumber, userRetireCandidates } from "@/lib/core/jersey";
 import {
-  Card, Cell, Empty, Pill, PlayerLink, PosBadge, Row, Stat, Table, TeamMark,
+  Button, Card, Cell, Empty, Pill, PlayerLink, PosBadge, Row, Stat, Table, TeamMark,
 } from "@/components/ui";
 
 /**
- * Franchise archive plus the league Hall of Fame.
+ * Franchise archive, league Hall of Fame, and the retired-numbers wall.
  *
- * Reads `state.history`, `state.hallOfFame`, and retiree stat lines.
- * Induction writes happen in recap; this page does not write.
+ * Induction writes happen in recap. Retiring a number is the one user
+ * write on this page — one per season.
  */
 
 function L(label: string) {
@@ -33,13 +35,25 @@ function reasonTone(r: HofReason): "good" | "accent" | "warn" | "default" {
 export default function HistoryPage() {
   const state = useGame((s) => s.state);
   const rev = useGame((s) => s.rev);
+  const apply = useGame((s) => s.apply);
+  const [retireId, setRetireId] = useState<string>("");
 
-  if (!state) return null;
+  const team = state?.teams[state.userTeamId];
+  const retired = useMemo(
+    () => (team?.retiredNumbers ?? []).slice().sort((a, b) => a.number - b.number),
+    [team?.retiredNumbers, rev],
+  );
+  const candidates = useMemo(
+    () => (state ? userRetireCandidates(state) : []),
+    [state, rev],
+  );
+
+  if (!state || !team) return null;
   void rev;
 
-  const team = state.teams[state.userTeamId];
   const view = presentFranchiseHistory(state);
   const league = presentLeagueHall(state);
+  const retireUsed = state.jerseyRetireSeason === state.season;
 
   const span =
     view.firstSeason != null && view.lastSeason != null
@@ -69,7 +83,7 @@ export default function HistoryPage() {
 
       <div className="flex items-center gap-3">
         <TeamMark team={team} size={40} />
-        <div className="grid flex-1 gap-2 sm:grid-cols-4">
+        <div className="grid flex-1 gap-2 sm:grid-cols-5">
           <Stat label="Seasons archived" value={view.years.length} />
           <Stat
             label="Championships"
@@ -82,6 +96,7 @@ export default function HistoryPage() {
             tone={league.inducteeCount > 0 ? "good" : undefined}
           />
           <Stat label="Franchise ring" value={view.hallOfFame.length} />
+          <Stat label="Retired numbers" value={retired.length} />
         </div>
       </div>
 
@@ -295,6 +310,85 @@ export default function HistoryPage() {
             {view.hofRule}
           </p>
         )}
+      </Card>
+
+      <Card
+        title="Retired Numbers"
+        subtitle="Numbers this club will not issue again. One user retirement per season."
+      >
+        {retired.length === 0 ? (
+          <Empty
+            title="No numbers have been retired yet."
+            hint="A Hall inductee with eight seasons at this club goes on the wall automatically. You may also retire one number yourself each season."
+          />
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+            {retired.map((row) => {
+              const wearer = state.players.find((p) => p.id === row.playerId);
+              return (
+                <div
+                  key={`${row.number}-${row.playerId}`}
+                  className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-3 text-center"
+                >
+                  <div className="text-2xl font-semibold tnum">{row.number}</div>
+                  <div className="mt-1 text-[11px] text-[var(--color-muted)] truncate">
+                    {wearer ? (
+                      <PlayerLink p={wearer} className="text-[11px]" />
+                    ) : (
+                      `${row.firstName} ${row.lastName}`
+                    )}
+                  </div>
+                  <div className="mt-0.5 text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+                    {row.pos} · {row.season} · {row.reason === "user" ? "Club" : "Hall"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="mt-4 flex flex-wrap items-end gap-2">
+          <label className="min-w-[220px] flex-1">
+            <span className="block text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1">
+              Retire a number
+            </span>
+            <select
+              value={retireId}
+              onChange={(e) => setRetireId(e.target.value)}
+              disabled={retireUsed || candidates.length === 0}
+              className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[var(--color-accent)]"
+            >
+              <option value="">
+                {retireUsed
+                  ? "Already used this season"
+                  : candidates.length === 0
+                    ? "No eligible numbers"
+                    : "Choose a player"}
+              </option>
+              {candidates.map((p) => (
+                <option key={p.id} value={String(p.id)}>
+                  #{p.number} {p.firstName} {p.lastName} ({p.pos})
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={retireUsed || !retireId}
+            onClick={() => {
+              const id = Number(retireId);
+              if (!Number.isFinite(id)) return;
+              apply((s) => {
+                const res = retireUserNumber(s, id);
+                if (!res.ok) return res.reason;
+                setRetireId("");
+                return `Retired ${res.ok ? `#${res.number}` : "number"}`;
+              });
+            }}
+          >
+            Retire
+          </Button>
+        </div>
       </Card>
     </div>
   );

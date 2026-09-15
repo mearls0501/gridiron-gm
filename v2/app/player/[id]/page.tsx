@@ -238,6 +238,7 @@ export default function PlayerPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold">
+            {typeof p.number === "number" ? `#${p.number} ` : ""}
             {p.firstName} {p.lastName}
           </h1>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">
@@ -263,6 +264,11 @@ export default function PlayerPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <PosBadge pos={p.pos} />
+              {typeof p.number === "number" && (
+                <span className="text-lg font-semibold tnum tabular-nums">
+                  #{p.number}
+                </span>
+              )}
               <span className="text-base font-semibold truncate">
                 {p.firstName} {p.lastName}
               </span>

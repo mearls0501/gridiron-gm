@@ -16,6 +16,7 @@ import { runPsychology } from "../psychology";
 import { fireCpuHeadCoaches, runCoachCarousel, tickCoachContracts } from "../coaches";
 import { applyUserGmFiring } from "../owner";
 import { runHofInduction, tickHofCareerLabels } from "../hallOfFame";
+import { maybeRetireNumbersForHallOfFame } from "../jersey";
 
 export * from "./contracts";
 export * from "./draft";
@@ -100,6 +101,7 @@ export function runRecap(state: GameState): OffseasonReport {
   }
 
   runHofInduction(state);
+  maybeRetireNumbersForHallOfFame(state);
 
   state.rngState = rng.state;
   state.phase = "offseason-tag";

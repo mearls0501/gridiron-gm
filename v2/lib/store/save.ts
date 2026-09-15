@@ -1,4 +1,5 @@
 import { ensureCoaches } from "../core/coaches";
+import { ensureJerseyNumbers, maybeRetireNumbersForHallOfFame } from "../core/jersey";
 import { ensureOwners } from "../core/owner";
 import { runPsychology } from "../core/psychology";
 import { GameState, STATE_VERSION, defaultSettings } from "../core/types";
@@ -107,7 +108,7 @@ export async function lastSaveId(): Promise<string | null> {
  * Forward-migrate an older save. Right now there is only one version, but the
  * hook exists so a future change can't strand someone's franchise.
  */
-function migrate(state: GameState): GameState {
+export function migrate(state: GameState): GameState {
   // Structural backfills run regardless of version so a save written by an
   // earlier build never lands in the UI missing a field it now reads.
   if (!state.records) state.records = blankRecordBook();
@@ -161,6 +162,12 @@ function migrate(state: GameState): GameState {
       if (typeof tag.consecutiveTags !== "number") tag.consecutiveTags = 0;
     }
   }
+  // Jerseys are display state on a child stream keyed (seed, "jersey",
+  // playerId). Old saves have no numbers; assigning here does not move
+  // the parent RNG. Hall auto-retire no-ops until Packet 3 writes
+  // `state.hallOfFame`.
+  ensureJerseyNumbers(state);
+  maybeRetireNumbersForHallOfFame(state);
   // Per-league-year trade counter. Pre-field saves default to 0.
   if (!state.seasonCounters) state.seasonCounters = { tradesExecuted: 0 };
   if (typeof state.seasonCounters.tradesExecuted !== "number") {

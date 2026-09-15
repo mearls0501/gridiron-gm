@@ -74,6 +74,45 @@ Full `careers 24` + panel is Studio follow-up after merge.
 
 ---
 
+## 2026-09-15 — Wave 3.9 Packet 4: jersey numbers and retired numbers
+
+Worker. Rebased onto `main @ 151dd00` (Packet 5 #94, after Packet 3
+#95 @ 78d3b5b). Branch `cursor/g-jersey-numbers`. Display state
+only. Child stream keyed `(seed, "jersey", playerId)`.
+`docs/baselines.json` not edited. Sim / stats / contracts /
+hallOfFame induction core / secondScene files not touched.
+Forbidden knobs untouched.
+
+**Diagnosis.** Players had no jersey number. `/history` had no
+retired-numbers wall. Packet 3 now writes `state.hallOfFame`.
+
+**Change.**
+
+- Additive `Player.number?`, `Team.retiredNumbers?`,
+  `GameState.jerseyRetireSeason?`.
+- `lib/core/jersey.ts` assigns position-legal unique numbers
+  (published NFL Rule 5-1-2, 2021 + 2023 zero — `nfl-reference.md`
+  §4) from the child stream. Assigned on generate, draft/sign,
+  migrate, and `store.apply`.
+- User retire from `/history`, one per season.
+- `/roster` and `/player` display `#`.
+- Auto-retire: `maybeRetireNumbersForHallOfFame` reads
+  `state.hallOfFame`. An inductee with ≥ 8 seasons at a club
+  retires their number there. Called from migrate, `store.apply`,
+  and after `runHofInduction` in `runRecap`. Does not edit
+  `hallOfFame.ts`.
+
+**Leftover.** None for this packet. Packet 3 leftover (old-save
+star/elite counts) is unchanged.
+
+**Untouched.** `sim/**`, `season/stats.ts`, `offseason/contracts.ts`,
+`hallOfFame.ts` induction core, `secondScene.ts` /
+`secondScene.test.ts` / `offseason/progression.ts` body,
+`POSITION_VALUE`, `CONTENDER_PULL`, `GUARANTEE_PULL`,
+`CARRY_SHARE`, `cpuProspectView`, `docs/baselines.json`.
+
+---
+
 ## 2026-09-15 — Wave 3.9 Packet 3: Hall of Fame as a league event
 
 Worker. Base `main @ a726f02` (#91). Branch `cursor/g-hof-induction`.

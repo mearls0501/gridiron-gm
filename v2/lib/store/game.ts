@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { GameState } from "../core/types";
+import { ensureJerseyNumbers, maybeRetireNumbersForHallOfFame } from "../core/jersey";
 import { newGame, NewGameOptions } from "../core/newGame";
 import { advance as advanceSeason } from "../core/season/engine";
 import { advanceOffseason } from "../core/offseason";
@@ -101,6 +102,8 @@ export const useGame = create<Store>((set, get) => ({
     if (!s) return;
     try {
       const msg = fn(s);
+      ensureJerseyNumbers(s);
+      maybeRetireNumbersForHallOfFame(s);
       // Core mutates GameState in place for speed (a league is ~2,000 players,
       // so structural sharing per action would be wasteful). A shallow clone of
       // the root is enough to change identity, so `useGame(s => s.state)`
