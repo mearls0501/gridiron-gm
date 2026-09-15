@@ -133,9 +133,15 @@ function snapshot(state: GameState): string {
   }
   p.stats = lines;
   const n = p.number;
-  (st as GameState & { hallOfFame: { playerId: number; teamId: number }[] }).hallOfFame = [
-    { playerId: p.id, teamId: st.userTeamId },
-  ];
+  st.hallOfFame = [{
+    playerId: p.id,
+    inductedSeason: st.season,
+    teamId: st.userTeamId,
+    seasons: HOF_RETIRE_SEASONS,
+    firstSeason: lines[0]!.season,
+    lastSeason: lines[lines.length - 1]!.season,
+    championships: 0,
+  }];
   maybeRetireNumbersForHallOfFame(st);
   const wall = st.teams[st.userTeamId].retiredNumbers ?? [];
   assert.equal(wall.some((r) => r.number === n && r.reason === "hof"), true);
