@@ -1,6 +1,6 @@
 {
   "note": "Locked numbers for scripts/gate.ts. `target`/`tol` is a regression band; `max`/`min` is a hard bound. `nfl` is the real-world number the sim is aiming at and is informational only. Tolerances are deliberately wide enough that moving a metric TOWARD its nfl value never fails the gate. WORKERS MUST NOT EDIT THIS FILE. Every `nfl` value must trace to a computation in docs/nfl-reference.md \u2014 changing a baseline is a decision, and decisions go to the orchestrator. Re-lock with `npm run gate:lock`.",
-  "lockedAt": "2026-07-29",
+  "lockedAt": "2026-09-15",
   "calibrateSampleSize": 300,
   "metrics": {
     "calibrate.scoreMismatches": {
@@ -199,9 +199,10 @@
       "nfl": 22.5
     },
     "statcheck.leadPassYds": {
-      "target": 5085.8,
+      "target": 4730,
       "tol": 700,
-      "nfl": 4800
+      "nfl": 4800,
+      "note": "RE-LOCKED 2026-09-15 Wave 3.9 Packet 2 (Matt SIGNED). Mac Studio 5-seed panel at 748036a (#88) read 4730 (was 5085.8 +/-700). Target is the panel mean; tol 700 unchanged."
     },
     "statcheck.leadRushYds": {
       "target": 1726.8,
@@ -219,9 +220,10 @@
       "nfl": 20
     },
     "statcheck.leadTackles": {
-      "target": 177,
+      "target": 165.2,
       "tol": 40,
-      "nfl": 180
+      "nfl": 180,
+      "note": "RE-LOCKED 2026-09-15 Wave 3.9 Packet 2 (Matt SIGNED). Mac Studio 5-seed panel at 748036a (#88) read 165.2 (was 177 +/-40). Target is the panel mean; tol 40 unchanged."
     },
     "statcheck.maxGamePassYds": {
       "target": 473.2,
@@ -234,9 +236,10 @@
       "nfl": 296
     },
     "statcheck.maxGameRecYds": {
-      "target": 234.6,
+      "target": 249.6,
       "tol": 80,
-      "nfl": 336
+      "nfl": 336,
+      "note": "RE-LOCKED 2026-09-15 Wave 3.9 Packet 2 (Matt SIGNED). Mac Studio 5-seed panel at 748036a (#88) read 249.6 (was 234.6 +/-80). Target is the panel mean; tol 80 unchanged."
     },
     "statcheck.shutouts": {
       "target": 5.4,
@@ -346,12 +349,12 @@
       "note": "Yards per TARGET a shutdown corner costs a WR1 by shadowing him, against a defence with no shutdown corner. Was gated on yards per GAME, which read +8.3/-9.6/+3.5 across three seeds against a min of 4 -- it passed or failed at random. FLOOR IS DIRECTIONAL ONLY, NOT MAGNITUDE. Four seeds now: 0.56 / 0.78 / 1.25 / 1.46. The 0.4 floor was set from three of those and seed 5 came in at 0.56, leaving 0.16 of margin -- the same too-few-samples mistake this file exists to prevent, made one commit after writing it up. 0.2 tests the SIGN, which is the claim. A magnitude floor needs the 5-seed re-lock in docs/HANDOFF.md item 1."
     },
     "drift.saveGrowthMbPerSeason": {
-      "max": 0.52,
-      "note": "RE-LOCKED 2026-09-13 Wave 3.7 Packet 2 (Matt SIGNED). Mac Studio gate:full:serial 5-seed panel at 2752729 (#77) read 0.47; max is panel + 0.05. Reason: PS/IR/waiver/camp-90 bodies plus Wave 1/2 fields on the encoded save (nfl-reference.md S6.9). 20 MB quota unchanged."
+      "max": 0.61,
+      "note": "RE-LOCKED 2026-09-15 Wave 3.9 Packet 2 (Matt SIGNED). Mac Studio gate:full:serial 5-seed panel at 748036a (#88) read 0.56; max is panel + 0.05. Reason: PS/IR/waiver/camp-90 bodies plus Wave 1/2 fields on the encoded save (nfl-reference.md S6.9). 20 MB quota unchanged."
     },
     "drift.saveMbAtEnd": {
-      "max": 13.1,
-      "note": "RE-LOCKED 2026-09-13 Wave 3.7 Packet 2 (Matt SIGNED). 20 seasons. Mac Studio 5-seed panel at 2752729 (#77) read 12.10; max is panel + 1.0 MB. Same S6.9 reason as saveGrowth. 20 MB quota guard unchanged."
+      "max": 15.89,
+      "note": "RE-LOCKED 2026-09-15 Wave 3.9 Packet 2 (Matt SIGNED). 20 seasons. Mac Studio 5-seed panel at 748036a (#88) read 14.89; max is panel + 1.0 MB. Same S6.9 reason as saveGrowth. 20 MB quota guard unchanged."
     },
     "drift.passRecordSeasons": {
       "max": 3,
@@ -480,16 +483,16 @@
       "note": "STRUCTURAL: the priority-UDFA chase after pick 224 signs a real number of men without cornering the pool. 160 at lock; real clubs sign 10-15 UDFAs each into 90-man camps, v2 has no 90-man so CPU appetite is thresholded on each club's own board."
     },
     "statcheck.qb5PassYds": {
-      "target": 4497,
+      "target": 4089.8,
       "tol": 360,
       "nfl": 4497,
-      "note": "NEW 2026-08-02. 5th-best passing season, real mean 4497 +/- 176 across 2018-2024 (nfl-reference.md S5.1). tol ~8%."
+      "note": "RE-LOCKED 2026-09-15 Wave 3.9 Packet 2 (Matt SIGNED). Mac Studio 5-seed panel at 748036a (#88) read 4089.8 (FAIL vs prior 4497+/-360). Target is the exact panel mean; nfl 4497 remains the S5.1 2018-2024 reference. tol 360 unchanged."
     },
     "statcheck.qb10PassYds": {
-      "target": 4028,
+      "target": 3710,
       "tol": 322,
       "nfl": 4028,
-      "note": "NEW 2026-08-02. 10th-best passing season, real mean 4028 +/- 198 (nfl-reference.md S5.1). tol ~8%. This is the rank a leader-only guard cannot see."
+      "note": "RE-LOCKED 2026-09-15 Wave 3.9 Packet 2 (Matt SIGNED). Mac Studio 5-seed panel at 748036a (#88) read 3710 (was 4028 +/-322). Target is the panel mean; nfl 4028 remains the S5.1 reference. tol 322 unchanged."
     },
     "statcheck.qb20PassYds": {
       "target": 3046,

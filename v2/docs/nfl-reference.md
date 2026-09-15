@@ -1752,3 +1752,12 @@ cap) at recap; it is not gated and `docs/baselines.json` is not
 moved. `capBust` is not retuned. Expect
 `minPayrollSeasonsUnder55` → ~0 on the next panel.
 
+**Wave 3.9 Packet 2 (Matt SIGNED 2026-09-15).** Save-size re-lock
+from the Mac Studio `gate:full:serial` 5-seed panel at `748036a`
+(#88): `saveMbAtEnd` max **15.89** (panel 14.89 + 1.0 MB),
+`saveGrowthMbPerSeason` max **0.61** (panel 0.56 + 0.05). Same
+S6.9 reason family as Wave 3.7: PS/IR/waiver/camp-90 bodies plus
+Wave 1/2 fields on the encoded save. The **20 MB quota** guard is
+unchanged. `capBustSeasons` 0.40 and `franchiseTagsPerSeason`
+16.62 remain findings, not retuned.
+
