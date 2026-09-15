@@ -60,9 +60,29 @@ cap / contract rules, `drift.capBustSeasons` (still max 0),
 `drift.franchiseTagsPerSeason` (still 14±4), `drift.p0Failures`,
 `tails.milestonesOff`.
 
-**Gate.** Docs + baseline re-lock only. Fast-tier inherited reds
-may remain (`leverage.wrongSign`, `statcheck.wr10RecYds`). Do not
-chase them here.
+**Gate** (`npm run gate:serial`, 4 cores). Typecheck FAIL is
+inherited from #90 `ir-activation-report.ts` (not this packet).
+Determinism / verify / sweep / calibrate / scout ok. The five
+re-locked `statcheck` rows now sit in band on this seed:
+
+```
+##M statcheck.leadPassYds 4921     (4730 +/-700)
+##M statcheck.qb5PassYds 4189      (4089.8 +/-360)
+##M statcheck.qb10PassYds 3593     (3710 +/-322)
+##M statcheck.leadTackles 133      (165.2 +/-40)
+##M statcheck.maxGameRecYds 286    (249.6 +/-80)
+```
+
+Remaining reds are leftovers, not this packet:
+
+```
+FAIL  typecheck  exited 2
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1105  expected 1208 +/-97
+GATE FAIL  3 problems
+```
+
+Do not chase them here. Do not edit those baselines.
 
 ---
 
