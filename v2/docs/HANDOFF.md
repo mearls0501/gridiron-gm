@@ -5,6 +5,64 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-15 — Wave 3.9 Packet 5: the second scene (Darnold path)
+
+Worker. Base `main @ a726f02` (#91). Branch `cursor/g-second-scene`.
+Matt SIGNED dials 1–8 as recommended 2026-09-14. `docs/baselines.json`
+**not edited.** Full `careers 24` + panel is Studio follow-up after merge.
+
+### Signed dials
+
+| dial | signed |
+|---|---|
+| `BUST_GAP` | 6 |
+| `SCENE_FIT_DELTA` | 0.25 |
+| `SCENE_COACH_DELTA` | 15 |
+| `OPPORTUNITY_SNAPS` | 500 |
+| `SECOND_SCENE_K` | QB 0.45 · TE 0.35 · other 0.20 |
+| draw sd | 0.25 × gap |
+| age limit | `peakAge + 1` |
+| per career | 1 |
+
+### Diagnosis
+
+`ceiling` moved only via `ceilingRecovery` at the current club. A written-off
+QB who changed scene took his low ceiling with him. Path 2 in
+`nfl-reference.md` §2.7 (played badly, new club, became good) had no
+mechanism and no number.
+
+### Change
+
+- `lib/core/secondScene.ts` — six-gate eligibility, child stream keyed
+  `(seed, season, "secondScene", playerId)`, lift `clamp(normal(gap×k, gap×0.25), 0, gap)`.
+- One call: `applySecondScenes(state)` at the top of `runProgression`,
+  before `developPlayer`. `developPlayer` body untouched.
+- `Player.secondScene?` additive; `save.ts` migrate leaves missing as never-fired.
+- `scripts/careers.ts` three additive emits (QB rates): `secondSceneEligiblePct`,
+  `secondSceneFiredPct`, `secondSceneStarPct`. No band.
+- `nfl-reference.md` §2.7: nflverse query + **11.4%** (4 of 35) written
+  before any baseline claim. §4 updated. No re-lock.
+
+### Leftover
+
+Studio `careers 24` / 5-seed panel after merge. If `r1BustPct` drops more
+than a point that is a post-panel K dial issue — do not pre-emptively
+retune. `secondSceneStarPct` locks against §2.7 11.4% only after that panel.
+
+### Untouched
+
+`developPlayer` body, `ceilingRecovery`, `pot`, scouting, trades, FA, CPU
+logic, HOF, jersey assignment, `POSITION_VALUE`, `CONTENDER_PULL`,
+`GUARANTEE_PULL`, `CARRY_SHARE`, `cpuProspectView`, `baselines.json`.
+
+### Gate
+
+Fast gate + `secondScene.test.ts` on this VM. Year-0 cannot qualify, so
+calibrate / statcheck stay byte-identical. Inherited fast-tier reds
+(`leverage.wrongSign`, `statcheck.wr10RecYds`) are not this packet.
+
+---
+
 ## 2026-09-15 — Wave 3.9 Packet 3: Hall of Fame as a league event
 
 Worker. Base `main @ a726f02` (#91). Branch `cursor/g-hof-induction`.

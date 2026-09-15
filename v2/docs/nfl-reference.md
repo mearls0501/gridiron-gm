@@ -408,9 +408,39 @@ none of them are in this sample.
 **The game must model these as two separate paths:**
 
 1. *never played → became a starter*: use the table. QB is the worst position.
-2. *played badly → became good*: **not quantified anywhere.** This is the
-   largest gap in this document, and it is exactly the Darnold case the design
-   is built around.
+2. *played badly → became good*: measured below. This is the Darnold case the
+   design is built around.
+
+**Path 2 — nflverse query (run 2026-09-15, BEFORE any baseline).**
+
+Datasets:
+- [nflverse `draft_picks`](https://github.com/nflverse/nflverse-data/releases/download/draft_picks/draft_picks.csv) — PFR draft tables.
+- [nflverse weekly `player_stats`](https://github.com/nflverse/nflverse-data/releases/download/player_stats/player_stats.csv.gz) — REG only, seasons through 2024.
+
+Definition:
+
+1. Population: QBs drafted 2010–2019 (`draft_picks.position = QB`, n = 116)
+   with ≥ 9 start-weeks in any of seasons 1–3 (start-week = led his club in
+   pass attempts that week and threw ≥ 8). Among QBs with ≥ 9 start-weeks
+   that season (~29–32 each year), his passer rating **or** EPA/play ranked
+   in the bottom third.
+2. Event: a later season (career years 4–8) with a top-ten passer-rating
+   finish among that year's qualifying starters, at a **different** primary
+   club than the bad season(s).
+
+Result: **35** unique QBs in the population, **4** events (Tannehill 2019
+TEN; Mayfield 2023–24 TB; Darnold 2024 MIN; Bradford 2016 MIN) →
+**4 / 35 = 11.4%**.
+
+The 2026-09-14 design placeholder was ≈12–15% from a memory count of
+~40 / 5–6. The query replaced it. Goff is not in the population (2016 was
+7 starts). Geno Smith's 2022 top-ten year is career year 10, outside 4–8.
+Josh Allen improved at the same club. Observation ends in 2024, so a 2019
+draftee's year 8 is unseen.
+
+This is the number `careers.secondSceneStarPct` will lock against. It is
+**not** in `baselines.json` in this packet — Studio `careers 24` + panel
+is the follow-up. Do not invent a band here.
 
 ### 2.8 Undrafted free agents — confidence MEDIUM
 
@@ -454,7 +484,10 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
 
 ## 4. What remains uncalibrated, on purpose
 
-- The *played badly → improved* development path (§2.7). No public data.
+- The *played badly → improved* development path (§2.7). Now measured:
+  **11.4%** (4 of 35 QBs, nflverse 2010–2019 classes, query in §2.7).
+  Ungated until the Studio panel; do not lock `careers.secondSceneStarPct`
+  in this packet.
 - Salary dumps as a share of trades (§1.6).
 - Contract status of traded players (§1.6).
 - Lifetime UDFA start rate (§2.8).

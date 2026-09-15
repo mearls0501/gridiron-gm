@@ -307,6 +307,12 @@ export interface Player {
    * Missing = 0, so older saves load.
    */
   eliteSeasons?: number;
+
+  /**
+   * One second draw on `ceiling` after a change of scene. Missing = never
+   * fired, so saves written before the Darnold path still load.
+   */
+  secondScene?: { season: number; teamId: number; lift: number };
 }
 
 // ---------------------------------------------------------------------------

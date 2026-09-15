@@ -9,6 +9,7 @@ import { REPLACEMENT_OVR } from "../frontOffice";
 import {
   ceilingRecovery, declineMultiplier, developmentMultiplier, schemeDevelopmentMultiplier,
 } from "../staff";
+import { applySecondScenes } from "../secondScene";
 
 /**
  * Aging, development and retirement.
@@ -216,6 +217,8 @@ export function unsignedAttrition(p: Player): number {
 
 export function runProgression(state: GameState, rng: Rng): OffseasonReport {
   const report: OffseasonReport = { retirements: [], risers: [], fallers: [], expiring: [] };
+
+  applySecondScenes(state);
 
   for (const p of state.players) {
     if (p.retired || p.prospect) continue;

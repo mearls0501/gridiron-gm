@@ -27,6 +27,7 @@ import {
   starterSeasons, withDrafterInYear, yearsToFirstStar,
 } from "../lib/core/outcomes";
 import { hofInducteesPerClass } from "../lib/core/hallOfFame";
+import { hasBadStartingSeason, isBustGap } from "../lib/core/secondScene";
 
 const SEASONS = Number(process.argv[2] ?? 25);
 const SEED = seedFor(Number(process.argv[3] ?? 12345));
@@ -379,6 +380,46 @@ const shareGaps = Object.entries(TARGET_R1_SHARE).map(([grp, want]) =>
 const r1Starts = avg(r1s.map(starterSeasons));
 const lateStarts = avg(late.map(starterSeasons));
 
+// Second scene (Darnold path). Conditions 1–2 = eligible; 3–5 + draw = fired.
+// Star is a later star year after the draw. QB rates are the lock candidates
+// against nfl-reference.md §2.7 (4/35 = 11.4%). Report-only — no baseline.
+const byId = new Map(st.players.map((p) => [p.id, p]));
+function secondSceneCounts(group: Career[]) {
+  let eligible = 0;
+  let fired = 0;
+  let star = 0;
+  for (const c of group) {
+    const p = byId.get(c.playerId);
+    if (!p) continue;
+    const elig = hasBadStartingSeason(st, p) && (isBustGap(p) || !!p.secondScene);
+    if (!elig) continue;
+    eligible++;
+    if (!p.secondScene) continue;
+    fired++;
+    if (c.seasons.some((s) => s.star && s.season > p.secondScene!.season)) star++;
+  }
+  return { eligible, fired, star };
+}
+const qbMature = mature.filter((c) => c.pos === "QB");
+const qbScene = secondSceneCounts(qbMature);
+const allScene = secondSceneCounts(mature);
+const pctOrZero = (n: number, d: number) => (d === 0 ? 0 : (n / d) * 100);
+
+bar("SECOND SCENE — Darnold path (report-only, §2.7 = 11.4% later-star)");
+console.log("  group     n  eligible   fired/elig   later star/fired");
+console.log(
+  `  QB    ${pad(qbMature.length, 5)}  ` +
+  `${pad(pct(qbScene.eligible, qbMature.length), 8)}  ` +
+  `${pad(pct(qbScene.fired, qbScene.eligible), 10)}  ` +
+  `${pad(pct(qbScene.star, qbScene.fired), 10)}`
+);
+console.log(
+  `  all   ${pad(mature.length, 5)}  ` +
+  `${pad(pct(allScene.eligible, mature.length), 8)}  ` +
+  `${pad(pct(allScene.fired, allScene.eligible), 10)}  ` +
+  `${pad(pct(allScene.star, allScene.fired), 10)}`
+);
+
 emitAll({
   // Sample-size floors. A harness measuring nothing has to fail loudly rather
   // than report a flattering zero — that is exactly how the leverage probe
@@ -403,4 +444,9 @@ emitAll({
   // League Hall of Fame class size. Report-only; nfl ≈ 5–8
   // (`docs/nfl-reference.md` §4). No baseline in this packet.
   "careers.hofInducteesPerClass": hofInducteesPerClass(st),
+
+  // Second scene — additive, no band. QB rates. §2.7 lock is later-star 11.4%.
+  "careers.secondSceneEligiblePct": pctOrZero(qbScene.eligible, qbMature.length),
+  "careers.secondSceneFiredPct": pctOrZero(qbScene.fired, qbScene.eligible),
+  "careers.secondSceneStarPct": pctOrZero(qbScene.star, qbScene.fired),
 });

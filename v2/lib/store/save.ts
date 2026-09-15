@@ -125,6 +125,9 @@ function migrate(state: GameState): GameState {
   // Backfilling to `pot` preserves those careers exactly as they were.
   for (const p of state.players) {
     if (typeof p.ceiling !== "number") p.ceiling = p.pot;
+    // secondScene missing = never fired. Do not invent a draw on load.
+    // hallOfFame / retiredSeason / starSeasons / eliteSeasons missing =
+    // empty Hall and no accumulated labels (Packet 3).
   }
   for (const t of state.teams) {
     if (typeof t.deadCap !== "number") t.deadCap = 0;
