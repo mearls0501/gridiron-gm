@@ -5,6 +5,7 @@ import { useGame } from "@/lib/store/game";
 import {
   HofReason,
   presentFranchiseHistory,
+  presentLeagueHall,
   reasonLine,
 } from "@/lib/core/hallOfFame";
 import {
@@ -12,10 +13,10 @@ import {
 } from "@/components/ui";
 
 /**
- * Franchise archive: every completed season plus the Hall of Fame.
+ * Franchise archive plus the league Hall of Fame.
  *
- * Reads `state.history` and retiree stat lines. Nothing is written.
- * Eligibility lives in `lib/core/hallOfFame.ts` and is the whole rule.
+ * Reads `state.history`, `state.hallOfFame`, and retiree stat lines.
+ * Induction writes happen in recap; this page does not write.
  */
 
 function L(label: string) {
@@ -38,6 +39,7 @@ export default function HistoryPage() {
 
   const team = state.teams[state.userTeamId];
   const view = presentFranchiseHistory(state);
+  const league = presentLeagueHall(state);
 
   const span =
     view.firstSeason != null && view.lastSeason != null
@@ -67,16 +69,72 @@ export default function HistoryPage() {
 
       <div className="flex items-center gap-3">
         <TeamMark team={team} size={40} />
-        <div className="grid flex-1 gap-2 sm:grid-cols-3">
+        <div className="grid flex-1 gap-2 sm:grid-cols-4">
           <Stat label="Seasons archived" value={view.years.length} />
           <Stat
             label="Championships"
             value={view.championships}
             tone={view.championships > 0 ? "good" : undefined}
           />
-          <Stat label="Hall of Fame" value={view.hallOfFame.length} />
+          <Stat
+            label="League Hall"
+            value={league.inducteeCount}
+            tone={league.inducteeCount > 0 ? "good" : undefined}
+          />
+          <Stat label="Franchise ring" value={view.hallOfFame.length} />
         </div>
       </div>
+
+      <Card
+        title="League Hall of Fame"
+        subtitle="One class a year, five seasons after retirement"
+        padded={false}
+      >
+        {league.empty ? (
+          <Empty
+            title="No one has been inducted yet."
+            hint={league.rule}
+          />
+        ) : (
+          <ul className="divide-y divide-[var(--color-line-soft)]">
+            {league.classes.map((clas) => (
+              <li key={clas.season} className="px-4 py-3">
+                <div className="flex items-baseline justify-between gap-3 mb-2">
+                  <h2 className="text-sm font-semibold">Class of {clas.season}</h2>
+                  <span className="text-[11px] text-[var(--color-faint)] tnum">
+                    {clas.inductees.length} inductee{clas.inductees.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {clas.inductees.map(({ entry, player }) => (
+                    <div key={entry.playerId} className="flex items-center gap-2 min-w-0">
+                      {player ? <PosBadge pos={player.pos} /> : null}
+                      {player ? (
+                        <PlayerLink p={player} className="min-w-0 text-sm" />
+                      ) : (
+                        <span className="text-xs text-[var(--color-faint)]">#{entry.playerId}</span>
+                      )}
+                      <span className="text-[11px] text-[var(--color-muted)] tnum ml-auto shrink-0">
+                        {entry.firstSeason != null && entry.lastSeason != null
+                          ? `${entry.firstSeason}–${entry.lastSeason}`
+                          : "—"}
+                        {entry.championships > 0
+                          ? ` · ${entry.championships} title${entry.championships === 1 ? "" : "s"}`
+                          : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {!league.empty && (
+          <p className="px-4 py-3 text-[11px] text-[var(--color-faint)] border-t border-[var(--color-line-soft)]">
+            {league.rule}
+          </p>
+        )}
+      </Card>
 
       <Card
         title="Seasons"
@@ -187,8 +245,8 @@ export default function HistoryPage() {
       )}
 
       <Card
-        title="Hall of Fame"
-        subtitle="Franchise legends from the threshold below"
+        title="Franchise Hall of Fame"
+        subtitle="Club legends from the threshold below — the ring as computed today"
         padded={false}
       >
         {view.emptyHof ? (

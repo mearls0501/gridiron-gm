@@ -15,6 +15,7 @@ import { refreshCpuStaff } from "../staff";
 import { runPsychology } from "../psychology";
 import { fireCpuHeadCoaches, runCoachCarousel, tickCoachContracts } from "../coaches";
 import { applyUserGmFiring } from "../owner";
+import { runHofInduction, tickHofCareerLabels } from "../hallOfFame";
 
 export * from "./contracts";
 export * from "./draft";
@@ -85,14 +86,20 @@ export function runRecap(state: GameState): OffseasonReport {
   runCoachCarousel(state);
   applyUserGmFiring(state);
 
+  // Labels use this season's OVR, before aging. Zero RNG.
+  tickHofCareerLabels(state);
+
   const report = runProgression(state, rng);
 
   for (const r of report.retirements) {
+    r.player.retiredSeason = state.season;
     state.log.push({
       season: state.season, week: 0, kind: "milestone",
       text: `${r.player.firstName} ${r.player.lastName} (${r.player.pos}, ${r.player.ovr} OVR) retires at ${r.age}.`,
     });
   }
+
+  runHofInduction(state);
 
   state.rngState = rng.state;
   state.phase = "offseason-tag";

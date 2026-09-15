@@ -1,12 +1,18 @@
-import { GameState, Player, SeasonHistory, SeasonStatLine, TeamRecord } from "./types";
+import {
+  GameState, HofEntry as LeagueHofEntry, Player, SeasonHistory, SeasonStatLine, TeamRecord,
+} from "./types";
 import { recordString, winPct } from "./select";
+import {
+  STARTER_GAMES, fullTimeSnapBaseline, positionRanks, snapshot,
+} from "./outcomes";
 
 /**
- * Franchise history + Hall of Fame presenter.
+ * Franchise history presenter + league Hall of Fame induction.
  *
- * Read-only. Does not write `state.history`, awards, or retirements.
- * There is no career-AV: the save has seasons, award ids, league leaders,
- * and championships, and that is the whole rule.
+ * The franchise ring is still derived at render time and does not write
+ * `state.history`, awards, or retirements. The league Hall is a recap
+ * event: one class per year, five seasons after retirement, written onto
+ * `state.hallOfFame`. Selection is a sort — no RNG.
  *
  * A retiree is a franchise legend when they:
  *   1. are retired,
@@ -18,17 +24,38 @@ import { recordString, winPct } from "./select";
  *        - a league-leading season (pass / rush / rec / sacks) with this club
  *        - `LONGEVITY_SEASONS` seasons with this club
  *
+ * League induction also requires the outcomes.ts bar: career star seasons
+ * ≥ 3, or elite seasons ≥ 1, or a championship as a starter
+ * (`gamesStarted >= STARTER_GAMES` on the title club that year).
+ *
  * ROY alone does not qualify. Active players never qualify.
  * Retired numbers are omitted: players do not carry jersey numbers.
  */
 
 export const MIN_FRANCHISE_SEASONS = 4;
 export const LONGEVITY_SEASONS = 8;
+/** Published Pro Football Hall of Fame wait: five seasons after retirement. */
+export const HOF_WAIT_SEASONS = 5;
+/**
+ * Cap on one class. Modern-era player max has been 5; total enshrinement
+ * including seniors / coaches / contributors runs ~5–8
+ * (`docs/nfl-reference.md` §4). We induct players only, at most eight.
+ */
+export const HOF_CLASS_MAX = 8;
+/** outcomes.ts star-year bar for league induction. */
+export const HOF_STAR_BAR = 3;
+/** outcomes.ts elite-year bar for league induction. */
+export const HOF_ELITE_BAR = 1;
 
 export const HOF_RULE =
   "Retired, four seasons with this club, and a major award (MVP / OPOY / DPOY), " +
   "a championship, a league-leading season, or eight seasons here. " +
   "ROY alone does not qualify. No career-value score — those numbers are not on the save.";
+
+export const LEAGUE_HOF_RULE =
+  "Five seasons after retirement. The franchise-legend threshold plus a league bar: " +
+  "three star seasons, one elite season, or a championship as a starter. " +
+  "One class per year, at most eight, selected by a sort.";
 
 export type AwardKey = "mvp" | "opoy" | "dpoy" | "roy";
 export type LeaderKey = "passYds" | "rushYds" | "recYds" | "sacks";
@@ -359,4 +386,232 @@ export function reasonLine(r: HofReason): string {
   if (r.kind === "champion") return `${r.season} Champion`;
   if (r.kind === "award") return `${r.season} ${r.label}`;
   return `${r.season} ${r.label} leader`;
+}
+
+export function lastPlayedSeason(p: Player): number | null {
+  let last: number | null = null;
+  for (const s of p.stats) {
+    if (s.games <= 0) continue;
+    if (last == null || s.season > last) last = s.season;
+  }
+  return last;
+}
+
+export function retiredSeasonOf(p: Player): number | null {
+  if (typeof p.retiredSeason === "number") return p.retiredSeason;
+  return lastPlayedSeason(p);
+}
+
+export function starSeasonsOf(p: Player): number {
+  return p.starSeasons ?? 0;
+}
+
+export function eliteSeasonsOf(p: Player): number {
+  return p.eliteSeasons ?? 0;
+}
+
+export function primaryTeamId(p: Player): number | null {
+  const counts = new Map<number, number>();
+  for (const s of p.stats) {
+    if (s.teamId == null || s.games <= 0) continue;
+    counts.set(s.teamId, (counts.get(s.teamId) ?? 0) + 1);
+  }
+  let best: number | null = null;
+  let n = -1;
+  for (const [id, c] of counts) {
+    if (c > n || (c === n && (best == null || id < best))) {
+      best = id;
+      n = c;
+    }
+  }
+  return best;
+}
+
+export function championshipsAsStarter(state: GameState, p: Player): number {
+  let n = 0;
+  for (const h of state.history) {
+    const line = p.stats.find(
+      (s) => s.season === h.season && s.teamId === h.championId && s.gamesStarted >= STARTER_GAMES,
+    );
+    if (line) n++;
+  }
+  return n;
+}
+
+export function meetsLeagueHofBar(state: GameState, p: Player): boolean {
+  return (
+    starSeasonsOf(p) >= HOF_STAR_BAR ||
+    eliteSeasonsOf(p) >= HOF_ELITE_BAR ||
+    championshipsAsStarter(state, p) >= 1
+  );
+}
+
+export function isWaitComplete(state: GameState, p: Player): boolean {
+  const year = retiredSeasonOf(p);
+  if (year == null) return false;
+  return state.season >= year + HOF_WAIT_SEASONS;
+}
+
+export function isLeagueHofCandidate(state: GameState, p: Player): boolean {
+  if (!p.retired || p.prospect) return false;
+  const teams = new Set<number>();
+  for (const s of p.stats) {
+    if (s.teamId != null && s.games > 0) teams.add(s.teamId);
+  }
+  let franchise = false;
+  for (const teamId of teams) {
+    if (isHofEligible(state, p, teamId)) {
+      franchise = true;
+      break;
+    }
+  }
+  return franchise && meetsLeagueHofBar(state, p);
+}
+
+function bestFranchiseReasonWeight(state: GameState, p: Player): number {
+  let best = 0;
+  const teams = new Set<number>();
+  for (const s of p.stats) {
+    if (s.teamId != null && s.games > 0) teams.add(s.teamId);
+  }
+  for (const teamId of teams) {
+    const w = reasonWeight(hofReasons(state, p, teamId));
+    if (w > best) best = w;
+  }
+  return best;
+}
+
+function leagueHofScore(state: GameState, p: Player): number {
+  return (
+    eliteSeasonsOf(p) * 100 +
+    starSeasonsOf(p) * 10 +
+    championshipsAsStarter(state, p) * 30 +
+    bestFranchiseReasonWeight(state, p)
+  );
+}
+
+export function compareHofCandidates(state: GameState, a: Player, b: Player): number {
+  return (
+    leagueHofScore(state, b) - leagueHofScore(state, a) ||
+    championshipsAsStarter(state, b) - championshipsAsStarter(state, a) ||
+    (b.stats.length - a.stats.length) ||
+    a.lastName.localeCompare(b.lastName) ||
+    a.id - b.id
+  );
+}
+
+/**
+ * Count this season's star / elite labels onto each active player.
+ *
+ * Called from recap BEFORE progression so OVR is still the season just
+ * played — the same moment `scripts/careers.ts` snapshots.
+ */
+export function tickHofCareerLabels(state: GameState): void {
+  const ranks = positionRanks(state, state.season);
+  const baseline = fullTimeSnapBaseline(state, state.season);
+  for (const p of state.players) {
+    if (p.prospect || p.retired) continue;
+    const line = p.stats.find((s) => s.season === state.season);
+    if (!line || line.snaps <= 0) continue;
+    const snap = snapshot(p, state.season, p.draftClassSeason ?? state.season, baseline, ranks);
+    if (snap.star) p.starSeasons = starSeasonsOf(p) + 1;
+    if (snap.elite) p.eliteSeasons = eliteSeasonsOf(p) + 1;
+  }
+}
+
+function toLeagueEntry(state: GameState, p: Player): LeagueHofEntry {
+  const teamId = primaryTeamId(p);
+  const lines = teamId != null
+    ? franchiseSeasonLines(p, teamId)
+    : p.stats.filter((s) => s.games > 0).slice().sort((a, b) => a.season - b.season);
+  const reasons = teamId != null ? hofReasons(state, p, teamId) : [];
+  return {
+    playerId: p.id,
+    inductedSeason: state.season,
+    teamId,
+    seasons: lines.length,
+    firstSeason: lines[0]?.season ?? lastPlayedSeason(p),
+    lastSeason: lines[lines.length - 1]?.season ?? lastPlayedSeason(p),
+    championships: reasons.filter((r) => r.kind === "champion").length,
+  };
+}
+
+export function runHofInduction(state: GameState): LeagueHofEntry[] {
+  const hall = state.hallOfFame ?? (state.hallOfFame = []);
+  if (hall.some((e) => e.inductedSeason === state.season)) return [];
+  const already = new Set(hall.map((e) => e.playerId));
+  const eligible = state.players.filter(
+    (p) => !already.has(p.id) && isWaitComplete(state, p) && isLeagueHofCandidate(state, p),
+  );
+  eligible.sort((a, b) => compareHofCandidates(state, a, b));
+  const clas = eligible.slice(0, HOF_CLASS_MAX);
+  const inducted: LeagueHofEntry[] = [];
+  for (const p of clas) {
+    const entry = toLeagueEntry(state, p);
+    hall.push(entry);
+    inducted.push(entry);
+    state.log.push({
+      season: state.season,
+      week: 0,
+      kind: "milestone",
+      playerId: p.id,
+      text: `${p.firstName} ${p.lastName} (${p.pos}) is inducted into the Hall of Fame.`,
+    });
+  }
+  return inducted;
+}
+
+export function hofInducteesPerClass(state: GameState): number {
+  const hall = state.hallOfFame ?? [];
+  if (hall.length === 0) return 0;
+  const by = new Map<number, number>();
+  for (const e of hall) by.set(e.inductedSeason, (by.get(e.inductedSeason) ?? 0) + 1);
+  const sizes = [...by.values()];
+  return sizes.reduce((a, b) => a + b, 0) / sizes.length;
+}
+
+export interface LeagueHofInducteeView {
+  entry: LeagueHofEntry;
+  player: Player | null;
+}
+
+export interface LeagueHofClassView {
+  season: number;
+  inductees: LeagueHofInducteeView[];
+}
+
+export interface LeagueHallView {
+  classes: LeagueHofClassView[];
+  inducteeCount: number;
+  classCount: number;
+  empty: boolean;
+  rule: string;
+}
+
+export function presentLeagueHall(state: GameState): LeagueHallView {
+  const by = new Map<number, LeagueHofEntry[]>();
+  for (const e of state.hallOfFame ?? []) {
+    const arr = by.get(e.inductedSeason) ?? [];
+    arr.push(e);
+    by.set(e.inductedSeason, arr);
+  }
+  const classes: LeagueHofClassView[] = [...by.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([season, rows]) => ({
+      season,
+      inductees: rows
+        .slice()
+        .sort((a, b) => a.playerId - b.playerId)
+        .map((entry) => ({
+          entry,
+          player: state.players.find((p) => p.id === entry.playerId) ?? null,
+        })),
+    }));
+  return {
+    classes,
+    inducteeCount: (state.hallOfFame ?? []).length,
+    classCount: classes.length,
+    empty: classes.length === 0,
+    rule: LEAGUE_HOF_RULE,
+  };
 }

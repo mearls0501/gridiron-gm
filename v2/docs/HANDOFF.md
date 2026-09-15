@@ -5,6 +5,58 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-15 — Wave 3.9 Packet 3: Hall of Fame as a league event
+
+Worker. Base `main @ a726f02` (#91). Branch `cursor/g-hof-induction`.
+Zero RNG. Forbidden knobs / `baselines.json` / Packet 4 jersey /
+Packet 5 second scene not touched.
+
+**Diagnosis.** The Hall of Fame was a per-franchise ring recomputed
+on every `/history` render (`franchiseHallOfFame`). There was no
+league class, no five-season wait, and nothing written to the save.
+
+**Change.**
+
+- `state.hallOfFame?: HofEntry[]` is additive (player ids, not
+  bodies — invariant 4). Older saves load as an empty league Hall.
+- `Player.retiredSeason` / `starSeasons` / `eliteSeasons` are
+  additive. Recap ticks the outcomes.ts star/elite labels **before**
+  progression (same moment `careers` snapshots), stamps
+  `retiredSeason` on new retirees, then `runHofInduction`.
+- Wait is five seasons after retirement (published HOF rule).
+  Franchise-legend threshold plus a league bar: star seasons ≥ 3,
+  or elite seasons ≥ 1, or a championship as a starter
+  (`STARTER_GAMES`). One class per year, cap 8, selected by a sort.
+- One `milestone` log row per inductee (trim keeps it).
+- `/history` shows the league Hall by class **and** the franchise
+  ring as today.
+- `##M careers.hofInducteesPerClass` from the new test (planted
+  class of 8) and from `scripts/careers.ts` (report-only). Provenance
+  in `docs/nfl-reference.md` §4. **No baseline.**
+
+**Leftover.** Old saves have no accumulated star/elite counts, so
+pre-patch retirees only clear the bar via a championship as a
+starter until new recaps tick the living. Mean class size on a
+24-season `careers` run is unmeasured here — report-only emit is
+wired for the next panel. Jersey retired-numbers stay Packet 4.
+
+**Untouched.** `recordSeasonHistory`, `housekeeping.ts` retention,
+stats, `baselines.json`, `POSITION_VALUE`, `CONTENDER_PULL`,
+`GUARANTEE_PULL`, `CARRY_SHARE`, `cpuProspectView`, Packet 4/5
+files.
+
+**Regression.** `lib/core/hofInduction.test.ts` (gate `hofinduction`)
+— wait +4/+5; class cap 8 with leftover next year; bar (3 stars /
+1 elite / title as starter; longevity-only rejected); milestone
+permanent; clone determinism; `runRecap` hook; `presentLeagueHall`
+by class. Existing `hallOfFame.test.ts` still green.
+
+**Gate.** `npx tsc --noEmit` clean. `hofInduction` + `hallOfFame`
+unit tests green. Fast gate / Vercel next build recorded after the
+pre-testing PR.
+
+---
+
 ## 2026-09-15 — Wave 3.9 Packet 2: LEAD re-lock (Matt SIGNED)
 
 Lead. Base `main @ 048765d` (after #89/#90). Matt SIGNED

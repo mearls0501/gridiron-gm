@@ -26,6 +26,7 @@ import {
   isBust, isHit, isMultiYearStarter, positionRanks, rosteredInYear, snapshot,
   starterSeasons, withDrafterInYear, yearsToFirstStar,
 } from "../lib/core/outcomes";
+import { hofInducteesPerClass } from "../lib/core/hallOfFame";
 
 const SEASONS = Number(process.argv[2] ?? 25);
 const SEED = seedFor(Number(process.argv[3] ?? 12345));
@@ -398,4 +399,8 @@ emitAll({
   // Is the draft informative at all? If this ever inverts, every scouting
   // feature built on top of it is decoration.
   "careers.draftSignal": r1Starts - lateStarts,
+
+  // League Hall of Fame class size. Report-only; nfl ≈ 5–8
+  // (`docs/nfl-reference.md` §4). No baseline in this packet.
+  "careers.hofInducteesPerClass": hofInducteesPerClass(st),
 });
