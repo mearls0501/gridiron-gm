@@ -51,9 +51,28 @@ files.
 permanent; clone determinism; `runRecap` hook; `presentLeagueHall`
 by class. Existing `hallOfFame.test.ts` still green.
 
-**Gate.** `npx tsc --noEmit` clean. `hofInduction` + `hallOfFame`
-unit tests green. Fast gate / Vercel next build recorded after the
-pre-testing PR.
+**Gate** (`npm run gate:serial`, 4 cores, 1305 s). Typecheck /
+hofinduction / halloffame / determinism / verify / sweep / scout
+ok. `npx next build` compiled and typechecked (`/history` in the
+route table). Two inherited single-seed reds — leave them; do not
+edit `baselines.json`:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1105  expected 1208 +/-97
+GATE FAIL  2 problems
+```
+
+`wr10RecYds` 1105 is the Packet 6 stream-shift leftover, not this
+packet. `hofinduction` emitted `##M careers.hofInducteesPerClass 8`.
+
+**Browser.** New Franchise Boston Minutemen seed on `/history`:
+League Hall 0 + Franchise ring 0; empty league card ("No one has
+been inducted yet" + five-season / 3-star / 1-elite / starter-title
+rule); empty franchise ring as today; Seasons empty. Record Book
+and League archive links round-trip without losing either Hall
+card. No console errors. Year-0 is honest — induction needs the
+five-season wait.
 
 ---
 
