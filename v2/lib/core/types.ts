@@ -313,6 +313,23 @@ export interface Player {
    * fired, so saves written before the Darnold path still load.
    */
   secondScene?: { season: number; teamId: number; lift: number };
+
+  /**
+   * Jersey number. Missing = older save; migrate assigns from a child
+   * stream keyed (seed, "jersey", playerId) so the parent RNG does not move.
+   */
+  number?: number;
+}
+
+/** One retired jersey on a club wall. */
+export interface RetiredNumber {
+  number: number;
+  playerId: number;
+  firstName: string;
+  lastName: string;
+  pos: Position;
+  season: number;
+  reason: "hof" | "user";
 }
 
 // ---------------------------------------------------------------------------
@@ -418,6 +435,11 @@ export interface Team {
   gmHiredSeason?: number;
   /** Force rebuild posture through this season (inclusive). */
   forcedRebuildUntil?: number;
+  /**
+   * Retired jersey numbers. Missing = none, so older saves load.
+   * A number on this list is not issued again.
+   */
+  retiredNumbers?: RetiredNumber[];
 }
 
 /**
@@ -1246,6 +1268,11 @@ export interface GameState {
    * `tradesExecuted` is incremented in executeTrade and reset at rollover.
    */
   seasonCounters?: SeasonCounters;
+  /**
+   * Season the user last retired a jersey from /history. Missing = never.
+   * One user retirement per league year.
+   */
+  jerseyRetireSeason?: number;
 }
 
 /**

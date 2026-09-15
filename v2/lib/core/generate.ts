@@ -1,4 +1,5 @@
 import { SCHEMES, evenBudget } from "./staff";
+import { ensureJerseyNumbers, assignJerseyOnJoin } from "./jersey";
 import { Rng, clamp } from "./rng";
 
 /**
@@ -533,6 +534,7 @@ export function createNewGame(opts: NewGameOptions = {}): GameState {
   }
 
   refreshDepthCharts(state, true);
+  ensureJerseyNumbers(state);
 
   state.rngState = rng.state;
   state.log.push({
@@ -552,7 +554,15 @@ export function makeFreeAgent(rng: Rng, state: GameState, pos: Position, ovr: nu
     season: state.season,
   });
   state.players.push(p);
+  assignJerseyOnJoin(state, p);
   return p;
 }
+
+export {
+  assignJerseyOnJoin,
+  ensureJerseyNumbers,
+  maybeRetireNumbersForHallOfFame,
+  retireUserNumber,
+} from "./jersey";
 
 export { ROSTER_LIMIT };

@@ -180,6 +180,7 @@ export default function RosterPage() {
   const head = [
     <SortHead key="name" label="Player" k="name" active={sortKey} dir={sortDir} onSort={toggleSort} />,
     <SortHead key="pos" label="Pos" k="pos" active={sortKey} dir={sortDir} onSort={toggleSort} />,
+    "#",
     <SortHead key="age" label="Age" k="age" active={sortKey} dir={sortDir} onSort={toggleSort} />,
     <SortHead key="ovr" label="OVR" k="ovr" active={sortKey} dir={sortDir} onSort={toggleSort} />,
     <SortHead key="pot" label="POT" k="pot" active={sortKey} dir={sortDir} onSort={toggleSort} />,
@@ -365,6 +366,9 @@ export default function RosterPage() {
                   <Cell>
                     <PosBadge pos={p.pos} />
                   </Cell>
+                  <Cell className="tnum text-[var(--color-muted)]">
+                    {typeof p.number === "number" ? `#${p.number}` : "—"}
+                  </Cell>
                   <Cell>{p.age}</Cell>
                   <Cell>
                     <OvrBadge ovr={p.ovr} size="sm" />
@@ -450,11 +454,14 @@ export default function RosterPage() {
         {irList.length === 0 ? (
           <Empty title="No one on injured reserve" hint="Designate a player out at least 4 games to free a 53-man slot." />
         ) : (
-          <Table head={["Player", "Pos", "OVR", "Injury", "Games", ""]}>
+          <Table head={["Player", "Pos", "#", "OVR", "Injury", "Games", ""]}>
             {irList.map((p) => (
               <Row key={p.id}>
                 <Cell align="left"><PlayerLink p={p} className="font-medium" /></Cell>
                 <Cell><PosBadge pos={p.pos} /></Cell>
+                <Cell className="tnum text-[var(--color-muted)]">
+                  {typeof p.number === "number" ? `#${p.number}` : "—"}
+                </Cell>
                 <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
                 <Cell>
                   {p.injuryWeeks > 0 ? (
@@ -489,11 +496,14 @@ export default function RosterPage() {
         {psList.length === 0 ? (
           <Empty title="Practice squad is empty" hint="Place extras here after cutdown, or during the season, instead of only releasing them." />
         ) : (
-          <Table head={["Player", "Pos", "OVR", "Elevations", ""]}>
+          <Table head={["Player", "Pos", "#", "OVR", "Elevations", ""]}>
             {psList.map((p) => (
               <Row key={p.id}>
                 <Cell align="left"><PlayerLink p={p} className="font-medium" /></Cell>
                 <Cell><PosBadge pos={p.pos} /></Cell>
+                <Cell className="tnum text-[var(--color-muted)]">
+                  {typeof p.number === "number" ? `#${p.number}` : "—"}
+                </Cell>
                 <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
                 <Cell>{p.psElevations ?? 0} / 3</Cell>
                 <Cell>

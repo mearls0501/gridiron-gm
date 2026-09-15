@@ -1,5 +1,6 @@
 import { Rng, clamp } from "../rng";
 import { makeContract, makePlayer } from "../generate";
+import { assignJerseyOnJoin, ensureJerseyNumbers } from "../jersey";
 import { POSITION_VALUE } from "../ratings";
 import {
   CAMP_ROSTER_LIMIT, DraftPick, DraftState, GameState, LEAGUE_MINIMUM, Player, PickOwnership,
@@ -141,6 +142,7 @@ export function generateDraftClass(state: GameState, parent: Rng, season: number
     add(clamp(Math.round(rng.normal(49, 4)), 40, 60), pos);
   }
 
+  ensureJerseyNumbers(state);
   return out;
 }
 
@@ -645,6 +647,7 @@ export function makePick(state: GameState, playerId: number, rng: Rng): boolean 
   p.draftedRound = pick.round;
   p.draftedPick = pick.pick;
   p.contract = rookieContract(state, pick.round, rng, pick.pick);
+  assignJerseyOnJoin(state, p);
   p.scoutedOvrLow = null;
   p.scoutedOvrHigh = null;
   pick.playerId = p.id;
@@ -769,6 +772,7 @@ export function signUdfa(state: GameState, teamId: number, playerId: number, rng
   p.teamId = teamId;
   p.prospect = false;
   p.contract = udfaContract(state, rng);
+  assignJerseyOnJoin(state, p);
   p.scoutedOvrLow = null;
   p.scoutedOvrHigh = null;
   state.log.push({

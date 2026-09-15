@@ -1,5 +1,6 @@
 import { Rng } from "./rng";
 import { createNewGame, NewGameOptions, refreshDepthCharts } from "./generate";
+import { ensureJerseyNumbers } from "./jersey";
 import { reconcileRoster } from "./offseason/contracts";
 import { generateDraftClass, initialScoutingPass } from "./offseason/draft";
 import { ensureScouting } from "./scouting";
@@ -31,6 +32,7 @@ export function newGame(opts: NewGameOptions = {}): GameState {
   state.nextTradeId = 1;
 
   refreshDepthCharts(state, true);
+  ensureJerseyNumbers(state);
   state.rngState = rng.state;
   return state;
 }

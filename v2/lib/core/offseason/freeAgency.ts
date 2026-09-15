@@ -1,5 +1,6 @@
 import { Rng, clamp } from "../rng";
 import { defaultGuaranteedYears, makeContract, signingBonusFor } from "../generate";
+import { assignJerseyOnJoin } from "../jersey";
 import { POSITION_VALUE } from "../ratings";
 import {
   FaBid, FaState, GameState, LEAGUE_MINIMUM, Player, POSITION_TARGET, Position, ROSTER_LIMIT,
@@ -262,6 +263,7 @@ function resolveFaBids(state: GameState, rng: Rng): FaSigning[] {
 
     player.teamId = bid.teamId;
     player.contract = probe;
+    assignJerseyOnJoin(state, player);
     signings.push({ player, teamId: bid.teamId, years: bid.years, apy: bid.apy });
     state.log.push({
       season: state.season, week: state.week, kind: "transaction",
@@ -542,6 +544,7 @@ export function resolveFaWave(state: GameState, rng: Rng, round: number): WaveOu
 
     p.teamId = winner.teamId;
     p.contract = contract;
+    assignJerseyOnJoin(state, p);
     const rec = { player: p, teamId: winner.teamId, years: winner.years, apy: winner.apy };
     if (winner.teamId === state.userTeamId) out.won.push(rec);
     else out.lost.push(rec);

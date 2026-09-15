@@ -499,6 +499,18 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   about three league-wide in-game events a season, over half costing no time —
   rather than tuned toward a figure. The MECHANISM was the gap worth closing;
   the rate is a guess and is labelled one.
+- **Jersey numbering (position-legal ranges).** Added 2026-09-15
+  (Wave 3.9 Packet 4). Not in T/D/S/P. Published NFL Rule 5,
+  Section 1, Article 2 after the 2021 expansion and the 2023
+  addition of 0
+  (https://www.nfl.com/news/nfl-passes-rule-expanding-eligible-jersey-numbers;
+  https://operations.nfl.com/the-rules/rules-changes/nfl-jersey-numbers/):
+  QB 0–19; RB / WR / TE 0–49 and 80–89; OT / OG / C 50–79;
+  EDGE / DT 50–79 and 90–99; LB 0–59 and 90–99; CB / S 0–49;
+  K / P 0–49 and 90–99. Unique per club; retired numbers stay out
+  of circulation. Display state only — assignment draws from a
+  child stream keyed (seed, "jersey", playerId) and must not move
+  the parent RNG. Ungated published rule.
 - **Training-camp roster cap (90).** Added 2026-09-02. Not in T/D/S/P. The
   published NFL training-camp holding limit is 90 before the single cut to 53
   (`docs/front-office-design-2026-07-28.md`). No dataset here enumerates camp
