@@ -284,9 +284,9 @@ guard(injuryLoad > 1500 && injuryLoad < 4000, "injuries cost a realistic amount 
   `${injuryLoad.toFixed(0)} rotation player-weeks lost league-wide per season`);
 
 const growth = mean(all.map((s) => (s[s.length - 1].saveMB - s[0].saveMB) / (SEASONS - 1)));
-// 0.52, matching the panel-locked `drift.saveGrowthMbPerSeason` baseline
-// (Wave 3.7 Packet 2: panel 0.47 + 0.05). The 20 MB quota is unchanged.
-guard(growth < 0.52, "save growth is bounded",
+// 0.61, matching the panel-locked `drift.saveGrowthMbPerSeason` baseline
+// (Wave 3.9 Packet 2: panel 0.56 + 0.05). The 20 MB quota is unchanged.
+guard(growth < 0.61, "save growth is bounded",
   `+${growth.toFixed(2)} MB per season, ending at ${mean(last.map((r) => r.saveMB)).toFixed(1)} MB`);
 
 // A franchise that has to be abandoned because the browser refuses to store it

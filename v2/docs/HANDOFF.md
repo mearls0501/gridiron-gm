@@ -5,6 +5,67 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-15 — Wave 3.9 Packet 2: LEAD re-lock (Matt SIGNED)
+
+Lead. Base `main @ 048765d` (after #89/#90). Matt SIGNED
+2026-09-15: "re-lock saveMb/saveGrowth + moved statcheck from
+panel; leave capBust and tags as findings". `docs/baselines.json`
++ `scripts/drift.ts` growth-threshold comment/P0 as signed.
+Authority is the Packet 1 Mac Studio `gate:full:serial` 5-seed
+panel at `748036a` (#88). Engine not touched. Forbidden knobs /
+PR #9 / capBust / tags / p0Failures / milestonesOff not retuned.
+The Packet 1 "Packet 2 awaits Matt sign" line is closed by this
+packet.
+
+**Diagnosis.** Wave 3.8 Packet 6 (#88) plus people-layer / year-0
+sit leftovers moved save size and five year-0-holdout `statcheck`
+rows off the Wave 3.7 locks. Panel means (Packet 1 table):
+`saveMbAtEnd` **14.89** (14.91/15.04/14.90/14.81/14.81) vs max
+13.1; `saveGrowthMbPerSeason` **0.56** (0.5575) vs max 0.52;
+`qb5PassYds` **4089.8** FAIL vs 4497±360; `leadPassYds` **4730**,
+`qb10PassYds` **3710**, `leadTackles` **165.2**,
+`maxGameRecYds` **249.6** recorded as moved-row findings. Save
+growth is the same S6.9 family as Wave 3.7: PS/IR/waiver/camp-90
+bodies plus Wave 1/2 fields on the encoded save. 20 MB quota
+stays.
+
+**Change.**
+
+- `drift.saveMbAtEnd` max **13.1 → 15.89** (panel 14.89 + 1.0 MB).
+- `drift.saveGrowthMbPerSeason` max **0.52 → 0.61** (panel 0.56 +
+  0.05). Internal growth P0 aligned to 0.61 so the Wave 3.7
+  0.52 / baseline conflict does not recur.
+- `statcheck.qb5PassYds` **4497 → 4089.8** ±360. `nfl` 4497 stays
+  as the S5.1 reference.
+- `statcheck.leadPassYds` **5085.8 → 4730** ±700.
+- `statcheck.qb10PassYds` **4028 → 3710** ±322. `nfl` 4028 stays.
+- `statcheck.leadTackles` **177 → 165.2** ±40.
+- `statcheck.maxGameRecYds` **234.6 → 249.6** ±80.
+- `lockedAt` **2026-07-29 → 2026-09-15**.
+
+**Leftover — findings, not this packet.**
+
+- `drift.capBustSeasons` **0.40** (0/0/2/0/0) remains FAIL vs
+  max 0. Claude diagnosis lane. Do not retune cap rules.
+- `drift.franchiseTagsPerSeason` **16.62** (17.1/16.7/15.8/17.55/
+  15.95) remains above the signed 14±4 band and above real NFL
+  ~10. Leak-or-behaviour report. Never tune tag rules.
+- `drift.p0Failures` **1.40** and `tails.milestonesOff` **21**
+  were not re-locked (KNOWN-HIGH / inherited). Do not move those
+  baselines.
+
+**Untouched.** Engine. `POSITION_VALUE`, `CONTENDER_PULL`,
+`GUARANTEE_PULL`, `CARRY_SHARE`, `cpuProspectView`, PR #9, tag /
+cap / contract rules, `drift.capBustSeasons` (still max 0),
+`drift.franchiseTagsPerSeason` (still 14±4), `drift.p0Failures`,
+`tails.milestonesOff`.
+
+**Gate.** Docs + baseline re-lock only. Fast-tier inherited reds
+may remain (`leverage.wrongSign`, `statcheck.wr10RecYds`). Do not
+chase them here.
+
+---
+
 ## 2026-09-15 — Wave 3.9 Packet 6: IR activation report-only
 
 Worker. Base `main @ d6b7dcf` (#89). **Docs + additive harness only.**
