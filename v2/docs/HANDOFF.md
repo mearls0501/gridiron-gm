@@ -7,9 +7,11 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ## 2026-09-15 — Wave 3.9 Packet 5: the second scene (Darnold path)
 
-Worker. Base `main @ a726f02` (#91). Branch `cursor/g-second-scene`.
-Matt SIGNED dials 1–8 as recommended 2026-09-14. `docs/baselines.json`
-**not edited.** Full `careers 24` + panel is Studio follow-up after merge.
+Worker. Base `main @ 78d3b5b` (#95 HOF). Rebased onto Packet 3; both
+HANDOFF / types / careers / gate / save / nfl-reference kept. Branch
+`cursor/g-second-scene`. Matt SIGNED dials 1–8 as recommended 2026-09-14.
+`docs/baselines.json` **not edited.** Full `careers 24` + panel is Studio
+follow-up after merge. Jersey files not touched.
 
 ### Signed dials
 
