@@ -78,7 +78,7 @@ function run(seasons: number, seed: number): SeasonRow[] {
   let lastClosed: SeasonRow | null = null;
   let weekSamples: number[] = [];
 
-  const openSeason = (season: number) => {
+  const openSeason = (season: number): SeasonRow => {
     designatedThisSeason = new Set();
     leftoverAtOpen = new Set(irPlayers(st).map((p) => p.id));
     weekSamples = [];
@@ -104,6 +104,7 @@ function run(seasons: number, seed: number): SeasonRow[] {
       recapHealthyOnIr: 0,
       maxClubWeekHeadcount: 0,
     };
+    return row;
   };
 
   const noteStep = () => {
@@ -117,7 +118,10 @@ function run(seasons: number, seed: number): SeasonRow[] {
     for (const [id, was] of prevIr) {
       const cur = now.get(id);
       if (cur?.status === "ir") continue;
-      if (cur && cur.status !== "ir" && cur.status !== "ps" && cur.teamId === was.teamId) {
+      // Missing status is active (Player.status?: "ir" | "ps"). After the IR
+      // continue, status is "ps" | undefined — compare only against "ps".
+      const activated = cur !== undefined && cur.status !== "ps" && cur.teamId === was.teamId;
+      if (activated) {
         target.activations++;
         if (was.teamId !== USER) target.cpuActivations++;
         if (designatedThisSeason.has(id)) target.sameSeasonReturns++;
@@ -172,11 +176,11 @@ function run(seasons: number, seed: number): SeasonRow[] {
     row = null;
   };
 
-  openSeason(st.season);
+  row = openSeason(st.season);
   for (let s = 0; s < seasons; s++) {
     let g = 0;
     while (st.phase !== "offseason-recap" && g++ < 50) {
-      if (!row || row.season !== st.season) openSeason(st.season);
+      if (!row || row.season !== st.season) row = openSeason(st.season);
       advance(st);
       noteStep();
     }
@@ -186,7 +190,7 @@ function run(seasons: number, seed: number): SeasonRow[] {
       advanceOffseason(st);
       noteStep();
     }
-    if (!row) openSeason(st.season);
+    if (!row) row = openSeason(st.season);
   }
   return rows;
 }
