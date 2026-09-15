@@ -57,9 +57,18 @@ logic, HOF, jersey assignment, `POSITION_VALUE`, `CONTENDER_PULL`,
 
 ### Gate
 
-Fast gate + `secondScene.test.ts` on this VM. Year-0 cannot qualify, so
-calibrate / statcheck stay byte-identical. Inherited fast-tier reds
-(`leverage.wrongSign`, `statcheck.wr10RecYds`) are not this packet.
+`npm run gate:serial` on this 4-core VM (~20 min). Typecheck, secondscene,
+determinism, verify, calibrate, scout green. Year-0 calibrate is the
+pre-packet number: `passYds` **237.33**, `scoreMismatches` **0**.
+
+Two inherited single-seed reds, not this packet (ORCHESTRATION.md):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1105  expected 1208 +/-97
+```
+
+Full `careers 24` + panel is Studio follow-up after merge.
 
 ---
 
