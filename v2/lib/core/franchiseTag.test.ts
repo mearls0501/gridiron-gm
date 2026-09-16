@@ -384,12 +384,17 @@ function plantPctHit(
 }
 
 // A WR whose tender is 19% of the cap is still tagged.
+// 85 OVR cannot clear surplusExceedsTender at 19% (WR 1.4× vs CAP_TO_VALUE
+// 340); plant a 99 with a WR-leaning board so the price test still passes
+// and only the new ceiling is under test.
 {
   const st = newGame({ seed: 25 });
   const cpuId = cpuClub(st);
   forceContend(st, cpuId);
+  if (st.teams[cpuId].frontOffice) st.teams[cpuId].frontOffice!.posBias = { WR: 1.5 };
   assert.notEqual(teamOutlook(st, cpuId).posture, "rebuild");
-  const wr = plantPctHit(st, cpuId, "WR", 85, 0.19 / 1.2);
+  const wr = plantPctHit(st, cpuId, "WR", 99, 0.19 / 1.2);
+  wr.pot = 99;
   freeClubCap(st, cpuId, wr.id);
   delete st.franchiseTagSnapshot;
   const cap = teamCap(st, cpuId).cap;
