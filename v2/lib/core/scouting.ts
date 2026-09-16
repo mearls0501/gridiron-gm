@@ -408,6 +408,18 @@ export function generateProspectProfile(rng: Rng, p: Player): void {
 
 export const PRIVATE_VISIT_CAP = 30;
 
+/**
+ * Per-prospect method caps. Escalate class — Matt signs.
+ * Count is `intel.methods` for the current class (one season).
+ * `privateWorkout` stays on the 30-visit budget, not a per-man cap.
+ */
+export const METHOD_PER_PROSPECT: Partial<Record<ScoutingMethod, number>> = {
+  film: 2,
+  proDay: 1,
+  interview: 1,
+  medical: 1,
+};
+
 export const METHOD_LABEL: Record<ScoutingMethod, string> = {
   film: "Film Study", proDay: "Pro Day", privateWorkout: "Private Workout",
   medical: "Medical Check", interview: "Interview",
@@ -565,19 +577,58 @@ export function methodAllowed(state: GameState, method: ScoutingMethod): boolean
   return WINDOW_METHODS[s.window].includes(method);
 }
 
-export function canRunScoutingMethod(state: GameState, method: ScoutingMethod): boolean {
+/** Times this method has been run on this prospect this cycle. Read-only. */
+export function methodUses(state: GameState, playerId: number, method: ScoutingMethod): number {
+  const row = state.scouting?.season === state.season ? state.scouting.intel[playerId] : undefined;
+  return row?.methods[method] ?? 0;
+}
+
+/** True when `intel.methods[method]` has hit the proposed per-prospect cap. */
+export function methodAtCap(state: GameState, playerId: number, method: ScoutingMethod): boolean {
+  const cap = METHOD_PER_PROSPECT[method];
+  return cap != null && methodUses(state, playerId, method) >= cap;
+}
+
+/** Copy for a spent per-prospect cap. Pure — safe to call from a render. */
+export function methodCapReason(method: ScoutingMethod): string | null {
+  const cap = METHOD_PER_PROSPECT[method];
+  if (cap == null) return null;
+  if (method === "film") {
+    return `Already studied this prospect (${cap} film studies per prospect in ${WINDOW_LABEL.filmFocus}).`;
+  }
+  if (method === "proDay") {
+    return `Already attended this prospect's pro day (${cap} per prospect in ${WINDOW_LABEL.proDays}).`;
+  }
+  if (method === "interview") {
+    return `Already interviewed this prospect (${cap} per cycle).`;
+  }
+  if (method === "medical") {
+    return "Already on file.";
+  }
+  return `Already used ${METHOD_LABEL[method]} on this prospect (${cap} per cycle).`;
+}
+
+export function canRunScoutingMethod(
+  state: GameState, method: ScoutingMethod, playerId?: number
+): boolean {
   if (!methodAllowed(state, method)) return false;
   if (method === "privateWorkout" && ensureScouting(state).visitsRemaining <= 0) return false;
+  if (playerId != null && methodAtCap(state, playerId, method)) return false;
   return true;
 }
 
-export function scoutingBlockReason(state: GameState, method: ScoutingMethod): string | null {
+export function scoutingBlockReason(
+  state: GameState, method: ScoutingMethod, playerId?: number
+): string | null {
   const s = ensureScouting(state);
   if (!WINDOW_METHODS[s.window].includes(method)) {
     return `${METHOD_LABEL[method]} is not available during ${WINDOW_LABEL[s.window]}. Miss that window and the information does not exist this cycle.`;
   }
   if (method === "privateWorkout" && s.visitsRemaining <= 0) {
     return `No private visits remaining (${PRIVATE_VISIT_CAP} per season).`;
+  }
+  if (playerId != null && methodAtCap(state, playerId, method)) {
+    return methodCapReason(method);
   }
   return null;
 }
@@ -663,14 +714,15 @@ export function setBoardNote(state: GameState, playerId: number, patch: Partial<
 }
 
 /**
- * Run one method on one prospect, gated by the calendar window (and the
- * visit cap for a private workout). The intel writers are unchanged: film
- * and workouts tighten bands, medicals and interviews reveal risk grades.
+ * Run one method on one prospect, gated by the calendar window, the
+ * visit cap for a private workout, and the per-prospect method cap.
+ * The intel writers are unchanged: film and workouts tighten bands,
+ * medicals and interviews reveal risk grades.
  */
 export function runScoutingMethod(
   state: GameState, playerId: number, method: ScoutingMethod, rng: Rng
 ): boolean {
-  if (!canRunScoutingMethod(state, method)) return false;
+  if (!canRunScoutingMethod(state, method, playerId)) return false;
   const p = state.players.find((x) => x.id === playerId);
   if (!p || !p.prospect || !p.profile) return false;
 
