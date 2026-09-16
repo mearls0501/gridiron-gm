@@ -47,6 +47,31 @@ ceiling, `franchiseTagSalary`, `applyFranchiseTag`,
 `MAX_CONTRACT_SHARE`, `POSITION_VALUE`, `CONTENDER_PULL`,
 `GUARANTEE_PULL`, `CARRY_SHARE`, `cpuProspectView`.
 
+**##M proof** vs `main @ 59951b5`. `calibrate` 300 / `statcheck` /
+`careers` 1: every `##M` line byte-identical. New drift emits are
+additive and not in these harnesses.
+
+```
+##M calibrate.scoreMismatches 0
+##M calibrate.passYds 237.32833333333335
+##M statcheck.qb5PassYds 4189
+##M statcheck.leadPassYds 4921
+##M statcheck.wr10RecYds 1105
+##M statcheck.leadTackles 133
+```
+
+**Gate** (`npm run gate:serial`, 4 cores). Typecheck / unit tests /
+determinism / verify / sweep / calibrate / scout green. Two
+inherited single-seed reds, not this packet (ORCHESTRATION.md):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1105  expected 1208 +/-97
+GATE FAIL  2 problems
+```
+
+Vercel preview READY (`dpl_4mqK7XSGTsbKefs4fwLjDDxpyLU1`).
+
 ---
 
 ## 2026-09-16 — Wave 4.0 Packet 2: CPU tag tender ceiling (Matt SIGNED)
