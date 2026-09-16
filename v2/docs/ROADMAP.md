@@ -126,9 +126,11 @@ they did.~~ **CLOSED 2026-09-15 (Wave 3.9 scout-audit).** Write-up:
 solved line is closed** — information ceiling buys +0.1 true points
 per slot over auto-pick (+0.6 in R1–2), inside seed noise; the
 exploit arms have fewer starter-seasons per pick and twice the
-R1–2 bust rate. Packets 7/8/9 (film/pro-day caps, risk-grade teeth,
-+2 probe) are Phase 4 addendum after Packets 3–5 — consequences, not
-tuning; none reopen the line.
+R1–2 bust rate. Packets 7/8 (film/pro-day caps, risk-grade teeth)
+are Phase 4 addendum — consequences, not tuning; none reopen the
+line. ~~+2 probe (was Packet 9)~~ **SHIPPED 2026-09-16 (Wave 4.0
+Packet 6).** Write-up: `v2/docs/plus2-probe-2026-09-16.md`. Report,
+do not tune. Studio 14×3 panel is the leftover lock-grade read.
 
 ### Phase 1 — make the engine visible (after the panel is green)
 
