@@ -31,10 +31,21 @@ vs the CPU spread; (b) winner's curse on CPU clock move-ups.
 
 **Leftover.** Studio 14-season / 3-seed panel (seeds 12345, 1, 2)
 for a lock-grade number. Command in the write-up. Do not retune
-from it. Cloud VM ran a short seed as path-proof only.
+from it.
+
+**Cloud path-proof (3 seasons, seeds 12345 and 1).** Control
+replicates the +2: **+1.61** (Cap Hawk, bpa 0.70) and **+2.35**
+(Secondary First, bpa 0.55). (a) is not a default/neutral FO —
+generate already randomises. Re-roll to need desks (bpa ≈ 0.21)
+took the number to ~0 on both seeds; FO dials can move it, not
+closed. (b) clock vs original **sign-flips** (−0.39 / +1.04);
+seed 1 move-ups are *better* and the user is still +2.35. (b) is
+not the +2. Details in the write-up.
 
 **Untouched.** `cpuBoardValue`, clock-trade pricing, `bpaBias` /
 `risk` dials, staff, `baselines.json`, gate, `nfl-reference.md`.
+
+**Gate.** `npx tsc --noEmit` clean. Not registered. No engine tune.
 
 ---
 
