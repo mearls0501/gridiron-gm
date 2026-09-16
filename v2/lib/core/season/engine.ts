@@ -104,7 +104,7 @@ export function simulateWeek(state: GameState): void {
   // stated duration because nothing decrements them again until next week.
   applyGameWear(state, healthyBefore, rng);
   healWeek(state);
-  rollWeeklyInjuries(state, games, rng);
+  rollWeeklyInjuries(state, games);
   const played = new Set<number>();
   for (const g of games) {
     played.add(g.homeId);
