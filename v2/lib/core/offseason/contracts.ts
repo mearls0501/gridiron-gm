@@ -251,7 +251,8 @@ function featureChildRng(state: GameState, feature: string): Rng {
  * Each CPU club may apply at most one exclusive tag on this window.
  * Priced, not automatic: tender must fit ~90% next-season committed,
  * evaluate() surplus must exceed the tender in trade currency, and
- * rebuild clubs do not tag. User club is skipped.
+ * rebuild clubs do not tag. User club is skipped. CPU tenders above
+ * MAX_CONTRACT_SHARE are skipped (extend or let him walk).
  */
 export function runCpuFranchiseTags(state: GameState, _rng: Rng): void {
   ensureFranchiseTagSnapshot(state);
@@ -269,6 +270,7 @@ export function runCpuFranchiseTags(state: GameState, _rng: Rng): void {
     for (const p of ranked) {
       if (previousConsecutiveTags(state, t.id, p.id) >= 3) continue;
       const tender = franchiseTagSalary(state, p);
+      if (tender > MAX_CONTRACT_SHARE * teamCap(state, t.id).cap) continue;
       if (!tenderFitsHeadroom(state, t.id, tender)) continue;
       if (!surplusExceedsTender(state, t.id, p, tender)) continue;
       if (applyFranchiseTag(state, t.id, p.id, rng).ok) break;
