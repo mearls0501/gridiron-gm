@@ -802,6 +802,13 @@ export interface DraftPick {
   playerId: number | null;
   /** Set on compensatory slots. Missing = regular, so older saves load. */
   compensatory?: boolean;
+  /**
+   * Observational. Set when a CPU club acquired this live slot via
+   * `tryCpuClockTrade` (move-up). Missing = not a clock-trade acquisition.
+   * Never read by the engine — the +2 probe (Wave 4.0 Packet 6) is the
+   * only consumer. Not a tune.
+   */
+  acquiredByClockTrade?: boolean;
 }
 
 /**

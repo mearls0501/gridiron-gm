@@ -1,5 +1,6 @@
 /**
- * Scouting challenge audit — Claude's lane, Wave 3.9. READ-ONLY on the engine.
+ * Scouting challenge audit — Claude's lane, Wave 3.9, plus the Wave 4.0
+ * Packet 6 +2 probe. Not a tune. Not gate-registered.
  *
  * Question: can a user who plays the "solved line" (spend the private-visit
  * cap on the prospects around their own slot, run the cheap deterministic
@@ -7,22 +8,36 @@
  * flat) draft materially better than CPU clubs draft — after the private
  * signal (#7/#21) and veteran beliefs (#24) went in?
  *
- * Three arms, same seed, same league start:
+ * Arms, same seed, same league start:
  *   control  — user club auto-drafts through cpuPick (exactly what every
- *              headless harness does today)
+ *              headless harness does today). User FO is whatever
+ *              `assignFrontOffices` already drew at generate.
+ *   fo       — control, but the user's front office is re-rolled after
+ *              `newGame` via `makeFrontOffice` from a random archetype, on
+ *              a child stream (`plus2-fo`) so the parent RNG does not move.
+ *              Staff stays even (q = 1.000). If the +2 vanishes, it was
+ *              the FO dials.
  *   line     — the solved line as described above
  *   max      — the information ceiling: unlimited in-season film on the top
  *              of the consensus board (nothing caps film clicks), pro days
  *              on the same men, then the solved line on top
  *
- * In every arm the user club is housekept like a CPU club (re-sign, FA bids,
- * spend-to-floor, cutdown, priority UDFAs) so the headless-user confound
- * (`checkParity`) does not leak into snap-share outcomes: a weak roster hands
- * its rookies snaps and calls them hits.
+ * Every arm also measures candidate (b): CPU picks stamped
+ * `acquiredByClockTrade` in `tryCpuClockTrade` vs original-owner picks
+ * (`teamId === originalTeamId` at pick time). Slot value of the clock
+ * group against the original-owner neighbourhood. If it runs negative,
+ * CPU move-ups are paying the winner's curse.
  *
- * Scoring is the `outcomes.ts` taxonomy the careers harness uses.
+ * Slot value is a draft-time number (true ovr + 0.5·room). It does not
+ * need a four-year wait — a short seed still emits it on every drafted
+ * class. Outcome labels still use the mature cutoff.
  *
  *   npx tsx scout-audit.ts <arm> <seasons> <seed>
+ *
+ * Studio (lock-grade, matches the 2026-09-14 audit):
+ *   npx tsx scout-audit.ts control 14 12345
+ *   npx tsx scout-audit.ts fo 14 12345
+ * Cloud VM path-proof: 3 seasons is enough for (b) and a noisy (a).
  */
 import { newGame } from "./lib/core/newGame";
 import { Rng, clamp } from "./lib/core/rng";
@@ -39,9 +54,10 @@ import {
 import {
   advanceScoutingWindow, canAdvanceScoutingWindow, canRunScoutingMethod, consensusScore,
   cpuProspectView, ensureScouting, getIntel, runScoutingMethod, PRIVATE_VISIT_CAP,
+  scoutQuality,
 } from "./lib/core/scouting";
 import { draftOrder } from "./lib/core/season/standings";
-import { REPLACEMENT_OVR } from "./lib/core/frontOffice";
+import { ARCHETYPES, REPLACEMENT_OVR, makeFrontOffice } from "./lib/core/frontOffice";
 import { POSITION_VALUE } from "./lib/core/ratings";
 import { rosterCount } from "./lib/core/select";
 import { settleWaivers } from "./lib/core/waivers";
@@ -52,19 +68,61 @@ import {
   isMultiYearStarter, positionRanks, snapshot, starterSeasons, careerLength,
 } from "./lib/core/outcomes";
 
-type Arm = "control" | "line" | "max";
+type Arm = "control" | "fo" | "line" | "max";
 const ARM = (process.argv[2] ?? "control") as Arm;
 const SEASONS = Number(process.argv[3] ?? 14);
 const SEED = Number(process.argv[4] ?? 12345);
 
+if (!["control", "fo", "line", "max"].includes(ARM)) {
+  console.error(`unknown arm ${ARM} — use control | fo | line | max`);
+  process.exit(2);
+}
+
+/** Child stream for the `fo` arm. Must not touch `state.rngState`. */
+function plus2ChildRng(seed: number, tag: string): Rng {
+  let h = seed >>> 0;
+  h = Math.imul(h ^ 0x706c7332, 0x9e3779b9);
+  for (let i = 0; i < tag.length; i++) h = Math.imul(h ^ tag.charCodeAt(i), 0xc2b2ae35);
+  return new Rng((h >>> 0) || 0x9e3779b9);
+}
+
 const st = newGame({ seed: SEED });
 const USER = st.userTeamId;
+
+const foBefore = st.teams[USER].frontOffice;
+if (ARM === "fo") {
+  const rng = plus2ChildRng(SEED, "plus2-fo");
+  st.teams[USER].frontOffice = makeFrontOffice(rng, rng.pick(ARCHETYPES));
+}
+const foAfter = st.teams[USER].frontOffice;
 const startSeason = st.season;
 const careers = new Map<number, Career>();
 const tally = {
   visits: 0, film: 0, proDay: 0, medical: 0, interview: 0,
   tradeDowns: 0, offersSeen: 0, userPicks: 0, firings: 0, udfa: 0,
+  clockTrades: 0, clockAcquired: 0, originalOwner: 0, otherTraded: 0,
 };
+
+/** How this man was sitting on the board when his name was called. */
+type PickOrigin = "clock" | "original" | "other";
+const pickOrigin = new Map<number, PickOrigin>();
+
+function snapshotDraftOrigins(state: GameState): void {
+  const d = state.draft;
+  if (!d) return;
+  tally.clockTrades += d.clockTrades ?? 0;
+  for (const pk of d.picks) {
+    if (pk.playerId == null) continue;
+    let origin: PickOrigin;
+    if (pk.acquiredByClockTrade) origin = "clock";
+    else if (pk.teamId === pk.originalTeamId) origin = "original";
+    else origin = "other";
+    pickOrigin.set(pk.playerId, origin);
+    if (origin === "clock") tally.clockAcquired++;
+    else if (origin === "original") tally.originalOwner++;
+    else tally.otherTraded++;
+  }
+}
 
 const log = (s: string) => console.log(s);
 
@@ -149,7 +207,7 @@ function inSeasonScouting(state: GameState): void {
 
 /** All-star window (recap / tag phases): interviews. */
 function allStarScouting(state: GameState): void {
-  if (ARM === "control") return;
+  if (ARM === "control" || ARM === "fo") return;
   ensureScouting(state);
   for (const p of classPool(state).slice(0, 140)) runMethod(state, p, "interview");
 }
@@ -163,7 +221,7 @@ function projectedSlots(state: GameState): number[] {
 
 /** Combine → pro days → private visits, in the FA phase. */
 function preDraftScouting(state: GameState): void {
-  if (ARM === "control") return;
+  if (ARM === "control" || ARM === "fo") return;
   ensureScouting(state);
   const pool = classPool(state);
   // combine: medical on everyone worth a pick
@@ -295,8 +353,9 @@ function offseasonStep(state: GameState): void {
     case "offseason-draft": {
       settleWaivers(state);
       pruneStaleTradeInbox(state);
-      if (ARM === "control") withRng(state, (rng) => runFullDraft(state, rng));
+      if (ARM === "control" || ARM === "fo") withRng(state, (rng) => runFullDraft(state, rng));
       else userDraft(state);
+      snapshotDraftOrigins(state);
       userUdfa(state);
       withRng(state, (rng) => enterCampAfterDraft(state, rng));
       return;
@@ -368,16 +427,23 @@ for (let s = 0; s < SEASONS; s++) {
   let o = 0;
   while (isOffseason(st.phase) && o++ < 40) offseasonStep(st);
   enrol(st, season);
-  console.error(`  [${ARM} ${SEED}] season ${season} (${s + 1}/${SEASONS}) careers=${careers.size} wins=${w} visits=${tally.visits} td=${tally.tradeDowns} ${rec.abbr}`);
+  console.error(`  [${ARM} ${SEED}] season ${season} (${s + 1}/${SEASONS}) careers=${careers.size} wins=${w} visits=${tally.visits} td=${tally.tradeDowns} clock=${tally.clockAcquired} ${rec.abbr}`);
 }
 
 const CUTOFF = st.season - ROOKIE_DEAL_YEARS - 1;
-const mature = [...careers.values()].filter((c) => c.round !== null && c.draftSeason <= CUTOFF);
+const drafted = [...careers.values()].filter((c) => c.round !== null);
+const mature = drafted.filter((c) => c.draftSeason <= CUTOFF);
 const user = mature.filter((c) => c.draftTeamId === USER);
 const cpu = mature.filter((c) => c.draftTeamId !== USER);
+const draftedUser = drafted.filter((c) => c.draftTeamId === USER);
+const draftedCpu = drafted.filter((c) => c.draftTeamId !== USER);
+const clockCpu = draftedCpu.filter((c) => pickOrigin.get(c.playerId) === "clock");
+const originalCpu = draftedCpu.filter((c) => pickOrigin.get(c.playerId) === "original");
+const otherCpu = draftedCpu.filter((c) => pickOrigin.get(c.playerId) === "other");
 
 const pct = (n: number, d: number) => (d ? (100 * n) / d : 0);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+const trueVal = (c: Career) => c.trueOvrAtDraft + 0.5 * (c.truePotAtDraft - c.trueOvrAtDraft);
 
 function summarise(g: Career[]) {
   return {
@@ -396,15 +462,16 @@ function summarise(g: Career[]) {
 }
 
 /** True OVR at draft relative to the league mean at the same pick band (±8 picks). */
-function slotValue(g: Career[], all: Career[]): number {
+function slotValue(g: Career[], peers: Career[]): { n: number; value: number } {
   const vals: number[] = [];
   for (const c of g) {
-    const peers = all.filter((x) => x.pick !== null && c.pick !== null && Math.abs(x.pick - c.pick) <= 8 && x.draftTeamId !== USER);
-    if (peers.length < 5) continue;
-    vals.push(c.trueOvrAtDraft + 0.5 * (c.truePotAtDraft - c.trueOvrAtDraft)
-      - avg(peers.map((x) => x.trueOvrAtDraft + 0.5 * (x.truePotAtDraft - x.trueOvrAtDraft))));
+    const neighbourhood = peers.filter((x) =>
+      x.playerId !== c.playerId && x.pick !== null && c.pick !== null && Math.abs(x.pick - c.pick) <= 8
+    );
+    if (neighbourhood.length < 5) continue;
+    vals.push(trueVal(c) - avg(neighbourhood.map(trueVal)));
   }
-  return avg(vals);
+  return { n: vals.length, value: avg(vals) };
 }
 
 const bands: [string, (c: Career) => boolean][] = [
@@ -414,12 +481,48 @@ const bands: [string, (c: Career) => boolean][] = [
   ["r5-7", (c) => (c.round ?? 9) >= 5],
 ];
 
+function foSnap(fo: typeof foAfter) {
+  if (!fo) return null;
+  return { name: fo.name, risk: +fo.risk.toFixed(3), bpaBias: +fo.bpaBias.toFixed(3), winNow: +fo.winNow.toFixed(3) };
+}
+
 const out = {
   arm: ARM, seed: SEED, seasons: SEASONS, userTeam: st.teams[USER].abbr,
   cutoffSeason: CUTOFF, tally, userWins,
+  userFrontOffice: {
+    before: foSnap(foBefore),
+    after: foSnap(foAfter),
+    scoutQuality: +scoutQuality(st, USER).toFixed(3),
+  },
+  /**
+   * Draft-time slot value on every drafted class (no mature cutoff).
+   * This is the +2 probe number. Peers for the user are CPU picks;
+   * peers for a clock move-up are original-owner CPU picks.
+   */
+  plus2: {
+    userVsCpu: slotValue(draftedUser, draftedCpu),
+    cpuVsCpu: slotValue(draftedCpu, draftedCpu),
+    clockVsOriginal: slotValue(clockCpu, originalCpu),
+    originalVsOriginal: slotValue(originalCpu, originalCpu),
+    otherVsOriginal: slotValue(otherCpu, originalCpu),
+    n: { user: draftedUser.length, cpu: draftedCpu.length, clock: clockCpu.length, original: originalCpu.length, other: otherCpu.length },
+    trueValue: {
+      user: avg(draftedUser.map(trueVal)),
+      cpu: avg(draftedCpu.map(trueVal)),
+      clock: avg(clockCpu.map(trueVal)),
+      original: avg(originalCpu.map(trueVal)),
+      other: avg(otherCpu.map(trueVal)),
+    },
+    bands: Object.fromEntries(bands.map(([k, f]) => [k, {
+      userVsCpu: slotValue(draftedUser.filter(f), draftedCpu.filter(f)),
+      clockVsOriginal: slotValue(clockCpu.filter(f), originalCpu.filter(f)),
+      n: { user: draftedUser.filter(f).length, clock: clockCpu.filter(f).length, original: originalCpu.filter(f).length },
+    }])),
+  },
   bands: Object.fromEntries(bands.map(([k, f]) => [k, {
     user: summarise(user.filter(f)), cpu: summarise(cpu.filter(f)),
-    userSlotValue: slotValue(user.filter(f), mature), cpuSlotValue: slotValue(cpu.filter(f), mature),
+    userSlotValue: slotValue(user.filter(f), mature.filter((c) => c.draftTeamId !== USER)).value,
+    cpuSlotValue: slotValue(cpu.filter(f), mature.filter((c) => c.draftTeamId !== USER)).value,
   }])),
   userPicksByRound: [1, 2, 3, 4, 5, 6, 7].map((r) => user.filter((c) => c.round === r).length),
 };

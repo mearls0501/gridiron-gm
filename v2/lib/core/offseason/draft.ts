@@ -1050,6 +1050,10 @@ export function tryCpuClockTrade(state: GameState, rng: Rng): boolean {
     if (!executeTrade(state, offer).ok) continue;
     d.clockTrades = (d.clockTrades ?? 0) + 1;
     syncPicksToOwners(state);
+    // Observational stamp for the +2 probe: the on-clock slot the buyer
+    // just acquired. Not read by cpuPick / valuation. Missing on older
+    // saves and on every other trade path (pre-draft, user accept).
+    if (d.picks[slotIdx]) d.picks[slotIdx].acquiredByClockTrade = true;
     return true;
   }
   return false;

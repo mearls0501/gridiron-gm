@@ -5,6 +5,39 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-16 — Wave 4.0 Packet 6: the +2 probe (report-only)
+
+Worker. Was Wave 3.9 Packet 9. Base `main @ 6e3b7bf` (#98). **Report,
+do not tune.** Write-up: `v2/docs/plus2-probe-2026-09-16.md`.
+Harness: `v2/scout-audit.ts` arms `control` / `fo` (not registered).
+
+**Diagnosis.** The 2026-09-14 scouting audit found auto-pick for the
+user club at ~+2 true points per slot above CPU neighbours in every
+arm, including `control` (CPU's own `cpuPick`). Not scouting
+(q = 1.000). Two candidates: (a) the user's FO `risk`/`bpaBias`
+vs the CPU spread; (b) winner's curse on CPU clock move-ups.
+
+**Change.**
+
+- `fo` arm: after `newGame`, re-roll the user's FO via
+  `makeFrontOffice` from a random archetype on a child stream
+  (`plus2-fo`). Staff stays even. Generate already assigns the
+  user a random FO — the write-up records that; the arm is the
+  specified experiment anyway.
+- Additive `DraftPick.acquiredByClockTrade?`, set in
+  `tryCpuClockTrade` after `executeTrade`. Observational; never
+  read by the engine. Harness snapshots clock vs original-owner
+  vs other-traded after each draft and emits `plus2.clockVsOriginal`.
+
+**Leftover.** Studio 14-season / 3-seed panel (seeds 12345, 1, 2)
+for a lock-grade number. Command in the write-up. Do not retune
+from it. Cloud VM ran a short seed as path-proof only.
+
+**Untouched.** `cpuBoardValue`, clock-trade pricing, `bpaBias` /
+`risk` dials, staff, `baselines.json`, gate, `nfl-reference.md`.
+
+---
+
 ## 2026-09-16 — Wave 4.0 Packet 3: people-layer counters
 
 Worker. Base `main @ 59951b5` (#97 CPU tag ceiling). Branch
@@ -537,8 +570,9 @@ record: **the solved line is closed** — information ceiling buys +0.1
 true points per slot over auto-pick (+0.6 in R1–2), inside seed noise;
 the exploit arms have fewer starter-seasons per pick and twice the
 R1–2 bust rate. Retire ROADMAP line "re-run the scouting challenge
-audit". Packets 7/8/9 (film/pro-day caps, risk-grade teeth, +2 probe)
-are Phase 4 addendum after Packets 3–5 — consequences, not tuning;
+audit". Packets 7/8 (film/pro-day caps, risk-grade teeth) remain
+Phase 4 addendum. The +2 probe (was Packet 9) is Wave 4.0 Packet 6
+— `v2/docs/plus2-probe-2026-09-16.md`. Consequences, not tuning;
 none reopen the line.
 
 ---
