@@ -56,6 +56,8 @@ export function sitHoldouts(state: GameState, teamId: number): void {
     if (isSat(team, p.id)) continue;
     if (!team.inactives) team.inactives = [];
     team.inactives.push(p.id);
+    if (!state.seasonCounters) state.seasonCounters = {};
+    state.seasonCounters.holdoutGamesMissed = (state.seasonCounters.holdoutGamesMissed ?? 0) + 1;
   }
 }
 

@@ -21,6 +21,7 @@ import {
   resolveDemand,
   runPsychology,
 } from "./psychology";
+import { rolloverTradeCounter } from "./trades";
 import { GameState, Player } from "./types";
 
 function ok(label: string) { console.log("ok   ", label); }
@@ -130,9 +131,9 @@ function stripPsych(st: GameState): GameState {
   const holdMean = mean(rows.map((r) => r.holdouts));
   const tradeMean = mean(rows.map((r) => r.tradeRequests));
   const cyMean = mean(rows.map((r) => r.contractYear));
-  console.log(`##M psychology.holdoutsMean ${holdMean.toFixed(2)}`);
-  console.log(`##M psychology.tradeRequestsMean ${tradeMean.toFixed(2)}`);
-  console.log(`##M psychology.contractYearMean ${cyMean.toFixed(2)}`);
+  console.log(`##M psychology.fixture.holdoutsMean ${holdMean.toFixed(2)}`);
+  console.log(`##M psychology.fixture.tradeRequestsMean ${tradeMean.toFixed(2)}`);
+  console.log(`##M psychology.fixture.contractYearMean ${cyMean.toFixed(2)}`);
   assert.ok(holdMean >= 1 && holdMean <= 14, `holdout mean ${holdMean} outside 1–14`);
   assert.ok(tradeMean >= 0 && tradeMean <= 16, `trade-request mean ${tradeMean} outside 0–16`);
   assert.ok(cyMean >= 200 && cyMean <= 900, `contract-year mean ${cyMean} is not a league`);
@@ -201,6 +202,24 @@ function stripPsych(st: GameState): GameState {
   runPsychology(st);
   assert.equal(st.rngState, parent, "camp hook does not draw the parent stream");
   ok("offseason-final camp hook evaluates week 0 of the new season");
+}
+
+{
+  const st = newGame({ seed: 19 });
+  assert.equal(st.seasonCounters?.holdouts ?? 0, 0);
+  assert.equal(st.seasonCounters?.tradeRequests ?? 0, 0);
+  const user = st.players.find((p) => p.teamId === st.userTeamId && !p.prospect && p.ovr >= 70)!;
+  const other = st.players.find((p) => p.teamId === st.userTeamId && p.id !== user.id && !p.prospect)!;
+  plantDemand(st, user.id, "holdout", "money");
+  plantDemand(st, other.id, "tradeRequest", "role");
+  assert.equal(st.seasonCounters?.holdouts, 1, "holdout declaration increments the counter");
+  assert.equal(st.seasonCounters?.tradeRequests, 1, "trade-request declaration increments the counter");
+  rolloverTradeCounter(st);
+  assert.equal(st.seasonCounters?.holdouts, 0, "rollover resets holdouts");
+  assert.equal(st.seasonCounters?.holdoutsLast, 1, "closed year lives on holdoutsLast");
+  assert.equal(st.seasonCounters?.tradeRequests, 0, "rollover resets tradeRequests");
+  assert.equal(st.seasonCounters?.tradeRequestsLast, 1, "closed year lives on tradeRequestsLast");
+  ok("seasonCounters holdouts / tradeRequests increment at declaration and roll ...Last");
 }
 
 console.log("ok    psychology people layer");

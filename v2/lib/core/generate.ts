@@ -482,7 +482,18 @@ export function createNewGame(opts: NewGameOptions = {}): GameState {
     history: [],
     records: blankRecordBook(),
     log: [],
-    seasonCounters: { tradesExecuted: 0, tradesExecutedLast: 0 },
+    seasonCounters: {
+      tradesExecuted: 0,
+      tradesExecutedLast: 0,
+      hcFires: 0,
+      hcFiresLast: 0,
+      holdouts: 0,
+      holdoutsLast: 0,
+      tradeRequests: 0,
+      tradeRequestsLast: 0,
+      holdoutGamesMissed: 0,
+      holdoutGamesMissedLast: 0,
+    },
   };
 
   const offices = assignFrontOffices(rng, FRANCHISES.length);

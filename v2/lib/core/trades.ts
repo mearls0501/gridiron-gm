@@ -492,11 +492,20 @@ export function executeTrade(state: GameState, offer: TradeOffer): TradeCheck {
   return { ok: true };
 }
 
-/** Close the league-year trade counter. Called at rollover after cutdown. */
+/** Close the league-year mechanical counters. Called at rollover after cutdown. */
 export function rolloverTradeCounter(state: GameState): void {
   if (!state.seasonCounters) state.seasonCounters = {};
-  state.seasonCounters.tradesExecutedLast = state.seasonCounters.tradesExecuted ?? 0;
-  state.seasonCounters.tradesExecuted = 0;
+  const c = state.seasonCounters;
+  c.tradesExecutedLast = c.tradesExecuted ?? 0;
+  c.tradesExecuted = 0;
+  c.hcFiresLast = c.hcFires ?? 0;
+  c.hcFires = 0;
+  c.holdoutsLast = c.holdouts ?? 0;
+  c.holdouts = 0;
+  c.tradeRequestsLast = c.tradeRequests ?? 0;
+  c.tradeRequests = 0;
+  c.holdoutGamesMissedLast = c.holdoutGamesMissed ?? 0;
+  c.holdoutGamesMissed = 0;
 }
 
 // ---------------------------------------------------------------------------
