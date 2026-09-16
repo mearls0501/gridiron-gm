@@ -12,10 +12,11 @@ import { newGame } from "./newGame";
 import { makeContract } from "./generate";
 import { Rng } from "./rng";
 import { capHit, freeAgents, isActiveRoster, rosterCount, teamCap } from "./select";
-import { LEAGUE_MINIMUM, Player, ROSTER_LIMIT } from "./types";
+import { LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player, ROSTER_LIMIT } from "./types";
 import {
-  applyFranchiseTag, clubFranchiseTaggedPlayer, clubHasFranchiseTag, expireContracts,
-  expiringPlayers, franchiseTagSalary, isFranchiseTagged, runCpuFranchiseTags,
+  applyFranchiseTag, clubFranchiseTaggedPlayer, clubHasFranchiseTag, cpuResign,
+  expireContracts, expiringPlayers, franchiseTagSalary, isFranchiseTagged,
+  runCpuFranchiseTags,
 } from "./offseason/contracts";
 import { teamOutlook } from "./frontOffice";
 import { advanceOffseason, faPool } from "./offseason";
@@ -301,4 +302,106 @@ function ok(label: string) { console.log("ok   ", label); }
   const after = franchiseTagSalary(st, theirs);
   assert.equal(after, before, "same-window tag must not raise another club's tender");
   ok("snapshot: same-window tag does not move another tender");
+}
+
+function cpuClub(st: ReturnType<typeof newGame>): number {
+  return st.teams.find((t) => t.id !== st.userTeamId)!.id;
+}
+
+function forceContend(st: ReturnType<typeof newGame>, teamId: number): void {
+  if (st.teams[teamId].frontOffice) st.teams[teamId].frontOffice!.winNow = 1;
+  delete st.teams[teamId].forcedRebuildUntil;
+}
+
+function freeClubCap(st: ReturnType<typeof newGame>, teamId: number, keepId: number): void {
+  st.teams[teamId].deadCap = 0;
+  st.teams[teamId].capCarryover = 0;
+  for (const x of clubActive(st, teamId)) {
+    if (x.id === keepId || !x.contract) continue;
+    x.contract.baseSalary = x.contract.baseSalary.map(() => LEAGUE_MINIMUM);
+    x.contract.signingBonus = 0;
+    x.contract.yearsRemaining = Math.max(2, x.contract.yearsRemaining);
+  }
+}
+
+function plantPctHit(
+  st: ReturnType<typeof newGame>,
+  teamId: number,
+  pos: Player["pos"],
+  ovr: number,
+  hitShare: number,
+): Player {
+  const p = clubActive(st, teamId).find((x) => x.pos === pos && x.contract)
+    ?? st.players.find((x) => x.pos === pos && !x.retired && !x.prospect && x.contract);
+  assert.ok(p, `need a ${pos}`);
+  p.teamId = teamId;
+  p.pos = pos;
+  p.ovr = ovr;
+  p.age = 26;
+  p.retired = false;
+  p.prospect = false;
+  p.yearsPro = 8;
+  p.draftedRound = null;
+  const cap = teamCap(st, teamId).cap;
+  p.contract = makeContract(new Rng(1), Math.round(cap * hitShare), 1, st.season, 0);
+  p.contract.yearsRemaining = 1;
+  if (st.teams[teamId].frontOffice) st.teams[teamId].frontOffice!.loyalty = 1;
+  return p;
+}
+
+// CPU does not tag an 85-OVR QB whose 21% hit prices a tender over the
+// market ceiling; cpuResign extends him at ≤ MAX_CONTRACT_SHARE.
+{
+  const st = newGame({ seed: 24 });
+  const cpuId = cpuClub(st);
+  forceContend(st, cpuId);
+  assert.notEqual(teamOutlook(st, cpuId).posture, "rebuild");
+  const qb = plantPctHit(st, cpuId, "QB", 85, 0.21);
+  freeClubCap(st, cpuId, qb.id);
+  delete st.franchiseTagSnapshot;
+  const cap = teamCap(st, cpuId).cap;
+  const tender = franchiseTagSalary(st, qb);
+  assert.ok(tender > MAX_CONTRACT_SHARE * cap, `QB tender ${tender} should clear the ceiling`);
+  const rng = new Rng(st.rngState);
+  runCpuFranchiseTags(st, rng);
+  assert.equal(
+    (st.franchiseTags ?? []).some((t) => t.playerId === qb.id),
+    false,
+    "CPU must not tag a 21% QB over the market ceiling",
+  );
+  expireContracts(st);
+  assert.equal(qb.teamId, null);
+  let kept: Player[] = [];
+  for (let s = 1; s <= 40 && !kept.some((x) => x.id === qb.id); s++) {
+    kept = cpuResign(st, cpuId, [qb], new Rng(s));
+  }
+  assert.ok(qb.teamId === cpuId && qb.contract, "cpuResign extends the skipped-tag QB");
+  assert.ok(
+    capHit(qb.contract) <= Math.round(teamCap(st, cpuId).cap * MAX_CONTRACT_SHARE),
+    `extend hit ${capHit(qb.contract)} exceeds ${MAX_CONTRACT_SHARE} of the cap`,
+  );
+  ok("CPU skips 21% QB tag; cpuResign extends at ≤22%");
+}
+
+// A WR whose tender is 19% of the cap is still tagged.
+{
+  const st = newGame({ seed: 25 });
+  const cpuId = cpuClub(st);
+  forceContend(st, cpuId);
+  assert.notEqual(teamOutlook(st, cpuId).posture, "rebuild");
+  const wr = plantPctHit(st, cpuId, "WR", 85, 0.19 / 1.2);
+  freeClubCap(st, cpuId, wr.id);
+  delete st.franchiseTagSnapshot;
+  const cap = teamCap(st, cpuId).cap;
+  const tender = franchiseTagSalary(st, wr);
+  assert.ok(tender <= MAX_CONTRACT_SHARE * cap, `WR tender ${tender} must sit under the ceiling`);
+  assert.ok(tender / cap >= 0.18 && tender / cap <= 0.22, `WR tender ${(tender / cap * 100).toFixed(1)}% want ≈19`);
+  const rng = new Rng(st.rngState);
+  runCpuFranchiseTags(st, rng);
+  assert.equal(
+    (st.franchiseTags ?? []).some((t) => t.playerId === wr.id && t.teamId === cpuId),
+    true,
+    "CPU still tags a 19% WR",
+  );
+  ok("CPU still tags a 19% WR");
 }
