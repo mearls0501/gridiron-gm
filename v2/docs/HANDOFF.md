@@ -5,6 +5,78 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## Wave 4.0 Packet 1 — panel @ 625fd06 (2026-09-15/16 Studio)
+
+Docs-only. Mac Studio 5-seed panel on `main @ 625fd06` (#93, includes
+Packets 3–5). GATE FAIL 8. `docs/baselines.json` **not edited**.
+Engine not touched. This table is the first post-Phase-4 read.
+
+### Panel means (5-seed)
+
+| metric | panel mean | verdict |
+|---|---:|---|
+| `careers.secondSceneEligiblePct` | **2.64** | first read; no band |
+| `careers.secondSceneFiredPct` | **8.47** | first read; no band |
+| `careers.secondSceneStarPct` | **0.0** | first read; `nfl-reference.md` §2.7 ref **11.4%** — report only, no band |
+| `careers.r1BustPct` | **8.39** | vs 748036a panel 7.71 (**+0.68**). K-table guard OK (did not fall >1 pt); no K retune |
+| `careers.survivalMae` | **6.66** | vs 6.81 — within 1 pt |
+| `careers.careerLenMae` | **0.77** | vs 0.77 — within 1 pt |
+| `careers.hofInducteesPerClass` | **7.32** | careers harness seeds 7.31 / 7.67 / 7.25 / 6.69 / 7.67. Ignore the 8.00 fixture emits from `hofInduction.test.ts`. nfl ≈5–8, report-only |
+| `drift.capBustSeasons` | **3.40** | was 0.40 at 748036a. **MOVED** despite Phase 4 not owning tag/cap paths. Finding for Packet 2 |
+| `drift.franchiseTagsPerSeason` | **17.27** | was 16.62. **INSIDE** signed band 14±4 (ceiling 18); above real ~10. Band unchanged |
+| `drift.topCapPctMean` | **23.31** | was 22.14 |
+| `drift.deadMoneyPct` | **2.46** | record |
+| `drift.irCapPctMean` | **6.54** | in ~5–7 |
+| `drift.ovrDrift` | **−1.84** | inside −1.70±1.5 |
+| `drift.tradesPerSeason` | **79.05** | record |
+| `drift.saveMbAtEnd` | **12.42** | inside #91 lock 15.89 |
+| `drift.saveGrowthMbPerSeason` | **0.48** | inside #91 lock 0.61 |
+| `statcheck.qb5PassYds` | **4079** | inside #91 |
+| `statcheck.leadPassYds` | **4675** | inside #91 |
+| `statcheck.qb10PassYds` | **3737** | inside #91 |
+| `statcheck.leadTackles` | **164** | inside #91 |
+| `statcheck.maxGameRecYds` | **256** | inside #91 |
+| `calibrate.scoreMismatches` | **0** | locked |
+| `calibrate.passYds` | **~238** | record |
+
+### FAIL lines (GATE FAIL 8)
+
+```
+FAIL  drift.p0Failures  1.80
+FAIL  conditions.problems  0.20
+FAIL  drift.capBustSeasons  3.40
+FAIL  tails.milestonesOff  22.60
+FAIL  staff.problems  0.20
+```
+
+**NOISE.** `statcheck.wr10RecYds` tolerance is tighter than the panel
+standard error. Do not chase a single-seed or panel wr10 miss as an
+engine defect.
+
+### Measurement — do not misread fixture emits as a people panel
+
+`psychology.holdoutsMean`, `psychology.tradeRequestsMean`, and
+`psychology.contractYearMean` are **fixture emits from
+`psychology.test.ts`**, identical across panel seeds — they are not
+panel numbers. `peoplecheck` emitted **0 metrics**. Do not call this
+"the first people panel with teeth." Packet 3 (`seasonCounters`) will
+fix measurement.
+
+### Packet 2 leftover (correction)
+
+Wave 3.9 Packet 2 leftover said `franchiseTagsPerSeason` **16.62**
+"remains above the signed 14±4 band." That sentence is wrong: 16.62
+is **inside** 14±4 (ceiling 18). It remains above real NFL ~10.
+This panel's **17.27** is also inside the band. **Do not touch the
+band.** Leak-or-behaviour / sourced-rule report; never tune tag
+rules toward 14.
+
+`capBustSeasons` 3.40 is the Packet 2 finding (see the 2026-09-15
+cap-bust / tag diagnosis). Phase 4 did not own those paths and they
+moved anyway.
+
+---
+
 ## 2026-09-15 — Wave 3.9 Packet 5: the second scene (Darnold path)
 
 Worker. Base `main @ 78d3b5b` (#95 HOF). Rebased onto Packet 3; both
@@ -210,6 +282,10 @@ stays.
 - `drift.franchiseTagsPerSeason` **16.62** (17.1/16.7/15.8/17.55/
   15.95) remains above the signed 14±4 band and above real NFL
   ~10. Leak-or-behaviour report. Never tune tag rules.
+  **Correction (Wave 4.0 Packet 1, 2026-09-16).** 16.62 does **not**
+  sit above 14±4 — the signed ceiling is 18, so 16.62 is inside the
+  band. It remains above real ~10. The band is unchanged. Never tune
+  tag rules. See the Wave 4.0 Packet 1 panel (17.27, also inside).
 - `drift.p0Failures` **1.40** and `tails.milestonesOff` **21**
   were not re-locked (KNOWN-HIGH / inherited). Do not move those
   baselines.
