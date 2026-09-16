@@ -47,9 +47,24 @@ tune toward the 14±4 band:
 
 **Stream / gate.** `runCpuFranchiseTags` already uses
 `featureChildRng(state, "franchiseTags")`. Skipping a club consumes
-nothing from the parent. Fast-tier `calibrate` / `statcheck` /
-`careers` must be byte-identical on `##M`. If they are not, this
-is a solo packet + panel — do not force a merge.
+nothing from the parent. **STOP — not mergeable on this proof.**
+Year-0 `calibrate` / `statcheck` `##M` are byte-identical (parent
+stream holds; no tag is applied before the first recap). `careers
+24` seed 12345 is **not**: career counts match through season 3
+(691 / 1403 / 2103) and diverge at season 4 (2766 → 2814). The
+ceiling changes who is tagged vs extended, which reshuffles later
+drafts. Solo packet + panel. Do not force a merge.
+
+```
+##M calibrate.*        IDENTICAL  (scoreMismatches 0, passYds 237.328…)
+##M statcheck.*        IDENTICAL  (qb5 4189, leadPass 4921, wr10 1105…)
+##M careers.r1QbSharePct     14.0625 → 9.8958
+##M careers.survivalMae      5.665 → 6.193
+##M careers.careerLenMae     0.857 → 0.571
+##M careers.r1BustPct        8.854 → 8.594
+##M careers.hofInducteesPerClass  6.875 → 7.063
+##M careers.secondSceneFiredPct   0 → 21.43
+```
 
 **Untouched.** `franchiseTagSalary`, `applyFranchiseTag`,
 escalators, `MAX_CONTRACT_SHARE`, user tag path,
