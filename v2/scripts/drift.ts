@@ -57,6 +57,10 @@ interface Snapshot {
   trades: number;
   franchiseTags: number;
   deadMoneyPct: number;
+  hcFires: number;
+  holdouts: number;
+  tradeRequests: number;
+  holdoutGamesMissed: number;
 }
 
 function runOne(seed: number): Snapshot[] {
@@ -168,6 +172,21 @@ function runOne(seed: number): Snapshot[] {
       // counter is 0; tradesExecutedLast is the year that just closed.
       trades: st.seasonCounters?.tradesExecutedLast
         ?? st.seasonCounters?.tradesExecuted
+        ?? 0,
+      // People-layer volume. Same mechanical counters as trades — never
+      // a log scan (measurement_traps §8). After rollover the live
+      // field is 0; *Last is the year that just closed.
+      hcFires: st.seasonCounters?.hcFiresLast
+        ?? st.seasonCounters?.hcFires
+        ?? 0,
+      holdouts: st.seasonCounters?.holdoutsLast
+        ?? st.seasonCounters?.holdouts
+        ?? 0,
+      tradeRequests: st.seasonCounters?.tradeRequestsLast
+        ?? st.seasonCounters?.tradeRequests
+        ?? 0,
+      holdoutGamesMissed: st.seasonCounters?.holdoutGamesMissedLast
+        ?? st.seasonCounters?.holdoutGamesMissed
         ?? 0,
       franchiseTags: (st.franchiseTags ?? []).filter((t) => t.season === season).length,
       // League dead money / cap. Additive emit so a panel can see if CPU
@@ -311,6 +330,10 @@ emitAll({
   "drift.eliteGrowthRatio": eliteGrowth,
   "drift.franchiseTagsPerSeason": mean(flat.map((r) => r.franchiseTags)),
   "drift.deadMoneyPct": mean(flat.map((r) => r.deadMoneyPct)),
+  "drift.hcFiresPerSeason": mean(flat.map((r) => r.hcFires)),
+  "drift.holdoutsPerSeason": mean(flat.map((r) => r.holdouts)),
+  "drift.tradeRequestsPerSeason": mean(flat.map((r) => r.tradeRequests)),
+  "drift.holdoutGamesMissedPerSeason": mean(flat.map((r) => r.holdoutGamesMissed)),
 });
 console.log(failures === 0 ? "\nno P0 regressions" : `\n${failures} P0 REGRESSIONS`);
 process.exit(failures > 0 ? 1 : 0);

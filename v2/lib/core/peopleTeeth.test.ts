@@ -15,8 +15,9 @@ import {
   plantDemand,
   runPsychology,
 } from "./psychology";
-import { declareGamedayInactives, isSat, sitHoldouts } from "./inactives";
+import { declareGamedayInactives, holdoutsOnActive53, isSat, sitHoldouts } from "./inactives";
 import { startRegularSeason, advance } from "./season/engine";
+import { rolloverTradeCounter } from "./trades";
 import { GameState } from "./types";
 
 function ok(label: string) { console.log("ok   ", label); }
@@ -49,6 +50,9 @@ function plantStandings(st: GameState, season: number, winsFor: (teamId: number)
   assert.equal(isHoldoutInactive(st, user), true, "year-0 holdout is gameday inactive");
   sitHoldouts(st, st.userTeamId);
   assert.equal(isSat(st.teams[st.userTeamId], user.id), true, "year-0 holdout is gameday inactive");
+  assert.equal(st.seasonCounters?.holdoutGamesMissed, 1, "year-0 sit increments holdoutGamesMissed");
+  sitHoldouts(st, st.userTeamId);
+  assert.equal(st.seasonCounters?.holdoutGamesMissed, 1, "second sitHoldouts same gameday is a no-op");
   ok("year-0 holdout sits the same as later seasons");
 }
 
@@ -124,6 +128,10 @@ function plantStandings(st: GameState, season: number, winsFor: (teamId: number)
   const after = st.teams.filter((t) => t.id !== st.userTeamId && t.coaches?.hc).map((t) => t.coaches!.hc!.id);
   assert.ok(fired >= 1, `owner heat should fire some CPU HCs (fired ${fired})`);
   assert.ok(after.length < before.length, "fired chairs are empty for the carousel");
+  assert.equal(st.seasonCounters?.hcFires, fired, "hcFires increments at the fire site");
+  rolloverTradeCounter(st);
+  assert.equal(st.seasonCounters?.hcFires, 0, "rollover resets hcFires");
+  assert.equal(st.seasonCounters?.hcFiresLast, fired, "closed year lives on hcFiresLast");
   console.log(`##M people.cpuHcFiresPlanted ${fired}`);
   ok(`owner heat fired ${fired} CPU HC(s) on a planted 3-14 / 11-6 split`);
 }
@@ -148,8 +156,29 @@ function plantStandings(st: GameState, season: number, winsFor: (teamId: number)
   startRegularSeason(st);
   const p = st.players.find((x) => x.teamId === st.userTeamId && !x.prospect)!;
   plantDemand(st, p.id, "holdout", "money");
+  const missedBefore = st.seasonCounters?.holdoutGamesMissed ?? 0;
+  const sitting = holdoutsOnActive53(st, st.userTeamId).length;
+  assert.ok(sitting >= 1, "planted holdout is on the 53");
   declareGamedayInactives(st, [st.userTeamId]);
   assert.equal(isSat(st.teams[st.userTeamId], p.id), true, "declareGamedayInactives sits holdouts");
+  assert.equal(
+    st.seasonCounters?.holdoutGamesMissed,
+    missedBefore + sitting,
+    "sitHoldouts increments holdoutGamesMissed when a holdout sits",
+  );
+  declareGamedayInactives(st, [st.userTeamId]);
+  assert.equal(
+    st.seasonCounters?.holdoutGamesMissed,
+    missedBefore + sitting,
+    "already-sat holdout does not increment again the same gameday",
+  );
+  rolloverTradeCounter(st);
+  assert.equal(st.seasonCounters?.holdoutGamesMissed, 0, "rollover resets holdoutGamesMissed");
+  assert.equal(
+    st.seasonCounters?.holdoutGamesMissedLast,
+    missedBefore + sitting,
+    "closed year lives on holdoutGamesMissedLast",
+  );
   ok("gameday declaration sits holdouts");
 }
 

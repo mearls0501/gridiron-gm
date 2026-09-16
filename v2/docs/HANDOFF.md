@@ -5,6 +5,50 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-16 — Wave 4.0 Packet 3: people-layer counters
+
+Worker. Base `main @ 59951b5` (#97 CPU tag ceiling). Branch
+`cursor/g-people-counters`. Measurement only. Counters at the event
+site, never a `state.log` scan. `docs/baselines.json` **not edited.**
+Dials / Packet 2 tag-ceiling / `MAX_CONTRACT_SHARE` not touched.
+
+**Diagnosis.** Packet 1 warned that `psychology.holdoutsMean` /
+`tradeRequestsMean` / `contractYearMean` are fixture emits from
+`psychology.test.ts` — identical across panel seeds, not a people
+panel. `peoplecheck` emitted 0 metrics. Volume cannot be read from
+the log (`measurement_traps` §8; same class as `tradesExecuted`).
+
+**Change.**
+
+- Additive `seasonCounters` fields: `hcFires`, `holdouts`,
+  `tradeRequests`, `holdoutGamesMissed`, each with `...Last`.
+- Write sites: `fireCpuHeadCoaches`, `fileDemand` (holdout /
+  trade-request declaration), `sitHoldouts` (one increment per
+  holdout newly sat that gameday).
+- Rolled at `rolloverTradeCounter` exactly like `tradesExecuted`.
+- `scripts/drift.ts` lead-additive emits (no band):
+  `drift.hcFiresPerSeason`, `drift.holdoutsPerSeason`,
+  `drift.tradeRequestsPerSeason`,
+  `drift.holdoutGamesMissedPerSeason`.
+- Fixture emits renamed `psychology.fixture.*` (values unchanged).
+
+**Signed expectations for later panel read (bands later from Matt).**
+Not this packet. Not a tune. Do not retune dials toward these:
+
+- HC fires **6–8 / year**
+- Holdouts **single digits–12 / year**
+
+**Leftover.** Studio panel read of the four new drift emits. Bands
+only after Matt. Year-0 `calibrate` / `statcheck` / `careers` must
+stay byte-identical aside from the new additive drift lines.
+
+**Untouched.** Dials, `baselines.json`, Packet 2 tag/contract
+ceiling, `franchiseTagSalary`, `applyFranchiseTag`,
+`MAX_CONTRACT_SHARE`, `POSITION_VALUE`, `CONTENDER_PULL`,
+`GUARANTEE_PULL`, `CARRY_SHARE`, `cpuProspectView`.
+
+---
+
 ## 2026-09-16 — Wave 4.0 Packet 2: CPU tag tender ceiling (Matt SIGNED)
 
 Worker. Branch `cursor/g-tag-ceiling`. Rebased onto `main @ 9a8067b`

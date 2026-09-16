@@ -329,7 +329,11 @@ export function fireCpuHeadCoaches(state: GameState): number {
     const job = ownerJobView(state, team.id);
     if (!job || job.heat < job.threshold) continue;
     const r = releaseCoach(state, team.id, "hc", "fired");
-    if (r.ok) n++;
+    if (r.ok) {
+      n++;
+      if (!state.seasonCounters) state.seasonCounters = {};
+      state.seasonCounters.hcFires = (state.seasonCounters.hcFires ?? 0) + 1;
+    }
   }
   return n;
 }

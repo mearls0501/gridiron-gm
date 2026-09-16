@@ -1171,6 +1171,18 @@ export interface SeasonCounters {
    * year that just closed.
    */
   tradesExecutedLast?: number;
+  /** CPU head-coach fires this league year. Incremented in fireCpuHeadCoaches. */
+  hcFires?: number;
+  hcFiresLast?: number;
+  /** Holdout declarations this league year. Incremented in fileDemand. */
+  holdouts?: number;
+  holdoutsLast?: number;
+  /** Trade-request declarations this league year. Incremented in fileDemand. */
+  tradeRequests?: number;
+  tradeRequestsLast?: number;
+  /** Gamedays a holdout sat. Incremented in sitHoldouts when a holdout sits. */
+  holdoutGamesMissed?: number;
+  holdoutGamesMissedLast?: number;
 }
 
 export const STATE_VERSION = 1;
@@ -1265,7 +1277,7 @@ export interface GameState {
   settings?: GameSettings;
   /**
    * Per-league-year counters. Missing = zeros so older saves load.
-   * `tradesExecuted` is incremented in executeTrade and reset at rollover.
+   * Each live field is incremented at its event site and reset at rollover.
    */
   seasonCounters?: SeasonCounters;
   /**

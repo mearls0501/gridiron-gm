@@ -182,6 +182,12 @@ function fileDemand(
     filedWeek: state.week,
     teamId: p.teamId ?? undefined,
   };
+  if (!state.seasonCounters) state.seasonCounters = {};
+  if (kind === "holdout") {
+    state.seasonCounters.holdouts = (state.seasonCounters.holdouts ?? 0) + 1;
+  } else {
+    state.seasonCounters.tradeRequests = (state.seasonCounters.tradeRequests ?? 0) + 1;
+  }
   if (p.teamId === state.userTeamId) {
     const verb = kind === "holdout" ? "Holdout" : "Trade request";
     state.log.push({

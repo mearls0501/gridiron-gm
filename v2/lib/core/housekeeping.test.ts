@@ -90,3 +90,27 @@ console.log("ok    housekeeping — Trade: rows survive trimLog under a flood");
 }
 
 console.log("ok    housekeeping — tradesExecuted increments and resets at rollover");
+
+{
+  const st = newGame({ seed: 12345 });
+  st.seasonCounters = {
+    tradesExecuted: 4,
+    hcFires: 7,
+    holdouts: 9,
+    tradeRequests: 3,
+    holdoutGamesMissed: 22,
+  };
+  rolloverTradeCounter(st);
+  assert.equal(st.seasonCounters.tradesExecuted, 0);
+  assert.equal(st.seasonCounters.tradesExecutedLast, 4);
+  assert.equal(st.seasonCounters.hcFires, 0);
+  assert.equal(st.seasonCounters.hcFiresLast, 7);
+  assert.equal(st.seasonCounters.holdouts, 0);
+  assert.equal(st.seasonCounters.holdoutsLast, 9);
+  assert.equal(st.seasonCounters.tradeRequests, 0);
+  assert.equal(st.seasonCounters.tradeRequestsLast, 3);
+  assert.equal(st.seasonCounters.holdoutGamesMissed, 0);
+  assert.equal(st.seasonCounters.holdoutGamesMissedLast, 22);
+}
+
+console.log("ok    housekeeping — people counters roll ...Last with tradesExecuted");

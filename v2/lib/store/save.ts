@@ -168,13 +168,27 @@ export function migrate(state: GameState): GameState {
   // `state.hallOfFame`.
   ensureJerseyNumbers(state);
   maybeRetireNumbersForHallOfFame(state);
-  // Per-league-year trade counter. Pre-field saves default to 0.
+  // Per-league-year mechanical counters. Pre-field saves default to 0.
   if (!state.seasonCounters) state.seasonCounters = { tradesExecuted: 0 };
   if (typeof state.seasonCounters.tradesExecuted !== "number") {
     state.seasonCounters.tradesExecuted = 0;
   }
   if (typeof state.seasonCounters.tradesExecutedLast !== "number") {
     state.seasonCounters.tradesExecutedLast = 0;
+  }
+  if (typeof state.seasonCounters.hcFires !== "number") state.seasonCounters.hcFires = 0;
+  if (typeof state.seasonCounters.hcFiresLast !== "number") state.seasonCounters.hcFiresLast = 0;
+  if (typeof state.seasonCounters.holdouts !== "number") state.seasonCounters.holdouts = 0;
+  if (typeof state.seasonCounters.holdoutsLast !== "number") state.seasonCounters.holdoutsLast = 0;
+  if (typeof state.seasonCounters.tradeRequests !== "number") state.seasonCounters.tradeRequests = 0;
+  if (typeof state.seasonCounters.tradeRequestsLast !== "number") {
+    state.seasonCounters.tradeRequestsLast = 0;
+  }
+  if (typeof state.seasonCounters.holdoutGamesMissed !== "number") {
+    state.seasonCounters.holdoutGamesMissed = 0;
+  }
+  if (typeof state.seasonCounters.holdoutGamesMissedLast !== "number") {
+    state.seasonCounters.holdoutGamesMissedLast = 0;
   }
 
   if (state.version === STATE_VERSION) return state;
