@@ -5,6 +5,62 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-16 — Wave 4.0 Packet 2: CPU tag tender ceiling (Matt SIGNED)
+
+Worker. Branch `cursor/g-tag-ceiling`. Base `main @ 625fd06` (#93)
+plus the Packet 1 panel note. Matt SIGNED: "CPU tag tender ceiling
+at MAX_CONTRACT_SHARE, as diagnosed." Diagnosis:
+`docs/diag-capbust-tags-2026-09-15.md`. `docs/baselines.json` **not
+edited.** Forbidden knobs / `franchiseTagSalary` / `applyFranchiseTag`
+/ 120% / 144% escalators / `MAX_CONTRACT_SHARE` / user tag path /
+`drift.capBustSeasons` max (stays 0) not touched.
+
+**Diagnosis.** Every cap hit that approaches or crosses 28% is a
+CPU club's third consecutive exclusive tag on an ordinary starting
+QB. The 144% escalator on a tender already near the contract
+ceiling produces 27.7–28.0%. `surplusExceedsTender` cannot catch
+it: QB `POSITION_VALUE` 3.4× makes an 80-OVR starter's surplus
+larger than any tender. What real clubs do is not in the 2026-09-11
+"no cap-% ban" sentence: **no club tags above the market ceiling —
+it extends or lets him walk.** Largest real tender: Prescott 2021
+$37.7M / $182.5M = **20.7%**. This packet revises that 09-11
+sentence for **CPU clubs only**.
+
+**Change.** One `continue` in `runCpuFranchiseTags` before
+`tenderFitsHeadroom`:
+
+`if (tender > MAX_CONTRACT_SHARE * teamCap(state, t.id).cap) continue;`
+
+Same ceiling that already governs every other CPU contract (#88).
+Above it the club falls through to `cpuResign` (extend at ≤22%) or
+the market. User `applyFranchiseTag` is unbound.
+
+**Leftover — expected panel consequences, to be READ later, not
+tuned toward.** These are consequences of the sourced rule, not a
+tune toward the 14±4 band:
+
+- `drift.capBustSeasons` → **0** structurally (CPU hit bounded by
+  22%; cannot reach 28%).
+- `drift.topCapPctMean` → **~20–21** (the 25–28% tags leave).
+- `drift.franchiseTagsPerSeason` → down toward **11–14** from the
+  Packet 1 panel 17.27. Report the read; do not retune.
+
+**Stream / gate.** `runCpuFranchiseTags` already uses
+`featureChildRng(state, "franchiseTags")`. Skipping a club consumes
+nothing from the parent. Fast-tier `calibrate` / `statcheck` /
+`careers` must be byte-identical on `##M`. If they are not, this
+is a solo packet + panel — do not force a merge.
+
+**Untouched.** `franchiseTagSalary`, `applyFranchiseTag`,
+escalators, `MAX_CONTRACT_SHARE`, user tag path,
+`baselines.json`, `drift.capBustSeasons` max (0).
+
+**Regression.** `lib/core/franchiseTag.test.ts` — 85-OVR QB with a
+21% hit expiring is not CPU-tagged and `cpuResign` extends at
+≤22%; 19% WR tender is still tagged.
+
+---
+
 ## Wave 4.0 Packet 1 — panel @ 625fd06 (2026-09-15/16 Studio)
 
 Docs-only. Mac Studio 5-seed panel on `main @ 625fd06` (#93, includes

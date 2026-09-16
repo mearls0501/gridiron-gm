@@ -571,17 +571,30 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   consecutive tags that club cannot tag that player again. Top-five
   averages are snapshotted once at window open (hits as they stood
   before this window's tags); a tag cannot raise the average that
-  prices the next tag in the same window. No hard cap-percentage ban
-  on the tender (a QB tag may exceed 20% of the cap). Must still fit
-  the club's remaining cap; Tag is blocked with a reason, same as Sign.
-  CPU tags only when the tender fits next-season committed + tender
-  ≤ ~90% of the cap, `evaluate()` surplus exceeds the tender in the
-  same currency trades use, and posture is contend or retool —
-  rebuild clubs do not tag. Real league volume is ~10 tags a year
-  (`nfl: 10`). Wave 3.7 Packet 2 (Matt SIGNED 2026-09-13) locked
-  `drift.franchiseTagsPerSeason` at **14 ±4**. Do not retune tag rules
-  toward the band. One window, then FA opens — the game has no
-  wall-clock. Published rule; the band is the signed lock.
+  prices the next tag in the same window. The user tag path still has
+  no hard cap-percentage ban on the tender (a QB tag may exceed 20%
+  of the cap) — that is their cap and their choice. **CPU clubs
+  (Wave 4.0 Packet 2, Matt SIGNED 2026-09-16) do not apply a tag
+  whose tender exceeds `MAX_CONTRACT_SHARE` (22%) of the cap.** Below
+  that ceiling the signed price test stands; above it the club
+  extends via `cpuResign` or lets him walk. This revises the 2026-09-11
+  "no cap-% ban" sentence for **CPU clubs only**. The published
+  escalators (120% / 144%) are unchanged. Largest real exclusive
+  tender: Dak Prescott 2021 **$37.7M** on the **$182.5M** cap =
+  **20.7%** (Over The Cap / published 2021 cap). Second-highest real
+  tenders sit at 17–19%. No club tags above the market ceiling — it
+  extends or lets him walk. Must still fit the club's remaining cap;
+  Tag is blocked with a reason, same as Sign. CPU tags only when the
+  tender is at or under the market ceiling, fits next-season
+  committed + tender ≤ ~90% of the cap, `evaluate()` surplus exceeds
+  the tender in the same currency trades use, and posture is contend
+  or retool — rebuild clubs do not tag. Real league volume is ~10
+  tags a year (`nfl: 10`). Wave 3.7 Packet 2 (Matt SIGNED 2026-09-13)
+  locked `drift.franchiseTagsPerSeason` at **14 ±4**. Do not retune
+  tag rules toward the band. A drop in the tag count after the CPU
+  ceiling is a consequence of the sourced rule, not a tune. One
+  window, then FA opens — the game has no wall-clock. Published
+  rule; the band is the signed lock.
 - **Fifth-year option (first-rounders only).** Added 2026-09-03. Not in
   T/D/S/P. Same calendar source as the franchise tag
   (`docs/front-office-design-2026-07-28.md` Part 5): post-draft, May 1
@@ -742,9 +755,13 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   ~23%). Earlier megadeals on smaller caps reach **≈25%**. That is
   why `MAX_CONTRACT_SHARE` moves 0.25 → **0.22**: the hard
   negotiation backstop sits under the record hit, so a back-loaded
-  year of a max deal does not open the book at the record. Tag
-  tenders are **not** subject to this share (a QB tag may exceed
-  20%; see the franchise-tag block above).
+  year of a max deal does not open the book at the record. User-path
+  tag tenders are **not** subject to this share (a QB tag may exceed
+  20%; see the franchise-tag block above). **CPU clubs (Wave 4.0
+  Packet 2, Matt SIGNED) do not tag above this share** — same
+  ceiling that already governs every other CPU contract. The largest
+  real exclusive tender is Prescott 2021 at 20.7% of the cap
+  (`$37.7M` / `$182.5M`); no club tags above the market ceiling.
 
   **EDGE / WR real ≈ 12–13%.** Same 2025 cap. Garrett $40.0M =
   14.32% (the current EDGE outlier); Bosa $34.0M = 12.18%.
@@ -759,7 +776,10 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   escalator (120% / 144%) firing on APYs that had already
   saturated at 26%. A max QB's first tag should now land
   ≈21–22% (top-five average) and the second ≈26%; a third-tag
-  28%+ bust is the backstop, not the expected path.
+  28%+ bust is the backstop, not the expected path. Wave 4.0
+  Packet 2 (Matt SIGNED) stops the CPU from applying those
+  above-ceiling tenders; the escalators themselves stay
+  published and the user path is unchanged.
 
   **`drift.topCapPctMean`.** Mean of each season's highest cap
   hit (one player, league-wide — the same `topCap%` column the
