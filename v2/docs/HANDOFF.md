@@ -7,8 +7,8 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ## 2026-09-16 — Wave 4.0 Packet 2: CPU tag tender ceiling (Matt SIGNED)
 
-Worker. Branch `cursor/g-tag-ceiling`. Base `main @ 625fd06` (#93)
-plus the Packet 1 panel note. Matt SIGNED: "CPU tag tender ceiling
+Worker. Branch `cursor/g-tag-ceiling`. Rebased onto `main @ 9a8067b`
+(#96 Packet 1 panel). Matt SIGNED: "CPU tag tender ceiling
 at MAX_CONTRACT_SHARE, as diagnosed." Diagnosis:
 `docs/diag-capbust-tags-2026-09-15.md`. `docs/baselines.json` **not
 edited.** Forbidden knobs / `franchiseTagSalary` / `applyFranchiseTag`
