@@ -785,9 +785,13 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   hit (one player, league-wide — the same `topCap%` column the
   harness already prints). OTC's seasonal maxima in the 2020s
   sit at **≈18–20%** of that year's cap (2025 Dak 18.09% is the
-  current reading). Additive emit; `nfl` note 18–20, signed band
-  ±3 **after** the post-Packet-6 panel. Do not lock it here.
-  `capBustSeasons` stays 28% / `max: 0` as the backstop.
+  current reading). Additive emit; `nfl` note 18–20. First band
+  proposed from the Wave 4.0 post-#97/#98 panel @ `6e3b7bf`
+  (2026-09-16 Studio, 5-seed mean **20.28**): target **20.3**,
+  tol **3** (17.3–23.3). **PROPOSAL only** — Matt has not signed
+  this baseline (sign widget skipped). Do not lock in
+  `baselines.json`. `capBustSeasons` stays 28% / `max: 0` as
+  the backstop.
 
 - **Hall of Fame class size and wait.** Added 2026-09-15 (Wave 3.9
   Packet 3). Not in T/D/S/P. The published Pro Football Hall of Fame

@@ -260,7 +260,10 @@ guard(capBust === 0, "no contract exceeds 28% of the cap",
 
 // Primary money guard after Packet 6. Mean of each season's highest
 // cap hit. OTC seasonal maxima sit at ≈18–20% (`nfl-reference.md` §4).
-// Additive emit — do not band until the post-Packet-6 panel (±3).
+// Additive emit. First band proposed from the Wave 4.0 post-#97/#98
+// panel @ 6e3b7bf: 20.3 ±3 (17.3–23.3). PROPOSAL only — Matt has
+// not signed this baseline (sign widget skipped). Do not lock in
+// baselines.json.
 // `capBustSeasons` stays the 28% / max: 0 backstop.
 const topCapPctMean = mean(flat.map((r) => r.topCapPct));
 
