@@ -233,7 +233,7 @@ bar("7. Calendar windows and the visit cap");
   // Per-prospect caps. Count is intel.methods. Film is the one the audit
   // mashed (960 studies/season); the visit cap stays untouched.
   const filmed = classPool[1];
-  check(METHOD_PER_PROSPECT.film === 2, "proposed film cap is 2 per prospect", `${METHOD_PER_PROSPECT.film}`);
+  check(METHOD_PER_PROSPECT.film === 2, "signed film cap is 2 per prospect", `${METHOD_PER_PROSPECT.film}`);
   check(canRunScoutingMethod(st, "film", filmed.id), "film is open on an unworked prospect", "film");
   check(!!runScoutingMethod(st, filmed.id, "film", rng), "first film study lands", "1");
   check(!!runScoutingMethod(st, filmed.id, "film", rng), "second film study lands", "2");
@@ -259,7 +259,7 @@ bar("7. Calendar windows and the visit cap");
   check(!canRunScoutingMethod(st, "film"), "film is gone once all-star opens", "film closed");
 
   const talked = classPool[4];
-  check(METHOD_PER_PROSPECT.interview === 1, "proposed interview cap is 1 per prospect", `${METHOD_PER_PROSPECT.interview}`);
+  check(METHOD_PER_PROSPECT.interview === 1, "signed interview cap is 1 per prospect", `${METHOD_PER_PROSPECT.interview}`);
   check(!!runScoutingMethod(st, talked.id, "interview", rng), "first interview lands", "1");
   check(!runScoutingMethod(st, talked.id, "interview", rng), "a second interview is refused", "cap holds");
   check(methodAtCap(st, talked.id, "interview"), "interview cap reads intel.methods", `${getIntel(st, talked).methods.interview}`);
@@ -269,7 +269,7 @@ bar("7. Calendar windows and the visit cap");
   check(!canRunScoutingMethod(st, "proDay"), "pro days are not a free mash during combine", "proDay closed");
 
   const scoped = classPool[5];
-  check(METHOD_PER_PROSPECT.medical === 1, "proposed medical cap is 1 per prospect", `${METHOD_PER_PROSPECT.medical}`);
+  check(METHOD_PER_PROSPECT.medical === 1, "signed medical cap is 1 per prospect", `${METHOD_PER_PROSPECT.medical}`);
   check(!!runScoutingMethod(st, scoped.id, "medical", rng), "first medical lands", "1");
   check(!runScoutingMethod(st, scoped.id, "medical", rng), "a second medical is refused", "cap holds");
   check(methodAtCap(st, scoped.id, "medical"), "medical cap reads intel.methods", `${getIntel(st, scoped).methods.medical}`);
@@ -277,7 +277,7 @@ bar("7. Calendar windows and the visit cap");
   walkTo(st, "proDays");
   check(ensureScouting(st).window === "proDays", "FA walk reaches pro days", ensureScouting(st).window);
   const worked = classPool[3];
-  check(METHOD_PER_PROSPECT.proDay === 1, "proposed pro-day cap is 1 per prospect", `${METHOD_PER_PROSPECT.proDay}`);
+  check(METHOD_PER_PROSPECT.proDay === 1, "signed pro-day cap is 1 per prospect", `${METHOD_PER_PROSPECT.proDay}`);
   check(!!runScoutingMethod(st, worked.id, "proDay", rng), "first pro day lands", "1");
   check(!runScoutingMethod(st, worked.id, "proDay", rng), "a second pro day is refused", "cap holds");
   check(!canRunScoutingMethod(st, "proDay", worked.id), "canRun sees the pro-day cap", "blocked");

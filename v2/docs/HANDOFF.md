@@ -5,19 +5,20 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
-## 2026-09-16 — Wave 4.0 Packet 4: per-prospect film / pro-day caps
+## 2026-09-16 — Wave 4.0 Packet 4: per-prospect film / pro-day caps (Matt SIGNED 2026-09-17)
 
 Worker. Rebased onto `main @ a120a47` (#101 +2 probe). Branch
 `cursor/g-scout-caps`. Was Wave 3.9 Packet 7 / Phase 4 addendum 1
 in `docs/scouting-challenge-audit-2026-09-14.md`. Display-and-gating
 only. Intel writers / CPU views / the 30-visit cap **not touched.**
 `docs/baselines.json` **not edited.** User scouting is not in the
-calibrate / statcheck / careers harnesses. **Matt has not signed
-the 2/1/1/1 caps** — proposed defaults only.
+calibrate / statcheck / careers harnesses. **Matt SIGNED 2026-09-17
+(via orchestrator): film 2 / proDay 1 / interview 1 / medical 1**
+as proposed.
 
-### Proposed defaults — escalate class, Matt signs
+### Signed caps — Matt SIGNED 2026-09-17
 
-| method | proposed cap | window |
+| method | signed cap | window |
 |---|---|---|
 | film | **2** per prospect | `filmFocus` (and `udfaPrep` last looks share the same `intel.methods.film` count) |
 | proDay | **1** per prospect | `proDays` |
@@ -25,9 +26,9 @@ the 2/1/1/1 caps** — proposed defaults only.
 | medical | **1** per prospect | `combine` |
 | privateWorkout | unchanged | 30-visit budget, not a per-man cap |
 
-These are gameplay dials with no primary source. Ship behind the
-proposed default. Change `METHOD_PER_PROSPECT` if Matt wants a
-different number; do not retune intel writers to compensate.
+These are gameplay dials with no primary source. **Matt SIGNED
+2026-09-17** the 2/1/1/1 numbers. Change `METHOD_PER_PROSPECT` only
+if Matt revises a number; do not retune intel writers to compensate.
 
 ### Diagnosis
 
@@ -55,8 +56,8 @@ count rather than an allocation.
 
 ### Leftover
 
-Matt has **not** signed the 2/1/1/1 caps (sign widget skipped).
-Defaults stay proposed. Film in `udfaPrep` shares the 2-study
+**Matt SIGNED 2026-09-17** the 2/1/1/1 caps (film 2 / proDay 1 /
+interview 1 / medical 1). Film in `udfaPrep` shares the 2-study
 budget with `filmFocus` because the count lives on `intel.methods`,
 not a per-window ledger. A true per-window recap would need a new
 field — out of scope. Risk-grade teeth stay the next addendum
