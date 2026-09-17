@@ -5,6 +5,78 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-16 — Wave 4.0 Packet 4: per-prospect film / pro-day caps
+
+Worker. Rebased onto `main @ a120a47` (#101 +2 probe). Branch
+`cursor/g-scout-caps`. Was Wave 3.9 Packet 7 / Phase 4 addendum 1
+in `docs/scouting-challenge-audit-2026-09-14.md`. Display-and-gating
+only. Intel writers / CPU views / the 30-visit cap **not touched.**
+`docs/baselines.json` **not edited.** User scouting is not in the
+calibrate / statcheck / careers harnesses. **Matt has not signed
+the 2/1/1/1 caps** — proposed defaults only.
+
+### Proposed defaults — escalate class, Matt signs
+
+| method | proposed cap | window |
+|---|---|---|
+| film | **2** per prospect | `filmFocus` (and `udfaPrep` last looks share the same `intel.methods.film` count) |
+| proDay | **1** per prospect | `proDays` |
+| interview | **1** per prospect | `allStar` / `udfaPrep` share `intel.methods.interview` |
+| medical | **1** per prospect | `combine` |
+| privateWorkout | unchanged | 30-visit budget, not a per-man cap |
+
+These are gameplay dials with no primary source. Ship behind the
+proposed default. Change `METHOD_PER_PROSPECT` if Matt wants a
+different number; do not retune intel writers to compensate.
+
+### Diagnosis
+
+The visit cap (30) was the only constraint in the calendar. Nothing
+limited film studies or pro days per prospect. The scout-audit `max`
+arm ran **960 film studies a season** through the same Film-button
+path the war room uses, which made the visit cap decorative and the
+"miss the window and the information does not exist" design a click
+count rather than an allocation.
+
+### Change
+
+- `METHOD_PER_PROSPECT` on `lib/core/scouting.ts`. Count is
+  `intel.methods` for the current class.
+- `canRunScoutingMethod` / `scoutingBlockReason` take an optional
+  `playerId`. Window-only callers stay valid. With a player, the
+  per-man cap bites.
+- `runScoutingMethod` passes `playerId` into the existing gate.
+  Band-tightening / risk-reveal writers are unchanged.
+- `/draft` war-room buttons and the board Scout button disable at
+  cap. Visit-empty and window-closed copy is unchanged.
+- `scripts/scoutcheck.ts` lead-additive: film 3rd refused, pro day
+  2nd refused, interview / medical 2nd refused, cap is per prospect
+  not global. Visit-cap block is untouched.
+
+### Leftover
+
+Matt has **not** signed the 2/1/1/1 caps (sign widget skipped).
+Defaults stay proposed. Film in `udfaPrep` shares the 2-study
+budget with `filmFocus` because the count lives on `intel.methods`,
+not a per-window ledger. A true per-window recap would need a new
+field — out of scope. Risk-grade teeth stay the next addendum
+packet.
+
+### Untouched
+
+Intel writers, `cpuProspectView`, `cpuExpectedView`,
+`cpuVeteranView`, `PRIVATE_VISIT_CAP`, visit spend, `baselines.json`,
+`POSITION_VALUE`, `CONTENDER_PULL`, `GUARANTEE_PULL`, `CARRY_SHARE`,
+Packet 6 probe (`plus2-probe`, `acquiredByClockTrade`).
+
+### Gate
+
+Rebased onto `a120a47` (#101). Scout first, then fast gate. Year-0
+calibrate / statcheck / careers must stay byte-identical to
+`main @ a120a47` (user scouting is not in those harnesses).
+
+---
+
 ## 2026-09-16 — Wave 4.0 Packet 6: the +2 probe (report-only)
 
 Worker. Was Wave 3.9 Packet 9. Base `main @ 6e3b7bf` (#98). **Report,

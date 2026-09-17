@@ -30,6 +30,8 @@ import {
   ensureScouting,
   boardNote,
   getIntel,
+  methodAtCap,
+  methodCapReason,
   methodsForWindow,
   runScoutingMethod,
   scoutingBlockReason,
@@ -205,7 +207,7 @@ export default function DraftPage() {
   function scout(p: Player, method: ScoutingMethod = "film") {
     const name = playerName(p);
     apply((s) => {
-      const blocked = scoutingBlockReason(s, method);
+      const blocked = scoutingBlockReason(s, method, p.id);
       if (blocked) return blocked;
       const rng = new Rng(s.rngState);
       const ok = runScoutingMethod(s, p.id, method, rng);
@@ -778,25 +780,29 @@ export default function DraftPage() {
                       (m === "interview" && intel.character !== null);
                     const open = windowMethods.includes(m);
                     const noVisits = m === "privateWorkout" && cal.visitsRemaining <= 0;
+                    const atCap = methodAtCap(state, focus.id, m);
+                    const capReason = atCap ? methodCapReason(m) : null;
                     return (
                       <Button
                         key={m}
                         size="sm"
                         variant="ghost"
                         onClick={() => scout(focus, m)}
-                        disabled={!open || noVisits || revealed}
+                        disabled={!open || noVisits || revealed || atCap}
                         title={
                           revealed
                             ? "Already on file"
-                            : !open
-                              ? `Not this window — ${WINDOW_LABEL[cal.window]}`
-                              : noVisits
-                                ? `No private visits remaining (${PRIVATE_VISIT_CAP} per season)`
-                                : METHOD_LABEL[m]
+                            : atCap
+                              ? (capReason ?? "Already used on this prospect")
+                              : !open
+                                ? `Not this window — ${WINDOW_LABEL[cal.window]}`
+                                : noVisits
+                                  ? `No private visits remaining (${PRIVATE_VISIT_CAP} per season)`
+                                  : METHOD_LABEL[m]
                         }
                       >
                         {METHOD_LABEL[m]}
-                        {!open ? " · closed" : noVisits ? " · no visits" : ""}
+                        {!open ? " · closed" : noVisits ? " · no visits" : atCap ? " · done" : ""}
                         {done > 0 && !revealed ? ` (×${done})` : ""}
                       </Button>
                     );
@@ -953,6 +959,7 @@ export default function DraftPage() {
               const width = bandWidth(p);
               const windowOpen = windowMethods.includes(defaultMethod)
                 && (defaultMethod !== "privateWorkout" || cal.visitsRemaining > 0);
+              const atCap = methodAtCap(state, p.id, defaultMethod);
               const note = boardNote(state, p.id);
               const intel = getIntel(state, p);
               return (
@@ -1013,13 +1020,15 @@ export default function DraftPage() {
                         size="sm"
                         variant="ghost"
                         onClick={() => scout(p, defaultMethod)}
-                        disabled={!windowOpen || p.scouted >= 100}
+                        disabled={!windowOpen || p.scouted >= 100 || atCap}
                         title={
                           p.scouted >= 100
                             ? "Fully scouted"
-                            : windowOpen
-                              ? `${METHOD_LABEL[defaultMethod]} — ${WINDOW_LABEL[cal.window]}. Open the war room for the full toolkit.`
-                              : `${METHOD_LABEL[defaultMethod]} is not available during ${WINDOW_LABEL[cal.window]}`
+                            : atCap
+                              ? (methodCapReason(defaultMethod) ?? "Already used on this prospect")
+                              : windowOpen
+                                ? `${METHOD_LABEL[defaultMethod]} — ${WINDOW_LABEL[cal.window]}. Open the war room for the full toolkit.`
+                                : `${METHOD_LABEL[defaultMethod]} is not available during ${WINDOW_LABEL[cal.window]}`
                         }
                       >
                         Scout
