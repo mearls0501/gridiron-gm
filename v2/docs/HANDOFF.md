@@ -5,6 +5,110 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## Wave 4.0 post-#97/#98 panel @ 6e3b7bf (2026-09-16 Studio)
+
+Docs-only. Mac Studio `gate:full:serial` 5-seed on `main @ 6e3b7bf`
+(#98, post tag-ceiling #97). Log finished 2026-09-16. GATE FAIL **7**
+(NOT 8 — `drift.capBustSeasons` cleared). `docs/baselines.json`
+**not edited**. Engine not touched. Rebased onto `main @ 3f3d53c`
+(#102 Matt SIGNED scout caps).
+
+This table is the first post-Packet-2/3 read. Packet 6 (+2 probe,
+#101) and Packet 4 (scout caps, #99 / #102) sit on or after this
+SHA and do not own these paths.
+
+### Panel means (5-seed)
+
+| metric | panel mean | verdict |
+|---|---:|---|
+| `drift.capBustSeasons` | **0.00** | was 3.40 at 625fd06. **Packet 2 worked** |
+| `drift.topCapPctMean` | **20.28** (20.52/19.94/19.86/20.08/21.03) | was 23.31 pre-ceiling; in the ~20–21 leftover. First-band candidate |
+| `drift.franchiseTagsPerSeason` | **17.11** | still high vs the expected dip toward 11–14. **REPORT** only — consequence of the sourced rule, not a retune toward 14±4. Still **inside** the signed 14±4 band (ceiling 18) |
+| `drift.deadMoneyPct` | **2.42** | record |
+| `drift.ovrDrift` | **−1.95** | inside −1.70±1.5 |
+| `drift.tradesPerSeason` | **78.67** | record |
+| `drift.saveMbAtEnd` | **12.43** | inside #91 lock 15.89 |
+| `drift.saveGrowthMbPerSeason` | **0.48** | inside #91 lock 0.61 |
+| `drift.p0Failures` | **0.40** | **FAIL** ≤0 (was 1.80 at Packet 1) |
+| `drift.hcFiresPerSeason` | **0.00** | **FINDING.** Signed expect 6–8/yr. Counter is live; write site reads zero. Investigate later. Do not tune dials here |
+| `drift.holdoutsPerSeason` | **10.22** | in the signed single-digits–12 expect |
+| `drift.tradeRequestsPerSeason` | **48.8** | first read; no expect / no band |
+| `drift.holdoutGamesMissedPerSeason` | **37.09** | first read; no expect / no band |
+| `careers.r1BustPct` | **9.01** | vs Packet 1 8.39. Not a >1 pt drop; no K retune |
+| `careers.secondSceneStarPct` | **0.0** | still 0 vs §2.7 ref 11.4% — report only, no band |
+| `careers.hofInducteesPerClass` | **~7.2** | from careers harness seeds. Ignore fixture emits. nfl ≈5–8, report-only |
+
+`psychology.fixture.*` is correctly renamed. Those lines are
+fixture emits, not this panel.
+
+### FAIL lines (GATE FAIL 7)
+
+```
+FAIL  drift.p0Failures  0.40
+FAIL  conditions.problems  0.20
+FAIL  tails.milestonesOff  22.60
+FAIL  staff.problems  0.20
+```
+
+`capBustSeasons` is gone from the FAIL list. That is the eighth
+tick that cleared.
+
+**NOISE.** `statcheck.wr10RecYds` again. Tolerance is tighter than
+the panel standard error. Do not chase.
+
+### People counters — first real panel numbers
+
+Packet 3 leftover is closed as a **read**. Bands still wait for
+Matt. Do not retune dials toward the signed expects:
+
+- HC fires **6–8 / year** — counter live, panel **0.00**. Write
+  site, not a dial. Do not invent a fire rate here.
+- Holdouts **single digits–12 / year** — panel **10.22**, in
+  expect.
+- Trade requests and holdout-games-missed have no signed expect.
+  Record only.
+
+### Lead re-lock PROPOSAL (awaiting Matt sign)
+
+HANDOFF note only. **Do not edit `baselines.json` in this PR.**
+
+First band for `drift.topCapPctMean`, from this panel:
+
+- target **20.3**
+- tol **3**
+- window **17.3–23.3**
+- `nfl` note stays **18–20** (`nfl-reference.md` §4)
+
+Authority is the 5-seed mean 20.28 and the Packet 2 leftover
+(~20–21 after the 25–28% tags leave). **PROPOSAL only.** Matt
+has **not** signed this baseline (sign widget skipped). A later
+Lead packet locks it after sign, the same way Wave 3.9 Packet 2
+locked save / moved `statcheck`. Do not treat this as a lock.
+
+Do **not** propose bands here for `franchiseTagsPerSeason` (signed
+14±4 stays; 17.11 is a report, not a retune), people counters, or
+any FAIL leftover.
+
+### Packet 2 leftover — READ, not tuned
+
+| leftover | expected | this panel |
+|---|---|---|
+| `drift.capBustSeasons` | 0 structurally | **0.00** |
+| `drift.topCapPctMean` | ~20–21 | **20.28** |
+| `drift.franchiseTagsPerSeason` | down toward 11–14 from 17.27 | **17.11** — did not dip; REPORT only |
+
+### Scout caps (Packet 4 / #99 / #102)
+
+Matt **SIGNED** scout caps **2/1/1/1** on 2026-09-17 (orchestrator;
+recorded in #102). `METHOD_PER_PROSPECT` defaults are the signed
+numbers. Do not retune intel writers. That sign is **not** a
+`baselines.json` lock and does not sign the `topCapPctMean` band.
+
+**Untouched.** Engine, `scripts/` emit math, `docs/baselines.json`,
+PR **#9**. Vercel preview READY (`dpl_9pivZtS9ayUVQmFUMVTg2Xc7ekv8`).
+
+---
+
 ## 2026-09-16 — Wave 4.0 Packet 4: per-prospect film / pro-day caps (Matt SIGNED 2026-09-17)
 
 Worker. Rebased onto `main @ a120a47` (#101 +2 probe). Branch
@@ -155,9 +259,13 @@ Not this packet. Not a tune. Do not retune dials toward these:
 - HC fires **6–8 / year**
 - Holdouts **single digits–12 / year**
 
-**Leftover.** Studio panel read of the four new drift emits. Bands
-only after Matt. Year-0 `calibrate` / `statcheck` / `careers` must
-stay byte-identical aside from the new additive drift lines.
+**Leftover.** Studio panel read of the four new drift emits —
+**closed** by the Wave 4.0 post-#97/#98 panel @ `6e3b7bf`. First
+numbers: `hcFiresPerSeason` **0.00** (FINDING vs 6–8; write site),
+`holdoutsPerSeason` **10.22** (in expect), `tradeRequestsPerSeason`
+**48.8**, `holdoutGamesMissedPerSeason` **37.09**. People bands
+still only after Matt. Year-0 `calibrate` / `statcheck` / `careers`
+must stay byte-identical aside from the new additive drift lines.
 
 **Untouched.** Dials, `baselines.json`, Packet 2 tag/contract
 ceiling, `franchiseTagSalary`, `applyFranchiseTag`,
@@ -221,15 +329,17 @@ Same ceiling that already governs every other CPU contract (#88).
 Above it the club falls through to `cpuResign` (extend at ≤22%) or
 the market. User `applyFranchiseTag` is unbound.
 
-**Leftover — expected panel consequences, to be READ later, not
+**Leftover — expected panel consequences, READ at `6e3b7bf`, not
 tuned toward.** These are consequences of the sourced rule, not a
-tune toward the 14±4 band:
+tune toward the 14±4 band. Studio 5-seed (2026-09-16):
 
 - `drift.capBustSeasons` → **0** structurally (CPU hit bounded by
-  22%; cannot reach 28%).
+  22%; cannot reach 28%). **Panel 0.00.**
 - `drift.topCapPctMean` → **~20–21** (the 25–28% tags leave).
+  **Panel 20.28.** First band proposed 20.3±3, awaiting Matt sign.
 - `drift.franchiseTagsPerSeason` → down toward **11–14** from the
-  Packet 1 panel 17.27. Report the read; do not retune.
+  Packet 1 panel 17.27. **Panel 17.11** — did not dip. Report the
+  read; do not retune.
 
 **Stream / gate.** `runCpuFranchiseTags` already uses
 `featureChildRng(state, "franchiseTags")`. Skipping a club consumes
@@ -316,8 +426,9 @@ engine defect.
 `psychology.contractYearMean` are **fixture emits from
 `psychology.test.ts`**, identical across panel seeds — they are not
 panel numbers. `peoplecheck` emitted **0 metrics**. Do not call this
-"the first people panel with teeth." Packet 3 (`seasonCounters`) will
-fix measurement.
+"the first people panel with teeth." Packet 3 (`seasonCounters`)
+fixed measurement. First real numbers are the Wave 4.0
+post-#97/#98 panel @ `6e3b7bf`.
 
 ### Packet 2 leftover (correction)
 
@@ -654,10 +765,11 @@ record: **the solved line is closed** — information ceiling buys +0.1
 true points per slot over auto-pick (+0.6 in R1–2), inside seed noise;
 the exploit arms have fewer starter-seasons per pick and twice the
 R1–2 bust rate. Retire ROADMAP line "re-run the scouting challenge
-audit". Packets 7/8 (film/pro-day caps, risk-grade teeth) remain
-Phase 4 addendum. The +2 probe (was Packet 9) is Wave 4.0 Packet 6
-— `v2/docs/plus2-probe-2026-09-16.md`. Consequences, not tuning;
-none reopen the line.
+audit". Packet 7 film/pro-day caps **SHIPPED** as Wave 4.0 Packet 4
+(#99); Matt SIGNED 2/1/1/1 on 2026-09-17 (#102). Packet 8
+(risk-grade teeth) remains Phase 4 addendum. The +2 probe (was
+Packet 9) is Wave 4.0 Packet 6 — `v2/docs/plus2-probe-2026-09-16.md`.
+Consequences, not tuning; none reopen the line.
 
 ---
 
@@ -678,7 +790,8 @@ $60.0M + four $55.0M deals) = **20.06%** of the cap. Record
 single-season hit ≈ **25%**. EDGE / WR typical APY **12–13%**
 (Bosa 12.18, Jefferson 12.54, Lamb 12.18; Garrett 14.32 is the
 outlier). `drift.topCapPctMean` nfl **≈18–20%** (2025 Dak cap
-hit 18.09%). Signed band ±3 waits for the post-Packet-6 panel.
+hit 18.09%). First band proposed from the Wave 4.0 post-#97/#98
+panel @ `6e3b7bf`: **20.3 ±3** (17.3–23.3), awaiting Matt sign.
 
 **Change.**
 

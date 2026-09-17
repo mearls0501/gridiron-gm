@@ -85,6 +85,12 @@ Predicted panel effects, to be read not tuned toward:
 - `drift.franchiseTagsPerSeason` → down from 16.6, probably to the 11–14
   range. This is a consequence of a sourced behaviour rule, not a tune
   toward the band; report it as such.
+
+**READ 2026-09-16** — Mac Studio 5-seed @ `6e3b7bf` (#98):
+`capBustSeasons` **0.00**, `topCapPctMean` **20.28** (in ~20–21;
+first band 20.3±3 proposed, PROPOSAL only — sign widget skipped),
+`franchiseTagsPerSeason` **17.11** (did not dip; REPORT only).
+See HANDOFF Wave 4.0 post-#97/#98 panel.
 - `statcheck` / `calibrate` year-0: byte-identical (no tag is applied in
   year 0 before the first recap — verify, do not assume).
 - Stream: `runCpuFranchiseTags` already runs on
