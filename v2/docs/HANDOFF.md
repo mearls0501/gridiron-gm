@@ -105,7 +105,7 @@ numbers. Do not retune intel writers. That sign is **not** a
 `baselines.json` lock and does not sign the `topCapPctMean` band.
 
 **Untouched.** Engine, `scripts/` emit math, `docs/baselines.json`,
-PR **#9**. Vercel stays green (docs-only).
+PR **#9**. Vercel preview READY (`dpl_9pivZtS9ayUVQmFUMVTg2Xc7ekv8`).
 
 ---
 
