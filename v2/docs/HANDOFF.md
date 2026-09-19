@@ -162,14 +162,21 @@ PR **#9**. Vercel preview READY (`dpl_9pivZtS9ayUVQmFUMVTg2Xc7ekv8`).
 
 ---
 
-## 2026-09-16 — Wave 4.0 Packet 5: risk grades get consequences
+## 2026-09-16 — Wave 4.0 Packet 5: risk grades get consequences (Matt SIGNED 2026-09-19)
 
-Worker. Rebased onto `main @ 94fd0b6` (#99 scout caps, signed).
-Previously on `a120a47` (#101). Branch `cursor/g-risk-teeth`.
-Was Wave 3.9 Packet 8. `docs/baselines.json` **not edited.**
-Effect sizes are proposed, not locked — Matt signs. Do not merge
-until he does. `riskDiscount`, CPU boards, and scouting were not
-touched.
+Worker. Rebased onto `main @ db7f871` (#103 post-#97/#98 panel).
+Previously on `94fd0b6` (#99) and `a120a47` (#101). Branch
+`cursor/g-risk-teeth` / PR #100. Was Wave 3.9 Packet 8.
+`docs/baselines.json` **not edited.** `riskDiscount`, CPU boards,
+and scouting were not touched.
+
+**Matt SIGNED 2026-09-19** the effect-size table below
+(`MEDICAL_HAZARD` 1.00/1.08/1.20/1.40, `CHARACTER_HOLDOUT`
+1.00/1.10/1.35/1.70, `CHARACTER_DEMAND` 1.00/1.05/1.20/1.35) as
+already in code. Next: **solo merge**, then Studio
+`gate:full:serial` 5-seed panel. Do **not** re-lock baselines in
+this PR — the sign covers the multipliers, not any
+`baselines.json` band.
 
 ### FIRST CHECK — injury draw is on the parent today
 
@@ -189,7 +196,7 @@ will reshuffle. In-game contact injuries stay on the parent; they
 still see medical only through the generation durability haircut.
 The explicit grade read is the weekly site.
 
-### Proposed effect sizes (Matt signs — not baseline locks)
+### Effect sizes — Matt SIGNED 2026-09-19 (not baseline locks)
 
 `nfl-reference.md` has **no** injury-rate-by-medical-grade series.
 Brophy 2008 (AJSM; combine orthopedic grade → career games: high
