@@ -420,6 +420,33 @@ console.log(
   `${pad(pct(allScene.star, allScene.fired), 10)}`
 );
 
+// Medical risk teeth. Games missed = 17 − games appeared, rostered
+// seasons with a stat line. Drafted / UDFA only (they keep the grade).
+// Lead additive — no band. Proposed MEDICAL_HAZARD is unsigned.
+const SEASON_GAMES = 17;
+const missedClean: number[] = [];
+const missedMajor: number[] = [];
+for (const c of drafted) {
+  const p = byId.get(c.playerId);
+  const grade = p?.profile?.medicalRisk;
+  if (grade !== "clean" && grade !== "major") continue;
+  for (const s of c.seasons) {
+    const line = p!.stats.find((row) => row.season === s.season);
+    if (!line) continue;
+    const missed = Math.max(0, SEASON_GAMES - line.games);
+    if (grade === "major") missedMajor.push(missed);
+    else missedClean.push(missed);
+  }
+}
+const cleanMissedMean = avg(missedClean);
+const majorMissedMean = avg(missedMajor);
+const medicalMajorGamesMissedRatio = cleanMissedMean > 0 ? majorMissedMean / cleanMissedMean : 0;
+
+bar("MEDICAL RISK — games missed major vs clean (report-only)");
+console.log(`  clean mean games missed: ${cleanMissedMean.toFixed(2)} (n=${missedClean.length})`);
+console.log(`  major mean games missed: ${majorMissedMean.toFixed(2)} (n=${missedMajor.length})`);
+console.log(`  ratio major/clean:       ${medicalMajorGamesMissedRatio.toFixed(3)}`);
+
 emitAll({
   // Sample-size floors. A harness measuring nothing has to fail loudly rather
   // than report a flattering zero — that is exactly how the leverage probe
@@ -449,4 +476,7 @@ emitAll({
   "careers.secondSceneEligiblePct": pctOrZero(qbScene.eligible, qbMature.length),
   "careers.secondSceneFiredPct": pctOrZero(qbScene.fired, qbScene.eligible),
   "careers.secondSceneStarPct": pctOrZero(qbScene.star, qbScene.fired),
+
+  // Medical grade teeth — additive, no band. Matt signs the hazard.
+  "careers.medicalMajorGamesMissedRatio": medicalMajorGamesMissedRatio,
 });

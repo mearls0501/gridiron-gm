@@ -7,6 +7,7 @@ import {
   Player,
   PlayerPsychology,
   PsychReason,
+  RiskGrade,
   STARTERS,
   TRADE_DEADLINE_WEEK,
 } from "./types";
@@ -21,8 +22,11 @@ import {
  * Proposed defaults — flag for Matt (escalate class). Conservative, and
  * untraced: nfl-reference.md has no holdout / trade-request block. A
  * contract-year availability nudge would have to live in injuries.ts or
- * game.ts and would move the parent stream; this module is briefing +
- * flags only.
+ * game.ts and would move the parent stream.
+ *
+ * `characterRisk` scales holdout chance and (smaller) trade-request
+ * chance so a major grade escalates toward a holdout. Design defaults;
+ * Matt signs. Missing profile is clean.
  */
 
 /** OVR floor for a money holdout. Starters on cheap clubs, not the 53. */
@@ -50,7 +54,48 @@ export const ROOKIE_SCALE_YEARS = 3;
 /** Regular-season weeks a holdout sits before auto-reporting. */
 export const HOLDOUT_AUTO_REPORT_WEEKS = 4;
 
+/**
+ * Holdout-chance multipliers by hidden character grade.
+ * Proposed defaults — Matt signs. No holdout-by-character block in
+ * nfl-reference.md. Major escalates harder than a trade request.
+ */
+export const CHARACTER_HOLDOUT: Record<RiskGrade, number> = {
+  clean: 1,
+  minor: 1.10,
+  moderate: 1.35,
+  major: 1.70,
+};
+
+/** Trade-request chance. Shallower than holdout so majors escalate. */
+export const CHARACTER_DEMAND: Record<RiskGrade, number> = {
+  clean: 1,
+  minor: 1.05,
+  moderate: 1.20,
+  major: 1.35,
+};
+
 const SKIP_POS = new Set(["K", "P"]);
+
+export function characterRiskOf(p: Player): RiskGrade {
+  return p.profile?.characterRisk ?? "clean";
+}
+
+export function characterHoldoutMultiplier(p: Player): number {
+  return CHARACTER_HOLDOUT[characterRiskOf(p)];
+}
+
+export function characterDemandMultiplier(p: Player): number {
+  return CHARACTER_DEMAND[characterRiskOf(p)];
+}
+
+export function holdoutChance(p: Player): number {
+  return Math.min(0.85, HOLDOUT_P * characterHoldoutMultiplier(p));
+}
+
+export function tradeChance(p: Player, reason: PsychReason): number {
+  const base = reason === "role" || reason === "roleAndMoney" ? TRADE_ROLE_P : TRADE_MONEY_P;
+  return Math.min(0.85, base * characterDemandMultiplier(p));
+}
 
 export function psychologyChildRng(state: GameState): Rng {
   return childRng(state.seed, state.season, state.week, "psychology");
@@ -287,13 +332,12 @@ export function runPsychology(state: GameState): void {
     const reason = psychReason(state, p);
     if (!reason) continue;
 
-    if (holdoutEligible(state, p) && newHoldouts < HOLDOUT_CAP && rng.chance(HOLDOUT_P)) {
+    if (holdoutEligible(state, p) && newHoldouts < HOLDOUT_CAP && rng.chance(holdoutChance(p))) {
       fileDemand(state, p, "holdout", reason === "role" ? "money" : reason);
       newHoldouts++;
       continue;
     }
-    const pTrade = reason === "role" || reason === "roleAndMoney" ? TRADE_ROLE_P : TRADE_MONEY_P;
-    if (tradeEligible(state, p) && newTrades < TRADE_CAP && rng.chance(pTrade)) {
+    if (tradeEligible(state, p) && newTrades < TRADE_CAP && rng.chance(tradeChance(p, reason))) {
       fileDemand(state, p, "tradeRequest", reason);
       newTrades++;
     }
@@ -351,4 +395,23 @@ export function psychologyCensus(state: GameState): { holdouts: number; tradeReq
     if (isContractYear(p)) contractYear++;
   }
   return { holdouts, tradeRequests, contractYear };
+}
+
+/** Holdout counts by character grade. Does not write. */
+export function psychologyCensusByCharacter(
+  state: GameState,
+): Record<RiskGrade, { players: number; holdouts: number }> {
+  const out: Record<RiskGrade, { players: number; holdouts: number }> = {
+    clean: { players: 0, holdouts: 0 },
+    minor: { players: 0, holdouts: 0 },
+    moderate: { players: 0, holdouts: 0 },
+    major: { players: 0, holdouts: 0 },
+  };
+  for (const p of state.players) {
+    if (p.teamId === null || p.retired || p.prospect) continue;
+    const g = characterRiskOf(p);
+    out[g].players++;
+    if (p.psychology?.holdout) out[g].holdouts++;
+  }
+  return out;
 }

@@ -484,6 +484,23 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
 
 ## 4. What remains uncalibrated, on purpose
 
+- **Risk-grade teeth (medical / character).** Added 2026-09-16
+  (Wave 4.0 Packet 5). This file has **no** injury-rate-by-medical-grade
+  or holdout-by-character series in T/D/S/P. Combine orthopedic
+  grades predict *career length*, not a weekly hazard: Brophy et al.,
+  AJSM 2008
+  (https://pubmed.ncbi.nlm.nih.gov/18614959/) — high 41.5 / low 34.2
+  / fail 19.0 mean NFL games. That is cited as context only; it is
+  not a weekly-availability target and is not a lock. Proposed
+  defaults (Matt signs; ungated): `MEDICAL_HAZARD` clean/minor/
+  moderate/major = 1 / 1.08 / 1.20 / 1.40 on the post-clamp weekly
+  chance; `CHARACTER_HOLDOUT` = 1 / 1.10 / 1.35 / 1.70;
+  `CHARACTER_DEMAND` = 1 / 1.05 / 1.20 / 1.35. Emits
+  `careers.medicalMajorGamesMissedRatio` and
+  `psychology.holdoutsByCharacter` are lead-additive, no band.
+  The weekly injury draw moved off the parent onto a child stream
+  keyed (seed, season, week, "medical", playerId) — panel after
+  merge; do not claim byte-identical parent.
 - The *played badly → improved* development path (§2.7). Now measured:
   **11.4%** (4 of 35 QBs, nflverse 2010–2019 classes, query in §2.7).
   Ungated until the Studio panel; do not lock `careers.secondSceneStarPct`
@@ -1433,7 +1450,9 @@ real counterparts never accumulate.
 
 `rollWeeklyInjuries` (`lib/core/season/injuries.ts`) prices a week of exposure
 as `0.0205 x workload x POSITION_RISK[pos] x durability x age x staff`, clamped
-to [0.0008, 0.09]. For a healthy 25-year-old starting quarterback at typical
+to [0.0008, 0.09], then multiplied by `medicalHazard` (Wave 4.0 Packet 5;
+clean = 1; proposed, unsigned — §4). Draws are on a child stream keyed
+(seed, season, week, "medical", playerId). For a healthy 25-year-old starting quarterback at typical
 snap load that is about **0.018 per week**, so over a 17-week season the
 expected number of injuries is ~0.31 and roughly **73% of starting quarterbacks
 finish the season having missed nothing** — against a real 18%.

@@ -11,18 +11,23 @@ import { buildBriefing } from "./season/briefing";
 import { advance, startRegularSeason } from "./season/engine";
 import { advanceOffseason } from "./offseason";
 import {
+  CHARACTER_HOLDOUT,
   HOLDOUT_CAP,
+  HOLDOUT_P,
   TRADE_CAP,
+  characterHoldoutMultiplier,
   contractApy,
+  holdoutChance,
   isContractYear,
   plantDemand,
   psychologyCensus,
+  psychologyCensusByCharacter,
   psychologyView,
   resolveDemand,
   runPsychology,
 } from "./psychology";
 import { rolloverTradeCounter } from "./trades";
-import { GameState, Player } from "./types";
+import { GameState, Player, ProspectProfile, RiskGrade } from "./types";
 
 function ok(label: string) { console.log("ok   ", label); }
 
@@ -220,6 +225,50 @@ function stripPsych(st: GameState): GameState {
   assert.equal(st.seasonCounters?.tradeRequests, 0, "rollover resets tradeRequests");
   assert.equal(st.seasonCounters?.tradeRequestsLast, 1, "closed year lives on tradeRequestsLast");
   ok("seasonCounters holdouts / tradeRequests increment at declaration and roll ...Last");
+}
+
+{
+  const stub = (grade: RiskGrade): Player =>
+    ({ profile: { college: "", classYear: "SR", heightIn: 74, weightLb: 220, combine: {}, medicalRisk: "clean", characterRisk: grade, coachability: 60 } }) as Player;
+  assert.equal(characterHoldoutMultiplier(stub("clean")), 1);
+  assert.equal(characterHoldoutMultiplier(stub("major")), CHARACTER_HOLDOUT.major);
+  assert.equal(holdoutChance(stub("major")), Math.min(0.85, HOLDOUT_P * CHARACTER_HOLDOUT.major));
+  assert.ok(holdoutChance(stub("major")) > holdoutChance(stub("clean")));
+  ok("characterRisk scales holdout chance; major escalates");
+}
+
+{
+  const grades: RiskGrade[] = ["clean", "minor", "moderate", "major"];
+  const stubProfile = (characterRisk: RiskGrade): ProspectProfile => ({
+    college: "", classYear: "SR", heightIn: 74, weightLb: 220,
+    combine: {}, medicalRisk: "clean", characterRisk, coachability: 60,
+  });
+  const seeds = [11, 22, 33, 44, 55, 66, 77, 88];
+  let cleanH = 0, cleanN = 0, majorH = 0, majorN = 0;
+  for (const seed of seeds) {
+    const st = newGame({ seed });
+    let i = 0;
+    for (const p of st.players) {
+      if (p.teamId === null || p.retired || p.prospect) continue;
+      const g = grades[i++ % 4];
+      if (p.profile) p.profile.characterRisk = g;
+      else p.profile = stubProfile(g);
+    }
+    const before = st.rngState;
+    runPsychology(st);
+    assert.equal(st.rngState, before, `parent moved on planted seed ${seed}`);
+    const c = psychologyCensusByCharacter(st);
+    cleanH += c.clean.holdouts;
+    cleanN += c.clean.players;
+    majorH += c.major.holdouts;
+    majorN += c.major.players;
+  }
+  const cleanRate = cleanN ? cleanH / cleanN : 0;
+  const majorRate = majorN ? majorH / majorN : 0;
+  const ratio = cleanRate > 0 ? majorRate / cleanRate : 0;
+  console.log(`##M psychology.holdoutsByCharacter ${ratio.toFixed(4)}`);
+  assert.ok(Number.isFinite(ratio) && ratio >= 0, `holdoutsByCharacter ${ratio} is not a rate`);
+  ok(`holdoutsByCharacter major/clean ${ratio.toFixed(2)} (${majorH}/${majorN} vs ${cleanH}/${cleanN})`);
 }
 
 console.log("ok    psychology people layer");

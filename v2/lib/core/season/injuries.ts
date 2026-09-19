@@ -1,6 +1,6 @@
 import { injuryRiskMultiplier, recoveryMultiplier } from "../staff";
 import { Rng, clamp } from "../rng";
-import { Game, GameState, Player, Position } from "../types";
+import { Game, GameState, Player, Position, RiskGrade } from "../types";
 
 /**
  * The injury model that lives outside the game.
@@ -94,6 +94,57 @@ const POSITION_RISK: Record<Position, number> = {
 const WORKLOAD_EXP = 2.8;
 
 /**
+ * Per-game (weekly) hazard multiplier from the hidden medical grade.
+ *
+ * Proposed defaults — Matt signs. `docs/nfl-reference.md` has no
+ * injury-rate-by-medical-grade series in T/D/S/P. Brophy 2008
+ * (combine orthopedic grade → career games: high 41.5 / low 34.2 /
+ * fail 19.0) is career length, not a weekly hazard, and is cited in
+ * §4 as context only. Applied after the existing [0.0008, 0.09]
+ * clamp so a major grade still raises chance when the cap already
+ * binds. Clean / missing profile is 1.
+ */
+export const MEDICAL_HAZARD: Record<RiskGrade, number> = {
+  clean: 1,
+  minor: 1.08,
+  moderate: 1.20,
+  major: 1.40,
+};
+
+export function medicalRiskOf(p: Player): RiskGrade {
+  return p.profile?.medicalRisk ?? "clean";
+}
+
+export function medicalHazard(p: Player): number {
+  return MEDICAL_HAZARD[medicalRiskOf(p)];
+}
+
+/** Child stream keyed (seed, season, week, "medical", playerId). */
+export function medicalChildRng(
+  seed: number, season: number, week: number, playerId: number,
+): Rng {
+  let h = seed >>> 0;
+  h = Math.imul(h ^ season, 0x9e3779b9);
+  h = Math.imul(h ^ (week + 1), 0x85ebca6b);
+  const tag = "medical";
+  for (let i = 0; i < tag.length; i++) h = Math.imul(h ^ tag.charCodeAt(i), 0xc2b2ae35);
+  h = Math.imul(h ^ (playerId + 1), 0x85ebca6b);
+  return new Rng((h >>> 0) || 0x9e3779b9);
+}
+
+/**
+ * Weekly soft-tissue chance after the historical clamp, then medicalRisk.
+ * `staff` is 1.0 on an even budget.
+ */
+export function weeklyInjuryChance(p: Player, played: number, staff: number): number {
+  const workload = Math.pow(played > 0 ? clamp(played / 55, 0.25, 1.6) : 0.18, WORKLOAD_EXP);
+  const durability = 1 + (70 - p.durability) / 90;
+  const age = 1 + Math.max(0, p.age - 27) * 0.075;
+  const base = 0.0205 * workload * POSITION_RISK[p.pos] * durability * age * staff;
+  return clamp(base, 0.0008, 0.09) * medicalHazard(p);
+}
+
+/**
  * How long a week's injury keeps each position out, relative to the table.
  *
  * Incidence alone cannot describe availability. A real quarterback is hit less
@@ -162,10 +213,14 @@ export function snapsThisWeek(games: Game[]): Map<number, number> {
  * is not, and a club on its bye is not exposed at all. Age and durability then
  * modulate it — a 34-year-old hamstring is not a 24-year-old hamstring, which
  * is the only place in the game where age carries a cost that isn't a rating.
+ *
+ * FIRST CHECK (Wave 4.0 Packet 5): this draw used the week's parent `rng`.
+ * It now lives on a per-player child stream keyed
+ * `(seed, season, week, "medical", playerId)` and reads `medicalRisk`.
+ * Moving it off the parent is a parent-stream change — solo packet + panel.
+ * `state.rngState` is not read or written here.
  */
-export function rollWeeklyInjuries(
-  state: GameState, games: Game[], rng: Rng
-): void {
+export function rollWeeklyInjuries(state: GameState, games: Game[]): void {
   const snaps = snapsThisWeek(games);
 
   for (const p of state.players) {
@@ -173,30 +228,23 @@ export function rollWeeklyInjuries(
 
     const played = snaps.get(p.id) ?? 0;
     // Someone who took no snaps can still pull something in practice, but the
-    // exposure is a fraction of a starter's.
-    const workload = Math.pow(played > 0 ? clamp(played / 55, 0.25, 1.6) : 0.18, WORKLOAD_EXP);
-
-    const durability = 1 + (70 - p.durability) / 90;
-    const age = 1 + Math.max(0, p.age - 27) * 0.075;
-
-    // What the club funds its training and medical staff. Exactly 1.0 on an
-    // even staff budget, so a league that has not allocated is unchanged.
+    // exposure is a fraction of a starter's. Even staff budget is exactly 1.0.
     const staff = injuryRiskMultiplier(state.teams[p.teamId]);
+    const chance = weeklyInjuryChance(p, played, staff);
+    const draw = medicalChildRng(state.seed, state.season, state.week, p.id);
+    if (!draw.chance(chance)) continue;
 
-    const chance = 0.0205 * workload * POSITION_RISK[p.pos] * durability * age * staff;
-    if (!rng.chance(clamp(chance, 0.0008, 0.09))) continue;
-
-    const entry = rng.weighted(WEEKLY_TABLE, (e) => e.weight);
+    const entry = draw.weighted(WEEKLY_TABLE, (e) => e.weight);
     p.injuryWeeks = Math.max(
       1,
       Math.round(
-        rng.int(entry.min, entry.max) *
+        draw.int(entry.min, entry.max) *
         POSITION_DURATION[p.pos] *
         recoveryMultiplier(state.teams[p.teamId])
       )
     );
     p.injuryDesc = entry.desc;
-    if (p.injuryWeeks >= SERIOUS_WEEKS) applyWear(p, rng);
+    if (p.injuryWeeks >= SERIOUS_WEEKS) applyWear(p, draw);
 
     // Reporting everything would bury every other kind of news under a hundred
     // hamstrings a week. All of the user's, and anything serious elsewhere.

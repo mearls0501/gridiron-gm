@@ -162,6 +162,102 @@ PR **#9**. Vercel preview READY (`dpl_9pivZtS9ayUVQmFUMVTg2Xc7ekv8`).
 
 ---
 
+## 2026-09-16 — Wave 4.0 Packet 5: risk grades get consequences (Matt SIGNED 2026-09-19)
+
+Worker. Rebased onto `main @ db7f871` (#103 post-#97/#98 panel).
+Previously on `94fd0b6` (#99) and `a120a47` (#101). Branch
+`cursor/g-risk-teeth` / PR #100. Was Wave 3.9 Packet 8.
+`docs/baselines.json` **not edited.** `riskDiscount`, CPU boards,
+and scouting were not touched.
+
+**Matt SIGNED 2026-09-19** the effect-size table below
+(`MEDICAL_HAZARD` 1.00/1.08/1.20/1.40, `CHARACTER_HOLDOUT`
+1.00/1.10/1.35/1.70, `CHARACTER_DEMAND` 1.00/1.05/1.20/1.35) as
+already in code. Next: **solo merge**, then Studio
+`gate:full:serial` 5-seed panel. Do **not** re-lock baselines in
+this PR — the sign covers the multipliers, not any
+`baselines.json` band.
+
+### FIRST CHECK — injury draw is on the parent today
+
+**Yes.** `simulateWeek` passed the week's parent `rng` into
+`rollWeeklyInjuries`. In-game `rollInGameInjury` in `sim/game.ts`
+also consumes that parent. The scouting-audit write-up called the
+existing draw "a child stream"; that was wrong.
+
+This packet **moves the weekly (availability) draw** onto a
+per-player child stream keyed `(seed, season, week, "medical",
+playerId)` and reads `medicalRisk` there. That **removes parent
+draws**. Subsequent weeks' games therefore diverge.
+
+**This is a solo packet followed by a panel. Do not claim
+byte-identical parent.** Year-0 `calibrate` / `statcheck` / `careers`
+will reshuffle. In-game contact injuries stay on the parent; they
+still see medical only through the generation durability haircut.
+The explicit grade read is the weekly site.
+
+### Effect sizes — Matt SIGNED 2026-09-19 (not baseline locks)
+
+`nfl-reference.md` has **no** injury-rate-by-medical-grade series.
+Brophy 2008 (AJSM; combine orthopedic grade → career games: high
+41.5 / low 34.2 / fail 19.0) is career *length*, not a weekly
+hazard, and is cited in §4 as context only.
+
+| grade | `MEDICAL_HAZARD` (weekly chance, after the 0.09 clamp) | `CHARACTER_HOLDOUT` | `CHARACTER_DEMAND` (trade request) |
+|---|---:|---:|---:|
+| clean | 1.00 | 1.00 | 1.00 |
+| minor | 1.08 | 1.10 | 1.05 |
+| moderate | 1.20 | 1.35 | 1.20 |
+| major | 1.40 | 1.70 | 1.35 |
+
+Holdout chance is scaled harder than trade-request chance so a
+major character grade escalates toward a holdout. Missing profile
+is clean. Generated year-0 bodies have no profile — teeth apply
+to drafted / UDFA careers that keep the grade.
+
+### Change
+
+- `lib/core/season/injuries.ts` — `medicalHazard`, child stream,
+  `rollWeeklyInjuries` no longer takes parent `rng`.
+- `lib/core/season/engine.ts` — call site only (stop passing `rng`).
+- `lib/core/psychology.ts` — `characterRisk` modifier on holdout /
+  demand chance. Existing psychology child stream unchanged.
+- `scripts/careers.ts` lead-additive
+  `careers.medicalMajorGamesMissedRatio` (major vs clean mean
+  games missed, 17 − games appeared). No band.
+- `lib/core/psychology.test.ts` lead-additive
+  `psychology.holdoutsByCharacter` (major/clean holdout-rate ratio
+  on a planted-grade fixture). No band.
+
+### Leftover
+
+Studio 5-seed `gate:full:serial` panel after merge. Re-lock
+nothing here. If `careers.medicalMajorGamesMissedRatio` is ~1
+the weekly teeth are not biting on games-appeared — report, do
+not pre-emptively retune. In-game medical read is a follow-up
+if Matt wants contact injuries on the same grade.
+
+### Untouched
+
+`riskDiscount`, `cpuProspectView`, `scouting.ts` writers, CPU
+boards, `sim/game.ts` injury path, `baselines.json`,
+`POSITION_VALUE`, `CONTENDER_PULL`, `GUARANTEE_PULL`,
+`CARRY_SHARE`.
+
+### Gate
+
+`npm run gate:serial` on this box after the unit tests. Two
+inherited single-seed reds, not this packet (ORCHESTRATION.md):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1105  expected 1208 +/-97
+```
+
+Do not chase them. Do not edit those baselines.
+
+---
+
 ## 2026-09-16 — Wave 4.0 Packet 4: per-prospect film / pro-day caps (Matt SIGNED 2026-09-17)
 
 Worker. Rebased onto `main @ a120a47` (#101 +2 probe). Branch
