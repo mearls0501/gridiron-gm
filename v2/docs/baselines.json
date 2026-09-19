@@ -388,6 +388,12 @@
       "nfl": 10,
       "note": "RE-LOCKED 2026-09-13 Wave 3.7 Packet 2 (Matt SIGNED). Band 14 +/-4. Real league volume is ~10 tags a year (nfl-reference.md S4 franchise tag). Do not retune tag rules toward the band."
     },
+    "drift.topCapPctMean": {
+      "target": 20.3,
+      "tol": 3,
+      "nfl": "18-20",
+      "note": "LOCKED 2026-09-19 Wave 4.0 (Matt SIGNED). First band. Mac Studio 5-seed panel at 6e3b7bf (#98) read 20.28 (20.52/19.94/19.86/20.08/21.03); target is the proposed 20.3, tol 3 (window 17.3-23.3). Mean of each season's highest cap hit; OTC seasonal maxima sit at ~18-20% of the cap (nfl-reference.md S4, 2025 Dak 18.09%). capBustSeasons stays the 28% / max: 0 backstop."
+    },
     "drift.eliteGrowthRatio": {
       "target": 1.04,
       "tol": 0.5,

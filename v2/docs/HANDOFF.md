@@ -5,6 +5,56 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-19 — Matt SIGNED: `topCapPctMean` first band + Packet 5 effect sizes
+
+Lead. Docs + `docs/baselines.json` only. Engine, `scripts/`, and
+the PR **#100** branch **not touched**. This is the Lead lock
+packet the post-#97/#98 panel section below said would follow
+the sign, the same way Wave 3.9 Packet 2 locked save / moved
+`statcheck`.
+
+### Band lock — `drift.topCapPctMean` (Matt SIGNED 2026-09-19)
+
+Matt **SIGNED** the first band as proposed from the Wave 4.0
+post-#97/#98 panel @ `6e3b7bf`:
+
+- target **20.3**
+- tol **3**
+- window **17.3–23.3**
+- `nfl` note stays **18–20** (`nfl-reference.md` §4)
+
+Locked in `docs/baselines.json` in this PR. Authority is the
+5-seed mean 20.28 (20.52/19.94/19.86/20.08/21.03) and the
+Packet 2 leftover (~20–21 after the 25–28% tags leave).
+`capBustSeasons` stays the 28% / `max: 0` backstop. **No other
+baseline row moved** — no bands for `franchiseTagsPerSeason`
+(signed 14±4 stays), people counters, or any FAIL leftover.
+
+### Packet 5 risk effect sizes (#100) — Matt SIGNED 2026-09-19
+
+Matt **SIGNED** the Wave 4.0 Packet 5 (risk-grade teeth, PR
+**#100**) effect sizes as proposed on that PR. Missing profile
+is clean.
+
+| grade | `MEDICAL_HAZARD` (weekly) | `CHARACTER_HOLDOUT` | `CHARACTER_DEMAND` |
+|---|---:|---:|---:|
+| clean | 1.00 | 1.00 | 1.00 |
+| minor | 1.08 | 1.10 | 1.05 |
+| moderate | 1.20 | 1.35 | 1.20 |
+| major | 1.40 | 1.70 | 1.35 |
+
+These are signed effect sizes, **not** `baselines.json` locks —
+`nfl-reference.md` has no injury-rate-by-medical-grade series
+(Brophy 2008 is §4 context only); do not invent a band from
+them. **#100 still merges solo, with a Studio panel after.**
+This PR does **not** merge #100 and does **not** change engine
+code.
+
+**Untouched.** Engine, `scripts/` emit math, every other
+`baselines.json` row, the `cursor/g-risk-teeth` branch (#100).
+
+---
+
 ## Wave 4.0 post-#97/#98 panel @ 6e3b7bf (2026-09-16 Studio)
 
 Docs-only. Mac Studio `gate:full:serial` 5-seed on `main @ 6e3b7bf`
@@ -69,6 +119,9 @@ Matt. Do not retune dials toward the signed expects:
   Record only.
 
 ### Lead re-lock PROPOSAL (awaiting Matt sign)
+
+**SIGNED 2026-09-19 — locked in `baselines.json`; see the
+2026-09-19 entry at top.** Kept as written below for the record.
 
 HANDOFF note only. **Do not edit `baselines.json` in this PR.**
 
