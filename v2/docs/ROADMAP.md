@@ -134,9 +134,12 @@ the line. ~~+2 probe (was Packet 9)~~ **SHIPPED 2026-09-16 (Wave
 4.0 Packet 6).** Write-up: `v2/docs/plus2-probe-2026-09-16.md`.
 Report, do not tune. Studio 14×3 panel is the leftover lock-grade
 read. Wave 4.0 post-#97/#98 panel @ `6e3b7bf` (2026-09-16 Studio)
-is the first post-ceiling / people-counter read. `topCapPctMean`
-20.3±3 is a **PROPOSAL** only — Matt has not signed that
-baseline (sign widget skipped).
+is the first post-ceiling / people-counter read. ~~`topCapPctMean`
+20.3±3 is a **PROPOSAL** only~~ **Matt SIGNED 2026-09-19** —
+locked in `baselines.json` (Lead docs packet). Packet 8
+(risk-grade teeth, Wave 4.0 Packet 5 / PR #100) effect sizes
+also **SIGNED 2026-09-19**; #100 still merges solo with a Studio
+panel after.
 
 ### Phase 1 — make the engine visible (after the panel is green)
 
