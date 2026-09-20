@@ -500,6 +500,11 @@ stream holds; no tag is applied before the first recap). `careers
 ceiling changes who is tagged vs extended, which reshuffles later
 drafts. Solo packet + panel. Do not force a merge.
 
+**Lead overrode the STOP the same day.** Solo packet + post-merge
+panel is the correct rule for a careers-stream divergence; the
+written STOP disagreed with the action. Outcome was right (#97
+merged; panel followed).
+
 ```
 ##M calibrate.*        IDENTICAL  (scoreMismatches 0, passYds 237.328…)
 ##M statcheck.*        IDENTICAL  (qb5 4189, leadPass 4921, wr10 1105…)
