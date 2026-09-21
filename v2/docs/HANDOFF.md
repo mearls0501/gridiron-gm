@@ -5,6 +5,87 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-21 — Wave 4.1 Packet 1: LEAD re-lock `statcheck.wr10RecYds` (Matt SIGNED)
+
+Lead. Docs + `docs/baselines.json` only. Engine, `scripts/`, and
+gameplay code **not touched**. Matt **SIGNED** 2026-09-21: re-lock
+the one moved `statcheck` row from the Mac Studio 5-seed
+`gate:full:serial` panel. Same pattern as #91 / #108. Authority is
+that panel at tip `93d7e4b` (screen w41p1), finished ~2026-09-21
+14:59 ET. `main` is now `eb2b475` after Packet 3 (#112) and Packet 4
+(#113) docs merges; those do not invalidate this panel.
+
+`ROADMAP.md` and `nfl-reference.md` are not edited. §5.1's sourced
+receiving #10 (**1208 ±65**) is the `nfl` field and stays. The
+ROADMAP gate table is the Wave 3.7 historical snapshot, not a live
+"do not lock" line the way the `topCapPctMean` proposal was.
+
+### GATE FAIL 5 — panel @ `93d7e4b`
+
+```
+FAIL  coherence  exited 1
+FAIL  drift  exited 1
+FAIL  drift.p0Failures  0.40
+FAIL  tails.milestonesOff  21.20
+FAIL  statcheck.wr10RecYds  1105.8  expected 1208 +/-97
+```
+
+- **coherence** exited 1. Seed 1 `outlierExplainedPct` **84.62**
+  is under the floor of 85. Panel mean ~**87.4**
+  (84.6/90.6/87.7/87.7/86.4). One-seed soft miss. Floor **85
+  stays**. Do not soften it.
+- **drift** exited 1.
+- `drift.p0Failures` **0.40** (seeds 0/0/0/1/1). Finding, **not
+  re-locked**. Max stays **0**.
+- `tails.milestonesOff` **21.20**. KNOWN-HIGH, **not re-locked**.
+  Max stays **16**.
+- `statcheck.wr10RecYds` **1105.8** vs 1208±97. **SIGNED re-lock**
+  below.
+
+### Signed lock — one row
+
+| | target | tol | nfl |
+|---|---:|---:|---:|
+| old | 1208 | 97 | 1208 |
+| new | **1105.8** | **97** | **1208** |
+
+Seeds **1164 / 1005 / 1090 / 1056 / 1214**. Target is the panel
+mean. Tol unchanged. `nfl` **1208** remains the
+`nfl-reference.md` §5.1 reference.
+
+### Notable PASS / finding closed
+
+- `drift.capBustSeasons` **0** on all five seeds. Was **0.40**
+  (Wave 3.9 panel) and **3.40** (Wave 4.0 Packet 1). Finding
+  **CLOSED**. No lock change — max is already **0**.
+- `drift.topCapPctMean` **20.54** inside the signed **20.3±3**
+  (#108). Band unchanged.
+- `drift.franchiseTagsPerSeason` **16.74** inside the signed
+  **14±4**. Band unchanged. Packet 3 (#112) already recorded
+  tags ~17 as intentional behaviour, not a leak.
+- `drift.ovrDrift` **−2.10** inside the signed **−1.7±1.5**.
+  Band unchanged.
+- Save rows stay the #91 locks (`saveMbAtEnd` max 15.89,
+  `saveGrowthMbPerSeason` max 0.61).
+
+### Left alone (findings, not locks)
+
+- `drift.p0Failures` **0.40** — max 0 stays.
+- `tails.milestonesOff` **21.20** — KNOWN-HIGH, max 16 stays.
+- `coherence.outlierExplainedPct` seed-1 **84.62** — min 85 stays.
+- No new bands for people counters, holdouts, trade-requests, or
+  `secondScene` %.
+
+### Already merged
+
+- Packet 3 (#112) — tags ~17.1 is intentional behaviour, not a leak.
+- Packet 4 (#113) — deadMoney-by-source census; report, never tune.
+
+**Untouched.** Engine, `scripts/`, gameplay code, every other
+`baselines.json` row, `ROADMAP.md`, `nfl-reference.md`.
+
+---
+
 ## 2026-09-21 — Wave 4.1 Packet 4: deadMoney-by-source census (READ-ONLY)
 
 Worker. Docs only. Branch `cursor/wave41-deadmoney-by-source-2bd7`.

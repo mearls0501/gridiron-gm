@@ -513,10 +513,10 @@
       "note": "NEW 2026-08-02. 5th-best rushing season, real mean 1191 +/- 125 (nfl-reference.md S5.1). tol ~8%."
     },
     "statcheck.wr10RecYds": {
-      "target": 1208,
+      "target": 1105.8,
       "tol": 97,
       "nfl": 1208,
-      "note": "NEW 2026-08-02. 10th-best receiving season, real mean 1208 +/- 65 (nfl-reference.md S5.1). tol ~8%. Receiving was already close; this locks it so a passing fix cannot break it."
+      "note": "RE-LOCKED 2026-09-21 Wave 4.1 Packet 1 (Matt SIGNED). Mac Studio 5-seed gate:full:serial panel at 93d7e4b read 1105.8 (1164/1005/1090/1056/1214). Target is the panel mean; tol 97 unchanged; nfl 1208 remains the nfl-reference.md S5.1 reference."
     },
     "statcheck.rushers1700": {
       "max": 2,
