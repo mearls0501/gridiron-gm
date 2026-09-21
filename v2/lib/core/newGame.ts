@@ -3,6 +3,8 @@ import { createNewGame, NewGameOptions, refreshDepthCharts } from "./generate";
 import { ensureJerseyNumbers } from "./jersey";
 import { reconcileRoster } from "./offseason/contracts";
 import { generateDraftClass, initialScoutingPass } from "./offseason/draft";
+import { ensureCoaches } from "./coaches";
+import { ensureOwners } from "./owner";
 import { ensureScouting } from "./scouting";
 import { GameState } from "./types";
 import { ensurePickInventory } from "./trades";
@@ -34,6 +36,11 @@ export function newGame(opts: NewGameOptions = {}): GameState {
   refreshDepthCharts(state, true);
   ensureJerseyNumbers(state);
   state.rngState = rng.state;
+  // Child-stream people layer. Headless harnesses never hit save-load
+  // or /staff, so owners/coaches must be seeded here or CPU HC fires
+  // never plant (ownerJobView is null without an owner).
+  ensureCoaches(state);
+  ensureOwners(state);
   return state;
 }
 

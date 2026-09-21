@@ -5,6 +5,61 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-21 — Wave 4.1 Packet 2: seed owners/coaches on newGame + runRecap
+
+**HOLD — do not merge / do not request solo+panel until Lead Packet 1
+re-lock is signed by Matt.**
+
+Worker. Branch `cursor/g-seed-owners-2adc`. `docs/baselines.json`
+**not edited.** Dials not touched.
+
+### Diagnosis
+
+`drift.hcFiresPerSeason` reads **0.00** on headless panels (Wave 4.0
+post-#97/#98) against a signed expect of 6–8/yr. The counter write
+site (`fireCpuHeadCoaches`) is live, but `ownerJobView` returns
+null when `team.owner` is missing. `ensureOwners()` (and
+`ensureCoaches()`) only ran on save-load (`save.ts` migrate /
+`saveGame`) and `/staff`. Headless harnesses call `newGame` and
+never hit those paths, so CPU leagues never get owners and HC
+fires never plant.
+
+`ensure*` already draws from child streams keyed
+`(seed, season, week, 'owner'|'coaches')`. Parent stream is not
+read or written.
+
+### Change
+
+- `lib/core/newGame.ts` — `ensureCoaches` + `ensureOwners` at the
+  end of the seed path, after the parent `rngState` write-back.
+- `lib/core/offseason/index.ts` — defensive `ensureOwners` at the
+  top of `runRecap` (old in-memory / pre-seed saves).
+- `lib/core/peopleTeeth.test.ts` — newGame seeds all 32 clubs;
+  `runRecap` backfills stripped owners; `fireCpuHeadCoaches` after
+  `newGame` plants `hcFires` without a save-load ensure.
+- `lib/core/coaches.test.ts` / `owner.test.ts` — assertions that
+  `newGame` left people undefined now expect the seed.
+
+### Leftover
+
+Studio panel read of `drift.hcFiresPerSeason` after Lead Packet 1
+re-lock. Year-0 `calibrate` / `statcheck` `##M` rows should stay
+byte-identical (child stream). Careers / drift may move from S2+
+when fires and the carousel actually run. Do not retune dials
+toward 6–8 here.
+
+### Untouched
+
+Dials, `baselines.json`, `scripts/` emit math, `fireHeatThreshold`,
+`OWNER_PATIENCE`, `OWNER_WIN_TARGET`, `OWNER_MIN_SEASONS`,
+`POSITION_VALUE`, `CONTENDER_PULL`, `GUARANTEE_PULL`, `CARRY_SHARE`.
+
+### Gate
+
+Pending on this box after the unit tests.
+
+---
+
 ## 2026-09-19 — Matt SIGNED: `topCapPctMean` first band + Packet 5 effect sizes
 
 Lead. Docs + `docs/baselines.json` only. Engine, `scripts/`, and

@@ -17,6 +17,7 @@ import {
 } from "./psychology";
 import { declareGamedayInactives, holdoutsOnActive53, isSat, sitHoldouts } from "./inactives";
 import { startRegularSeason, advance } from "./season/engine";
+import { runRecap } from "./offseason";
 import { rolloverTradeCounter } from "./trades";
 import { GameState } from "./types";
 
@@ -104,6 +105,31 @@ function plantStandings(st: GameState, season: number, winsFor: (teamId: number)
 }
 
 {
+  const st = newGame({ seed: 80 });
+  const parent = st.rngState;
+  for (const t of st.teams) {
+    assert.ok(t.owner?.name, `${t.abbr} missing owner after newGame`);
+    assert.ok(t.coaches?.hc && t.coaches.oc && t.coaches.dc, `${t.abbr} missing coaches after newGame`);
+  }
+  ensureCoaches(st);
+  ensureOwners(st);
+  assert.equal(st.rngState, parent, "re-ensure after newGame is a no-op on the parent stream");
+  ok("newGame seeds coaches and owners on the child stream");
+}
+
+{
+  const st = newGame({ seed: 81 });
+  for (const t of st.teams) delete t.owner;
+  assert.ok(st.teams.every((t) => !t.owner));
+  st.phase = "offseason-recap";
+  runRecap(st);
+  for (const t of st.teams) {
+    assert.ok(t.owner?.name, `${t.abbr} missing owner after runRecap`);
+  }
+  ok("runRecap backfills owners when the save has none");
+}
+
+{
   const st = newGame({ seed: 73 });
   ensureCoaches(st);
   ensureOwners(st);
@@ -134,6 +160,30 @@ function plantStandings(st: GameState, season: number, winsFor: (teamId: number)
   assert.equal(st.seasonCounters?.hcFiresLast, fired, "closed year lives on hcFiresLast");
   console.log(`##M people.cpuHcFiresPlanted ${fired}`);
   ok(`owner heat fired ${fired} CPU HC(s) on a planted 3-14 / 11-6 split`);
+}
+
+{
+  const st = newGame({ seed: 76 });
+  for (const t of st.teams) {
+    if (t.id === st.userTeamId) continue;
+    if (t.coaches?.hc) t.coaches.hc.hiredSeason = st.season - 2;
+  }
+  const left = Math.floor(st.teams.length / 2);
+  for (const t of st.teams) {
+    if (t.id >= left) continue;
+    if (t.frontOffice) t.frontOffice.winNow = 1;
+    for (const p of st.players) {
+      if (p.teamId === t.id && !p.retired && !p.prospect) p.ovr = Math.max(p.ovr, 82);
+    }
+  }
+  plantStandings(st, st.season - 2, (id) => (id < left ? 3 : 11));
+  plantStandings(st, st.season - 1, (id) => (id < left ? 3 : 11));
+  const parent = st.rngState;
+  const fired = fireCpuHeadCoaches(st);
+  assert.equal(st.rngState, parent);
+  assert.ok(fired >= 1, `newGame-seeded owners should fire some CPU HCs (fired ${fired})`);
+  assert.equal(st.seasonCounters?.hcFires, fired, "hcFires increments without a save-load ensureOwners");
+  ok(`headless newGame path fired ${fired} CPU HC(s) without extra ensureOwners`);
 }
 
 {

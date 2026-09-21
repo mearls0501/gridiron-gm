@@ -38,7 +38,7 @@ function stripPeople(st: GameState): GameState {
 {
   const st = newGame({ seed: 41 });
   const before = st.rngState;
-  assert.equal(st.teams[st.userTeamId].coaches, undefined, "newGame does not touch generate.ts");
+  assert.ok(st.teams[st.userTeamId].coaches, "newGame seeds coaches on the child stream");
   ensureCoaches(st);
   assert.equal(st.rngState, before, "coaches child stream must not move the parent");
   for (const t of st.teams) {

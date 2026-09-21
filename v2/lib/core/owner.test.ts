@@ -48,7 +48,7 @@ function plantYear(st: GameState, season: number, userWins: number): SeasonHisto
 {
   const st = newGame({ seed: 51 });
   const before = st.rngState;
-  assert.equal(st.teams[st.userTeamId].owner, undefined);
+  assert.ok(st.teams[st.userTeamId].owner, "newGame seeds owners");
   ensureOwners(st);
   assert.equal(st.rngState, before, "owner child stream must not move the parent");
   for (const t of st.teams) {
