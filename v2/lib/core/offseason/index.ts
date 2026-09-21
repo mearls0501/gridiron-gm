@@ -14,7 +14,7 @@ import { runHousekeeping } from "../housekeeping";
 import { refreshCpuStaff } from "../staff";
 import { runPsychology } from "../psychology";
 import { fireCpuHeadCoaches, runCoachCarousel, tickCoachContracts } from "../coaches";
-import { applyUserGmFiring } from "../owner";
+import { applyUserGmFiring, ensureOwners } from "../owner";
 import { runHofInduction, tickHofCareerLabels } from "../hallOfFame";
 import { maybeRetireNumbersForHallOfFame } from "../jersey";
 
@@ -78,6 +78,7 @@ export interface OffseasonState {
 
 /** Season review: history, awards, aging, development, retirement. */
 export function runRecap(state: GameState): OffseasonReport {
+  ensureOwners(state);
   const rng = new Rng(state.rngState);
 
   const history = recordSeasonHistory(state);
