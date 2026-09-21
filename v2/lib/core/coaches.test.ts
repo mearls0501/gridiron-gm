@@ -36,7 +36,7 @@ function stripPeople(st: GameState): GameState {
 }
 
 {
-  const st = newGame({ seed: 41 });
+  const st = stripPeople(newGame({ seed: 41 }));
   const before = st.rngState;
   assert.equal(st.teams[st.userTeamId].coaches, undefined, "newGame does not touch generate.ts");
   ensureCoaches(st);

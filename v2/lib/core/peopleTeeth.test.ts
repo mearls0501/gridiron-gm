@@ -7,7 +7,8 @@
 import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { ensureCoaches, fireCpuHeadCoaches, tickCoachContracts } from "./coaches";
-import { ensureOwners } from "./owner";
+import { runRecap } from "./offseason";
+import { ensureOwners, ownerJobView } from "./owner";
 import {
   HOLDOUT_AUTO_REPORT_WEEKS,
   HOLDOUT_CAP,
@@ -104,11 +105,38 @@ function plantStandings(st: GameState, season: number, winsFor: (teamId: number)
 }
 
 {
-  const st = newGame({ seed: 73 });
+  const st = newGame({ seed: 77 });
+  const parent = st.rngState;
+  for (const t of st.teams) {
+    assert.ok(t.owner?.name, `${t.abbr} missing owner after newGame`);
+    assert.ok(t.owner!.patience >= 0.35 && t.owner!.patience <= 0.80, `${t.abbr} owner patience out of band`);
+    assert.ok(t.coaches?.hc && t.coaches.oc && t.coaches.dc, `${t.abbr} missing a chair after newGame`);
+  }
   ensureCoaches(st);
   ensureOwners(st);
+  assert.equal(st.rngState, parent, "newGame seeding is child-stream; re-ensure is a no-op on the parent");
+  ok("newGame seeds coaches + owners for every club");
+}
+
+{
+  const st = newGame({ seed: 78 });
+  const names = st.teams.map((t) => t.owner!.name);
+  for (const t of st.teams) delete t.owner;
+  assert.equal(st.teams.every((t) => !t.owner), true, "owners stripped for the recap backfill");
+  runRecap(st);
+  for (const t of st.teams) {
+    assert.ok(t.owner?.name, `${t.abbr} missing owner after runRecap`);
+  }
+  assert.deepEqual(st.teams.map((t) => t.owner!.name), names, "recap backfill uses the same owner child stream");
+  ok("runRecap defensively seeds owners");
+}
+
+{
+  const st = newGame({ seed: 73 });
   for (const t of st.teams) {
     if (t.id === st.userTeamId) continue;
+    assert.ok(t.owner, `${t.abbr} has no owner; headless fire cannot read heat`);
+    assert.ok(ownerJobView(st, t.id), `${t.abbr} ownerJobView is null without a seeded owner`);
     if (t.coaches?.hc) t.coaches.hc.hiredSeason = st.season - 2;
   }
   const left = Math.floor(st.teams.length / 2);
