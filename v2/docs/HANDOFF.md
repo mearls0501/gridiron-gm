@@ -5,6 +5,70 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-21 — Wave 4.1 Packet 4: deadMoney-by-source census (READ-ONLY)
+
+Worker. Docs only. Branch `cursor/wave41-deadmoney-by-source-2bd7`.
+Base `main @ 93d7e4b` (#109). Engine, `scripts/`,
+`docs/baselines.json`, and AGENTS.md known-open rows **not
+touched**. Write-up:
+`v2/docs/deadmoney-by-source-2026-09.md`. Attribution was a
+local one-off (`/tmp/deadmoney-census.ts`) that is **not** in
+this PR.
+
+### Diagnosis
+
+`drift.deadMoneyPct` is opening-year `Team.deadCap` / (cap × 32)
+after `clearDeadCap` + expire + offseason trades + cutdown. Three
+`addDeadCap` write sites exist: waiver clear, expire leftover,
+trade leftover bonus. Regular expiry leftover is $0 unless the
+deal has void years. Restructures / tags / IR / PS / retirement
+do not write `deadCap`. Retirement nulls the contract; PS stash
+skips acceleration.
+
+### How measured
+
+Seed **12345**, **20** seasons (2026–2045), SHA `93d7e4b`.
+Same advance loop as `scripts/drift.ts`. Wall-clock 2399.7 s.
+Listener on `addDeadCap` / `clearDeadCap` (amounts unchanged).
+
+### Change
+
+None in the engine. This section and the write-up only.
+
+### Key table — drift stock (the ~2.4)
+
+Mean `deadMoneyPct` **2.46** (panel @ `6e3b7bf` was **2.42**).
+Mean dead $376.66M on mean league cap $15,008.52M.
+
+| source | mean $M / yr | % of dead | % of cap |
+|---|---:|---:|---:|
+| `waiver_clear` (preseason cutdown) | 185.03 | 49.1 | 1.23 |
+| `trade_proration` (offseason only) | 122.05 | 32.4 | 0.81 |
+| `void_expire` | 69.57 | 18.5 | 0.46 |
+| `expire_nonvoid` | 0 | 0 | 0 |
+
+Recap stock (before the wipe) is **3.49%**. In-season trades
+($131M/yr) and in-season cuts ($52M/yr) die at FA open.
+Retirement leftover not charged: **$481M/yr** (~3.2 cap points).
+CPU void-year adds 6.25/yr; void expires 3.3/yr; 0 waiver clears
+of voided or tagged deals. Restructures 0 on a headless run.
+
+### Leftover
+
+A future tune packet needs Matt to pick a **mechanism** (retirement
+charge? June-1 carry vs hard wipe? CPU cutting voided vets? void
+volume? whether 5–8% is even the comparison). Do **not** retune
+voids, cuts, tags, or contract dials toward 5–8% from this
+census. Emit stays additive, no band.
+
+### Untouched
+
+`lib/core/**`, `scripts/**`, `docs/baselines.json`, known-open
+rows, forbidden knobs, void N=4, carryover, tag / fifth-year /
+extension logic.
+
+---
+
 ## 2026-09-19 — Matt SIGNED: `topCapPctMean` first band + Packet 5 effect sizes
 
 Lead. Docs + `docs/baselines.json` only. Engine, `scripts/`, and
