@@ -11,6 +11,15 @@ Read in this order before dispatching anything: `v2/AGENTS.md` (the contract),
 `v2/docs/HANDOFF.md` (top 300 lines — the newest packets), `v2/docs/ROADMAP.md`,
 and `v2/docs/nfl-reference.md` when a packet touches a calibrated number.
 
+**Wave 4.2 pointer (2026-09-22).** Packet 1 re-lock work is not complete
+until the missing #111 HANDOFF section is on `main` (Wave 4.1 Packet 2:
+owners/coaches at `newGame` — diagnosis / change / leftover / untouched /
+gate / year-0 ##M). See that section in `HANDOFF.md`. Spec correction
+(orchestrator, not worker): Wave 4.0 Packet 2’s 22% ceiling was coded as
+player-loop `continue`; census #112 showed clubs tag a lesser man.
+**Intended:** club-loop `break` (extend or walk). That fix is Wave 4.2
+Packet 2 after Matt signs — not Packet 1.
+
 ---
 
 ## 1. The five invariants (a worker that breaks one fails review even if the gate is green)

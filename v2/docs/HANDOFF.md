@@ -27,6 +27,131 @@ from this packet.
 
 ---
 
+## 2026-09-21 — Wave 4.1 Packet 2: seed coaches and owners at newGame (#111)
+
+Worker. Merged (squash) as `69ee63b` on `main` 2026-09-21. Parent tip
+before merge: `4c9e06b` (#114 wr10RecYds re-lock). Engine change already
+on `main`; this HANDOFF section was missing from the merge and is filled
+here by the Wave 4.2 docs correction (2026-09-22). Contract pieces below.
+
+### Diagnosis
+
+`ensureOwners()` only ran on save load (`lib/store/save.ts`) and the
+`/staff` page. Headless harness paths call `newGame` then `runRecap` and
+never hit those hooks, so leagues never got owners.
+
+`fireCpuHeadCoaches` already calls `ensureCoaches`, then reads
+`ownerJobView`. That view returns `null` when `team.owner` is missing, so
+the heat check never trips and `seasonCounters.hcFires` stays **0**.
+Interactive saves looked fine (load/migrate backfilled owners);
+calibrate / statcheck / drift / careers did not. Matches the Wave 4.0
+post-#97/#98 panel FINDING: `drift.hcFiresPerSeason` **0.00** vs signed
+expect 6–8/yr.
+
+### Change
+
+- `newGame` calls `ensureCoaches` + `ensureOwners` after jersey
+  assignment (`lib/core/newGame.ts`). Both stay on their existing child
+  streams; parent `rngState` is unchanged.
+- `runRecap` calls `ensureOwners` at the top (`lib/core/offseason/index.ts`)
+  so a stripped or pre-packet in-memory league still has owners before
+  `fireCpuHeadCoaches`.
+- `peopleTeeth.test.ts` covers newGame seeding, recap backfill (same
+  owner child stream / same names), and the planted CPU HC fire path.
+- `owner.test.ts` / `coaches.test.ts` strip people first so
+  ensure-from-empty still exercises the ensure path (`stripPeople` also
+  keeps the coaches typecheck clean).
+
+### Year-0 ##M proof — byte-identical vs parent `4c9e06b`
+
+Re-measured on this correction checkout: `calibrate` 300 and `statcheck`
+on tip `69ee63b` and on a clean `4c9e06b` worktree. `diff` of every
+`##M` line: **empty**. MD5s match each other and the #111 PR body
+(which first measured vs `main @ 93d7e4b` before the rebase onto
+`4c9e06b`).
+
+```
+calibrate ##M  md5 fc11541160966dd400978c7bb4bca7ad  (28 lines, identical)
+statcheck ##M  md5 a5b5b2e675737149f7975a9044c09a47  (23 lines, identical)
+```
+
+Headline lines (same on parent and tip):
+
+```
+##M calibrate.scoreMismatches 0
+##M calibrate.pts 23.723333333333333
+##M calibrate.passYds 237.32833333333335
+##M calibrate.rushYds 117.63666666666667
+##M calibrate.seasonPfg 21.21323529411765
+##M statcheck.fieldMismatches 0
+##M statcheck.leadPassYds 4899
+##M statcheck.qb5PassYds 4073
+##M statcheck.qb10PassYds 3732
+##M statcheck.wr10RecYds 1070
+##M statcheck.leadTackles 126
+```
+
+Expected: seeding is child-stream only, and `effectiveCoach` still
+returns `Team.coach` when people copy those dials. Year-0 play is
+unchanged.
+
+### Leftover — careers / drift move from season 2 (not year-0)
+
+`careers.*` and `drift.*` (especially `drift.hcFiresPerSeason`) are
+**expected to move from season 2** once owners exist and CPU HC firing
+can trip. Year-0 identity proves the parent stream held; it is **not** a
+careers/drift proof. The Studio Packet 1 panel at tip **`69ee63b`** is
+the first true people-layer read from season 2 onward — that panel is
+the careers / drift authority for Wave 4.2 Packet 1 re-lock work. Do not
+treat the year-0 ##M empty diff as evidence that people counters stayed
+flat.
+
+### Untouched
+
+No dial or baseline edits. `docs/baselines.json`, `scripts/`, owner /
+coach heat dials, `MAX_CONTRACT_SHARE`, tag rules, and gameplay knobs
+were not touched by #111.
+
+### Gate (#111)
+
+- `npx tsx lib/core/peopleTeeth.test.ts` — pass (incl. planted
+  `##M people.cpuHcFiresPlanted 15`)
+- `npx tsx lib/core/owner.test.ts` / `coaches.test.ts` — pass
+- `npx tsc --noEmit` — pass (after `stripPeople` typecheck fix)
+- Fast `npm run gate`: peopleteeth / ownercheck / peoplecheck /
+  calibrate / statcheck / determinism / verify / sweep / scout green.
+  Two leftover FAIL lines are the inherited single-seed reds from
+  ORCHESTRATION.md, not this packet — and `statcheck.wr10RecYds 1070`
+  is byte-identical to parent:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+FAIL  statcheck.wr10RecYds  1070  expected 1208 +/-97
+```
+
+(Post-#114 the signed band is 1105.8±97; the fast single-seed 1070
+remains stream noise, same family as before.)
+
+### Wave 4.2 spec correction (orchestrator error — not a worker bug)
+
+Recorded here so Packet 1 re-lock is not blocked on a missing note, and
+so Packet 2 has a clear signed intent.
+
+Wave 4.0 Packet 2 coded the 22% tag ceiling as `continue` **inside the
+player loop** in `runCpuFranchiseTags` (skip that QB, try the next
+EDGE/WR/K). Census #112 (`docs/tags-leak-or-behaviour-2026-09-21.md`)
+showed that substitution: ceiling-blocked clubs still tagged someone
+~75% of the time in the probe, so `franchiseTagsPerSeason` stayed ~17.1
+instead of dipping toward 11–14.
+
+**Intended behaviour** (census recommendation 1): when the top tender
+exceeds `MAX_CONTRACT_SHARE` × cap, **break** out of that club’s tag
+loop (club extends or walks; does not tag a lesser man). Fix is
+**Wave 4.2 Packet 2 after Matt signs** — do **not** implement it in
+this docs PR or in Packet 1 re-lock work.
+
+---
+
 ## 2026-09-21 — Wave 4.1 Packet 1: LEAD re-lock `statcheck.wr10RecYds` (Matt SIGNED)
 
 Lead. Docs + `docs/baselines.json` only. Engine, `scripts/`, and
