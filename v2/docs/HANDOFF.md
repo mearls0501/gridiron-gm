@@ -5,6 +5,55 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-22 — Wave 4.1 Claude A: second-scene star FINDING (docs-only)
+
+Worker. Base current `main` (Packets 1–4: #114 / #111 / #112 / #113).
+Branch `cursor/second-scene-star-finding-387c`. **Docs only** —
+engine, `scripts/`, `baselines.json`, gameplay **not touched**. No
+`SECOND_SCENE_*` retune. No band invented for
+`careers.secondSceneStarPct`. Report-never-tune until Matt picks a
+mechanism.
+
+Full write-up: `docs/second-scene-star-finding-2026-09-22.md`.
+
+### Problem
+
+Studio panels: `careers.secondSceneStarPct` **0.0** vs
+`nfl-reference.md` §2.7 **11.4%**. Eligible / fired have been non-zero
+since Wave 4.0 Packet 1 (eligible **2.64**, fired **8.47**, star
+**0.0**). Feature shipped Wave 3.9 Packet 5 (#94) with Matt-SIGNED
+dials 1–8.
+
+### Root cause (not a guess)
+
+1. **Label mismatch.** Harness "star" = later `outcomes` star year
+   (QB top-**5** by **OVR** among snap-takers). §2.7 = later **top-ten
+   passer-rating** among qualifying starters. Incompatible rates.
+2. **Ceiling-only lift + age/growth collision.** Draw raises `ceiling`
+   toward immutable `pot`. Fire allowed through `peakAge+1`, but
+   `developPlayer` grows only while `age < peakAge` after the
+   progression `age += 1`. Late fires put the new ceiling on the
+   decline path (room ignored). Small `K=0.45` lifts and near-peak
+   growth rates do not climb into the Pro Bowl OVR band (local probe
+   star OVRs min **82** / median **88**).
+
+Eligible/fired >0 is consistent: they stop before a later star year.
+#111 owners seeding is **not** why star stays 0.
+
+### Not recommended
+
+Silent dial moves; inventing a band; cranking `K` toward 11.4% on the
+current label.
+
+### Options for Matt (mechanism menu — see finding doc)
+
+Measurement realign to §2.7 production; post-scene growth grace;
+tighten fire age to preserve runway; stronger-than-ceiling scene
+effect; separate Path-2 success label; K revisit only after
+measurement matches.
+
+---
+
 ## 2026-09-21 — Wave 4.1 Packet 1: LEAD re-lock `statcheck.wr10RecYds` (Matt SIGNED)
 
 Lead. Docs + `docs/baselines.json` only. Engine, `scripts/`, and
