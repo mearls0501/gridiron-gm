@@ -5,6 +5,28 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-22 — Wave 4.1 Claude B: Phase 1 text PBP / drive-log SPEC
+
+Docs only. Spec: `docs/phase1-text-pbp-spec-2026-09-22.md`. Engine, UI,
+`scripts/`, and `docs/baselines.json` **not touched**.
+
+ROADMAP Phase 1 (“make the engine visible”) is the product target —
+text play-by-play + drive log from events `game.ts` already produces,
+zero outcome changes. Orchestration’s old “Phase 5 text PBP” label is
+retired for this work; **Phase 5 stays LLM narration** (scouting prose,
+season recaps, pressers) and is non-goals / future hooks only in the
+spec.
+
+**Inventory verdict.** Phase 1 core is already on `main` (Lane A / #53,
+live resume / #81, liveGame tidy / #83): `PlayEvent` stream, `buildDrives`,
+cached peek + generator resume, `/play` Last snap + Drive Log + PBP,
+`/game/[id]` Drive Chart + user text PBP. Spec lists schema gaps,
+determinism invariants, a small later implement packet split (P0–P5),
+and Matt-signable acceptance checks. Do not start implementing UI/engine
+from this packet.
+
+---
+
 ## 2026-09-21 — Wave 4.1 Packet 1: LEAD re-lock `statcheck.wr10RecYds` (Matt SIGNED)
 
 Lead. Docs + `docs/baselines.json` only. Engine, `scripts/`, and
