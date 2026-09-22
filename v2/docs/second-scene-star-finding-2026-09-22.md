@@ -101,16 +101,28 @@ full path. Star needs a later Pro Bowl–OVR season.
 
 ### Local probe (2026-09-22, seed 12345, not a panel)
 
-`npx tsx` careers-shaped run, 20 seasons:
+Careers-shaped runs (ephemeral `/tmp` probes, not committed):
 
-- Mature QB star-season OVRs: **n=33, min=82, p10=83, median=88,
-  p90=91, max=93**. Top-5 OVR is an 80s club, not "merely good."
-- Mature window: eligible 14, **fired 0**, star 0 (short window /
-  sample noise vs Studio 24).
-- League-wide on the same save: **2** QBs with `secondScene`, **1** of
-  those with a later star season — both with **pot 89**. Mechanism can
-  produce a harness star in rare high-`pot` cases; the mature fired
-  pool on Studio panels still shows **0**.
+**20 seasons — star OVR bar.** Mature QB star-season OVRs: **n=33,
+min=82, p10=83, median=88, p90=91, max=93**. Top-5 OVR is an 80s club,
+not "merely good."
+
+**24 seasons — every fired QB on the save.** Mature window: eligible
+17, **fired 0**, star 0 (this seed’s mature QBs never fired; Studio
+panels average fired > 0 across seeds). League-wide: **2** QBs with
+`secondScene`, both pot **89**:
+
+| player | round | fire age / peak | lift | years left to peak after +1 | max OVR after | later star? |
+|---|---:|---:|---:|---:|---:|:---:|
+| Grady Harris | 3 | 27 / 30 | 5.07 | **2** | 87 | **yes** |
+| Mateo Martinez | 2 | **29 / 28** | 3.89 | **−2 (past peak)** | 82 (was 85 before) | **no** |
+
+Harris is the rare success: high pot, fire before peak, runway, climbs
+to 87 OVR and clears the harness star bar. Martinez is the structural
+failure mode: gate allows fire at 29 with peak 28; lift applies;
+decline consumes ability (`grewAfter=false`); no later star. Studio
+`star%=0` with `fired%>0` is this failure mode dominating the mature
+fired sample.
 
 ### Age gate vs growth runway (code + planted progression)
 
