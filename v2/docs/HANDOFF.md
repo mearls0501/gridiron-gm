@@ -5,6 +5,37 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-23 — Wave 4.2 Packet 2: franchise tag ceiling breaks the club (Matt SIGNED)
+
+Worker. Matt **SIGNED** 2026-09-23: “22% ceiling skips the club, not the player — as the census recommends.”
+
+People re-lock after the post-#111 panel was explicitly skipped. This packet does not touch `docs/baselines.json`.
+
+### Spec error
+
+Wave 4.0 Packet 2 (#97) coded the 22% / `MAX_CONTRACT_SHARE` ceiling as `continue` **inside the player loop** in `runCpuFranchiseTags` (skip that QB, tag the next EDGE/WR/K). Census #112 recommendation 1 (`docs/tags-leak-or-behaviour-2026-09-21.md`) is the signed behaviour: when the club’s top expiring tender exceeds `MAX_CONTRACT_SHARE` × cap, **break that club’s tag loop**. The club tags nobody this window (extend or walk). It does not fall through to a lesser man. The #116 HANDOFF note recorded the error and left the fix for this packet.
+
+### Change
+
+`lib/core/offseason/contracts.ts` `runCpuFranchiseTags`. The ceiling check no longer `continue`s to the next player when the top candidate’s tender is over the ceiling. That hit `break`s the club’s candidate loop. A later expiring name who is individually over the ceiling is still skipped on his own; the signed case is the top of the board. Escalators, `franchiseTagSalary`, `applyFranchiseTag`, the user tag path, and the `MAX_CONTRACT_SHARE` constant are untouched.
+
+### Expected metric movement
+
+`drift.franchiseTagsPerSeason` should **drop versus ~17** on the post-#111 panel (the #97 ceiling did not, because ceiling-blocked clubs still tagged someone). Do **not** invent a new band. The signed lock stays **14±4**, `nfl: 10`. Report-never-tune until the panel after merge. Same standing for `p0Failures`, `milestonesOff`, the coherence soft miss, and `wr10RecYds` (already signed).
+
+### Regression
+
+`lib/core/franchiseTag.test.ts` (already on the gate):
+
+- 85-OVR QB on a ~21% hit (tender over the ceiling) plus an expiring EDGE who clears the price test → **no tag** for that club.
+- Same EDGE with no ceil-busting QB → the club **still tags the EDGE**.
+
+### Panel after merge
+
+Not run here. Do not retune tag rules, dials, or baselines toward the drop.
+
+---
+
 ## 2026-09-22 — Wave 4.1 Claude B: Phase 1 text PBP / drive-log SPEC
 
 Docs only. Spec: `docs/phase1-text-pbp-spec-2026-09-22.md`. Engine, UI,
