@@ -18,7 +18,8 @@ import {
   expireContracts, expiringPlayers, franchiseTagSalary, isFranchiseTagged,
   runCpuFranchiseTags,
 } from "./offseason/contracts";
-import { teamOutlook } from "./frontOffice";
+import { evaluate, teamOutlook } from "./frontOffice";
+import { POSITION_VALUE } from "./ratings";
 import { advanceOffseason, faPool } from "./offseason";
 
 function clubActive(st: ReturnType<typeof newGame>, teamId: number) {
@@ -409,4 +410,98 @@ function plantPctHit(
     "CPU still tags a 19% WR",
   );
   ok("CPU still tags a 19% WR");
+}
+
+/** Same dollars→evaluate factor surplusExceedsTender uses. Do not retune. */
+const CAP_TO_VALUE = 340;
+
+function sealOtherDeals(
+  st: ReturnType<typeof newGame>,
+  teamId: number,
+  keepIds: number[],
+): void {
+  const keep = new Set(keepIds);
+  st.teams[teamId].deadCap = 0;
+  st.teams[teamId].capCarryover = 0;
+  for (const x of st.players) {
+    if (x.teamId !== teamId || !x.contract || keep.has(x.id)) continue;
+    x.contract.baseSalary = x.contract.baseSalary.map(() => LEAGUE_MINIMUM);
+    x.contract.signingBonus = 0;
+    x.contract.yearsRemaining = Math.max(2, x.contract.yearsRemaining);
+  }
+}
+
+function plantCeilingQb(st: ReturnType<typeof newGame>, teamId: number): Player {
+  const qb = plantPctHit(st, teamId, "QB", 85, 0.21);
+  qb.pot = 85;
+  return qb;
+}
+
+function plantTaggableEdge(st: ReturnType<typeof newGame>, teamId: number): Player {
+  const edge = plantPctHit(st, teamId, "EDGE", 85, 0.04);
+  edge.pot = 85;
+  return edge;
+}
+
+// Top candidate over the ceiling ends the club's window. An 85-OVR QB
+// on a ~21% hit prices a 120% tender above MAX_CONTRACT_SHARE; the
+// expiring EDGE would clear the price test alone. Break, do not tag him.
+{
+  const st = newGame({ seed: 42 });
+  const cpuId = cpuClub(st);
+  forceContend(st, cpuId);
+  if (st.teams[cpuId].frontOffice) st.teams[cpuId].frontOffice!.posBias = {};
+  st.phase = "offseason-tag";
+  assert.notEqual(teamOutlook(st, cpuId).posture, "rebuild");
+  const qb = plantCeilingQb(st, cpuId);
+  const edge = plantTaggableEdge(st, cpuId);
+  sealOtherDeals(st, cpuId, [qb.id, edge.id]);
+  delete st.franchiseTagSnapshot;
+  const { posture } = teamOutlook(st, cpuId);
+  const cap = teamCap(st, cpuId).cap;
+  const qbTender = franchiseTagSalary(st, qb);
+  const edgeTender = franchiseTagSalary(st, edge);
+  assert.ok(
+    Math.abs(capHit(qb.contract) / cap - 0.21) < 0.02,
+    `QB hit ${(capHit(qb.contract) / cap * 100).toFixed(1)}% want ~21`,
+  );
+  assert.ok(qbTender > MAX_CONTRACT_SHARE * cap, `QB tender ${qbTender} should clear the ceiling`);
+  assert.ok(edgeTender <= MAX_CONTRACT_SHARE * cap, `EDGE tender ${edgeTender} must sit under the ceiling`);
+  const qbValue = evaluate(st, cpuId, qb, posture, POSITION_VALUE.QB);
+  const edgeValue = evaluate(st, cpuId, edge, posture, POSITION_VALUE.EDGE);
+  assert.ok(qbValue > edgeValue, "QB must be the top candidate so the ceiling breaks before the EDGE");
+  assert.ok(
+    edgeValue > (edgeTender / cap) * CAP_TO_VALUE,
+    "EDGE must clear surplus so the old player-skip would have tagged him",
+  );
+  runCpuFranchiseTags(st, new Rng(st.rngState));
+  assert.equal(
+    (st.franchiseTags ?? []).some((t) => t.teamId === cpuId),
+    false,
+    "ceiling on the top QB must break the club — do not fall through to the EDGE",
+  );
+  ok("ceiling breaks the club: 21% QB + taggable EDGE tags nobody");
+}
+
+// No ceil-busting QB: the same EDGE is still tagged.
+{
+  const st = newGame({ seed: 43 });
+  const cpuId = cpuClub(st);
+  forceContend(st, cpuId);
+  if (st.teams[cpuId].frontOffice) st.teams[cpuId].frontOffice!.posBias = {};
+  st.phase = "offseason-tag";
+  assert.notEqual(teamOutlook(st, cpuId).posture, "rebuild");
+  const edge = plantTaggableEdge(st, cpuId);
+  sealOtherDeals(st, cpuId, [edge.id]);
+  delete st.franchiseTagSnapshot;
+  const cap = teamCap(st, cpuId).cap;
+  const edgeTender = franchiseTagSalary(st, edge);
+  assert.ok(edgeTender <= MAX_CONTRACT_SHARE * cap, `EDGE tender ${edgeTender} must sit under the ceiling`);
+  runCpuFranchiseTags(st, new Rng(st.rngState));
+  assert.equal(
+    (st.franchiseTags ?? []).some((t) => t.playerId === edge.id && t.teamId === cpuId),
+    true,
+    "CPU still tags an expiring EDGE when nobody busts the ceiling",
+  );
+  ok("EDGE-only club still tags the EDGE");
 }

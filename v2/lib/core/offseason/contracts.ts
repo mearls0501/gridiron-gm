@@ -251,8 +251,9 @@ function featureChildRng(state: GameState, feature: string): Rng {
  * Each CPU club may apply at most one exclusive tag on this window.
  * Priced, not automatic: tender must fit ~90% next-season committed,
  * evaluate() surplus must exceed the tender in trade currency, and
- * rebuild clubs do not tag. User club is skipped. CPU tenders above
- * MAX_CONTRACT_SHARE are skipped (extend or let him walk).
+ * rebuild clubs do not tag. User club is skipped. If the top
+ * candidate's tender is above MAX_CONTRACT_SHARE, that club tags
+ * nobody this window (extend or walk) — do not tag a lesser man.
  */
 export function runCpuFranchiseTags(state: GameState, _rng: Rng): void {
   ensureFranchiseTagSnapshot(state);
@@ -267,10 +268,17 @@ export function runCpuFranchiseTags(state: GameState, _rng: Rng): void {
         evaluate(state, t.id, b, posture, POSITION_VALUE[b.pos]) -
         evaluate(state, t.id, a, posture, POSITION_VALUE[a.pos])
     );
+    // Census #112 rec 1: the ceiling skips the club, not one player.
+    // A later name over the ceiling is still skipped on his own.
+    let topCandidate = true;
     for (const p of ranked) {
       if (previousConsecutiveTags(state, t.id, p.id) >= 3) continue;
       const tender = franchiseTagSalary(state, p);
-      if (tender > MAX_CONTRACT_SHARE * teamCap(state, t.id).cap) continue;
+      if (tender > MAX_CONTRACT_SHARE * teamCap(state, t.id).cap) {
+        if (topCandidate) break;
+        continue;
+      }
+      topCandidate = false;
       if (!tenderFitsHeadroom(state, t.id, tender)) continue;
       if (!surplusExceedsTender(state, t.id, p, tender)) continue;
       if (applyFranchiseTag(state, t.id, p.id, rng).ok) break;
