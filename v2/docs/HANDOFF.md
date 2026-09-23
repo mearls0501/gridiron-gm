@@ -30,6 +30,17 @@ Wave 4.0 Packet 2 (#97) coded the 22% / `MAX_CONTRACT_SHARE` ceiling as `continu
 - 85-OVR QB on a ~21% hit (tender over the ceiling) plus an expiring EDGE who clears the price test → **no tag** for that club.
 - Same EDGE with no ceil-busting QB → the club **still tags the EDGE**.
 
+### Gate
+
+`npm run gate:serial` on 4 cores. Typecheck, `franchisetag`, `contractceiling` (12-season seed 12345, peak topCap 21.7%, busts 0), determinism, and verify 348/348 passed. One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+GATE FAIL  1 problem
+```
+
+`statcheck.wr10RecYds` read **1070**, inside the signed 1105.8±97 band. Not a retune.
+
 ### Panel after merge
 
 Not run here. Do not retune tag rules, dials, or baselines toward the drop.
