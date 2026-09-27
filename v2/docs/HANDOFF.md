@@ -65,7 +65,14 @@ June-1 designation and any change to make `clearDeadCap` a partial wipe are stil
 
 ### Gate
 
-Not the Studio panel. Local fast gate output is pasted below when this packet’s run finishes.
+`npm run gate:serial` on 4 cores. Typecheck, `retirementdead`, determinism, and verify 348/348 passed. Calibrate and statcheck year-0 headlines match the post-#111 read (`pts` 23.723…, `passYds` 237.328…, `wr10RecYds` **1070** inside the signed 1105.8±97 band). One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+GATE FAIL  1 problem
+```
+
+Not a retune. Studio `gate:full:serial` is the parent’s panel after merge. `drift.deadMoneyPct` was not measured here.
 
 ---
 
