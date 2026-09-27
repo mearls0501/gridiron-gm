@@ -5,6 +5,70 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-27 — Wave 4.2 Packet 3: retirement accelerates remaining proration (Matt SIGNED)
+
+Worker. Matt **SIGNED** 2026-09-27: “retirement accelerates remaining proration as dead money, per the CBA.”
+
+Mechanism only. No dial, no `docs/baselines.json` edit, no June-1 / multi-year `clearDeadCap` rewrite. Void gates, cutdown, trade frequency, tags, and `GUARANTEE_PULL` are untouched.
+
+### Diagnosis
+
+`runProgression` set `retired`, cleared `teamId`, and nulled `contract` with no `addDeadCap`. `expireContracts` then skips the retired body, so leftover bonus and guaranteed base never hit `Team.deadCap`. Census (`docs/deadmoney-by-source-2026-09.md`) measured that hole at about **$481M/yr** (~3.2 cap points if it had been charged). The same census notes the post sits at recap, **before** `clearDeadCap` inside `runFreeAgencyOpen`. A charge that lives only on the closing book is wiped before `drift.deadMoneyPct`, which is snapshotted after the full offseason (opening-year stock).
+
+### Change
+
+`chargeRetirementAcceleration` in `lib/core/offseason/progression.ts`, called from the retirement branch **before** `teamId` / `contract` are cleared. The amount is `deadMoney(contract)` — remaining bonus proration (void-year remainder included) plus remaining guaranteed base — the same figure `stashOrFreeAgent` charges on a waiver clear. No parallel formula.
+
+The club is `player.teamId`, or `waivers[].originalTeamId` when the body is still on the wire with no team. A street free agent with no club is not charged.
+
+`clearDeadCap` is unchanged: it still zeroes every club at FA open. The retirement figure is also stored on `Team.retirementDeadPending` (missing = 0, backfilled on load). `reapplyRetirementDead` runs immediately after the wipe and posts that same number back through `addDeadCap`, then zeroes the pending field. In-season cuts and trades are not re-posted. This is not a June-1 split (the full `deadMoney` total moves as one figure) and not a multi-year carry of other dead.
+
+### Timing vs `clearDeadCap`
+
+| moment | what `deadCap` holds |
+|---|---|
+| `runProgression` (recap) | closing-year book, **including** the new retirement charge |
+| tag window | same closing book (CPU tag headroom does not read `deadCap`) |
+| `clearDeadCap` | zero |
+| `reapplyRetirementDead`, then expire / FA / trades / cutdown | **new** league year. Retirement dead is back. Prior-year in-season dead stays wiped. Void expire still adds its own leftover after this. |
+| `drift.deadMoneyPct` | that opening-year stock, after finalize |
+
+The charge survives into the drift / opening-year window because the re-post is on the same side of the wipe as `void_expire`, which the void-year packet already treats as next-league-year dead. The hypothesis “charge only at progression” was verified and is not sufficient on its own: that post is real, and the annual wipe would still drop it before the metric. CBA timing kept is acceleration at retirement, using the cut/waiver composition, counted on the league year FA and the opening cap sheet use.
+
+### Expected metric direction
+
+`drift.deadMoneyPct` should **rise**. The census envelope is on the order of **~3 points** if most of that $481M had a club (it did: the hole was rostered leftover). Indirect cap pressure can move waiver and trade dead as well. **Report-only.** Do not retune the emit, do not add a band, do not chase 5–8%. Parent runs `gate:full:serial` on Mac Studio after merge. This packet does not.
+
+No new RNG draw. Cap space from the first offseason onward can change later decisions, so the parent stream may diverge after recap. Year-0 regular-season play, before progression, does not draw this path.
+
+### Regression
+
+`lib/core/retirementDead.test.ts` (gate step `retirementdead`, FAST + FULL):
+
+- Leftover proration **and** guaranteed base → `addDeadCap` of `deadMoney`, contract still in hand at the charge.
+- Zero leftover → no charge.
+- Street FA → no charge. Waiver-wire body with no `teamId` → original club.
+- `clearDeadCap` drops in-season dead; reapply restores only the retirement figure; a second reapply does not double it.
+- `runProgression` on an old rostered player charges, then nulls the contract.
+- Young player through `runProgression` → no charge, contract kept.
+- Void `expireContracts` still charges leftover proration only and does not set `retirementDeadPending`.
+- Waiver clear still charges `deadMoney` at clear, not at the cut, and does not set the pending field.
+- `runFreeAgencyOpen` keeps the retirement figure and wipes a planted prior-year extra.
+
+### Leftover
+
+June-1 designation and any change to make `clearDeadCap` a partial wipe are still unsigned and out of scope. Street free agents with no original club still accelerate nothing. `drift.deadMoneyPct` stays an additive emit with the OTC ~5–8% note and no band.
+
+### Untouched
+
+`docs/baselines.json`, void-year gates, cutdown harshness, trade frequency, tag rules, `GUARANTEE_PULL`, `POSITION_VALUE`, `CARRY_SHARE`. `clearDeadCap` itself still sets every `deadCap` to 0.
+
+### Gate
+
+Not the Studio panel. Local fast gate output is pasted below when this packet’s run finishes.
+
+---
+
 ## 2026-09-23 — Wave 4.2 Packet 2: franchise tag ceiling breaks the club (Matt SIGNED)
 
 Worker. Matt **SIGNED** 2026-09-23: “22% ceiling skips the club, not the player — as the census recommends.”

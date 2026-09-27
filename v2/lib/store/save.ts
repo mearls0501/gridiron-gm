@@ -133,6 +133,7 @@ export function migrate(state: GameState): GameState {
   for (const t of state.teams) {
     if (typeof t.deadCap !== "number") t.deadCap = 0;
     if (typeof t.capCarryover !== "number") t.capCarryover = 0;
+    if (typeof t.retirementDeadPending !== "number") t.retirementDeadPending = 0;
     if (t.coach && typeof t.coach.shadowTendency !== "number") t.coach.shadowTendency = 0.42;
     // Staff budgets arrived after these saves were written. An even split is
     // the neutral point of the whole model — every multiplier in `staff.ts` is
