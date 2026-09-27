@@ -673,6 +673,18 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   required. The 5–8% range is Over The Cap's published league-wide
   dead-money share of the cap in the 2020s
   (https://overthecap.com/salary-cap), not a T/D/S/P computation.
+- **Retirement acceleration.** Added 2026-09-27 (Wave 4.2 Packet 3,
+  Matt SIGNED). Not in T/D/S/P. 2020 NFL-NFLPA CBA Article 13: when a
+  player retires, unamortized signing bonus accelerates into the club's
+  cap. This sim charges `deadMoney` — remaining proration (void-year
+  remainder included) plus remaining guaranteed base, the same figure a
+  waiver clear already uses — at `runProgression`, before the contract
+  is cleared. `clearDeadCap` at FA open still wipes prior-year dead.
+  The same retirement figure is re-posted immediately after that wipe
+  so it sits on the new league year (the opening-day book
+  `drift.deadMoneyPct` reads), matching where void-year acceleration
+  already lands. No June-1 split. Ungated. No band on
+  `drift.deadMoneyPct`.
 - **Cap carryover (unused Room).** Added 2026-09-14 (Wave 3.8
   Packet 4, Matt SIGNED). Not in T/D/S/P. 2020 NFL-NFLPA CBA
   Article 13: unused Salary Cap Room from a League Year is added

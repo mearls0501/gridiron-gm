@@ -4,7 +4,7 @@ import { AttrKey, GameState, Player, SeasonHistory } from "../types";
 import { currentLine, isReceivingLeaderPos } from "../season/stats";
 import { healOffseason } from "../season/injuries";
 import { leagueStandings } from "../season/standings";
-import { computeRecords } from "../select";
+import { addDeadCap, computeRecords, deadMoney } from "../select";
 import { REPLACEMENT_OVR } from "../frontOffice";
 import {
   ceilingRecovery, declineMultiplier, developmentMultiplier, schemeDevelopmentMultiplier,
@@ -186,10 +186,41 @@ function retirementChance(p: Player): number {
 }
 
 export interface OffseasonReport {
-  retirements: { player: Player; age: number }[];
+  retirements: { player: Player; age: number; dead: number }[];
   risers: { player: Player; delta: number }[];
   fallers: { player: Player; delta: number }[];
   expiring: Player[];
+}
+
+/**
+ * Accelerate a retirement onto the club's dead cap before the contract is
+ * cleared. Same composition as a waiver clear: `deadMoney` (remaining bonus
+ * proration, void-year remainder included, plus remaining guaranteed base).
+ *
+ * The amount is also remembered on the team. `clearDeadCap` at FA open wipes
+ * every prior-year dollar, including this post; `reapplyRetirementDead` puts
+ * the same figure back so it is the new league year's dead money.
+ */
+export function chargeRetirementAcceleration(state: GameState, p: Player): number {
+  const teamId = p.teamId
+    ?? state.waivers?.find((w) => w.playerId === p.id)?.originalTeamId
+    ?? null;
+  if (teamId === null) return 0;
+  const dead = deadMoney(p.contract);
+  if (dead <= 0) return 0;
+  addDeadCap(state, teamId, dead);
+  const t = state.teams[teamId];
+  if (t) t.retirementDeadPending = Math.round((t.retirementDeadPending ?? 0) + dead);
+  return dead;
+}
+
+/** Re-post this offseason's retirement acceleration after the annual wipe. */
+export function reapplyRetirementDead(state: GameState): void {
+  for (const t of state.teams) {
+    const pending = t.retirementDeadPending ?? 0;
+    if (pending > 0) addDeadCap(state, t.id, pending);
+    t.retirementDeadPending = 0;
+  }
 }
 
 /**
@@ -233,10 +264,11 @@ export function runProgression(state: GameState, rng: Rng): OffseasonReport {
     if (delta <= -3) report.fallers.push({ player: p, delta });
 
     if (rng.chance(retirementChance(p) + unsignedAttrition(p))) {
+      const dead = chargeRetirementAcceleration(state, p);
       p.retired = true;
       p.teamId = null;
       p.contract = null;
-      report.retirements.push({ player: p, age: p.age });
+      report.retirements.push({ player: p, age: p.age, dead });
     }
   }
 

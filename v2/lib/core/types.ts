@@ -409,6 +409,12 @@ export interface Team {
    */
   capCarryover?: number;
   /**
+   * Retirement acceleration already posted to `deadCap` this offseason.
+   * `clearDeadCap` wipes the closing book; this amount is re-posted so the
+   * same dollars count on the new league year. Missing = 0.
+   */
+  retirementDeadPending?: number;
+  /**
    * IR return designations used this season (max 8). Missing = 0 so older
    * saves start the season with a full allotment.
    */

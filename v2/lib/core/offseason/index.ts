@@ -4,7 +4,7 @@ import { applyCapCarryover, captureCapCarryover, clearDeadCap, teamCap } from ".
 import { GameState, Phase, ROSTER_LIMIT } from "../types";
 import { foldPracticeSquad, resetSeasonRosterFlags } from "../rosterStatus";
 import { settleWaivers } from "../waivers";
-import { recordSeasonHistory, runProgression, OffseasonReport } from "./progression";
+import { recordSeasonHistory, reapplyRetirementDead, runProgression, OffseasonReport } from "./progression";
 import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, runCpuFifthYearOptions, runCpuFranchiseTags, runCpuTagExtensions, runCpuVoidYears, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
@@ -114,6 +114,12 @@ export function runFreeAgencyOpen(state: GameState): void {
   const rng = new Rng(state.rngState);
 
   clearDeadCap(state);
+  // Retirement was posted at progression, on the closing book. The wipe
+  // drops every prior-year dollar. Re-post the same `deadMoney` figure so
+  // offseason retirement counts on the new league year (FA through the
+  // opening-day snapshot), the same side of the wipe as void acceleration.
+  // Not a June-1 split and not a carry of in-season cuts or trades.
+  reapplyRetirementDead(state);
   const expiring = expireContracts(state);
 
   // CPU teams get first crack at retaining their own expiring players.
