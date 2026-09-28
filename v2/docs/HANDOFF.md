@@ -53,8 +53,8 @@ Docs only. No `npm run gate`.
 ## 2026-09-28 — Wave 4.3 Packet 3 / P3: drop dead onPlayEvent (Matt SIGNED)
 
 Worker. Matt **SIGNED** Phase 1 text PBP §7.2. Spec
-`docs/phase1-text-pbp-spec-2026-09-22.md` §6 **P3**. Base `main` @
-`a0cdfbb`. PR **#121**. Live resume semantics unchanged. No play math,
+`docs/phase1-text-pbp-spec-2026-09-22.md` §6 **P3**. Rebased onto
+`main` @ `e2e1aa0` (#120). PR **#121**. Live resume semantics unchanged. No play math,
 no new RNG, no `docs/baselines.json` edit. Do not merge from this PR.
 
 ### Diagnosis
@@ -110,7 +110,7 @@ log.
 `npx tsx lib/view/playByPlay.test.ts` exit 0.
 `npx tsx scripts/determinism.ts 2` exit 0 (`bannedApiUses` 0).
 
-`calibrate` (300) and `statcheck` `##M` lines vs `main` @ `a0cdfbb`
+`calibrate` (300) and `statcheck` `##M` lines vs `main` @ `e2e1aa0`
 are **empty diffs** (28 calibrate metrics, 23 statcheck metrics),
 including `calibrate.pts` 23.723…, `calibrate.passYds` 237.328…, and
 `statcheck.wr10RecYds` **1070**. Studio `gate:full:serial` is the
