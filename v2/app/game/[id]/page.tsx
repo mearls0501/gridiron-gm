@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ReactNode } from "react";
+import { ReactNode, useRef, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import {
   PlayerGameStat, SeasonStatLine, Team, TeamGameStats, isHarsh, weatherLabel,
@@ -31,6 +31,34 @@ import {
 /** Left-aligned header cell (Table right-aligns everything after column 0). */
 function L(label: string) {
   return <span className="block text-left">{label}</span>;
+}
+
+/** DOM id shared by a Drive Chart row and its Play-by-Play group. */
+function pbpDriveId(n: number): string {
+  return `pbp-drive-${n}`;
+}
+
+/**
+ * Put `target` at the top of the play-by-play scroller, then bring that
+ * scroller below the sticky shell header when it is off screen.
+ */
+function revealDriveSnaps(scroller: HTMLElement, target: HTMLElement) {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const behavior: ScrollBehavior = reduce ? "auto" : "smooth";
+  const top =
+    target.getBoundingClientRect().top -
+    scroller.getBoundingClientRect().top +
+    scroller.scrollTop;
+  scroller.scrollTo({ top, behavior });
+  const headerH = document.querySelector("header")?.getBoundingClientRect().height ?? 0;
+  const pad = headerH + 12;
+  const rect = scroller.getBoundingClientRect();
+  if (rect.top < pad || rect.bottom > window.innerHeight - 12) {
+    window.scrollTo({
+      top: Math.max(0, rect.top + window.scrollY - pad),
+      behavior,
+    });
+  }
 }
 
 /** Rest is only worth mentioning when it is not an ordinary week. */
@@ -253,12 +281,15 @@ export default function GamePage() {
   const params = useParams<{ id: string }>();
   const state = useGame((s) => s.state);
   const rev = useGame((s) => s.rev);
+  const raw = params?.id;
+  const id = Number(Array.isArray(raw) ? raw[0] : raw);
+  const [driveFocus, setDriveFocus] = useState<{ gameId: number; n: number } | null>(null);
+  const pbpScroller = useRef<HTMLDivElement>(null);
+  const driveNodes = useRef(new Map<number, HTMLDivElement>());
+  const selectedDrive = driveFocus?.gameId === id ? driveFocus.n : null;
 
   if (!state) return null;
   void rev; // re-render on every mutation; GameState is mutated in place
-
-  const raw = params?.id;
-  const id = Number(Array.isArray(raw) ? raw[0] : raw);
   const game = Number.isFinite(id) ? state.games.find((g) => g.id === id) : undefined;
 
   if (!game) {
@@ -319,6 +350,14 @@ export default function GamePage() {
 
   const periods = Math.max(box.quarters.home.length, box.quarters.away.length, 4);
   const periodLabels = Array.from({ length: periods }, (_, i) => quarterLabel(i + 1));
+  const pbpLinked = !!box.plays?.length;
+
+  function jumpToDrive(n: number) {
+    setDriveFocus({ gameId: id, n });
+    const scroller = pbpScroller.current;
+    const target = driveNodes.current.get(n);
+    if (scroller && target) revealDriveSnaps(scroller, target);
+  }
 
   function teamHeading(t: Team, score: number, won: boolean) {
     return (
@@ -565,21 +604,28 @@ export default function GamePage() {
       {(box.drives?.length || box.plays?.length) ? (
         <Card
           title="Drive Chart"
-          subtitle={box.drives ? `${box.drives.length} possessions` : "Built from the play log"}
+          subtitle={
+            box.drives
+              ? `${box.drives.length} possessions${pbpLinked ? " · select a possession to jump to its snaps" : ""}`
+              : "Built from the play log"
+          }
           padded={false}
         >
           {(box.drives ?? []).length === 0 ? (
             <Empty title="No drives were recorded for this game." />
           ) : (
-            <div className="divide-y divide-[var(--color-line-soft)]">
+            <div className="divide-y divide-[var(--color-line-soft)]" data-drive-chart={pbpLinked ? "linked" : "static"}>
               {(box.drives ?? []).map((d) => {
                 const t = state.teams[d.offenseId];
                 const bar = driveBar(d);
                 const tone = driveResultTone(d.result);
-                return (
-                  <div key={d.n} className={cx("px-3 py-2.5", d.offenseId === userTeamId && "bg-[var(--color-accent-dim)]/30")}>
+                const selected = pbpLinked && selectedDrive === d.n;
+                const row = (
+                  <>
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="text-[11px] text-[var(--color-faint)] tnum w-6">{d.n}</span>
+                      <span className={cx("text-[11px] tnum w-6", selected ? "text-[var(--color-accent)]" : "text-[var(--color-faint)]")}>
+                        {d.n}
+                      </span>
                       <TeamMark team={t} size={18} />
                       <span className="font-medium">{t.abbr}</span>
                       <span className="text-[11px] text-[var(--color-muted)] tnum">
@@ -598,7 +644,42 @@ export default function GamePage() {
                         style={{ left: `${bar.left}%`, width: `${bar.width}%`, background: t.primary }}
                       />
                     </div>
-                  </div>
+                  </>
+                );
+                const rowClass = cx(
+                  "px-3 py-2.5 text-left",
+                  selected
+                    ? "bg-[var(--color-accent-dim)] shadow-[inset_3px_0_0_var(--color-accent)]"
+                    : d.offenseId === userTeamId
+                      ? "bg-[var(--color-accent-dim)]/30"
+                      : "bg-transparent",
+                );
+                if (!pbpLinked) {
+                  return (
+                    <div key={d.n} className={rowClass}>
+                      {row}
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    key={d.n}
+                    type="button"
+                    className={cx(
+                      rowClass,
+                      "block w-full border-0 font-[inherit] text-[var(--color-text)] cursor-pointer",
+                      !selected && "hover:bg-[var(--color-surface-2)]",
+                      "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]",
+                    )}
+                    aria-current={selected ? "true" : undefined}
+                    aria-controls={pbpDriveId(d.n)}
+                    aria-label={`Drive ${d.n}, ${t.abbr}, ${driveResultLabel(d.result)}, ${d.plays} plays. Show snaps in play by play`}
+                    data-drive-n={d.n}
+                    data-selected={selected ? "true" : "false"}
+                    onClick={() => jumpToDrive(d.n)}
+                  >
+                    {row}
+                  </button>
                 );
               })}
             </div>
@@ -608,23 +689,46 @@ export default function GamePage() {
 
       {box.plays && box.plays.length > 0 ? (
         <Card title="Play by Play" subtitle={`${box.plays.length} snaps`} padded={false}>
-          <div className="divide-y divide-[var(--color-line-soft)] max-h-[32rem] overflow-y-auto">
+          <div
+            ref={pbpScroller}
+            className="divide-y divide-[var(--color-line-soft)] max-h-[32rem] overflow-y-auto"
+          >
             {(box.drives ?? []).length > 0
               ? (box.drives ?? []).map((d) => {
                   const t = state.teams[d.offenseId];
                   const snaps = drivePlays(box.plays!, d);
+                  const on = selectedDrive === d.n;
                   return (
-                    <div key={`pbp-${d.n}`}>
-                      <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-[var(--color-faint)] bg-[var(--color-surface-2)] flex items-center gap-2">
+                    <div
+                      key={`pbp-${d.n}`}
+                      id={pbpDriveId(d.n)}
+                      ref={(el) => {
+                        if (el) driveNodes.current.set(d.n, el);
+                        else driveNodes.current.delete(d.n);
+                      }}
+                      data-drive-n={d.n}
+                      data-selected={on ? "true" : "false"}
+                    >
+                      <div
+                        className={cx(
+                          "px-3 py-1.5 text-[10px] uppercase tracking-wider flex items-center gap-2",
+                          on
+                            ? "text-[var(--color-accent)] bg-[var(--color-accent-dim)] shadow-[inset_3px_0_0_var(--color-accent)]"
+                            : "text-[var(--color-faint)] bg-[var(--color-surface-2)]",
+                        )}
+                      >
                         <TeamMark team={t} size={16} />
                         Drive {d.n} · {t.abbr} · {driveResultLabel(d.result)}
                       </div>
                       {snaps.map((e, i) => (
                         <div
                           key={`${d.n}-${i}`}
+                          data-snap="true"
                           className={cx(
                             "px-3 py-1.5 text-sm flex gap-3",
-                            e.offenseId === userTeamId && "bg-[var(--color-accent-dim)]/20"
+                            on
+                              ? "bg-[var(--color-accent-dim)] shadow-[inset_3px_0_0_var(--color-accent)]"
+                              : e.offenseId === userTeamId && "bg-[var(--color-accent-dim)]/20",
                           )}
                         >
                           <span className="text-[11px] text-[var(--color-faint)] tnum whitespace-nowrap w-16">
