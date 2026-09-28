@@ -141,6 +141,39 @@ Engine, codec, baselines, `scripts/e2e*.mjs`. Harness registration is unchanged.
 
 ---
 
+## 2026-09-28 — Wave 4.3 Packet 3 / P4: e2e harness for Phase 1 PBP (Matt SIGNED)
+
+Worker. Matt **SIGNED** 2026-09-28: Phase 1 PBP §7.2; P0/P1/P3/P4 go. This packet is **P4** only. P2 (schema) stays after. P5 (CPU snap-log policy) is not now.
+
+Spec: `docs/phase1-text-pbp-spec-2026-09-22.md` §6 P4 and §7.1.
+
+### Change
+
+Browser asserts from §7.1, on the existing runners. No new runner. `scripts/e2e-desks.mjs` holds the checks; `scripts/e2e.mjs` and `scripts/e2e-interact.mjs` call them. Chromium / `next start` rules in `AGENTS.md` are unchanged.
+
+`checkPlayLastSnap` (`/play`, after Start the Season; bye still notes and retries, does not fail, does not commit Play Week):
+
+- Opening Play by Play row is `Kickoff — touchback`.
+- One Run or Pass: Last snap updates to a run/pass/sack line; that opening row stays row 1; the clock line or the Drive Log text moves; snap count grows.
+- Two further snaps, then **Let the coach finish**: the opening row is still row 1, and Last snap, Drive Log, and Play by Play are still on the page.
+
+`checkPhase1BoxScores` (after Play Week has written games):
+
+- User game — My Team **Recap**: stat sections, Drive Chart with at least one possession, Play by Play with snap count > 0, grouped under `Drive N` headers.
+- CPU game — League week 1 **Final** that is not the user row and not that Recap: Drive Chart required. Snap log absent logs a note and passes. A CPU snap log fails (P5 is not signed).
+
+Peek / opening-play **object identity** stays on the `livegame` and `playbyplay` unit harnesses. A deterministic re-sim of the same calls would still print `Kickoff — touchback` as row 1, so the browser check is the visible contract: the row does not get replaced, and the clock or Drive Log moves off the pre-snap desk. That is the practical half of “no re-sim of the opening row.”
+
+### Untouched
+
+`sim/game.ts`, RNG, `docs/baselines.json`, P2 `PlayEvent` schema, P5 CPU snap-log persistence. No new `Math.random` / `Date.now` in the touched scripts.
+
+### Gate
+
+Fast tier not re-measured in this note yet. No engine or baseline edit, so calibrate / statcheck `##M` lines are unchanged by construction. Browser suites are the bar for this packet.
+
+---
+
 ## 2026-09-27 — Wave 4.2 Packet 3: retirement accelerates remaining proration (Matt SIGNED)
 
 Worker. Matt **SIGNED** 2026-09-27: “retirement accelerates remaining proration as dead money, per the CBA.”
