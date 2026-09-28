@@ -61,6 +61,8 @@ Not a retune. `careers` is not in the fast tier. Studio `gate:full:serial` is th
 
 Single-seed reading, not a panel: mature QBs **583**, eligible **2.7%**, fired **6.3%** of eligible, **fired n = 1**. That one fired QB posted both a later Pro Bowl OVR year and a later top-10 passer-rating season, so both rates read **100**. Do not treat 100 vs 11.4% as a dial signal. Report-only.
 
+---
+
 ## 2026-09-28 — Wave 4.3 Packet 3 / P0: Phase 1 PBP docs hygiene
 
 Docs only. Matt **SIGNED** Phase 1 text PBP spec §7.2 (2026-09-28).
