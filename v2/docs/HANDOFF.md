@@ -5,6 +5,51 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-28 — Wave 4.3 Packet 3 / P0: Phase 1 PBP docs hygiene
+
+Docs only. Matt **SIGNED** Phase 1 text PBP spec §7.2 (2026-09-28).
+**P0 / P1 / P3 / P4** go. This packet is **P0**. Engine, UI,
+`scripts/`, and `docs/baselines.json` not touched. Do not merge from
+this note.
+
+### Diagnosis
+
+`ROADMAP.md` “What is missing” still said the game was invisible: no
+play-by-play, no drive log, and `liveGame.ts` re-ran from a kickoff
+snapshot on every peek. That was true before #53 / #81 / #83. Spec
+§1.9 and §6 P0 called the paragraph out. `ORCHESTRATION.md` Lane A
+did not point at `docs/phase1-text-pbp-spec-2026-09-22.md`.
+
+### Change
+
+- `ROADMAP.md` “What is missing” now records the shipped Phase 1 core
+  (#53 / #81 / #83), the §7.2 sign, and the leftovers still outside
+  the bar. Phase 1 finish-order gets a status line: core shipped;
+  **P1 / P3 / P4** authorized; **P2** not in the sign; **P5** waits on
+  a save-size read.
+- `ORCHESTRATION.md` Lane A cross-links the Phase 1 spec and records
+  the same sign. Phase 5 stays LLM narration.
+- The spec’s “stale blurb” lines are marked closed by this packet so
+  the next reader does not reopen P0.
+
+### Leftover
+
+P1 (Drive Chart ↔ PBP UX), P3 (`events.ts` tidy), and P4 (e2e /
+harness tighten) are signed to go and are not this packet. P2
+(optional `PlayEvent` fields) was not in the sign. P5 (CPU snap-log
+policy) still needs a save-size read and a lead sign before any
+persist change.
+
+### Untouched
+
+Engine, UI, `scripts/`, `docs/baselines.json`, gate harnesses.
+
+### Gate
+
+Docs only. No `npm run gate`.
+
+---
+
 ## 2026-09-27 — Wave 4.2 Packet 3: retirement accelerates remaining proration (Matt SIGNED)
 
 Worker. Matt **SIGNED** 2026-09-27: “retirement accelerates remaining proration as dead money, per the CBA.”

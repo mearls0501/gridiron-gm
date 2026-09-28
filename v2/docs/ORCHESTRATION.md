@@ -76,12 +76,24 @@ below are the boundaries; a worker that needs a file outside its lane stops and 
 
 | Lane | Owns | Does NOT touch |
 |---|---|---|
-| **A — Game viewer / play-by-play** | new `lib/core/sim/events.ts` (event emitter), `app/game/[id]/page.tsx`, `app/play/page.tsx`, `lib/core/liveGame.ts`, `lib/view/*` for game presentation | `sim/game.ts` beyond inserting emit hooks that change no outcome; zero RNG draws |
+| **A — Game viewer / play-by-play** | new `lib/core/sim/events.ts` (event emitter), `app/game/[id]/page.tsx`, `app/play/page.tsx`, `lib/core/liveGame.ts`, `lib/view/*` for game presentation. Contract: `docs/phase1-text-pbp-spec-2026-09-22.md` | `sim/game.ts` beyond inserting emit hooks that change no outcome; zero RNG draws |
 | **B — Contract office** | `lib/core/offseason/contracts.ts`, `app/finances/page.tsx`, `Contract` fields in `types.ts` (additive, optional), `askingPrice`/`negotiatedApy` onto the club belief | `draft.ts`, `freeAgency.ts`, `frontOffice.ts` |
 | **C — Draft published rules** | `lib/core/offseason/draft.ts` (rookie slot scale, compensatory picks), `pickOwners` for comp picks in `trades.ts` only where picks are created | `contracts.ts`, `scouting.ts`, `cpuBoardValue` / `POSITION_VALUE` |
 | **D — People (coaches, owner)** | new `lib/core/coaches.ts`, new `lib/core/owner.ts`, new `app/staff/page.tsx`, `Team.coach`/`Team.owner` fields (additive), `effectiveCoach` in `callSheet.ts` | `staff.ts` (the budget system — different thing despite the name), `frontOffice.ts` archetype dials, `sim/game.ts` |
 | **E — History & identity** | new `lib/core/hallOfFame.ts`, new `app/history/page.tsx`, `app/records/page.tsx`, `app/league/page.tsx` history section | anything that writes `state.history` (`recordSeasonHistory`) |
 | **F — Player psychology** | new `lib/core/psychology.ts` (contract-year, holdouts, trade requests), hooks in `briefing.ts` | `contracts.ts` (lane B) — raise a request, do not edit; `freeAgency.ts` |
+
+**Lane A status (2026-09-28).** Phase 1 text play-by-play and the drive
+log are live on `main` (#53 / #81 / #83). The contract, gaps,
+determinism rules, and Matt-signable bar are
+`docs/phase1-text-pbp-spec-2026-09-22.md`. Matt **SIGNED** §7.2.
+Polish packets **P0** (ROADMAP / this cross-link), **P1**, **P3**, and
+**P4** may go. **P2** (optional `PlayEvent` fields) was not in the
+sign. **P5** (CPU snap-log persistence) still needs a save-size read
+and a lead sign. ROADMAP Phase 5 remains LLM narration (scouting
+prose, season recaps, pressers). Lane A still owns the presentation
+files. Emit hooks in `sim/game.ts` stay outcome-neutral and draw zero
+RNG.
 
 **Shared hotspots, with rules:**
 

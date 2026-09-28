@@ -73,10 +73,19 @@ not merge #9 or #63.
 
 ## What is missing
 
-**The game is invisible.** No play-by-play anywhere; the game page is a scoring
-summary with no drive log or chart. Play-the-Game shows down/distance/score but
-never the result of the snap you just called; `liveGame.ts` is 72 lines that
-re-run the game from a snapshot on every peek.
+**Phase 1 visibility is on `main`.** Text play-by-play and a drive log
+shipped with Lane A (#53), live resume (#81), and the liveGame tidy
+(#83). `/play` shows Last snap, a Drive Log, and Play by Play. `peek`
+returns the cached view; continue resumes the generator. `/game/[id]`
+shows a Drive Chart on every completed game and a snap log on user
+games. CPU boxes keep the chart and omit the snap log (save size).
+Contract, gaps, and the §7.2 bar:
+`docs/phase1-text-pbp-spec-2026-09-22.md`. Matt **SIGNED** §7.2
+(2026-09-28). Polish packets **P1 / P3 / P4** may go. Still outside
+that bar: formation tree and play art, a `/play` session that survives
+refresh, a live opening kick, and a full snap log on every CPU box
+(**P5** — save-size lead decision; not signed). Phase 5 below remains
+LLM narration.
 
 **No people.** Coaches are seven numbers on `Team`, generated once — no
 HC/OC/DC, contracts, hiring, firing, carousel. No owner, expectations, or job
@@ -142,6 +151,12 @@ also **SIGNED 2026-09-19**; #100 still merges solo with a Studio
 panel after.
 
 ### Phase 1 — make the engine visible (after the panel is green)
+
+**Core shipped** (#53 / #81 / #83). Spec and leftovers:
+`docs/phase1-text-pbp-spec-2026-09-22.md`. Matt **SIGNED** §7.2
+(2026-09-28). **P1 / P3 / P4** may go. **P2** (optional `PlayEvent`
+fields) was not in that sign. **P5** (persist more CPU snap logs)
+waits on a save-size read.
 
 Text play-by-play and a drive log generated from the events `game.ts` already
 produces. A real game page with a drive chart. Play-the-Game that shows the
