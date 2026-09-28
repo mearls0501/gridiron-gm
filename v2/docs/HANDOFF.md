@@ -5,7 +5,7 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
-## 2026-09-28 — Wave 4.3 Packet 1: second-scene measurement realign (emit only)
+## 2026-09-28 — Wave 4.3 Packet 1: second-scene measurement realign (emit only) (#122)
 
 Worker. Matt **SIGNED** 2026-09-28: “Second-scene success is measured like §2.7 — a later top-ten passer-rating season — before any mechanism changes.”
 
@@ -37,11 +37,29 @@ No band. Do not lock either rate, and do not retune `SECOND_SCENE_K` or the othe
 
 ### Gate
 
-Pending the acceptance run (`npm ci && npm run gate` in `v2/`).
+`npm ci && npm run gate` in `v2/` (fast, parallel, 1 seed, 4 cores). Typecheck, determinism, verify, calibrate, statcheck, and scout passed. One FAIL, the inherited single-seed red:
 
-### ##M vs main tip
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
 
-Pending the careers emit. Expected diff is only the two new lines. `secondSceneStarPct` and every prior emit stay.
+Not a retune. `careers` is not in the fast tier. Studio `gate:full:serial` is the parent’s panel after merge. This packet does not lock a band.
+
+### ##M vs main tip `a0cdfbb`
+
+`npx tsx scripts/careers.ts 24` on this branch and on `main`, same default seed. Career counts matched season by season. The ##M diff is only the two new lines:
+
+```
+ ##M careers.secondSceneEligiblePct 2.7444253859348198
+ ##M careers.secondSceneFiredPct 6.25
+ ##M careers.secondSceneStarPct 100
++##M careers.secondSceneTop10PrPct 100
++##M careers.secondSceneFiredN 1
+ ##M careers.medicalMajorGamesMissedRatio 1.1945397192686815
+```
+
+Single-seed reading, not a panel: mature QBs **583**, eligible **2.7%**, fired **6.3%** of eligible, **fired n = 1**. That one fired QB posted both a later Pro Bowl OVR year and a later top-10 passer-rating season, so both rates read **100**. Do not treat 100 vs 11.4% as a dial signal. Report-only.
 
 ## 2026-09-28 — Wave 4.3 Packet 3 / P0: Phase 1 PBP docs hygiene
 
