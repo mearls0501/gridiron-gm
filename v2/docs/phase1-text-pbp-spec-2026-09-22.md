@@ -19,6 +19,11 @@ exists, locks the contract, lists remaining gaps for a later implement
 wave, and defines Matt-signable acceptance checks. It does **not**
 authorize engine or UI work in this PR.
 
+**Sign (2026-09-28).** Matt SIGNED §7.2. **P0 / P1 / P3 / P4** go.
+P2 was not in the sign. P5 still needs a save-size read. P0 refreshed
+the ROADMAP “What is missing” blurb and cross-linked this spec from
+ORCHESTRATION Lane A (HANDOFF 2026-09-28).
+
 ---
 
 ## 1. Inventory — what exists today
@@ -135,10 +140,11 @@ Browser smoke already covers the happy path:
 
 ### 1.9 Docs that are stale vs reality
 
-`ROADMAP.md` “What is missing” (~76–79) still claims no PBP and that
-`liveGame.ts` re-runs on every peek. That paragraph is **stale** after
-#53 / #81 / #83. Phase 1 finish-order text (~144–149) is the product
-target and is largely met. Phase 5 (~177–181) remains LLM narration.
+`ROADMAP.md` “What is missing” claimed no PBP and that `liveGame.ts`
+re-ran on every peek. **Closed 2026-09-28 (Wave 4.3 Packet 3 / P0).**
+Phase 1 finish-order text is the product target; the core is shipped
+(#53 / #81 / #83) and the leftover bar is §2. Phase 5 remains LLM
+narration.
 
 ---
 
@@ -194,7 +200,7 @@ streams into one type.
 | `onPlayEvent` unused after #83 | `events.ts` still exports pub/sub | Leave dead API, delete in a tidy packet, or document as reserved for tooling |
 | CPU no snap log | `/game/[id]` Drive Chart only | Keep default; optional “keep snap log for rivalry CPU games” would be a **save-size** lead decision |
 | Opening implied kickoff | First PBP row is always TB | Engine change if ever “live KO” — out of Phase 1 polish unless Matt asks |
-| Stale ROADMAP “invisible” blurb | Docs | Docs-only packet (or fold into HANDOFF hygiene) |
+| ~~Stale ROADMAP “invisible” blurb~~ | Docs | **Closed** Wave 4.3 Packet 3 / P0 |
 | Drive Chart not interactive | Click drive → jump to PBP section | Pure UI; no engine |
 | `/play` refresh loses session | Noted leftover | Persist mid-game live state = save schema + design; not Phase 1 |
 
@@ -266,7 +272,7 @@ Small PRs, one cluster each. Order is preference, not a calendar.
 
 | Packet | Title | Owns | Does not touch | Gate bar |
 |---|---|---|---|---|
-| **P0** | Docs hygiene | `ROADMAP.md` “What is missing” refresh; cross-link this spec from ORCHESTRATION Lane A | Engine / UI | Docs only |
+| **P0** | Docs hygiene — **done 2026-09-28** | `ROADMAP.md` “What is missing” refresh; cross-link this spec from ORCHESTRATION Lane A | Engine / UI | Docs only |
 | **P1** | Drive Chart ↔ PBP UX | `app/game/[id]/page.tsx`, maybe `lib/view/playByPlay.ts` helpers | `sim/game.ts`, RNG | `playbyplay` + browser: click drive scrolls/highlights snaps |
 | **P2** | Schema polish (optional fields) | Additive `PlayEvent` fields + `formatPlay` + emit stamps from **existing** outcome strings | Play math, baselines | `playbyplay` + `livegame`; calibrate/statcheck byte-identical if `game.ts` touched |
 | **P3** | events.ts tidy | Drop or quarantine dead `onPlayEvent` API; comment authenticity | Live resume semantics | `livegame` + `playbyplay` |
@@ -275,6 +281,10 @@ Small PRs, one cluster each. Order is preference, not a calendar.
 
 Do **not** start P5 without a save-size read. Do **not** combine P2
 emit stamps with unrelated engine fixes in one PR.
+
+**Sign (2026-09-28).** Matt SIGNED §7.2. **P0 / P1 / P3 / P4** go.
+P0 is the ROADMAP refresh and the ORCHESTRATION Lane A cross-link.
+P2 was not signed. P5 stays lead-gated.
 
 ---
 
@@ -301,6 +311,9 @@ Any implement packet that claims Phase 1 polish must keep:
    edits.
 
 ### 7.2 Sign-off checklist for a polish wave (copy into PR)
+
+**Matt SIGNED 2026-09-28.** This checklist is the bar. P1 / P3 / P4
+copy it into their PRs. P0 is docs-only and does not run the harnesses.
 
 ```
 [ ] playbyplay harness exit 0
@@ -340,9 +353,9 @@ to sign.
 | `lib/store/codec.ts` | Persist plays/drives |
 | `scripts/gate.ts` | Registers both harnesses |
 | `scripts/e2e.mjs` / `e2e-desks.mjs` | Browser smoke |
-| `docs/ROADMAP.md` | Phase 1 target; Phase 5 narration; stale “missing” blurb |
-| `docs/HANDOFF.md` | #53 / #81 / #83 ship notes |
-| `docs/ORCHESTRATION.md` | Lane A ownership map |
+| `docs/ROADMAP.md` | Phase 1 target (core shipped); Phase 5 narration; “missing” blurb refreshed P0 |
+| `docs/HANDOFF.md` | #53 / #81 / #83 ship notes; P0 hygiene 2026-09-28 |
+| `docs/ORCHESTRATION.md` | Lane A ownership map; cross-link to this spec |
 
 ---
 
