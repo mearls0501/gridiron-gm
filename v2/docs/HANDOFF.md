@@ -46,9 +46,9 @@ GATE FAIL  1 problem
 
 Not a retune. `careers` is not in the fast tier. Studio `gate:full:serial` is the parent’s panel after merge. This packet does not lock a band.
 
-### ##M vs main tip `a0cdfbb`
+### ##M vs `e2e1aa0`
 
-`npx tsx scripts/careers.ts 24` on this branch and on `main`, same default seed. Career counts matched season by season. The ##M diff is only the two new lines:
+Re-run after the rebase onto current `main` (that tip contains `e2e1aa0`). `npx tsx scripts/careers.ts 24` on this branch and on `e2e1aa0`, same default seed. Career counts matched season by season. The ##M diff is only the two new lines:
 
 ```
  ##M careers.secondSceneEligiblePct 2.7444253859348198
@@ -60,6 +60,8 @@ Not a retune. `careers` is not in the fast tier. Studio `gate:full:serial` is th
 ```
 
 Single-seed reading, not a panel: mature QBs **583**, eligible **2.7%**, fired **6.3%** of eligible, **fired n = 1**. That one fired QB posted both a later Pro Bowl OVR year and a later top-10 passer-rating season, so both rates read **100**. Do not treat 100 vs 11.4% as a dial signal. Report-only.
+
+Fast-tier harness `##M` against the same `e2e1aa0` checkout — calibrate, statcheck, leverage, determinism, verify, scout, psychology, peopleTeeth, hofInduction — **68 lines, byte-identical**. Leverage exits 1 on both sides (the inherited `wrongSign`).
 
 ---
 
