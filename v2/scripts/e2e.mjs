@@ -10,6 +10,10 @@
  * + PBP, /finances Extend/Restructure, a soft holdout→finances path, and
  * post-FA draft pick count in the mid-260s.
  *
+ * Phase 1 PBP §7.1 (P4): /play opening kickoff stays row 1 across a snap
+ * and coach-finish; user /game/[id] Drive Chart + text PBP; CPU Drive
+ * Chart with no snap log (absence is a note, a CPU snap log fails).
+ *
  *   node scripts/e2e.mjs [baseUrl]
  */
 import { chromium } from "playwright";
@@ -18,6 +22,7 @@ import {
   checkFinancesDesk,
   checkHistoryDesk,
   checkHoldoutPath,
+  checkPhase1BoxScores,
   checkPlayLastSnap,
   checkStaffDesk,
 } from "./e2e-desks.mjs";
@@ -263,24 +268,8 @@ async function main() {
   await page.waitForTimeout(300);
   await checkPage("[postseason] /playoffs");
 
-  // ---- A box score ----------------------------------------------------------
-  await page.goto(BASE + "/schedule", { waitUntil: "networkidle" });
-  await page.waitForTimeout(300);
-  const gameLink = page.locator('a[href^="/game/"]').first();
-  if (await gameLink.count()) {
-    await gameLink.click();
-    await page.waitForTimeout(700);
-    await checkPage("[box score] /game/[id]");
-    const txt = await page.evaluate(() => document.body.innerText);
-    if (!/Scoring|Passing|Rushing/i.test(txt)) fail("box score has no stat sections");
-    else console.log("  ok    box score renders");
-    if (!/Drive Chart/i.test(txt)) fail("box score missing drive chart");
-    else console.log("  ok    box score has drive chart");
-    if (/Play by Play/i.test(txt)) console.log("  ok    box score has play-by-play");
-    else console.log("  note  box score has no snap log (CPU game — drive chart only)");
-  } else {
-    fail("no game links found on the schedule");
-  }
+  // ---- Box scores: user text PBP, CPU drive chart (§7.1) -------------------
+  await checkPhase1BoxScores(page, BASE, report, (label) => checkPage(`[box score] ${label}`));
 
   // ---- A player page --------------------------------------------------------
   await page.goto(BASE + "/roster", { waitUntil: "networkidle" });

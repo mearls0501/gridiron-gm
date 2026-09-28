@@ -9,6 +9,7 @@ import {
   checkFinancesDesk,
   checkHistoryDesk,
   checkHoldoutPath,
+  checkPhase1BoxScores,
   checkPlayLastSnap,
   checkStaffDesk,
 } from "./e2e-desks.mjs";
@@ -173,6 +174,7 @@ for (let i = 0; i < 20; i++) {
   if (!(await b.count())) break;
   await b.click(); await page.waitForTimeout(750);
 }
+await checkPhase1BoxScores(page, BASE, report);
 for (let i = 0; i < 5; i++) {
   await page.goto(BASE + "/", { waitUntil: "networkidle" }); await page.waitForTimeout(300);
   const b = page.getByRole("button", { name: /Sim .* Round/i });
