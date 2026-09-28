@@ -5,6 +5,44 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-28 — Wave 4.3 Packet 1: second-scene measurement realign (emit only)
+
+Worker. Matt **SIGNED** 2026-09-28: “Second-scene success is measured like §2.7 — a later top-ten passer-rating season — before any mechanism changes.”
+
+Emit only. No mechanism, dial, baseline, or RNG change.
+
+### Diagnosis
+
+`careers.secondSceneStarPct` counts a later **Pro Bowl OVR** year (QB top-5 by OVR among snap-takers). `nfl-reference.md` §2.7 counts a later **top-ten passer-rating** season among qualifying starters (**4/35 = 11.4%**). Studio panels read star **0.0** against that 11.4%. Write-up: `docs/second-scene-star-finding-2026-09-22.md`. Option 1 is this measurement realign. Options 2–6 stay unsigned.
+
+### Change
+
+`scripts/careers.ts` only. Three QB emits, still report-only, still no `baselines.json` row.
+
+| emit | formula |
+|---|---|
+| `careers.secondSceneTop10PrPct` | Among fired second-scene QBs in the mature QB sample, the share with **any** career season after `secondScene.season` that finishes top-10 in passer rating among that year’s §2.7 qualifying starters. `0` when fired is 0. |
+| `careers.secondSceneFiredN` | Fired count in that mature QB sample. Same denominator as `secondSceneFiredPct`, `secondSceneStarPct`, and `secondSceneTop10PrPct`. |
+| `careers.secondSceneStarPct` | Unchanged formula (later `snapshot.star`). Relabeled **Pro Bowl OVR, report-only**. |
+
+§2.7 qualifying starter (`nfl-reference.md` §2.7): a QB with ≥9 start-weeks. The nflverse start-week is “led his club in pass attempts that week and threw ≥8.” The season line does not keep weekly attempt leadership, so the stand-in is `gamesStarted >= STARTER_GAMES` (9). Rank is `passerRating` descending, player id ascending. Top ten of that season’s qualifiers. The pool is every non-prospect QB on the save, not only the mature sample.
+
+### Leftover
+
+No band. Do not lock either rate, and do not retune `SECOND_SCENE_K` or the other scene dials against 11.4%. Growth grace, fire-age runway, and a stronger-than-ceiling scene effect are still unsigned.
+
+### Untouched
+
+`lib/core/secondScene.ts`, `offseason/progression.ts`, K and the other dials, `outcomes.ts`, `docs/baselines.json`, the engine, the RNG.
+
+### Gate
+
+Pending the acceptance run (`npm ci && npm run gate` in `v2/`).
+
+### ##M vs main tip
+
+Pending the careers emit. Expected diff is only the two new lines. `secondSceneStarPct` and every prior emit stay.
+
 ## 2026-09-28 — Wave 4.3 Packet 3 / P0: Phase 1 PBP docs hygiene
 
 Docs only. Matt **SIGNED** Phase 1 text PBP spec §7.2 (2026-09-28).

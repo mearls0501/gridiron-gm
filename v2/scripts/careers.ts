@@ -22,12 +22,13 @@ import { advance } from "../lib/core/season/engine";
 import { advanceOffseason, isOffseason } from "../lib/core/offseason";
 import { GameState, Player, Position, POSITIONS } from "../lib/core/types";
 import {
-  Career, ROOKIE_DEAL_YEARS, careerLength, everStar, fullTimeSnapBaseline,
+  Career, ROOKIE_DEAL_YEARS, STARTER_GAMES, careerLength, everStar, fullTimeSnapBaseline,
   isBust, isHit, isMultiYearStarter, positionRanks, rosteredInYear, snapshot,
   starterSeasons, withDrafterInYear, yearsToFirstStar,
 } from "../lib/core/outcomes";
 import { hofInducteesPerClass } from "../lib/core/hallOfFame";
 import { hasBadStartingSeason, isBustGap } from "../lib/core/secondScene";
+import { passerRating } from "../lib/core/season/stats";
 
 const SEASONS = Number(process.argv[2] ?? 25);
 const SEED = seedFor(Number(process.argv[3] ?? 12345));
@@ -380,14 +381,48 @@ const shareGaps = Object.entries(TARGET_R1_SHARE).map(([grp, want]) =>
 const r1Starts = avg(r1s.map(starterSeasons));
 const lateStarts = avg(late.map(starterSeasons));
 
-// Second scene (Darnold path). Conditions 1–2 = eligible; 3–5 + draw = fired.
-// Star is a later star year after the draw. QB rates are the lock candidates
-// against nfl-reference.md §2.7 (4/35 = 11.4%). Report-only — no baseline.
+// Second scene (Darnold path). Conditions 1–2 = eligible; full draw = fired.
+// secondSceneStarPct stays a later Pro Bowl OVR year (report-only).
+// secondSceneTop10PrPct is the §2.7 event: any later top-ten passer-rating
+// season among that year's qualifying starters. Real rate 4/35 = 11.4%
+// (nfl-reference.md §2.7). Report-only — no baseline.
 const byId = new Map(st.players.map((p) => [p.id, p]));
+
+/**
+ * §2.7 qualifying starters: QBs with ≥9 start-weeks. The nflverse start-week
+ * is "led his club in pass attempts and threw ≥8"; the season line does not
+ * keep weekly attempt leadership, so the sim stand-in is
+ * `gamesStarted >= STARTER_GAMES` (9). Top ten by passer rating, id tie-break.
+ * Keys are `playerId:season`.
+ */
+function top10PasserRatingKeys(state: GameState): Set<string> {
+  const bySeason = new Map<number, { id: number; pr: number }[]>();
+  for (const p of state.players) {
+    if (p.pos !== "QB" || p.prospect) continue;
+    for (const line of p.stats) {
+      if (line.gamesStarted < STARTER_GAMES) continue;
+      const entry = { id: p.id, pr: passerRating(line) };
+      const row = bySeason.get(line.season);
+      if (row) row.push(entry);
+      else bySeason.set(line.season, [entry]);
+    }
+  }
+  const keys = new Set<string>();
+  for (const [season, group] of bySeason) {
+    group.sort((a, b) => b.pr - a.pr || a.id - b.id);
+    const n = Math.min(10, group.length);
+    for (let i = 0; i < n; i++) keys.add(`${group[i].id}:${season}`);
+  }
+  return keys;
+}
+
+const top10Pr = top10PasserRatingKeys(st);
+
 function secondSceneCounts(group: Career[]) {
   let eligible = 0;
   let fired = 0;
   let star = 0;
+  let top10 = 0;
   for (const c of group) {
     const p = byId.get(c.playerId);
     if (!p) continue;
@@ -396,29 +431,37 @@ function secondSceneCounts(group: Career[]) {
     eligible++;
     if (!p.secondScene) continue;
     fired++;
-    if (c.seasons.some((s) => s.star && s.season > p.secondScene!.season)) star++;
+    const after = p.secondScene.season;
+    if (c.seasons.some((s) => s.star && s.season > after)) star++;
+    if (c.seasons.some((s) => s.season > after && top10Pr.has(`${p.id}:${s.season}`))) top10++;
   }
-  return { eligible, fired, star };
+  return { eligible, fired, star, top10 };
 }
 const qbMature = mature.filter((c) => c.pos === "QB");
 const qbScene = secondSceneCounts(qbMature);
 const allScene = secondSceneCounts(mature);
 const pctOrZero = (n: number, d: number) => (d === 0 ? 0 : (n / d) * 100);
 
-bar("SECOND SCENE — Darnold path (report-only, §2.7 = 11.4% later-star)");
-console.log("  group     n  eligible   fired/elig   later star/fired");
+bar("SECOND SCENE — Darnold path (report-only)");
+console.log("  §2.7 (nfl-reference.md): later top-10 passer rating among qualifying");
+console.log("  starters (≥9 starts). Real 4/35 = 11.4%. No band.");
+console.log("  secondSceneStarPct: Pro Bowl OVR, report-only.\n");
+console.log("  group     n  eligible   fired/elig   PB OVR/fired  top10 PR/fired");
 console.log(
   `  QB    ${pad(qbMature.length, 5)}  ` +
   `${pad(pct(qbScene.eligible, qbMature.length), 8)}  ` +
   `${pad(pct(qbScene.fired, qbScene.eligible), 10)}  ` +
-  `${pad(pct(qbScene.star, qbScene.fired), 10)}`
+  `${pad(pct(qbScene.star, qbScene.fired), 12)}  ` +
+  `${pad(pct(qbScene.top10, qbScene.fired), 12)}`
 );
 console.log(
   `  all   ${pad(mature.length, 5)}  ` +
   `${pad(pct(allScene.eligible, mature.length), 8)}  ` +
   `${pad(pct(allScene.fired, allScene.eligible), 10)}  ` +
-  `${pad(pct(allScene.star, allScene.fired), 10)}`
+  `${pad(pct(allScene.star, allScene.fired), 12)}  ` +
+  `${pad("—", 12)}`
 );
+console.log(`  QB fired n (mature sample): ${qbScene.fired}`);
 
 // Medical risk teeth. Games missed = 17 − games appeared, rostered
 // seasons with a stat line. Drafted / UDFA only (they keep the grade).
@@ -472,10 +515,17 @@ emitAll({
   // (`docs/nfl-reference.md` §4). No baseline in this packet.
   "careers.hofInducteesPerClass": hofInducteesPerClass(st),
 
-  // Second scene — additive, no band. QB rates. §2.7 lock is later-star 11.4%.
+  // Second scene — additive, no band. QB rates.
+  // secondSceneStarPct: later Pro Bowl OVR year, report-only.
+  // secondSceneTop10PrPct: among fired mature QBs, share with any later
+  // top-10 passer-rating season among §2.7 qualifying starters
+  // (nfl-reference.md §2.7, 4/35 = 11.4%). No band.
+  // secondSceneFiredN: fired count in the mature QB sample (that denominator).
   "careers.secondSceneEligiblePct": pctOrZero(qbScene.eligible, qbMature.length),
   "careers.secondSceneFiredPct": pctOrZero(qbScene.fired, qbScene.eligible),
   "careers.secondSceneStarPct": pctOrZero(qbScene.star, qbScene.fired),
+  "careers.secondSceneTop10PrPct": pctOrZero(qbScene.top10, qbScene.fired),
+  "careers.secondSceneFiredN": qbScene.fired,
 
   // Medical grade teeth — additive, no band. Matt signs the hazard.
   "careers.medicalMajorGamesMissedRatio": medicalMajorGamesMissedRatio,
