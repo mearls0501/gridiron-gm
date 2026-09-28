@@ -54,8 +54,8 @@ Docs only. No `npm run gate`.
 
 Worker. Matt **SIGNED** Phase 1 text PBP §7.2. Spec
 `docs/phase1-text-pbp-spec-2026-09-22.md` §6 **P3**. Base `main` @
-`a0cdfbb`. Live resume semantics unchanged. No play math, no new RNG,
-no `docs/baselines.json` edit.
+`a0cdfbb`. PR **#121**. Live resume semantics unchanged. No play math,
+no new RNG, no `docs/baselines.json` edit. Do not merge from this PR.
 
 ### Diagnosis
 
@@ -86,15 +86,35 @@ knobs / PR #9 / capBust / minPayroll / volume not retuned.
 
 ### §7.2
 
-Checklist is in the PR. Harness rows are filled after `livegame`,
-`playbyplay`, and the calibrate / statcheck `##M` diff against this
-tip. Browser rows stay open: this packet does not change those pages.
+```
+[x] playbyplay harness exit 0
+[x] livegame harness exit 0
+[ ] /play: Last snap + Drive Log + PBP; peek/re-render does not re-sim
+[ ] /play: continue does not rewrite opening kickoff row
+[ ] /game/[id] user: Drive Chart + text PBP
+[ ] /game/[id] CPU: Drive Chart; no snap log (unless P5 signed)
+[x] No new Math.random / Date.now in touched files (determinism scan)
+[x] No baselines.json edit
+[x] Phase 5 LLM not introduced on the snap path
+```
+
+Browser rows stay open. This packet does not change `/play` or
+`/game/[id]`. `livegame` already asserts opening-play object identity
+across `call` and that `peek` does not re-sim. `playbyplay` already
+asserts user Drive Chart + text log vs CPU drive chart without a snap
+log.
 
 ### Gate
 
-Pending on this note until the harnesses finish. Studio
-`gate:full:serial` is the parent's panel after merge. This packet
-does not run it.
+`npx tsx lib/core/liveGame.test.ts` exit 0.
+`npx tsx lib/view/playByPlay.test.ts` exit 0.
+`npx tsx scripts/determinism.ts 2` exit 0 (`bannedApiUses` 0).
+
+`calibrate` (300) and `statcheck` `##M` lines vs `main` @ `a0cdfbb`
+are **empty diffs** (28 calibrate metrics, 23 statcheck metrics),
+including `calibrate.pts` 23.723…, `calibrate.passYds` 237.328…, and
+`statcheck.wr10RecYds` **1070**. Studio `gate:full:serial` is the
+parent's panel after merge. This packet does not run it.
 
 ---
 
