@@ -118,6 +118,29 @@ parent's panel after merge. This packet does not run it.
 
 ---
 
+## 2026-09-28 — Wave 4.3 Packet 3 / P1: Drive Chart ↔ PBP UX (#123)
+
+Worker. Matt **SIGNED** Phase 1 PBP §7.2. Spec `docs/phase1-text-pbp-spec-2026-09-22.md` §6 P1 + §7.2.
+
+UI only. On a user box (`box.plays` present), each Drive Chart possession is a button. Clicking it scrolls that drive to the top of the Play by Play list and highlights its snaps (accent rail on the accent-dim wash). The chart row stays marked, so the same possession is selected in both places. A later click moves the highlight. The list sits below the sticky shell header when the jump would otherwise tuck it underneath. CPU boxes still have a Drive Chart and no snap log; those rows are not buttons and the chart does not offer a jump hint.
+
+`app/game/[id]/page.tsx` only. `lib/view/playByPlay.ts` is unchanged — `drivePlays` already slices the snaps. No `sim/game.ts`, no new RNG draw, no `docs/baselines.json`, no Phase 5 prose.
+
+### §7.2
+
+- `playbyplay` exit 0. `livegame` exit 0. `tsc --noEmit` clean.
+- `/play`: opening row is kickoff touchback. Run leaves that row and shows Last snap. Let the coach finish keeps the opening row and the Drive Log.
+- `/game/[id]` user: Drive Chart + text PBP. Clicking a later possession scrolls the snap list (desktop and 390px) and highlights that drive's snaps. The last possession's header stays visible in the list.
+- `/game/[id]` CPU: Drive Chart present, no snap log, rows are not buttons.
+- Touched file has no `Math.random`, `Date.now`, `new Date()`, or `performance.now()`.
+- `baselines.json` not edited. No LLM on the snap path.
+
+### Untouched
+
+Engine, codec, baselines, `scripts/e2e*.mjs`. Harness registration is unchanged. P4 still owns a tighter e2e assert if the parent wants this click in `e2e.mjs`.
+
+---
+
 ## 2026-09-27 — Wave 4.2 Packet 3: retirement accelerates remaining proration (Matt SIGNED)
 
 Worker. Matt **SIGNED** 2026-09-27: “retirement accelerates remaining proration as dead money, per the CBA.”
