@@ -5,6 +5,66 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-28 — Wave 4.3 Packet 1: second-scene measurement realign (emit only) (#122)
+
+Worker. Matt **SIGNED** 2026-09-28: “Second-scene success is measured like §2.7 — a later top-ten passer-rating season — before any mechanism changes.”
+
+Emit only. No mechanism, dial, baseline, or RNG change.
+
+### Diagnosis
+
+`careers.secondSceneStarPct` counts a later **Pro Bowl OVR** year (QB top-5 by OVR among snap-takers). `nfl-reference.md` §2.7 counts a later **top-ten passer-rating** season among qualifying starters (**4/35 = 11.4%**). Studio panels read star **0.0** against that 11.4%. Write-up: `docs/second-scene-star-finding-2026-09-22.md`. Option 1 is this measurement realign. Options 2–6 stay unsigned.
+
+### Change
+
+`scripts/careers.ts` only. Three QB emits, still report-only, still no `baselines.json` row.
+
+| emit | formula |
+|---|---|
+| `careers.secondSceneTop10PrPct` | Among fired second-scene QBs in the mature QB sample, the share with **any** career season after `secondScene.season` that finishes top-10 in passer rating among that year’s §2.7 qualifying starters. `0` when fired is 0. |
+| `careers.secondSceneFiredN` | Fired count in that mature QB sample. Same denominator as `secondSceneFiredPct`, `secondSceneStarPct`, and `secondSceneTop10PrPct`. |
+| `careers.secondSceneStarPct` | Unchanged formula (later `snapshot.star`). Relabeled **Pro Bowl OVR, report-only**. |
+
+§2.7 qualifying starter (`nfl-reference.md` §2.7): a QB with ≥9 start-weeks. The nflverse start-week is “led his club in pass attempts that week and threw ≥8.” The season line does not keep weekly attempt leadership, so the stand-in is `gamesStarted >= STARTER_GAMES` (9). Rank is `passerRating` descending, player id ascending. Top ten of that season’s qualifiers. The pool is every non-prospect QB on the save, not only the mature sample.
+
+### Leftover
+
+No band. Do not lock either rate, and do not retune `SECOND_SCENE_K` or the other scene dials against 11.4%. Growth grace, fire-age runway, and a stronger-than-ceiling scene effect are still unsigned.
+
+### Untouched
+
+`lib/core/secondScene.ts`, `offseason/progression.ts`, K and the other dials, `outcomes.ts`, `docs/baselines.json`, the engine, the RNG.
+
+### Gate
+
+`npm ci && npm run gate` in `v2/` (fast, parallel, 1 seed, 4 cores). Typecheck, determinism, verify, calibrate, statcheck, and scout passed. One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `careers` is not in the fast tier. Studio `gate:full:serial` is the parent’s panel after merge. This packet does not lock a band.
+
+### ##M vs `e2e1aa0`
+
+Re-run after the rebase onto current `main` (that tip contains `e2e1aa0`). `npx tsx scripts/careers.ts 24` on this branch and on `e2e1aa0`, same default seed. Career counts matched season by season. The ##M diff is only the two new lines:
+
+```
+ ##M careers.secondSceneEligiblePct 2.7444253859348198
+ ##M careers.secondSceneFiredPct 6.25
+ ##M careers.secondSceneStarPct 100
++##M careers.secondSceneTop10PrPct 100
++##M careers.secondSceneFiredN 1
+ ##M careers.medicalMajorGamesMissedRatio 1.1945397192686815
+```
+
+Single-seed reading, not a panel: mature QBs **583**, eligible **2.7%**, fired **6.3%** of eligible, **fired n = 1**. That one fired QB posted both a later Pro Bowl OVR year and a later top-10 passer-rating season, so both rates read **100**. Do not treat 100 vs 11.4% as a dial signal. Report-only.
+
+Fast-tier harness `##M` against the same `e2e1aa0` checkout — calibrate, statcheck, leverage, determinism, verify, scout, psychology, peopleTeeth, hofInduction — **68 lines, byte-identical**. Leverage exits 1 on both sides (the inherited `wrongSign`).
+
+---
+
 ## 2026-09-28 — Wave 4.3 Packet 3 / P0: Phase 1 PBP docs hygiene
 
 Docs only. Matt **SIGNED** Phase 1 text PBP spec §7.2 (2026-09-28).
