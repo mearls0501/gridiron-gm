@@ -169,8 +169,8 @@ dials 1–8.
    `developPlayer` grows only while `age < peakAge` after the
    progression `age += 1`. Late fires put the new ceiling on the
    decline path (room ignored). Small `K=0.45` lifts and near-peak
-growth rates do not climb into the Pro Bowl OVR band (local probe
-star OVRs min **82** / median **88**).
+   growth rates do not climb into the Pro Bowl OVR band (local probe
+   star OVRs min **82** / median **88**).
 
 Local 24-season seed 12345: 2 fired QBs league-wide — one with runway
 (age 27 / peak 30) later-starred at OVR 87; one past peak (age 29 /
