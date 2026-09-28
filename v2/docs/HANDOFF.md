@@ -170,7 +170,24 @@ Peek / opening-play **object identity** stays on the `livegame` and `playbyplay`
 
 ### Gate
 
-Fast tier not re-measured in this note yet. No engine or baseline edit, so calibrate / statcheck `##M` lines are unchanged by construction. Browser suites are the bar for this packet.
+`npm run gate:serial` on 4 cores. Typecheck, `playbyplay`, `livegame`, determinism (banned API uses 0), and verify 348/348 passed. Calibrate and statcheck year-0 headlines match the Wave 4.2 Packet 3 read (`pts` 23.723333333333333, `passYds` 237.32833333333335, `wr10RecYds` **1070**). One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0
+GATE FAIL  1 problem
+```
+
+Not a retune. No `baselines.json` edit.
+
+### Browser
+
+`npx next build`, then `next start -p 3000`, `PW_CHROMIUM` pointed at system Chrome.
+
+`node scripts/e2e.mjs`: opening row held. Clock `Q1 · 15:00 → Q1 · 14:28`. Coach finish kept the kickoff as row 1. User box Drive Chart 17 possessions, text PBP 158 snaps in 17 drive groups. CPU box Drive Chart 26 possessions, snap log absent (note, not a fail).
+
+`node scripts/e2e-interact.mjs`: same `/play` pair (clock `Q1 · 9:11 → Q1 · 8:38` — first user snap was not the opening kickoff, row 1 still was). User box 22 possessions / 165 snaps / 22 groups. CPU box 24 possessions, no snap log.
+
+Both suites exited 1 on a pre-existing finances check, before any PBP assert: `Extend=0 Restructure=25`. The desk still looks for a button named Extend; `/finances` renders Offer and Meet asking. This packet did not touch that page or that check.
 
 ---
 
