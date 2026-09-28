@@ -50,6 +50,54 @@ Docs only. No `npm run gate`.
 
 ---
 
+## 2026-09-28 — Wave 4.3 Packet 3 / P3: drop dead onPlayEvent (Matt SIGNED)
+
+Worker. Matt **SIGNED** Phase 1 text PBP §7.2. Spec
+`docs/phase1-text-pbp-spec-2026-09-22.md` §6 **P3**. Base `main` @
+`a0cdfbb`. Live resume semantics unchanged. No play math, no new RNG,
+no `docs/baselines.json` edit.
+
+### Diagnosis
+
+After #83, `createLiveGame` builds views from the yielded `playLog`.
+Nothing imported `onPlayEvent`. `emitPlay` only walked that empty
+listener list. The `events.ts` header still said live peek subscribes
+for the session lifetime, which has been false since the yield.
+
+### Change
+
+Deleted `onPlayEvent`, the listener list, and `emitPlay`. The play
+loop's local `emit()` still stamps `q` / `clock` / scores and pushes
+`playLog`. The live yield is still `{ info, plays: playLog }`.
+`peek` / `call` / `finishAuto` still resume that generator. The header
+now says so: local log, yield, no module pub/sub, no RNG.
+
+### Leftover
+
+Spec packets P0, P1, P2, P4, and lead P5 are not this PR. No Madden
+formation tree. Refreshing `/play` still starts a new session. CPU
+boxes still get a drive chart, not a full snap log.
+
+### Untouched
+
+Play math, parent RNG, `docs/baselines.json`, `buildDrives`,
+`formatPlay`, live resume (`peek` / `call` / `finishAuto`). Forbidden
+knobs / PR #9 / capBust / minPayroll / volume not retuned.
+
+### §7.2
+
+Checklist is in the PR. Harness rows are filled after `livegame`,
+`playbyplay`, and the calibrate / statcheck `##M` diff against this
+tip. Browser rows stay open: this packet does not change those pages.
+
+### Gate
+
+Pending on this note until the harnesses finish. Studio
+`gate:full:serial` is the parent's panel after merge. This packet
+does not run it.
+
+---
+
 ## 2026-09-27 — Wave 4.2 Packet 3: retirement accelerates remaining proration (Matt SIGNED)
 
 Worker. Matt **SIGNED** 2026-09-27: “retirement accelerates remaining proration as dead money, per the CBA.”

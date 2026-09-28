@@ -4,7 +4,7 @@ import {
   BoxScore, CARRY_SHARE, Coach, Game, GameState, PlayEvent, PlayKind, PlayResult,
   Player, PlayerGameStat, Position, ROTATION, ScoringPlay, SnapCall, STARTERS, Team, TeamGameStats,
 } from "../types";
-import { buildDrives, emitPlay } from "./events";
+import { buildDrives } from "./events";
 import { CLEAR, HOME_FIELD, restEffect, weatherEffects } from "../weather";
 import { blankPlayerGameStat, blankTeamGameStats } from "../season/stats";
 import { isSat } from "../inactives";
@@ -667,7 +667,6 @@ function* runGameSim(
       ...e,
     };
     playLog.push(ev);
-    emitPlay(ev);
   };
   let homeScore = 0;
   let awayScore = 0;
