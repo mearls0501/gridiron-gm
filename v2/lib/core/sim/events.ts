@@ -3,26 +3,11 @@ import {
 } from "../types";
 
 /**
- * Play-by-play capture. Observation only — callers must never draw RNG here.
+ * Play-by-play helpers. Observation only — no RNG in this module.
  *
- * `simulateGame` always writes a local log. Live peek also subscribes so a
- * paused `/play` session still has every snap that already finished.
+ * The engine writes a local play log and yields it on the live path.
+ * Live views read that yield. There is no module pub/sub.
  */
-
-type Listener = (e: PlayEvent) => void;
-const listeners: Listener[] = [];
-
-export function onPlayEvent(fn: Listener): () => void {
-  listeners.push(fn);
-  return () => {
-    const i = listeners.indexOf(fn);
-    if (i >= 0) listeners.splice(i, 1);
-  };
-}
-
-export function emitPlay(e: PlayEvent): void {
-  for (const fn of listeners) fn(e);
-}
 
 export function isOffensiveSnap(e: PlayEvent): boolean {
   return e.kind === "run" || e.kind === "pass" || e.kind === "sack" || e.kind === "kneel";

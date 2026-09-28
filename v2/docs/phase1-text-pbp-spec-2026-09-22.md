@@ -31,9 +31,10 @@ ORCHESTRATION Lane A (HANDOFF 2026-09-28).
 ### 1.1 Engine event stream — `lib/core/sim/game.ts`
 
 The play loop keeps a local `playLog: PlayEvent[]` and an internal
-`emit()` that stamps `q` / `clock` / `homeScore` / `awayScore`, pushes
-the log, and calls `emitPlay` (`events.ts`). Emits happen **after**
-outcomes the engine already computed — observation only.
+`emit()` that stamps `q` / `clock` / `homeScore` / `awayScore` and
+pushes the log. Emits happen **after** outcomes the engine already
+computed — observation only. The module pub/sub (`emitPlay` /
+`onPlayEvent`) is gone (Wave 4.3 P3); nothing subscribed after #83.
 
 | When | `kind` / `result` (typical) | Notes |
 |---|---|---|
@@ -63,7 +64,7 @@ at user-club offensive snaps.
 
 | Export | Role |
 |---|---|
-| `emitPlay` / `onPlayEvent` | Module pub/sub. Comment: observation only; **no RNG**. After #83, **nothing subscribes**; live views read the yielded `playLog`. |
+| (no pub/sub) | `onPlayEvent` / `emitPlay` removed in Wave 4.3 P3. Observation only; **no RNG**. Live views read the yielded `playLog`. |
 | `isOffensiveSnap` | `run` \| `pass` \| `sack` \| `kneel` |
 | `lastCalledSnap` | Nth user-offense run/pass/sack (powers “Last snap”) |
 | `buildDrives(plays)` | Pure grouping → `DriveSummary[]` |
@@ -197,7 +198,7 @@ streams into one type.
 |---|---|---|
 | Defensive return TDs richer in `scoringPlays` than in `PlayEvent` | Snap still emits as `int`/`fumble` with scored path; no distinct “return TD” play kind | Optional result/flag, or accept scoring-summary as the rich line — **no new RNG** |
 | Penalty events lack foul type | `formatPlay` → “Penalty — N yards” | Optional `desc?` / `penaltyCode?` stamped from existing outcome strings |
-| `onPlayEvent` unused after #83 | `events.ts` still exports pub/sub | Leave dead API, delete in a tidy packet, or document as reserved for tooling |
+| `onPlayEvent` unused after #83 | **Closed** Wave 4.3 P3 — pub/sub deleted; comment matches the yield | — |
 | CPU no snap log | `/game/[id]` Drive Chart only | Keep default; optional “keep snap log for rivalry CPU games” would be a **save-size** lead decision |
 | Opening implied kickoff | First PBP row is always TB | Engine change if ever “live KO” — out of Phase 1 polish unless Matt asks |
 | ~~Stale ROADMAP “invisible” blurb~~ | Docs | **Closed** Wave 4.3 Packet 3 / P0 |
@@ -341,7 +342,7 @@ to sign.
 | Path | Role |
 |---|---|
 | `lib/core/types.ts` | `PlayEvent` / `DriveSummary` / `BoxScore.plays\|drives` |
-| `lib/core/sim/events.ts` | Emitter, `buildDrives`, `lastCalledSnap` |
+| `lib/core/sim/events.ts` | `buildDrives`, `lastCalledSnap` (no pub/sub) |
 | `lib/core/sim/game.ts` | Emit sites, `openGameSim` / `simulateGame`, persist policy |
 | `lib/core/liveGame.ts` | Cached peek; generator resume |
 | `lib/core/callSheet.ts` | `SimOpts.live` / `playCaller` |
