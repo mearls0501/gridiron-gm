@@ -27,7 +27,7 @@ import {
   starterSeasons, withDrafterInYear, yearsToFirstStar,
 } from "../lib/core/outcomes";
 import { hofInducteesPerClass } from "../lib/core/hallOfFame";
-import { hasBadStartingSeason, isBustGap } from "../lib/core/secondScene";
+import { hasBadStartingSeason, isBottomThirdStarter, isBustGap } from "../lib/core/secondScene";
 import { passerRating } from "../lib/core/season/stats";
 
 const SEASONS = Number(process.argv[2] ?? 25);
@@ -418,6 +418,52 @@ function top10PasserRatingKeys(state: GameState): Set<string> {
 
 const top10Pr = top10PasserRatingKeys(st);
 
+/**
+ * §2.7 Path 2. Career year 1 is the rookie season (`yearsIn === 0`).
+ * Year 8 is `draftSeason + 7`. Population is drafted QBs with a
+ * bottom-third starter season in years 1–3 whose years 4–8 were
+ * recorded. Event is a top-10 passer-rating season in years 4–8 at
+ * a different primary club. Scene fire is not required.
+ */
+const lastRecordedSeason = startSeason + SEASONS - 1;
+
+function path2Counts(group: Career[]) {
+  let horizonDraftedQb = 0;
+  let pop = 0;
+  let events = 0;
+  let viaScene = 0;
+  for (const c of group) {
+    if (c.pos !== "QB" || c.round === null) continue;
+    if (c.draftSeason + 7 > lastRecordedSeason) continue;
+    const p = byId.get(c.playerId);
+    if (!p) continue;
+    horizonDraftedQb++;
+    const badClubs = new Set<number>();
+    for (const line of p.stats) {
+      const year = line.season - c.draftSeason + 1;
+      if (year < 1 || year > 3) continue;
+      if (line.gamesStarted < STARTER_GAMES || line.teamId === null) continue;
+      if (isBottomThirdStarter(st, p, line.season)) badClubs.add(line.teamId);
+    }
+    if (badClubs.size === 0) continue;
+    pop++;
+    let event = false;
+    for (const line of p.stats) {
+      const year = line.season - c.draftSeason + 1;
+      if (year < 4 || year > 8) continue;
+      if (line.teamId === null || badClubs.has(line.teamId)) continue;
+      if (top10Pr.has(`${p.id}:${line.season}`)) {
+        event = true;
+        break;
+      }
+    }
+    if (!event) continue;
+    events++;
+    if (p.secondScene) viaScene++;
+  }
+  return { horizonDraftedQb, pop, events, viaScene };
+}
+
 function secondSceneCounts(group: Career[]) {
   let eligible = 0;
   let fired = 0;
@@ -440,6 +486,7 @@ function secondSceneCounts(group: Career[]) {
 const qbMature = mature.filter((c) => c.pos === "QB");
 const qbScene = secondSceneCounts(qbMature);
 const allScene = secondSceneCounts(mature);
+const path2 = path2Counts([...careers.values()]);
 const pctOrZero = (n: number, d: number) => (d === 0 ? 0 : (n / d) * 100);
 
 bar("SECOND SCENE — Darnold path (report-only)");
@@ -462,6 +509,16 @@ console.log(
   `${pad("—", 12)}`
 );
 console.log(`  QB fired n (mature sample): ${qbScene.fired}`);
+
+bar("PATH 2 — §2.7 population (report-only)");
+console.log("  Denominator is drafted QBs with a bottom-third starter season in");
+console.log("  career years 1–3, years 4–8 inside the horizon. Not scene-fired.");
+console.log("  Real 4/35 = 11.4% of that population; population is ~30% of drafted QBs.");
+console.log("  Event counts with or without a scene. No band.\n");
+console.log(`  horizon drafted QBs:     ${path2.horizonDraftedQb}`);
+console.log(`  population:              ${path2.pop}  (${pct(path2.pop, path2.horizonDraftedQb)} of horizon QBs)`);
+console.log(`  events (top-10, new club): ${path2.events}  (${pct(path2.events, path2.pop)} of population)`);
+console.log(`  events with scene fired: ${path2.viaScene}`);
 
 // Medical risk teeth. Games missed = 17 − games appeared, rostered
 // seasons with a stat line. Drafted / UDFA only (they keep the grade).
@@ -526,6 +583,16 @@ emitAll({
   "careers.secondSceneStarPct": pctOrZero(qbScene.star, qbScene.fired),
   "careers.secondSceneTop10PrPct": pctOrZero(qbScene.top10, qbScene.fired),
   "careers.secondSceneFiredN": qbScene.fired,
+
+  // Path 2 — §2.7 population, not the scene-fired denominator. Report-only.
+  // path2Top10PrPct: events / population, percent (0 if pop is 0).
+  // path2PopN: that population.
+  // path2PopPctOfDraftedQb: population / horizon drafted QBs (real 35/116 ≈ 30%).
+  // path2EventsViaScene: path2 events with secondScene set. Absolute count.
+  "careers.path2Top10PrPct": pctOrZero(path2.events, path2.pop),
+  "careers.path2PopN": path2.pop,
+  "careers.path2PopPctOfDraftedQb": pctOrZero(path2.pop, path2.horizonDraftedQb),
+  "careers.path2EventsViaScene": path2.viaScene,
 
   // Medical grade teeth — additive, no band. Matt signs the hazard.
   "careers.medicalMajorGamesMissedRatio": medicalMajorGamesMissedRatio,
