@@ -5,6 +5,67 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-29 — Wave 4.3 Packet 1b: path2 §2.7 measure emits (report-only)
+
+Worker. Matt **SIGNED** 2026-09-29: “second-scene rate is measured exactly as §2.7 defines it — population and event — before any mechanism is chosen.”
+
+Emit only. Packet 4 mechanism stays **HOLD**. No dial, baseline, or RNG change.
+
+### Diagnosis
+
+`#122` matched the §2.7 success *event* (a later top-10 passer-rating season among qualifying starters) but used the wrong denominator: QBs whose `secondScene` fired inside the mature sample (`careers.secondSceneTop10PrPct` = top-10 / `secondSceneFiredN`). Scene-fired has no real-world analogue. `nfl-reference.md` §2.7 Path 2 is **4/35 = 11.4%** over drafted QBs who had a bad early starting season (nflverse 2010–2019, n = 116 drafted QBs, 35 in the population), and the event counts any late improvement at a new club, whatever caused it.
+
+### Change
+
+`scripts/careers.ts` only. Four report-only emits. No `baselines.json` row. `#122` emits are unchanged.
+
+Career year 1 is the rookie season (`yearsIn === 0`, `season === draftSeason`). Years 1–3 are `yearsIn` 0–2. Years 4–8 are `yearsIn` 3–7. Career year 8 is `draftSeason + 7`.
+
+Qualifying starter is the existing §2.7 stand-in: `gamesStarted >= STARTER_GAMES` (9). The nflverse start-week (“led his club in pass attempts and threw ≥ 8”) is not on the season line. Bottom third reuses `isBottomThirdStarter` (passer rating; the sim has no EPA, so the §2.7 “PR **or** EPA” clause is passer rating only). Top-10 reuses `top10PasserRatingKeys` (same rank and id tie-break as `#122`). Primary club is `SeasonStatLine.teamId` — one line per season, last club the starts were folded into.
+
+| emit | formula |
+|---|---|
+| `careers.path2Top10PrPct` | **Events / population**, percent (`0` when population is 0). **Population:** drafted QBs (`round !== null`) with any season in career years **1–3** at ≥9 starts, `teamId !== null`, and bottom-third by passer rating among that season’s qualifying starters, and whose career year **8** was recorded (`draftSeason + 7 <= lastRecordedSeason`). The careers burn-in and the mature cutoff are **not** applied. **Event:** any season in career years **4–8** in `top10PasserRatingKeys`, at a primary club that is **not** one of the bad-season clubs. Counted whether or not `secondScene` fired. One event per QB. |
+| `careers.path2PopN` | Population size. Absolute count. |
+| `careers.path2PopPctOfDraftedQb` | Population / drafted QBs in that same horizon frame (career years 4–8 fully recorded), percent. Real **35/116 ≈ 30%**. The denominator is the measurable class frame, not every QB the sim ever drafted (later classes have not had years 4–8). |
+| `careers.path2EventsViaScene` | Absolute count of path2 **events** whose final save has `player.secondScene` set (the draw ran). Not a rate. Not “the top-10 season was the scene season.” |
+
+### Reading guide
+
+Report-never-tune. Do not lock a band in this packet.
+
+- `path2Top10PrPct` near **11.4%** → a band is the next conversation, still not a mechanism.
+- `path2Top10PrPct` low and `path2PopPctOfDraftedQb` near **30%** → the early-starter population matches §2.7; the miss is the event. That is a mechanism packet. Packet 4 stays **HOLD** until that read exists.
+- `path2PopPctOfDraftedQb` far from **30%** → the early-starter population does not match §2.7. That is a population finding, not a scene-dial finding.
+
+`#122` lines (`secondSceneTop10PrPct`, `secondSceneFiredN`, `secondSceneStarPct`, and the eligible/fired percents) stay report-only on the scene-fired denominator.
+
+### Leftover
+
+Packet 4 mechanism **HOLD**. Options 2–6 in `docs/second-scene-star-finding-2026-09-22.md` stay unsigned. No `baselines.json` row for any path2 emit.
+
+### Untouched
+
+`lib/core/secondScene.ts`, `lib/core/offseason/progression.ts`, dials / `frontOffice`, `lib/core/outcomes.ts`, `docs/baselines.json`, the engine, the RNG.
+
+### Gate
+
+Not `gate:full`. Lightest path: `npx tsx scripts/careers.ts 12 12345` on this branch and on `11ce9d3` (main tip). Season progress lines matched (`careers=` identical each season). ##M diff is only the four new lines:
+
+```
+ ##M careers.secondSceneTop10PrPct 0
+ ##M careers.secondSceneFiredN 0
++##M careers.path2Top10PrPct 5.88235294117647
++##M careers.path2PopN 17
++##M careers.path2PopPctOfDraftedQb 20.481927710843372
++##M careers.path2EventsViaScene 0
+ ##M careers.medicalMajorGamesMissedRatio 0
+```
+
+Twelve seasons does not clear the careers burn-in, so the mature sample is empty and every `#122` emit is 0 on both sides. Path 2 still scores: horizon drafted QBs **83**, population **17** (20.5%), events **1** (5.9%), events with a scene **0**. Those classes sit inside the filler window (draft seasons 2027–2030; burn-in starts at 2034). Do not read 20.5 vs 30 or 5.9 vs 11.4 as the Studio finding. Report-only. No baseline row.
+
+---
+
 ## 2026-09-29 — Wave 4.3 Packet 2: Studio panel GATE table @ b2e22ea (report-only)
 
 Docs only. Matt **SIGNED** 2026-09-29: docs PR with the GATE table; **report-only**; **no re-lock**. Packet 4 second-scene mechanism stays **HOLD**.
