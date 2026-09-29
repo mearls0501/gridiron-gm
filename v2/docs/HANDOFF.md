@@ -50,7 +50,19 @@ Packet 4 mechanism **HOLD**. Options 2–6 in `docs/second-scene-star-finding-20
 
 ### Gate
 
-Not `gate:full`. Lightest careers path only; see the run note in the PR. Do not retune from a single seed.
+Not `gate:full`. Lightest path: `npx tsx scripts/careers.ts 12 12345` on this branch and on `11ce9d3` (main tip). Season progress lines matched (`careers=` identical each season). ##M diff is only the four new lines:
+
+```
+ ##M careers.secondSceneTop10PrPct 0
+ ##M careers.secondSceneFiredN 0
++##M careers.path2Top10PrPct 5.88235294117647
++##M careers.path2PopN 17
++##M careers.path2PopPctOfDraftedQb 20.481927710843372
++##M careers.path2EventsViaScene 0
+ ##M careers.medicalMajorGamesMissedRatio 0
+```
+
+Twelve seasons does not clear the careers burn-in, so the mature sample is empty and every `#122` emit is 0 on both sides. Path 2 still scores: horizon drafted QBs **83**, population **17** (20.5%), events **1** (5.9%), events with a scene **0**. Those classes sit inside the filler window (draft seasons 2027–2030; burn-in starts at 2034). Do not read 20.5 vs 30 or 5.9 vs 11.4 as the Studio finding. Report-only. No baseline row.
 
 ---
 
