@@ -5,6 +5,27 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-29 — Wave 4.3 FINDING: HC fires 1.68 vs 6–8 (read-only)
+
+Docs only. Report-never-tune. **No dial, engine, `baselines.json`, or `scripts/` change.** Matt signs a mechanism before any code. Write-up: `docs/hc-fires-finding-2026-09-29.md`.
+
+`drift.hcFiresPerSeason` is the owner-heat CPU dismissal counter, and it is counting that event. Panel seed 1 (`GG_SEED=1`, seed 506939785), 20 seasons, mean **1.450** — the same 1.45 that leads the Studio series 1.45/1.5/1.6/1.85/2. A reconstructed recap gate matched `seasonCounters.hcFires` in all 20 seasons.
+
+Two filters, heat first:
+
+- **10%** of CPU team-seasons are hot (62/620). Median heat **10.4** against lines of ~72–84. Rebuild (mean **5.91** wins, target **6**) was hot **0/162**. Posture drops the win target onto the records bad clubs actually post.
+- Of those 62 hot seats, **29** fired and **33** were blocked by the two-season look or by `tickCoachContracts` expiring the deal before the fire check. Clearing the blocks on this seed yields **3.10/yr**, still under 6–8.
+
+`nfl-reference.md` has no HC firing rate. The 6–8 expect is the signed product note, not a traced baseline. Contract expiries on this seed are **7.70/yr** and are a different event (fires + expiries **9.15**). The plant still fires (**15**) when contend is forced at 3 wins. Owners seeding (#111) is why the emit is 1.68 rather than 0.00; it is not why 1.68 is under 6–8.
+
+Mechanism menu is in the finding doc. No threshold, target, or contract-draw number is proposed.
+
+### Untouched
+
+Engine, dials, `docs/baselines.json`, `scripts/`.
+
+---
+
 ## 2026-09-29 — Wave 4.3 Packet 1b: path2 §2.7 measure emits (report-only)
 
 Worker. Matt **SIGNED** 2026-09-29: “second-scene rate is measured exactly as §2.7 defines it — population and event — before any mechanism is chosen.”
