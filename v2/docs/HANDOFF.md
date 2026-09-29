@@ -5,6 +5,83 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-29 — Wave 4.3 Packet 2: Studio panel GATE table @ b2e22ea (report-only)
+
+Docs only. Matt **SIGNED** 2026-09-29: docs PR with the GATE table; **report-only**; **no re-lock**. Packet 4 second-scene mechanism stays **HOLD**.
+
+Mac Studio (`Matts-Mac-Studio`) `npm run gate:full:serial`, 5 seeds, on `main` tip `b2e22eaee3e2ce11056aef6bb149e2329fd50710` (Wave 4.3 Packet 1 #122). Finished GATE FAIL **7**. `docs/baselines.json` **not edited**. Engine, dials, and `scripts/` not touched. Report-never-tune.
+
+### GATE FAIL 7 — panel @ `b2e22ea`
+
+```
+FAIL  coherence  exited 1
+FAIL  drift  exited 1
+FAIL  staff  exited 1
+FAIL  drift.p0Failures  0.40  expected <= 0
+FAIL  tails.milestonesOff  21.20  expected <= 16  (KNOWN-HIGH)
+FAIL  staff.problems  0.40  expected <= 0
+FAIL  staff.leagueOvrDelta  1.20  expected <= 1.2  (bound-touching)
+
+GATE FAIL  7 problems
+```
+
+`coherence` exited 1. The seven lines do not name a coherence metric. Floor **85** stays. Do not soften it.
+
+`drift` exited 1 on `drift.p0Failures` **0.40** (seeds 0/0/0/1/1). Max stays **0**. Not re-locked.
+
+`staff` exited 1 on `staff.problems` **0.40** (max stays **0**) and `staff.leagueOvrDelta` **1.20** against max **1.2** (bound-touching). Do not widen **1.2**.
+
+`tails.milestonesOff` **21.20** (16/22/23/21/24). KNOWN-HIGH. Max stays **16**. Not re-locked.
+
+### Panel means (5-seed)
+
+| metric | panel | verdict |
+|---|---|---|
+| `drift.p0Failures` | **0.40** (0/0/0/1/1) | **FAIL** ≤0. Same shape as the Wave 4.1 panel. Not re-locked |
+| `drift.capBustSeasons` | **0** (0×5) | still closed. Max already 0 |
+| `drift.ovrDrift` | **~−1.81** (−1.897/−2.320/−1.200/−1.824/−1.810) | inside signed **−1.70±1.5**. Band unchanged |
+| `drift.franchiseTagsPerSeason` | **16.44** (16.8/15.1/16.2/17.7/16.4) | inside signed **14±4**. Report-never-tune. Do not retune tag rules toward 14 |
+| `drift.deadMoneyPct` | **~5.30** (5.149/5.355/5.385/5.284/5.342) | additive emit, no band. Was **2.42** at `6e3b7bf`. Rise sits in the Wave 4.2 Packet 3 ~3-point envelope and inside the OTC ~5–8% note. Do not chase 5–8%. Do not add a band |
+| `drift.hcFiresPerSeason` | **1.68** (1.45/1.5/1.6/1.85/2) | counter is live (was **0.00** before #111). Still under the signed 6–8/yr expect. Do not tune dials |
+| `statcheck.wr10RecYds` | **1105.8** (1164/1005/1090/1056/1214) | on the signed Wave 4.1 target **1105.8±97**. Not a FAIL line. Not a retune |
+| `tails.milestonesOff` | **21.20** (16/22/23/21/24) | **FAIL** ≤16. KNOWN-HIGH. Not re-locked |
+| `staff.problems` | **0.40** | **FAIL** ≤0. Max stays 0 |
+| `staff.leagueOvrDelta` | **1.20** | **FAIL**, bound-touching ≤1.2. Max stays 1.2 |
+
+### Second scene — #122 emits, first panel
+
+`#122` added `careers.secondSceneTop10PrPct` and `careers.secondSceneFiredN`. `careers.secondSceneStarPct` is still the Pro Bowl OVR label. Seeds in panel order:
+
+| emit | seeds | mean |
+|---|---|---|
+| `careers.secondSceneEligiblePct` | 3.315 / 1.538 / 2.669 / 2.530 / 2.289 | **2.468** |
+| `careers.secondSceneFiredPct` | 0 / 11.111 / 6.667 / 6.667 / 0 | **~4.89** |
+| `careers.secondSceneStarPct` | 0 / 0 / 0 / 0 / 0 | **0** |
+| `careers.secondSceneTop10PrPct` | 0 / 0 / 0 / 100 / 0 | **20** |
+| `careers.secondSceneFiredN` | 0 / 1 / 1 / 1 / 0 | **0.6** |
+
+Star stayed **0** on all five seeds (still **0** vs `nfl-reference.md` §2.7 **11.4%**). Top-10 passer rating hit on **1/5** seeds only — the fourth seed, where `FiredN` is 1 and `Top10PrPct` is 100; the other four seeds are 0. Mean **20** is that one seed, not a rate to lock. `FiredN` mean **0.6**. No band on either #122 emit. Do not retune `SECOND_SCENE_K` or the other scene dials against 11.4% or against 20.
+
+Packet 4 second-scene mechanism stays **HOLD**. Options 2–6 in `docs/second-scene-star-finding-2026-09-22.md` stay unsigned. This panel does not pick a mechanism.
+
+### Report-never-tune
+
+No row in `docs/baselines.json` moves. No new band for `secondSceneTop10PrPct`, `secondSceneFiredN`, `secondSceneStarPct`, `deadMoneyPct`, people counters, `p0Failures`, `milestonesOff`, `staff.problems`, or `staff.leagueOvrDelta`. The signed locks that this panel still sits inside (`ovrDrift` **−1.70±1.5**, `franchiseTagsPerSeason` **14±4**, `wr10RecYds` **1105.8±97**) stay as signed.
+
+### Ops
+
+The finished log is the panel above. A bare `nohup` of the same command was killed when the remote shell tore down its process group. The run that completed was started with Python `Popen(..., start_new_session=True)`.
+
+### Untouched
+
+Engine, dials, `lib/core/secondScene.ts`, `scripts/`, `docs/baselines.json`. No re-lock.
+
+### Gate
+
+Not run in this packet. The table is the Studio log. Docs only.
+
+---
+
 ## 2026-09-28 — Wave 4.3 Packet 1: second-scene measurement realign (emit only) (#122)
 
 Worker. Matt **SIGNED** 2026-09-28: “Second-scene success is measured like §2.7 — a later top-ten passer-rating season — before any mechanism changes.”
