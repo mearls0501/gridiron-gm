@@ -89,7 +89,14 @@ All-classes formulas are the same `path2Counts([...careers.values()])` call. Thi
 
 ### Gate
 
-`npm run gate` from `v2/` (fast tier). Careers is not in the fast tier. Inherited single-seed reds excepted.
+`npm run gate` from `v2/` (fast, parallel, 1 seed, 4 cores). Careers is not in the fast tier. Typecheck, determinism, verify, calibrate, statcheck, and scout passed. One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `statcheck.wr10RecYds` did not fail on this run.
 
 ---
 
