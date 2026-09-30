@@ -313,7 +313,10 @@ export function recordSeasonHistory(state: GameState): SeasonHistory {
     season: state.season,
     championId: champion,
     runnerUpId: runnerUp,
-    standings: standings.map((r) => ({ ...r })),
+    standings: standings.map((r) => {
+      const expectedWins = state.teams[r.teamId]?.seasonExpectedWins;
+      return expectedWins == null ? { ...r } : { ...r, expectedWins };
+    }),
     awards: {
       mvp: bestBy(state, (p) => {
         const l = lineOf(p);

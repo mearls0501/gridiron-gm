@@ -58,6 +58,9 @@ interface Snapshot {
   franchiseTags: number;
   deadMoneyPct: number;
   hcFires: number;
+  hcExpiries: number;
+  hcFireTenureWins: number;
+  hcFireTenureSeasons: number;
   holdouts: number;
   tradeRequests: number;
   holdoutGamesMissed: number;
@@ -178,6 +181,15 @@ function runOne(seed: number): Snapshot[] {
       // field is 0; *Last is the year that just closed.
       hcFires: st.seasonCounters?.hcFiresLast
         ?? st.seasonCounters?.hcFires
+        ?? 0,
+      hcExpiries: st.seasonCounters?.hcExpiriesLast
+        ?? st.seasonCounters?.hcExpiries
+        ?? 0,
+      hcFireTenureWins: st.seasonCounters?.hcFireTenureWinsLast
+        ?? st.seasonCounters?.hcFireTenureWins
+        ?? 0,
+      hcFireTenureSeasons: st.seasonCounters?.hcFireTenureSeasonsLast
+        ?? st.seasonCounters?.hcFireTenureSeasons
         ?? 0,
       holdouts: st.seasonCounters?.holdoutsLast
         ?? st.seasonCounters?.holdouts
@@ -317,6 +329,9 @@ guard(growth < 0.61, "save growth is bounded",
 guard(mean(last.map((r) => r.saveMB)) < 20, "save stays inside a sane quota",
   `${mean(last.map((r) => r.saveMB)).toFixed(1)} MB after ${SEASONS} seasons`);
 
+const tenureWins = flat.reduce((n, r) => n + r.hcFireTenureWins, 0);
+const tenureSeasons = flat.reduce((n, r) => n + r.hcFireTenureSeasons, 0);
+
 emitAll({
   "drift.p0Failures": failures,
   "drift.saveGrowthMbPerSeason": growth,
@@ -334,6 +349,8 @@ emitAll({
   "drift.franchiseTagsPerSeason": mean(flat.map((r) => r.franchiseTags)),
   "drift.deadMoneyPct": mean(flat.map((r) => r.deadMoneyPct)),
   "drift.hcFiresPerSeason": mean(flat.map((r) => r.hcFires)),
+  "drift.hcExpiriesPerSeason": mean(flat.map((r) => r.hcExpiries)),
+  "drift.hcFireTenureWinAvg": tenureSeasons > 0 ? tenureWins / tenureSeasons : 0,
   "drift.holdoutsPerSeason": mean(flat.map((r) => r.holdouts)),
   "drift.tradeRequestsPerSeason": mean(flat.map((r) => r.tradeRequests)),
   "drift.holdoutGamesMissedPerSeason": mean(flat.map((r) => r.holdoutGamesMissed)),

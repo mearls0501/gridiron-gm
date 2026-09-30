@@ -14,7 +14,7 @@ import { runHousekeeping } from "../housekeeping";
 import { refreshCpuStaff } from "../staff";
 import { runPsychology } from "../psychology";
 import { fireCpuHeadCoaches, runCoachCarousel, tickCoachContracts } from "../coaches";
-import { applyUserGmFiring, ensureOwners } from "../owner";
+import { applyUserGmFiring, ensureOwners, stampSeasonExpectedWins } from "../owner";
 import { runHofInduction, tickHofCareerLabels } from "../hallOfFame";
 import { maybeRetireNumbersForHallOfFame } from "../jersey";
 
@@ -83,8 +83,11 @@ export function runRecap(state: GameState): OffseasonReport {
 
   const history = recordSeasonHistory(state);
   state.history.push(history);
-  tickCoachContracts(state);
+  // Heat before the expiry tick. fireCpuHeadCoaches extends a cool
+  // expiring CPU HC, or counts a hot one as a fire; tick must not
+  // empty that chair first.
   fireCpuHeadCoaches(state);
+  tickCoachContracts(state);
   runCoachCarousel(state);
   applyUserGmFiring(state);
 
@@ -289,6 +292,9 @@ export function finalizeOffseason(state: GameState): void {
   state.phase = "preseason";
   resetSeasonRosterFlags(state);
   state.games = [];
+  // Games for the new year are gone, so outlook reads last year's
+  // archive. That lock is the target the season about to start is graded on.
+  stampSeasonExpectedWins(state);
   state.playoffs = null;
   state.draft = null;
   state.fa = null;

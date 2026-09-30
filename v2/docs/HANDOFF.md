@@ -5,6 +5,37 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-30 — Owner heat window (Matt SIGNED 2026-09-29)
+
+Worker. Mechanism only. Dials not retuned. `docs/baselines.json` not edited.
+
+Signed packet: `repo-docs/diag-hc-fires-2026-09-29.md`. Diagnosis it closes: `docs/hc-fires-finding-2026-09-29.md` (PR #127). #127's read of the 1.68 rate is kept. This packet is the two missed causes, plus the order and grace fixes that travel with them.
+
+### Change
+
+- Heat for a CPU head coach walks seasons since `hc.hiredSeason`. The user GM walks seasons since `gmHiredSeason`. Seasons before the hire no longer add heat.
+- Each archived season is graded on `standings[].expectedWins`, the `OWNER_WIN_TARGET` locked from `teamOutlook` at preseason (`team.seasonExpectedWins`, copied in `recordSeasonHistory`). Today's posture is not applied to the whole history. A row without the field (older save) still falls back to today's outlook for that row only.
+- Rebuild grace (the ×3 miss, not ×8) is tenure index 0–1 inside that window, not league-history index 0–1. `ownerHeatFor` still scores a single posture the same way; an optional per-season target list is the only new argument. `fireHeatThreshold`, `OWNER_WIN_TARGET`, `OWNER_PATIENCE`, and `OWNER_MIN_SEASONS` are unchanged.
+- `runRecap` calls `fireCpuHeadCoaches` before `tickCoachContracts`. An expiring CPU HC (`yearsRemaining <= 1`) with heat at or above `0.55 × threshold` (the existing watched line) is not renewed and increments `hcFires`. Otherwise the deal is extended to the HC minimum term with no draw. OC/DC and the user HC still tick.
+
+### Report-only emits
+
+`scripts/drift.ts` now also prints `drift.hcExpiriesPerSeason` (CPU HC contracts that actually expire) and `drift.hcFireTenureWinAvg` (wins per tenure-season among CPU HCs fired that run, pooled). `drift.hcFiresPerSeason` is the same counter. No baseline row. Do not retune dials from the table.
+
+Post-merge panel, from `v2/`:
+
+```bash
+npm run gate:full:serial
+```
+
+Read `drift.hcFiresPerSeason` (a desk estimate after this mechanism is about 2–2.5, not a target), `drift.hcExpiriesPerSeason`, and `drift.hcFireTenureWinAvg`. Matt re-signs dials from that table later.
+
+### Untouched
+
+`OWNER_PATIENCE`, `OWNER_WIN_TARGET`, `fireHeatThreshold`, `OWNER_MIN_SEASONS`, `docs/baselines.json`.
+
+---
+
 ## 2026-09-29 — Wave 4.3 FINDING: HC fires 1.68 vs 6–8 (read-only)
 
 Docs only. Report-never-tune. **No dial, engine, `baselines.json`, or `scripts/` change.** Matt signs a mechanism before any code. Write-up: `docs/hc-fires-finding-2026-09-29.md`.

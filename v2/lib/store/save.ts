@@ -179,6 +179,18 @@ export function migrate(state: GameState): GameState {
   }
   if (typeof state.seasonCounters.hcFires !== "number") state.seasonCounters.hcFires = 0;
   if (typeof state.seasonCounters.hcFiresLast !== "number") state.seasonCounters.hcFiresLast = 0;
+  if (typeof state.seasonCounters.hcExpiries !== "number") state.seasonCounters.hcExpiries = 0;
+  if (typeof state.seasonCounters.hcExpiriesLast !== "number") state.seasonCounters.hcExpiriesLast = 0;
+  if (typeof state.seasonCounters.hcFireTenureWins !== "number") state.seasonCounters.hcFireTenureWins = 0;
+  if (typeof state.seasonCounters.hcFireTenureWinsLast !== "number") {
+    state.seasonCounters.hcFireTenureWinsLast = 0;
+  }
+  if (typeof state.seasonCounters.hcFireTenureSeasons !== "number") {
+    state.seasonCounters.hcFireTenureSeasons = 0;
+  }
+  if (typeof state.seasonCounters.hcFireTenureSeasonsLast !== "number") {
+    state.seasonCounters.hcFireTenureSeasonsLast = 0;
+  }
   if (typeof state.seasonCounters.holdouts !== "number") state.seasonCounters.holdouts = 0;
   if (typeof state.seasonCounters.holdoutsLast !== "number") state.seasonCounters.holdoutsLast = 0;
   if (typeof state.seasonCounters.tradeRequests !== "number") state.seasonCounters.tradeRequests = 0;
