@@ -30,6 +30,10 @@ npm run gate:full:serial
 
 Read `drift.hcFiresPerSeason` (a desk estimate after this mechanism is about 2–2.5, not a target), `drift.hcExpiriesPerSeason`, and `drift.hcFireTenureWinAvg`. Matt re-signs dials from that table later.
 
+### Year-0 ##M
+
+`statcheck` and `calibrate` 300 against tip `f93e38d`. ##M diff empty on both. Statcheck 23 lines, md5 `e9c3f1e3124b551d3be07db47b8a419c`. Calibrate 28 lines, md5 `d6268bba79ca3efbacc2c232adfe759c`. Each file matches the tip byte for byte. The plant `##M people.cpuHcFiresPlanted` is still **15**.
+
 ### Untouched
 
 `OWNER_PATIENCE`, `OWNER_WIN_TARGET`, `fireHeatThreshold`, `OWNER_MIN_SEASONS`, `docs/baselines.json`.
