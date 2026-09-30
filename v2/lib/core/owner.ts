@@ -35,6 +35,14 @@ export function fireHeatThreshold(patience: number): number {
   return 62 + clamp(patience, 0, 1) * 28;
 }
 
+/**
+ * Watched seat, and the line where an expiring CPU head coach is not
+ * renewed. Same fraction the job view already uses for "on notice".
+ */
+export function heatWatchLine(threshold: number): number {
+  return threshold * 0.55;
+}
+
 export function ownerChildRng(state: GameState): Rng {
   let h = state.seed >>> 0;
   h = Math.imul(h ^ state.season, 0x9e3779b9);
@@ -107,14 +115,19 @@ export function ownerHeatFor(
   patience: number,
   posture: Posture,
   seasonWins: number[],
+  targets?: readonly number[],
 ): number {
-  const target = OWNER_WIN_TARGET[posture];
   let heat = 0;
   const foPatience = 1.2 - patience * 0.6;
   const cool = 0.4 + patience * 0.4;
   for (let i = 0; i < seasonWins.length; i++) {
     const wins = seasonWins[i];
-    const rebuildGrace = posture === "rebuild" && i <= 1;
+    const target = targets?.[i] ?? OWNER_WIN_TARGET[posture];
+    // Tenure index, not league index: callers pass only the seasons since
+    // hire. Grace is the coach's (or GM's) first two years in a rebuild.
+    const rebuild =
+      targets != null ? target === OWNER_WIN_TARGET.rebuild : posture === "rebuild";
+    const rebuildGrace = rebuild && i <= 1;
     if (rebuildGrace && wins < target) {
       heat += (target - wins) * foPatience * 3;
     } else if (wins < target) {
@@ -127,14 +140,40 @@ export function ownerHeatFor(
   return heat;
 }
 
-function heatFromSeasons(state: GameState, teamId: number, patience: number): number {
-  const { posture } = teamOutlook(state, teamId);
+/**
+ * Heat from archived seasons at or after `sinceSeason`, each graded on the
+ * `expectedWins` locked before that season. A row without the field falls
+ * back to today's outlook for that row only.
+ */
+export function heatSinceSeason(
+  state: GameState,
+  teamId: number,
+  patience: number,
+  sinceSeason: number,
+): number {
+  const fallback = OWNER_WIN_TARGET[teamOutlook(state, teamId).posture];
   const wins: number[] = [];
+  const targets: number[] = [];
   for (const year of state.history) {
+    if (year.season < sinceSeason) continue;
     const row = year.standings.find((r) => r.teamId === teamId);
-    if (row) wins.push(row.w + row.t * 0.5);
+    if (!row) continue;
+    wins.push(row.w + row.t * 0.5);
+    targets.push(row.expectedWins ?? fallback);
   }
-  return ownerHeatFor(patience, posture, wins);
+  return ownerHeatFor(patience, "retool", wins, targets);
+}
+
+/**
+ * Lock this year's win target from the preseason outlook. Call when
+ * `phase` is preseason and this year's games are not on the state yet,
+ * so `teamOutlook` reads last year's archived record.
+ */
+export function stampSeasonExpectedWins(state: GameState): void {
+  for (const team of state.teams) {
+    const { posture } = teamOutlook(state, team.id);
+    team.seasonExpectedWins = OWNER_WIN_TARGET[posture];
+  }
 }
 
 export function ownerJobView(state: GameState, teamId: number): OwnerJobView | null {
@@ -144,7 +183,7 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
   const expectedWins = OWNER_WIN_TARGET[posture];
   const recentWins = lastSeasonWins(state, teamId);
   const seasonsOnJob = seasonsWithGm(state, teamId);
-  const heat = heatFromSeasons(state, teamId, team.owner.patience);
+  const heat = heatSinceSeason(state, teamId, team.owner.patience, gmHiredSeasonOf(state, teamId));
   const threshold = fireHeatThreshold(team.owner.patience);
   const firingEnabled = state.settings?.firingEnabled ?? true;
   const wouldFire = firingEnabled && seasonsOnJob >= OWNER_MIN_SEASONS && heat >= threshold;
@@ -152,7 +191,7 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
   let seat: OwnerJobView["seat"] = "safe";
   if (wouldFire) seat = "fired";
   else if (heat >= threshold - 8) seat = "hot";
-  else if (heat >= threshold * 0.55) seat = "watched";
+  else if (heat >= heatWatchLine(threshold)) seat = "watched";
 
   const patienceWord =
     team.owner.patience >= 0.68 ? "patient" : team.owner.patience <= 0.42 ? "impatient" : "typical";

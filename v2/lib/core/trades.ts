@@ -500,6 +500,12 @@ export function rolloverTradeCounter(state: GameState): void {
   c.tradesExecuted = 0;
   c.hcFiresLast = c.hcFires ?? 0;
   c.hcFires = 0;
+  c.hcExpiriesLast = c.hcExpiries ?? 0;
+  c.hcExpiries = 0;
+  c.hcFireTenureWinsLast = c.hcFireTenureWins ?? 0;
+  c.hcFireTenureWins = 0;
+  c.hcFireTenureSeasonsLast = c.hcFireTenureSeasons ?? 0;
+  c.hcFireTenureSeasons = 0;
   c.holdoutsLast = c.holdouts ?? 0;
   c.holdouts = 0;
   c.tradeRequestsLast = c.tradeRequests ?? 0;

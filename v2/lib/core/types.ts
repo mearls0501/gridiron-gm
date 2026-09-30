@@ -439,6 +439,12 @@ export interface Team {
   owner?: Owner;
   /** First season this GM coaches. Missing = franchise start. */
   gmHiredSeason?: number;
+  /**
+   * Win target locked for the season about to be played. Stamped at
+   * preseason from `teamOutlook`, copied onto the archived standings row.
+   * Missing = not stamped yet (older save, or before the first preseason).
+   */
+  seasonExpectedWins?: number;
   /** Force rebuild posture through this season (inclusive). */
   forcedRebuildUntil?: number;
   /**
@@ -1014,6 +1020,12 @@ export interface TeamRecord {
   pa: number;
   divW: number; divL: number; divT: number;
   confW: number; confL: number; confT: number;
+  /**
+   * Owner win target locked before this season (`OWNER_WIN_TARGET` of the
+   * preseason outlook). Missing on older rows; heat then uses the current
+   * outlook for that row only.
+   */
+  expectedWins?: number;
 }
 
 export interface SeasonHistory {
@@ -1187,6 +1199,20 @@ export interface SeasonCounters {
   /** CPU head-coach fires this league year. Incremented in fireCpuHeadCoaches. */
   hcFires?: number;
   hcFiresLast?: number;
+  /**
+   * CPU head-coach contracts that actually expired this league year.
+   * A renew-or-fire decision is an `hcFires` increment, not an expiry.
+   */
+  hcExpiries?: number;
+  hcExpiriesLast?: number;
+  /**
+   * Wins and seasons on the tenure of CPU head coaches fired this year.
+   * Drift pools these into a tenure win average. Not a rate dial.
+   */
+  hcFireTenureWins?: number;
+  hcFireTenureWinsLast?: number;
+  hcFireTenureSeasons?: number;
+  hcFireTenureSeasonsLast?: number;
   /** Holdout declarations this league year. Incremented in fileDemand. */
   holdouts?: number;
   holdoutsLast?: number;

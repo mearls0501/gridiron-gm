@@ -1,5 +1,5 @@
 import { makeCoachName } from "./names";
-import { OWNER_MIN_SEASONS, ownerJobView } from "./owner";
+import { OWNER_MIN_SEASONS, fireHeatThreshold, heatSinceSeason, heatWatchLine } from "./owner";
 import { Rng, clamp } from "./rng";
 import {
   Coach,
@@ -307,16 +307,55 @@ export function tickCoachContracts(state: GameState): CoachPerson[] {
       person.yearsRemaining -= 1;
       if (person.yearsRemaining > 0) continue;
       expired.push(person);
+      const cpuHc = role === "hc" && team.id !== state.userTeamId;
       releaseCoach(state, team.id, role, "expired");
+      if (cpuHc) {
+        if (!state.seasonCounters) state.seasonCounters = {};
+        state.seasonCounters.hcExpiries = (state.seasonCounters.hcExpiries ?? 0) + 1;
+      }
     }
   }
   return expired;
 }
 
+function recordFiredHcTenure(state: GameState, teamId: number, hiredSeason: number): void {
+  let wins = 0;
+  let seasons = 0;
+  for (const year of state.history) {
+    if (year.season < hiredSeason) continue;
+    const row = year.standings.find((r) => r.teamId === teamId);
+    if (!row) continue;
+    wins += row.w + row.t * 0.5;
+    seasons += 1;
+  }
+  if (seasons === 0) return;
+  if (!state.seasonCounters) state.seasonCounters = {};
+  const c = state.seasonCounters;
+  c.hcFireTenureWins = (c.hcFireTenureWins ?? 0) + wins;
+  c.hcFireTenureSeasons = (c.hcFireTenureSeasons ?? 0) + seasons;
+}
+
+/**
+ * Extend an expiring CPU HC so the following contract tick leaves a full
+ * minimum term. No draw — the coaches child stream stays where it is.
+ */
+function extendCpuHeadCoach(person: CoachPerson): void {
+  const term = COACH_CONTRACT.hc.yearsLo;
+  person.years = term;
+  person.yearsRemaining = term + 1;
+}
+
 /**
  * Owner heat fires CPU head coaches. Same signed dials as the GM chair
- * (patience / win targets / fire heat / two-season look). `firingEnabled`
- * does not gate this — settings must not change the sim.
+ * (patience / win targets / fire heat / two-season look). Heat is only
+ * the seasons since `hc.hiredSeason`, each graded on that row's
+ * `expectedWins`. `firingEnabled` does not gate this — settings must
+ * not change the sim.
+ *
+ * An expiring deal (one year left, so the next tick would empty the
+ * chair) is decided here: heat at or above the watched line is not
+ * renewed and counts as a fire; otherwise the deal is extended.
+ * Call before `tickCoachContracts`.
  */
 export function fireCpuHeadCoaches(state: GameState): number {
   ensureCoaches(state);
@@ -324,16 +363,31 @@ export function fireCpuHeadCoaches(state: GameState): number {
   for (const team of state.teams) {
     if (team.id === state.userTeamId) continue;
     const hc = team.coaches?.hc;
-    if (!hc) continue;
-    if (hcTenureSeasons(state, hc) < OWNER_MIN_SEASONS) continue;
-    const job = ownerJobView(state, team.id);
-    if (!job || job.heat < job.threshold) continue;
-    const r = releaseCoach(state, team.id, "hc", "fired");
-    if (r.ok) {
+    if (!hc || !team.owner) continue;
+    const patience = team.owner.patience;
+    const heat = heatSinceSeason(state, team.id, patience, hc.hiredSeason);
+    const threshold = fireHeatThreshold(patience);
+    const expiring = hc.yearsRemaining <= 1;
+
+    const dismiss = (): boolean => {
+      const hiredSeason = hc.hiredSeason;
+      const r = releaseCoach(state, team.id, "hc", "fired");
+      if (!r.ok) return false;
       n++;
       if (!state.seasonCounters) state.seasonCounters = {};
       state.seasonCounters.hcFires = (state.seasonCounters.hcFires ?? 0) + 1;
+      recordFiredHcTenure(state, team.id, hiredSeason);
+      return true;
+    };
+
+    if (expiring && heat >= heatWatchLine(threshold)) {
+      dismiss();
+      continue;
     }
+    if (expiring) extendCpuHeadCoach(hc);
+    if (hcTenureSeasons(state, hc) < OWNER_MIN_SEASONS) continue;
+    if (heat < threshold) continue;
+    dismiss();
   }
   return n;
 }
