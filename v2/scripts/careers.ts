@@ -486,7 +486,14 @@ function secondSceneCounts(group: Career[]) {
 const qbMature = mature.filter((c) => c.pos === "QB");
 const qbScene = secondSceneCounts(qbMature);
 const allScene = secondSceneCounts(mature);
+// All classes. Burn-in is not applied. Do not change this call.
 const path2 = path2Counts([...careers.values()]);
+// Same formula, draft classes at or after the mature-table burn-in floor.
+// Upper CUTOFF is not applied: path2Counts already drops a QB whose year 8
+// is past the recorded horizon.
+const path2BurnIn = path2Counts(
+  [...careers.values()].filter((c) => c.draftSeason >= startSeason + BURN_IN),
+);
 const pctOrZero = (n: number, d: number) => (d === 0 ? 0 : (n / d) * 100);
 
 bar("SECOND SCENE — Darnold path (report-only)");
@@ -514,11 +521,19 @@ bar("PATH 2 — §2.7 population (report-only)");
 console.log("  Denominator is drafted QBs with a bottom-third starter season in");
 console.log("  career years 1–3, years 4–8 inside the horizon. Not scene-fired.");
 console.log("  Real 4/35 = 11.4% of that population; population is ~30% of drafted QBs.");
-console.log("  Event counts with or without a scene. No band.\n");
+console.log("  Event counts with or without a scene. No band.");
+console.log("  All-classes lines do not apply burn-in. Post burn-in is the same");
+console.log(`  formula on draftSeason >= ${startSeason + BURN_IN} (startSeason + BURN_IN ${BURN_IN}).\n`);
+console.log("  all classes");
 console.log(`  horizon drafted QBs:     ${path2.horizonDraftedQb}`);
 console.log(`  population:              ${path2.pop}  (${pct(path2.pop, path2.horizonDraftedQb)} of horizon QBs)`);
 console.log(`  events (top-10, new club): ${path2.events}  (${pct(path2.events, path2.pop)} of population)`);
 console.log(`  events with scene fired: ${path2.viaScene}`);
+console.log(`\n  post burn-in (draftSeason >= ${startSeason + BURN_IN})`);
+console.log(`  horizon drafted QBs:     ${path2BurnIn.horizonDraftedQb}`);
+console.log(`  population:              ${path2BurnIn.pop}  (${pct(path2BurnIn.pop, path2BurnIn.horizonDraftedQb)} of horizon QBs)`);
+console.log(`  events (top-10, new club): ${path2BurnIn.events}  (${pct(path2BurnIn.events, path2BurnIn.pop)} of population)`);
+console.log(`  events with scene fired: ${path2BurnIn.viaScene}`);
 
 // Medical risk teeth. Games missed = 17 − games appeared, rostered
 // seasons with a stat line. Drafted / UDFA only (they keep the grade).
@@ -585,14 +600,25 @@ emitAll({
   "careers.secondSceneFiredN": qbScene.fired,
 
   // Path 2 — §2.7 population, not the scene-fired denominator. Report-only.
+  // All-classes names and formulas are unchanged (full career set).
   // path2Top10PrPct: events / population, percent (0 if pop is 0).
   // path2PopN: that population.
   // path2PopPctOfDraftedQb: population / horizon drafted QBs (real 35/116 ≈ 30%).
   // path2EventsViaScene: path2 events with secondScene set. Absolute count.
+  // path2Events / path2HorizonDraftedQb: the two counts the prose already printed.
+  // path2BurnIn*: same formulas on draftSeason >= startSeason + BURN_IN.
   "careers.path2Top10PrPct": pctOrZero(path2.events, path2.pop),
   "careers.path2PopN": path2.pop,
   "careers.path2PopPctOfDraftedQb": pctOrZero(path2.pop, path2.horizonDraftedQb),
   "careers.path2EventsViaScene": path2.viaScene,
+  "careers.path2Events": path2.events,
+  "careers.path2HorizonDraftedQb": path2.horizonDraftedQb,
+  "careers.path2BurnInTop10PrPct": pctOrZero(path2BurnIn.events, path2BurnIn.pop),
+  "careers.path2BurnInPopN": path2BurnIn.pop,
+  "careers.path2BurnInPopPctOfDraftedQb": pctOrZero(path2BurnIn.pop, path2BurnIn.horizonDraftedQb),
+  "careers.path2BurnInEventsViaScene": path2BurnIn.viaScene,
+  "careers.path2BurnInEvents": path2BurnIn.events,
+  "careers.path2BurnInHorizonDraftedQb": path2BurnIn.horizonDraftedQb,
 
   // Medical grade teeth — additive, no band. Matt signs the hazard.
   "careers.medicalMajorGamesMissedRatio": medicalMajorGamesMissedRatio,

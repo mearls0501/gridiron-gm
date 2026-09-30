@@ -5,6 +5,94 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-09-30 — Wave 4.4 Packet 2: path2 burn-in counts emit (report-only)
+
+Worker. Report-only. `path2Counts` is unchanged. Dials, scene logic, K, and `docs/baselines.json` are not touched.
+
+Signed packet: Studio panels need both the existing all-classes path2 row and a burn-in row, same formula, for pre-committed reading bands. Base: `main` `a82e7fa07187b48092e79f593934a4f7e962810a` (owner-heat #128 is the tip).
+
+### Diagnosis
+
+`#126` emits path2 on `[...careers.values()]` only. That is deliberate: the §2.7 population is every drafted QB whose career year 8 was recorded, including classes inside the filler window. Mature career tables use a different sample: `draftSeason >= startSeason + BURN_IN` with `BURN_IN = 8`, and also `draftSeason <= CUTOFF`.
+
+`draftSeason` is already on the career record (`enrol` stamps `state.season` after the rollover — the rookie season). `startSeason` is `newGame`'s opening season. No new field.
+
+The burn-in row is the floor only: `draftSeason >= startSeason + BURN_IN`. The mature upper `CUTOFF` (`st.season - ROOKIE_DEAL_YEARS - 1`) is not applied. `path2Counts` already drops a QB with `draftSeason + 7 > lastRecordedSeason`, and that year-8 horizon is stricter than `CUTOFF`, so the floor is the filter that changes the set. Built as written.
+
+A class clears the burn-in horizon only when `SEASONS >= 16` (`startSeason + 8 + 7 <= startSeason + SEASONS - 1`). The full-tier careers step is 24 seasons, which is enough. A 12-season smoke run is not.
+
+### Change
+
+`scripts/careers.ts` only, plus this note and the Wave 4.4 process rule in `docs/ORCHESTRATION.md`.
+
+`path2Counts([...careers.values()])` stays the all-classes row. A second call passes the same function the careers with `draftSeason >= startSeason + BURN_IN`.
+
+PATH 2 block prints both. ##M keeps the four all-classes names on the full set and adds the two counts that block already printed (`path2Events`, `path2HorizonDraftedQb`), plus the burn-in twins. No `baselines.json` row.
+
+| emit | cohort | formula |
+|---|---|---|
+| `careers.path2Events` | all classes | events |
+| `careers.path2PopN` | all classes | population (unchanged) |
+| `careers.path2HorizonDraftedQb` | all classes | horizon drafted QBs |
+| `careers.path2EventsViaScene` | all classes | events with `secondScene` set (unchanged) |
+| `careers.path2Top10PrPct` | all classes | events / pop, percent (unchanged) |
+| `careers.path2PopPctOfDraftedQb` | all classes | pop / horizon, percent (unchanged) |
+| `careers.path2BurnInEvents` | `draftSeason >= startSeason + 8` | events |
+| `careers.path2BurnInPopN` | same | population |
+| `careers.path2BurnInHorizonDraftedQb` | same | horizon drafted QBs |
+| `careers.path2BurnInEventsViaScene` | same | events with `secondScene` set |
+| `careers.path2BurnInTop10PrPct` | same | events / pop, percent (`0` if pop is 0) |
+| `careers.path2BurnInPopPctOfDraftedQb` | same | pop / horizon, percent (`0` if horizon is 0) |
+
+### Leftover
+
+Packet 4 mechanism stays **HOLD**. No band on either row. Do not retune `SECOND_SCENE_K` or the other scene dials from the burn-in rates. Studio `gate:full:serial` (careers 24) is the reading Matt signs bands from.
+
+### Untouched
+
+`lib/core/secondScene.ts`, `lib/core/offseason/progression.ts`, K and the other dials, `lib/core/outcomes.ts`, `docs/baselines.json`, the engine, the RNG. `path2Counts` body unchanged.
+
+### Smoke (not the Studio reading)
+
+`npx tsx scripts/careers.ts 16 12345` from `v2/`. Sixteen seasons is the shortest window that can put one class past both the burn-in floor and year 8 (`draftSeason` 2034 only; `lastRecordedSeason` 2041). Do not lock a band on it. Full-tier careers is 24.
+
+```
+  all classes
+  horizon drafted QBs:     153
+  population:              23  (15.0% of horizon QBs)
+  events (top-10, new club): 2  (8.7% of population)
+  events with scene fired: 0
+
+  post burn-in (draftSeason >= 2034)
+  horizon drafted QBs:     13
+  population:              1  (7.7% of horizon QBs)
+  events (top-10, new club): 0  (0.0% of population)
+  events with scene fired: 0
+```
+
+```
+##M careers.path2Top10PrPct 8.695652173913043
+##M careers.path2PopN 23
+##M careers.path2PopPctOfDraftedQb 15.032679738562091
+##M careers.path2EventsViaScene 0
+##M careers.path2Events 2
+##M careers.path2HorizonDraftedQb 153
+##M careers.path2BurnInTop10PrPct 0
+##M careers.path2BurnInPopN 1
+##M careers.path2BurnInPopPctOfDraftedQb 7.6923076923076925
+##M careers.path2BurnInEventsViaScene 0
+##M careers.path2BurnInEvents 0
+##M careers.path2BurnInHorizonDraftedQb 13
+```
+
+All-classes formulas are the same `path2Counts([...careers.values()])` call. This run does not touch the sim, so those four names match a main run at the same seed and length.
+
+### Gate
+
+`npm run gate` from `v2/` (fast tier). Careers is not in the fast tier. Inherited single-seed reds excepted.
+
+---
+
 ## 2026-09-30 — Owner heat window (Matt SIGNED 2026-09-29)
 
 Worker. Mechanism only. Dials not retuned. `docs/baselines.json` not edited.

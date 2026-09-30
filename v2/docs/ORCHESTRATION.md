@@ -20,6 +20,11 @@ player-loop `continue`; census #112 showed clubs tag a lesser man.
 **Intended:** club-loop `break` (extend or walk). That fix is Wave 4.2
 Packet 2 after Matt signs — not Packet 1.
 
+**Process rule (Wave 4.4).** A signed packet is built as written. If the
+builder disagrees, it builds it anyway and flags the disagreement in
+HANDOFF. It does not replace the build with a new finding. Every change
+lands as a numbered PR.
+
 ---
 
 ## 1. The five invariants (a worker that breaks one fails review even if the gate is green)
