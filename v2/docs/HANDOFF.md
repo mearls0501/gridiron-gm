@@ -5,6 +5,14 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-01 — Wave 4.4: signed SI reference facts (docs only)
+
+Pointer: `nfl-reference.md` §7 is the people-layer firing-rate desk target (SI / public season tallies, 2017–2025 = 7, 8, 5, 7, 8, 5, 9, 7, 8, mean **7.1**). §2.7b is the QB-supply census (**11.6** QBs drafted per class, 2010–2019, nflverse `draft_picks`, the §2.7 base). Docs only. No code, dial, baseline, or Packet 4.
+
+Flag: SI labels the 2025 cell Ongoing (8 on the 2026-01-06 table). The signed series is written as signed. This note does not substitute a later count.
+
+---
+
 ## 2026-09-30 — Wave 4.4 Packet 2: path2 burn-in counts emit (report-only)
 
 Worker. Report-only. `path2Counts` is unchanged. Dials, scene logic, K, and `docs/baselines.json` are not touched.
