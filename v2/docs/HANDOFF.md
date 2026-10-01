@@ -5,6 +5,38 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-01 — QB supply census (report-only)
+
+Worker. Census only. No dial, no `baselines.json`, no Packet 4 mechanism. Write-up: `docs/qb-supply-census-2026-10.md`.
+
+Matt **SIGNED** 2026-10-01: the CPU drafts and rosters quarterbacks at the NFL rate, about 12 a class and 2–3 on the 53. Census first, then the fix it names. Packet 4 stays **HOLD** until that fix is in and path 2 is re-run.
+
+### Diagnosis
+
+One box, one seed (`12345`), 12 seasons, tip `7bd497e`. Headless `cpuPick` drafted **36.7** quarterbacks a class (440; range 19–49). Round 1 was **3.17** a class, on the §2.4 rate of 3.27. Round 7 was **12.9**. The term that carried a quarterback past the best non-quarterback is `sqrt(POSITION_VALUE)` inside `cpuBoardValue`. The `startsHere` floor of 0.25 kept that premium on non-starters: 343 of 440 drafted quarterbacks sat on the floor, including 209 of 210 from rounds 6–7. All 38 round-1 quarterbacks were above it. `thin` and `marginal` are not the carrying term.
+
+CPU clubs open at 3.00 on the 53 (`POSITION_TARGET`). Spring 2029 (preseason of year 4) is 3.58 on the 53 and 4.97 total. Spring 2038 is **5.13** on the 53, **2.81** on the practice squad, **8.10** total. QB #3/#4 stay on the 53 because `moveWorstSurplus` worth uses `evaluate` at raw `POSITION_VALUE` 3.4 (`draftCapitalHold` is 9 of those 53-man keeps). Unclaimed cuts land on the PS through `stashOrFreeAgent`, which has no quarterback cap. `moveWorstSurplus`'s `"ps"` argument waives; it does not park.
+
+### Recommended fix (unsigned)
+
+Three levers, then re-run this census and path 2. Packet 4 stays **HOLD**.
+
+1. `cpuBoardValue`: QB `startsHere` floor `0.25` → `0`.
+2. `moveWorstSurplus`: a QB with `positionCount > POSITION_MIN` (2) is priced at positional value 1, then `draftCapitalHold`. `evaluate` itself stays on the raw table.
+3. `stashOrFreeAgent`: do not park a QB when the club already has 2 on the 53 and 1 on the PS.
+
+Do not move `POSITION_VALUE`, `POSITION_TARGET`, `POSITION_MIN`, `ELITE_QB_SUPPRESSION`, or `baselines.json`.
+
+### Flag
+
+The quoted 19–30 drafts-per-class band is low for this seed (19–49, mean 36.7). The quoted climb to ~5.0 by season 4 matches spring 2029's **total** (4.97), not the 53 (3.58), and the climb continues through season 12. Direction of the signed finding stands. Census built as written.
+
+### Untouched
+
+Engine, dials, `docs/baselines.json`, `lib/core/secondScene.ts`, path-2 emits. Probe code is not in the PR.
+
+---
+
 ## 2026-09-30 — Wave 4.4 Packet 2: path2 burn-in counts emit (report-only)
 
 Worker. Report-only. `path2Counts` is unchanged. Dials, scene logic, K, and `docs/baselines.json` are not touched.
