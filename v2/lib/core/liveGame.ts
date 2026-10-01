@@ -15,6 +15,8 @@ import { DriveSummary, GameState, PlayEvent, SnapCall } from "./types";
  * kickoff. Injuries apply once, on the live clone, not on the save.
  * Views are built from the engine playLog yielded at each pause — no module
  * listener, so a CPU sim cannot leak plays into an open session.
+ * The in-progress list is the user club's callSheet.snaps. resumeLiveGame
+ * replays that list on a new generator. The save's RNG is not advanced.
  */
 
 export type LiveView =
@@ -91,4 +93,21 @@ export function createLiveGame(state: GameState, gameId: number) {
     peek,
     snaps: () => calls.slice(),
   };
+}
+
+/**
+ * Replay callSheet.snaps on a fresh live session. Missing snaps (an older
+ * save, or a week not yet called) starts at the opening kickoff. Does not
+ * write the save and does not draw on the save RNG.
+ */
+export function resumeLiveGame(state: GameState, gameId: number) {
+  const live = createLiveGame(state, gameId);
+  const snaps = state.teams[state.userTeamId].callSheet?.snaps;
+  if (!snaps || snaps.length === 0) return live;
+  let view = live.peek();
+  for (const choice of snaps) {
+    if (view.done) break;
+    view = live.call(choice);
+  }
+  return live;
 }

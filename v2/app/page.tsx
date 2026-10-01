@@ -638,14 +638,28 @@ export default function Hub() {
                       )}
                     </div>
                   </div>
-                  <Link href="/depth-chart">
-                    <Button size="sm" variant="ghost">Check the depth chart</Button>
-                  </Link>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {state.phase === "regular" && (
+                      <Link href="/play">
+                        <Button size="sm" variant="primary">Play the Game</Button>
+                      </Link>
+                    )}
+                    <Link href="/depth-chart">
+                      <Button size="sm" variant="ghost">Check the depth chart</Button>
+                    </Link>
+                  </div>
                 </div>
               );
             })()
           ) : bye && state.phase === "regular" ? (
-            <Empty title="Bye week" hint="No game this week. Advance to move on." />
+            <div className="space-y-3">
+              <Empty title="Bye week" hint="No game this week. Advance to move on." />
+              <div className="text-center">
+                <Link href="/play">
+                  <Button size="sm">Play the Game</Button>
+                </Link>
+              </div>
+            </div>
           ) : userSeasonGames.length > 0 ? (
             <Table head={["Wk", "Opp", ""]}>
               {userSeasonGames.slice(-8).map((r) => {

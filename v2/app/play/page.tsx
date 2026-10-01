@@ -6,7 +6,7 @@ import { useGame } from "@/lib/store/game";
 import { Button, Card, Empty, Pill, TeamMark } from "@/components/ui";
 import { isOnBye, userNextGame } from "@/lib/core/season/engine";
 import { boxAttempts, setCallSheet } from "@/lib/core/callSheet";
-import { createLiveGame, type LiveView } from "@/lib/core/liveGame";
+import { resumeLiveGame, type LiveView } from "@/lib/core/liveGame";
 import { SnapCall } from "@/lib/core/types";
 import { playerMap } from "@/lib/core/select";
 import {
@@ -17,8 +17,9 @@ import {
 /**
  * Play-the-Game: user-club offensive snaps only.
  *
- * CPU games stay auto. Bulk-sim never waits here. The snap list is written
- * onto the call sheet; Play Week / advance replays it through simulateGame.
+ * CPU games stay auto. Bulk-sim never waits here. Each called snap is written
+ * onto the call sheet immediately; a reload replays that list. Play Week
+ * replays the same list through simulateGame.
  */
 export default function PlayPage() {
   const state = useGame((s) => s.state);
@@ -26,7 +27,7 @@ export default function PlayPage() {
   const advance = useGame((s) => s.advance);
 
   const [view, setView] = useState<LiveView | null>(null);
-  const [session, setSession] = useState<ReturnType<typeof createLiveGame> | null>(null);
+  const [session, setSession] = useState<ReturnType<typeof resumeLiveGame> | null>(null);
   const [committed, setCommitted] = useState(false);
 
   const game = state ? userNextGame(state) : undefined;
@@ -45,7 +46,7 @@ export default function PlayPage() {
     if (isOnBye(s, s.userTeamId)) return;
     const g = userNextGame(s);
     if (!g || g.played) return;
-    const live = createLiveGame(s, g.id);
+    const live = resumeLiveGame(s, g.id);
     setSession(live);
     setView(live.peek());
     setCommitted(false);
@@ -92,9 +93,16 @@ export default function PlayPage() {
     return p ? p.lastName : "";
   };
 
+  const persistSnaps = (calls: SnapCall[]) => {
+    apply((s) => {
+      setCallSheet(s, { snaps: calls });
+    });
+  };
+
   const pick = (c: SnapCall) => {
     if (!session) return;
     setView(session.call(c));
+    persistSnaps(session.snaps());
   };
 
   const finish = () => {
