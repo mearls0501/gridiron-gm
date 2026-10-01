@@ -442,6 +442,22 @@ This is the number `careers.secondSceneStarPct` will lock against. It is
 **not** in `baselines.json` in this packet — Studio `careers 24` + panel
 is the follow-up. Do not invent a band here.
 
+### 2.7b QB supply — drafted quarterbacks per class — confidence HIGH
+
+Added 2026-10-01 (Wave 4.4, Matt SIGNED). Source D, the same
+[nflverse `draft_picks`](https://github.com/nflverse/nflverse-data/releases/download/draft_picks/draft_picks.csv)
+filter named in the §2.7 base: classes **2010–2019**,
+`draft_picks.position = QB`, **n = 116**. Ten classes.
+
+**11.6 quarterbacks drafted per class** (116 / 10). This is the
+QB-supply census and the draft-rate reference: how many QBs a class
+adds. Round-1 composition (§2.4) is 3.27 QBs per draft, 10.3% of
+round 1, on the 2011–2025 window. The 11.4% figure above is the
+path-2 event rate inside this same pool of 116.
+
+No `baselines.json` row. The supply count is the reference. Packet 4
+is not this block.
+
 ### 2.8 Undrafted free agents — confidence MEDIUM
 
 - **369 UDFAs signed league-wide in 2025**, 6–20 per club, mean 11.5
@@ -1873,4 +1889,28 @@ S6.9 reason family as Wave 3.7: PS/IR/waiver/camp-90 bodies plus
 Wave 1/2 fields on the encoded save. The **20 MB quota** guard is
 unchanged. `capBustSeasons` 0.40 and `franchiseTagsPerSeason`
 16.62 remain findings, not retuned.
+
+---
+
+## 7. Head-coach firings — the people-layer desk target
+
+Added 2026-10-01 (Wave 4.4, Matt SIGNED). Not in T/D/S/P.
+[Sports Illustrated, "NFL Head Coach Firings By Year"](https://www.si.com/nfl/nfl-head-coach-firings-by-year)
+(Madison Williams, published 2026-01-06): public season tallies of
+head coaches fired, in-season and after the season, 2017–2025.
+
+| season | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 |
+|---|---|---|---|---|---|---|---|---|---|
+| firings | 7 | 8 | 5 | 7 | 8 | 5 | 9 | 7 | 8 |
+
+**Mean 7.1** firings per season (7+8+5+7+8+5+9+7+8 = 64; 64/9 = 7.1).
+The table's range is 5–9. SI labels the 2025 cell Ongoing; it reads
+8 on that page. The signed series is this table.
+
+This is the desk target for the people-layer firing rate. The counter
+is `drift.hcFiresPerSeason` (owner-heat CPU head-coach dismissals).
+The tally is league-wide. Contract expiries stay on
+`drift.hcExpiriesPerSeason`. The prior product note of about 6–8 a
+year is the neighborhood this mean sits in; **7.1** is the traced
+target. No dial moves here, and `docs/baselines.json` is not edited.
 
