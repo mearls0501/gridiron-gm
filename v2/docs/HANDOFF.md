@@ -37,11 +37,28 @@ Playoffs still reach `/play` from This Week. The new Hub and nav links are regul
 
 ### Gate
 
-Pending the fast-tier run from `v2/`. Inherited single-seed reds excepted: `leverage.wrongSign` 1, and any documented inherited fast-tier noise.
+`npm run gate` from `v2/` (fast, parallel, 1 seed, 4 cores). Determinism is the `determinism` step and passed. One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+`livegame` passed (includes the reload replay). `calibrate` 28 metrics and `statcheck` 23 metrics passed. No other FAIL. Not a retune.
 
 ### Browser evidence
 
-Pending. Sniff: regular-season Hub and nav reach `/play`; Run then Pass; reload; Last snap is still that pass and row 1 is still the kickoff touchback.
+Playwright against `next dev` on port 3000, Chrome. New franchise, Start the Season.
+
+Preseason nav does not list Play the Game. After the season starts, week 1 Hub nav is Hub, This Week, Play the Game, Roster, … and the Next Game card links to `/play`.
+
+Opening desk: row 1 `Kickoff — touchback`, clock `Q1 · 13:07`, `1 & 10 · ball on the 27`, no Last snap.
+
+After Run then Pass: clock `Q1 · 11:58`, `2 & 7 · ball on the 40`, Last snap `Q1 11:58 · 1 & 10 · Walker pass complete to Jennings for 3 yards`. Row 1 still `Kickoff — touchback`.
+
+Reload: the same Last snap, the same clock, the same down line, row 1 still `Kickoff — touchback`.
+
+A second franchise in the browser, clicked through the Hub card: after Run then Pass, Last snap `Q1 10:54 · 2 & 7 · Torres III pass complete to Adams for 2 yards`, clock `Q1 · 10:54`, `3 & 5 · ball on the 30`. Reload kept all three, and row 1 stayed `Kickoff — touchback`.
 
 ---
 
