@@ -278,3 +278,594 @@ export default function Hub() {
           </div>
         )}
       </Card>
+
+      {state.phase === "offseason-tag" && (() => {
+        const taggedPlayer = clubFranchiseTaggedPlayer(state, team.id);
+        const names = expiringPlayers(state, team.id)
+          .slice()
+          .sort((a, b) => b.ovr - a.ovr);
+        return (
+          <Card
+            title="Franchise Tag"
+            subtitle="One exclusive tag this year. Tagged player stays on a 1-year tender and is not in that FA wave."
+          >
+            {taggedPlayer ? (
+              <p className="text-sm">
+                {taggedPlayer.firstName} {taggedPlayer.lastName} ({taggedPlayer.pos}) is
+                tagged — {formatMoney(capHit(taggedPlayer.contract))} this year.
+                Continue to open free agency.
+              </p>
+            ) : names.length === 0 ? (
+              <p className="text-sm text-[var(--color-muted)]">
+                Nobody on this club is entering free agency. Continue to open the market.
+              </p>
+            ) : (
+              <Table head={["Player", "Pos", "Age", "Tender", ""]}>
+                {names.map((p) => {
+                  const tender = franchiseTagSalary(state, p);
+                  return (
+                    <Row key={p.id}>
+                      <Cell align="left"><PlayerLink p={p} /></Cell>
+                      <Cell><PosBadge pos={p.pos} /></Cell>
+                      <Cell>{p.age}</Cell>
+                      <Cell>{formatMoney(tender)}</Cell>
+                      <Cell>
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            apply((s) => {
+                              const rng = new Rng(s.rngState);
+                              const r = applyFranchiseTag(s, s.userTeamId, p.id, rng);
+                              s.rngState = rng.state;
+                              return r.ok
+                                ? `${p.firstName} ${p.lastName} is franchise-tagged`
+                                : r.reason;
+                            })
+                          }
+                        >
+                          Tag
+                        </Button>
+                      </Cell>
+                    </Row>
+                  );
+                })}
+              </Table>
+            )}
+          </Card>
+        );
+      })()}
+
+      {state.phase === "offseason-final" && (() => {
+        const tagged = tagExtensionPlayers(state, team.id)
+          .slice()
+          .sort((a, b) => b.ovr - a.ovr);
+        const extended = (state.tagExtensions ?? []).filter(
+          (e) => e.season === state.season && e.teamId === team.id && e.extended
+        );
+        return (
+          <Card
+            title="Tag Extension"
+            subtitle="July 15 window. Convert the 1-year tender to a multi-year deal, or Skip and he plays the tag year."
+          >
+            {extended.length > 0 && (
+              <p className="text-sm mb-2">
+                Extended. He is no longer a tag-year rental.
+                {tagged.length === 0 ? " Continue to start the season." : ""}
+              </p>
+            )}
+            {tagged.length === 0 ? (
+              <p className="text-sm text-[var(--color-muted)]">
+                {extended.length > 0
+                  ? "No other tagged player is waiting on an extension."
+                  : "Nobody on this club is on a franchise tag. Continue to camp/cutdown."}
+              </p>
+            ) : (
+              <Table head={["Player", "Pos", "Age", "Deal", ""]}>
+                {tagged.map((p) => {
+                  const terms = tagExtensionTerms(state, team.id, p);
+                  return (
+                    <Row key={p.id}>
+                      <Cell align="left"><PlayerLink p={p} /></Cell>
+                      <Cell><PosBadge pos={p.pos} /></Cell>
+                      <Cell>{p.age}</Cell>
+                      <Cell>{terms.years}yr / {formatMoney(terms.apy)}</Cell>
+                      <Cell>
+                        <div className="flex gap-1 justify-end">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              apply((s) => {
+                                const rng = new Rng(s.rngState);
+                                const r = applyTagExtension(s, s.userTeamId, p.id, rng);
+                                s.rngState = rng.state;
+                                return r.ok
+                                  ? `${p.firstName} ${p.lastName} extended — ${terms.years}yr`
+                                  : r.reason;
+                              })
+                            }
+                          >
+                            Extend
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              apply((s) => {
+                                const r = skipTagExtension(s, s.userTeamId, p.id);
+                                return r.ok
+                                  ? `${p.firstName} ${p.lastName} plays the tag year`
+                                  : r.reason;
+                              })
+                            }
+                          >
+                            Skip
+                          </Button>
+                        </div>
+                      </Cell>
+                    </Row>
+                  );
+                })}
+              </Table>
+            )}
+          </Card>
+        );
+      })()}
+
+      {state.phase === "offseason-final" && (() => {
+        const names = fifthYearOptionPlayers(state, team.id)
+          .slice()
+          .sort((a, b) => b.ovr - a.ovr);
+        const picked = (state.fifthYearOptions ?? []).filter(
+          (o) => o.season === state.season && o.teamId === team.id && o.pickedUp
+        );
+        return (
+          <Card
+            title="Fifth-Year Option"
+            subtitle="First-rounders entering year 4 of the rookie deal. Pick up a guaranteed 5th year, or Decline and he hits FA after year 4."
+          >
+            {picked.length > 0 && (
+              <p className="text-sm mb-2">
+                {picked.length === 1 ? "Option picked up. " : `${picked.length} options picked up. `}
+                They stay through year 5.
+                {names.length === 0 ? " Continue to start the season." : ""}
+              </p>
+            )}
+            {names.length === 0 ? (
+              <p className="text-sm text-[var(--color-muted)]">
+                {picked.length > 0
+                  ? "No other first-rounder is eligible."
+                  : "No first-rounder is eligible for a fifth-year option. Continue to camp/cutdown."}
+              </p>
+            ) : (
+              <Table head={["Player", "Pos", "Age", "Tender", ""]}>
+                {names.map((p) => {
+                  const tender = fifthYearOptionSalary(state, p);
+                  return (
+                    <Row key={p.id}>
+                      <Cell align="left"><PlayerLink p={p} /></Cell>
+                      <Cell><PosBadge pos={p.pos} /></Cell>
+                      <Cell>{p.age}</Cell>
+                      <Cell>{formatMoney(tender)}</Cell>
+                      <Cell>
+                        <div className="flex gap-1 justify-end">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              apply((s) => {
+                                const r = applyFifthYearOption(s, s.userTeamId, p.id);
+                                return r.ok
+                                  ? `${p.firstName} ${p.lastName} fifth-year option picked up`
+                                  : r.reason;
+                              })
+                            }
+                          >
+                            Pick up
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              apply((s) => {
+                                const r = declineFifthYearOption(s, s.userTeamId, p.id);
+                                return r.ok
+                                  ? `${p.firstName} ${p.lastName} fifth-year option declined`
+                                  : r.reason;
+                              })
+                            }
+                          >
+                            Decline
+                          </Button>
+                        </div>
+                      </Cell>
+                    </Row>
+                  );
+                })}
+              </Table>
+            )}
+          </Card>
+        );
+      })()}
+
+      {/* ---- Alerts -------------------------------------------------------- */}
+      {issues.length > 0 && (
+        <Card
+          title="Needs attention"
+          actions={
+            <Button
+              size="sm"
+              onClick={() =>
+                apply((s) => {
+                  const rng = new Rng(s.rngState);
+                  reconcileRoster(s, s.userTeamId, rng);
+                  s.rngState = rng.state;
+                  return "Roster and cap brought back into compliance";
+                })
+              }
+              title={
+                clip.camp
+                  ? `Signs, releases and renegotiates until you are at ${ROSTER_LIMIT}–${clip.cap} players and under the cap`
+                  : "Signs, releases and renegotiates until you are at 53 players and under the cap"
+              }
+            >
+              Auto-fix
+            </Button>
+          }
+        >
+          <div className="space-y-2">
+            {issues.map((i, n) => (
+              <div key={n} className="flex items-start gap-2.5 text-sm">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-warn)] shrink-0" />
+                <div>
+                  <div>{i.message}</div>
+                  <div className="text-xs text-[var(--color-muted)]">
+                    {i.detail}
+                  </div>
+                </div>
+                <Link href={i.kind === "overCap" ? "/finances" : "/roster"} className="ml-auto shrink-0">
+                  <Button size="sm" variant="ghost">Fix</Button>
+                </Link>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {(state.waivers?.length ?? 0) > 0 && (
+        <Card
+          title="Waivers"
+          subtitle={`${state.waivers!.length} player${state.waivers!.length === 1 ? "" : "s"} on the wire`}
+          actions={
+            <Link href="/roster">
+              <Button size="sm">Claim on /roster</Button>
+            </Link>
+          }
+        >
+          <p className="text-sm text-[var(--color-muted)]">
+            Cuts pass waivers before a practice-squad stash or free agency. Inverse
+            standings — worse record claims first. No cash bid.
+          </p>
+        </Card>
+      )}
+
+      {offers.length > 0 && (
+        <Card
+          title="Trade offers"
+          subtitle={`${offers.length} club${offers.length === 1 ? "" : "s"} waiting on an answer`}
+          actions={
+            <Link href="/trades">
+              <Button size="sm" title="Read the offers in full and accept or turn them down">
+                Review offers
+              </Button>
+            </Link>
+          }
+        >
+          <div className="space-y-2">
+            {offers.map((o) => (
+              <div key={o.id} className="flex items-start gap-2.5 text-sm">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] shrink-0" />
+                <div className="min-w-0">
+                  <div>
+                    {state.teams[o.fromTeamId].abbr} want{" "}
+                    {o.get.map((a) => tradeBoardAssetLabel(state, a)).join(", ") || "nothing"}
+                  </div>
+                  <div className="text-xs text-[var(--color-muted)]">
+                    Offering {o.give.map((a) => tradeBoardAssetLabel(state, a)).join(", ") || "nothing"}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {isRecap && recap && (
+        <SeasonReviewPanels state={state} view={recap} />
+      )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Stat label="Record" value={recordString(rec)} sub={`${rec.pf} PF · ${rec.pa} PA`} />
+        <Stat
+          label="Cap Space"
+          value={formatMoney(cap.space)}
+          sub={cap.dead > 0 ? `${formatMoney(cap.dead)} dead` : "no dead money"}
+          tone={cap.space < 0 ? "bad" : undefined}
+        />
+        <Stat
+          label="Roster"
+          value={clip.label}
+          sub={clip.cutdown ? clip.sub : `${injured.length} injured`}
+          tone={clip.tone === "warn" ? "warn" : undefined}
+        />
+        <Stat
+          label="Point Diff"
+          value={`${rec.pf - rec.pa > 0 ? "+" : ""}${rec.pf - rec.pa}`}
+          tone={rec.pf - rec.pa >= 0 ? "good" : "bad"}
+        />
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        {/* ---- Next game / last results ----------------------------------- */}
+        <Card
+          title={next ? "Next Game" : userSeasonGames.length > 0 ? "Season Recap" : "Season"}
+          className="lg:col-span-1"
+          padded={!( !next && userSeasonGames.length > 0 )}
+          actions={
+            !next && userSeasonGames.length > 0 ? (
+              <Link href="/recap">
+                <Button size="sm" variant="ghost">Full recap</Button>
+              </Link>
+            ) : undefined
+          }
+        >
+          {next ? (
+            (() => {
+              const home = next.homeId === team.id;
+              const opp = state.teams[home ? next.awayId : next.homeId];
+              const oppRec = computeRecords(state).get(opp.id)!;
+              const forecast = next.conditions?.weather;
+              return (
+                <div className="text-center py-2">
+                  <div className="text-xs text-[var(--color-muted)]">
+                    {next.playoffRound ? next.playoffRound : `Week ${next.week}`} · {home ? "Home" : "Away"}
+                  </div>
+                  <div className="flex items-center justify-center gap-3 my-3">
+                    <TeamMark team={opp} size={40} />
+                    <div className="text-left">
+                      <div className="font-semibold">{opp.city} {opp.name}</div>
+                      <div className="text-xs text-[var(--color-muted)] tnum">{recordString(oppRec)}</div>
+                      {forecast && (
+                        <div
+                          className={cx(
+                            "text-xs tnum mt-0.5",
+                            isHarsh(forecast) ? "text-[var(--color-warn)]" : "text-[var(--color-faint)]"
+                          )}
+                        >
+                          {weatherLabel(forecast)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {state.phase === "regular" && (
+                      <Link href="/play">
+                        <Button size="sm" variant="primary">Play the Game</Button>
+                      </Link>
+                    )}
+                    <Link href="/depth-chart">
+                      <Button size="sm" variant="ghost">Check the depth chart</Button>
+                    </Link>
+                  </div>
+                </div>
+              );
+            })()
+          ) : bye && state.phase === "regular" ? (
+            <div className="space-y-3">
+              <Empty title="Bye week" hint="No game this week. Advance to move on." />
+              <div className="text-center">
+                <Link href="/play">
+                  <Button size="sm">Play the Game</Button>
+                </Link>
+              </div>
+            </div>
+          ) : userSeasonGames.length > 0 ? (
+            <Table head={["Wk", "Opp", ""]}>
+              {userSeasonGames.slice(-8).map((r) => {
+                const opp = state.teams[r.opponentId];
+                return (
+                  <Row key={r.game.id} highlight={r.won}>
+                    <Cell align="left">
+                      <span className="text-xs text-[var(--color-muted)]">
+                        {r.game.playoffRound ?? r.game.week}
+                      </span>
+                    </Cell>
+                    <Cell align="left">
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        {opp && <TeamMark team={opp} size={16} />}
+                        <span className="truncate text-xs">
+                          {r.home ? "vs" : "@"} {opp?.abbr ?? "—"}
+                        </span>
+                      </span>
+                    </Cell>
+                    <Cell>
+                      <span className={cx(
+                        "tnum text-xs",
+                        r.won && "text-[var(--color-good)]",
+                        !r.won && !r.tied && "text-[var(--color-bad)]"
+                      )}>
+                        {r.won ? "W" : r.tied ? "T" : "L"} {r.us}–{r.them}
+                      </span>
+                    </Cell>
+                  </Row>
+                );
+              })}
+            </Table>
+          ) : (
+            <Empty
+              title={state.phase === "preseason" ? "Season hasn't started" : "No games scheduled"}
+              hint={state.phase === "preseason" ? "Start the season when your roster is set." : undefined}
+            />
+          )}
+        </Card>
+
+        {/* ---- Division ----------------------------------------------------- */}
+        <Card title={team.division} className="lg:col-span-1" padded={false}>
+          <Table head={["Team", "W", "L", "PCT"]}>
+            {derived.div.map((r) => {
+              const t = state.teams[r.teamId];
+              const g = r.w + r.l + r.t;
+              return (
+                <Row key={r.teamId} highlight={r.teamId === team.id}>
+                  <Cell align="left">
+                    <span className="flex items-center gap-2">
+                      <TeamMark team={t} size={18} />
+                      <span className="truncate">{t.name}</span>
+                    </span>
+                  </Cell>
+                  <Cell>{r.w}</Cell>
+                  <Cell>{r.l}</Cell>
+                  <Cell>{g === 0 ? "—" : ((r.w + r.t * 0.5) / g).toFixed(3).replace(/^0/, "")}</Cell>
+                </Row>
+              );
+            })}
+          </Table>
+        </Card>
+
+        {/* ---- Injuries ----------------------------------------------------- */}
+        <Card title="Injury Report" subtitle={`${injured.length} out on the 53${onIr ? ` · ${onIr} on IR` : ""}`} className="lg:col-span-1" padded={false}>
+          {injured.length === 0 ? (
+            <Empty title={onIr > 0 ? `${onIr} on IR` : "Everyone's healthy"} />
+          ) : (
+            <Table head={["Player", "Injury", "Wks"]}>
+              {injured.slice(0, 8).map((p) => (
+                <Row key={p.id}>
+                  <Cell align="left">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <PosBadge pos={p.pos} />
+                      <PlayerLink p={p} className="truncate" />
+                    </span>
+                  </Cell>
+                  <Cell align="right"><span className="text-xs text-[var(--color-muted)]">{p.injuryDesc}</span></Cell>
+                  <Cell>{p.injuryWeeks}</Cell>
+                </Row>
+              ))}
+            </Table>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        {/* ---- Team leaders -------------------------------------------------- */}
+        <Card title="Team Leaders" subtitle={`${state.season} season`} padded={false}>
+          {topPerformers.length === 0 ? (
+            <Empty title="No games played yet" hint="Play a week to see who's producing." />
+          ) : (
+            <Table head={["Stat", "Player", "OVR", "Line"]}>
+              {topPerformers.map((row) => (
+                <Row key={row.kind}>
+                  <Cell align="left">
+                    <span className="text-xs text-[var(--color-muted)]">{row.label}</span>
+                  </Cell>
+                  <Cell align="left">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <PosBadge pos={row.player.pos} />
+                      <PlayerLink p={row.player} className="truncate" />
+                    </span>
+                  </Cell>
+                  <Cell><OvrBadge ovr={row.player.ovr} size="sm" /></Cell>
+                  <Cell><span className="text-xs text-[var(--color-muted)]">{row.text}</span></Cell>
+                </Row>
+              ))}
+            </Table>
+          )}
+        </Card>
+
+        {/* ---- Activity ------------------------------------------------------ */}
+        <Card title="Around the League" padded={false}>
+          {state.log.length === 0 ? (
+            <Empty title="Nothing has happened yet" />
+          ) : (
+            <div className="max-h-[320px] overflow-y-auto divide-y divide-[var(--color-line-soft)]">
+              {state.log.slice(-40).reverse().map((e, i) => (
+                <div key={i} className="px-4 py-2 flex items-start gap-2.5">
+                  <span
+                    className={cx(
+                      "mt-1.5 w-1.5 h-1.5 rounded-full shrink-0",
+                      e.kind === "injury" ? "bg-[var(--color-bad)]"
+                      : e.kind === "milestone" ? "bg-[var(--color-elite)]"
+                      : e.kind === "transaction" ? "bg-[var(--color-accent)]"
+                      : e.kind === "draft" ? "bg-[var(--color-warn)]"
+                      : "bg-[var(--color-faint)]"
+                    )}
+                  />
+                  <span className="text-xs leading-relaxed">{e.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {roster.length > 0 && (
+        <Card
+          title="Roster Snapshot"
+          subtitle="Your five highest-rated players"
+          actions={<Link href="/roster"><Button size="sm" variant="ghost">Full roster</Button></Link>}
+          padded={false}
+        >
+          <Table head={["Player", "Pos", "Age", "OVR", "Cap Hit"]}>
+            {roster
+              .slice()
+              .sort((a, b) => b.ovr - a.ovr)
+              .slice(0, 5)
+              .map((p) => (
+                <Row key={p.id}>
+                  <Cell align="left"><PlayerLink p={p} /></Cell>
+                  <Cell><PosBadge pos={p.pos} /></Cell>
+                  <Cell>{p.age}</Cell>
+                  <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                  <Cell>{formatMoney(p.contract ? (p.contract.baseSalary[0] ?? 0) + (p.contract.bonusProrationYears > 0 ? p.contract.signingBonus / p.contract.bonusProrationYears : 0) : 0)}</Cell>
+                </Row>
+              ))}
+          </Table>
+        </Card>
+      )}
+
+      {state.phase === "regular" && derived.lastResults.length > 0 && (
+        <Card title={`Week ${Math.max(1, state.week - 1)} Results`} padded={false}>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-[var(--color-line-soft)]">
+            {derived.lastResults.map((g) => {
+              const h = state.teams[g.homeId];
+              const a = state.teams[g.awayId];
+              const mine = g.homeId === team.id || g.awayId === team.id;
+              return (
+                <Link
+                  key={g.id}
+                  href={`/game/${g.id}`}
+                  className={cx(
+                    "bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)] p-3 transition-colors",
+                    mine && "bg-[var(--color-accent-dim)]/30"
+                  )}
+                >
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <TeamMark team={a} size={16} />
+                      <span className="truncate">{a.abbr}</span>
+                    </span>
+                    <span className={cx("tnum", g.awayScore > g.homeScore && "font-semibold")}>{g.awayScore}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <TeamMark team={h} size={16} />
+                      <span className="truncate">{h.abbr}</span>
+                    </span>
+                    <span className={cx("tnum", g.homeScore > g.awayScore && "font-semibold")}>{g.homeScore}</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
