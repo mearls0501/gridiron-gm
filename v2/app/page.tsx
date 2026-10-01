@@ -20,7 +20,7 @@ import {
   skipTagExtension, tagExtensionPlayers, tagExtensionTerms,
 } from "@/lib/core/offseason";
 import { Rng } from "@/lib/core/rng";
-import { describeAsset } from "@/lib/core/trades";
+import { tradeBoardAssetLabel } from "@/lib/view/tradeBoard";
 import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weatherLabel } from "@/lib/core/types";
 import { SeasonReviewPanels, SeasonReviewSummary } from "@/components/SeasonReview";
 import { presentSeasonReview } from "@/lib/view/seasonReview";
@@ -559,10 +559,10 @@ export default function Hub() {
                 <div className="min-w-0">
                   <div>
                     {state.teams[o.fromTeamId].abbr} want{" "}
-                    {o.get.map((a) => describeAsset(state, a)).join(", ") || "nothing"}
+                    {o.get.map((a) => tradeBoardAssetLabel(state, a)).join(", ") || "nothing"}
                   </div>
                   <div className="text-xs text-[var(--color-muted)]">
-                    Offering {o.give.map((a) => describeAsset(state, a)).join(", ") || "nothing"}
+                    Offering {o.give.map((a) => tradeBoardAssetLabel(state, a)).join(", ") || "nothing"}
                   </div>
                 </div>
               </div>

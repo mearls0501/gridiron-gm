@@ -5,6 +5,45 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-01 — Fog the trade board
+
+Worker. Display only. Zero new RNG draws. `trades.ts` pricing, offer generation, accept/reject, and cap checks are not touched. `sim/game.ts`, dials, `docs/baselines.json`, and `secondScene.ts` are not touched.
+
+Base: `main` `a44e7c4` (#133 waiver desk).
+
+### Diagnosis
+
+`/trades` printed `p.ovr` on every club's roster column, and `describeAsset` embedded that same true overall in the package lines. A tester could read exact rival strength without scouting. The player page already fogs a non-owned veteran through `visibleOvr` (`knowsTrueRatings` is false). There is no team-strength chip on this desk.
+
+### Change
+
+`lib/view/tradeBoard.ts` is the desk's print path. A rival badge is `visibleOvr` — the same string the player page shows. The user's own roster stays the true number so the tier color matches. The rival column sorts on `userVeteranView`, the belief that band is centered on (the free-agency board already ranks that way). Package lines on `/trades` and the hub Trade offers card use that badge value. Picks still go through `describeAsset`. `describeAsset` itself is unchanged, so the trade log still records truth.
+
+### Leftover
+
+The draft-clock quote and "They send" line on `/draft` still call `describeAsset`, so a clock offer can still print a true overall. The week page still prints true overall on the other club's inactive list. Neither is the trade desk.
+
+### Untouched
+
+`lib/core/trades.ts` (math, `describeAsset`, offer generation, accept/reject), `lib/core/sim/game.ts`, `lib/core/secondScene.ts`, dials, `docs/baselines.json`. No parent-stream draw. The new assertions sit in `tradeboard`, registered in `package.json` `test` and in `scripts/gate.ts` FAST and FULL.
+
+### Gate
+
+`npm run gate` from `v2/` (fast, parallel, 1 seed, 4 cores). Every harness exited 0, including `tradeboard` and `determinism` (2 metrics). One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+`statcheck.wr10RecYds` did not fire. `calibrate` 28 metrics and `statcheck` 23 metrics passed. Not a retune.
+
+### Browser evidence
+
+Seed 42, Boston Minutemen, default partner Brooklyn Bridges. Elias White (OG) is true 87 and prints `86-90` on the trade board and on `/player/74`. Isiah Garcia stays 91 on the user's column. Screenshots sit on the PR.
+
+---
+
 ## 2026-10-01 — Waiver desk: hide, don't wipe
 
 Worker. Presentation only. Zero new RNG draws. No save field.
