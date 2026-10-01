@@ -17,6 +17,7 @@ import { DriveSummary, GameState, PlayEvent, SnapCall } from "./types";
  * listener, so a CPU sim cannot leak plays into an open session.
  * The in-progress list is the user club's callSheet.snaps. resumeLiveGame
  * replays that list on a new generator. The save's RNG is not advanced.
+ * finishAuto appends "auto" for each remaining user snap on that same list.
  */
 
 export type LiveView =
@@ -85,6 +86,7 @@ export function createLiveGame(state: GameState, gameId: number) {
     },
     finishAuto(): LiveView {
       while (!step.done) {
+        calls.push("auto");
         step = gen.next("auto");
       }
       cached = viewOf();
