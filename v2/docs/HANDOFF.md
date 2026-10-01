@@ -5,6 +5,42 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-01 — Hub offseason Continue yields
+
+Worker. Scheduling and labels only. Zero new RNG draws. Free-agency bid math, draft selection, dials, `docs/baselines.json`, and `sim/game.ts` are not touched.
+
+Base: `main` `1427623` (#136 coach-finish persist).
+
+### Diagnosis
+
+#135 yields between regular-season and playoff weeks. Hub Continue through free agency or the draft was still one `advanceOffseason` inside `apply`: no yield, no status label. On this box that call is multi-second, and the tab looks dead until it returns. A reload during the freeze does not double-apply; the save writes when the call finishes.
+
+### Change
+
+`offseasonContinueStepper` is the same `advanceOffseason` path for `offseason-fa` and `offseason-draft`, one wave, one 40-attempt slice of the pre-draft trade search, or one draft slot per step. `runOffseasonContinue` still drains it synchronously. The store yields (`requestAnimationFrame`, then `setTimeout(0)`) between steps and publishes `simLabel`. The Hub button and the offseason step title read that copy: Free Agency wave, Draft day trades, Round / Pick, Camp. `simActive` still drops other desk clicks. Jersey / hall-of-fame housekeeping and the save still run once, at the end.
+
+`runDraftUntilUser` and `runFullDraft` call `stepDraftUntilUser` and `stepFullDraft`. `runDraftDayTrades` calls `runDraftDayTradeAttempts` for the same 260 attempts. Those helpers are exported so the hub stepper and `tsc` see them.
+
+Recap, the franchise-tag window, and roster cutdown stay one synchronous `advanceOffseason`.
+
+### Leftover
+
+`offseason-final` (camp cutdown / Start the Season) is still one call. It can be long. This packet does not split it.
+
+### Untouched
+
+FA bid logic, draft pick selection, `lib/core/sim/game.ts`, dials, `docs/baselines.json`, second scene. No parent-stream draw. The yield reads no clock.
+
+### Gate
+
+`npm run build` from `v2/` completes. Typecheck passes. `npx tsx lib/store/offseasonContinue.test.ts` passes: a synchronous drain and a yielded drain match `advanceOffseason` on seed 42 for free agency and Finish the Draft. Registered in `package.json` `test` and in `scripts/gate.ts` FAST and FULL.
+
+### Browser evidence
+
+Headless Chrome against the Hub. Continue from free agency painted `Simming… Free Agency wave 4`, `Simming… Draft day trades`, then `Simming… Round 1, Pick 1` through later slots, and landed on the draft. Finish the Draft painted pick progress through `Simming… Round 7, Pick 271` and `Simming… Camp`, then Start the Season.
+
+---
+
 ## 2026-10-01 — Coach finish persists the auto snaps
 
 Worker. Persistence only. Zero new RNG draws. `sim/game.ts`, dials, `docs/baselines.json`, and `secondScene.ts` are not touched.
