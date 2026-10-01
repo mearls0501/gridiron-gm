@@ -5,6 +5,45 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-01 — Coach finish persists the auto snaps
+
+Worker. Persistence only. Zero new RNG draws. `sim/game.ts`, dials, `docs/baselines.json`, and `secondScene.ts` are not touched.
+
+Base: `main` `751acda` (#137 invite display), rebased onto that tip.
+
+### Diagnosis
+
+Hand calls already write `callSheet.snaps` on each click (#131). `finishAuto` fed `"auto"` into the live generator and did not append those snaps. `/play` did not call `persistSnaps` on Let the coach finish. A reload replayed only the hand calls and rewound to that snap. Play Week still finished the rest on auto, because a short list falls through to `"auto"` inside `userSimOpts`.
+
+### Change
+
+`finishAuto` appends `"auto"` once per remaining user snap, the same list `call()` writes. `/play` writes that list immediately. Reload and a codec round-trip resume at the whistle. `simulateGame` through `userSimOpts` on the stored list matches the coach-finished box and plays. A hand-only sheet still stops at the last hand call.
+
+### Leftover
+
+None on this path. Playoffs still reach `/play` from This Week. Hub and nav links stay regular season only.
+
+### Untouched
+
+`lib/core/sim/game.ts`, `lib/core/secondScene.ts`, dials, `docs/baselines.json`, `scripts/`. No parent-stream draw.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). `livegame`, `playbyplay`, `callsheet`, determinism, verify 348/348, calibrate 28 metrics, and statcheck 23 metrics passed. One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune.
+
+### Browser
+
+Playwright and a desktop pass, seed not fixed. Run once, then Let the coach finish. Reload stayed on Game called. One pass: 7–24, box 41 pass / 31 rush, last snap `Lee 2 yd TD reception from Underwood II`. Run and Pass did not return.
+
+---
+
 ## 2026-10-01 — Invite display leftovers
 
 Worker. Display only. Zero new RNG draws. `sim/game.ts`, dials, `docs/baselines.json`, trade pricing, and `negotiatedApy` are not touched.

@@ -17,9 +17,10 @@ import {
 /**
  * Play-the-Game: user-club offensive snaps only.
  *
- * CPU games stay auto. Bulk-sim never waits here. Each called snap is written
- * onto the call sheet immediately; a reload replays that list. Play Week
- * replays the same list through simulateGame.
+ * CPU games stay auto. Bulk-sim never waits here. Each hand call, and every
+ * auto snap from Let the coach finish, is written onto the call sheet
+ * immediately; a reload replays that list. Play Week replays the same list
+ * through simulateGame.
  */
 export default function PlayPage() {
   const state = useGame((s) => s.state);
@@ -108,6 +109,7 @@ export default function PlayPage() {
   const finish = () => {
     if (!session) return;
     setView(session.finishAuto());
+    persistSnaps(session.snaps());
   };
 
   const playWeek = () => {

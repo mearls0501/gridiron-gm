@@ -5,6 +5,8 @@
  * call() / finishAuto() must resume mid-game — no kickoff re-sim.
  * Same-seed live advance must match simulateGame's box AND plays.
  * Bulk-sim / simulateGame drains in one next() — no live yield.
+ * finishAuto records each remaining user snap as "auto" so a reload
+ * and Play Week keep the coach-finished game.
  *
  * Run: npx tsx lib/core/liveGame.test.ts
  */
@@ -14,7 +16,7 @@ import { Rng } from "./rng";
 import { openGameSim, simulateGame } from "./sim/game";
 import { startRegularSeason, advance } from "./season/engine";
 import { declareGamedayInactives } from "./inactives";
-import { setCallSheet } from "./callSheet";
+import { setCallSheet, userSimOpts } from "./callSheet";
 import { createLiveGame, resumeLiveGame } from "./liveGame";
 import { encodeSave, decodeSave } from "../store/codec";
 import { SnapCall } from "./types";
@@ -279,6 +281,78 @@ for (const seed of [46, 47, 48]) {
     assert.deepEqual(kick.info, opened.info, "old save opens on the same kickoff state");
   }
   assert.equal(old.rngState, rngBefore);
+}
+
+{
+  const st = newGame({ seed: 53 });
+  untilKickoff(st);
+  const g = userGame(st)!;
+  const rngBefore = st.rngState;
+  const injuries = st.players.map((p) => p.injuryWeeks);
+  const live = createLiveGame(st, g.id);
+  const hand: SnapCall[] = ["run", "pass", "run"];
+  let mid = live.peek();
+  for (const c of hand) {
+    assert.equal(mid.done, false, "hand calls stay inside the game");
+    mid = live.call(c);
+  }
+  const handSnaps = live.snaps().slice();
+  assert.deepEqual(handSnaps, hand);
+  const finished = live.finishAuto();
+  assert.equal(finished.done, true);
+  if (!finished.done) throw new Error("expected coach finish to reach the whistle");
+  const stored = live.snaps();
+  assert.ok(stored.length > handSnaps.length, "coach finish records the auto tail");
+  assert.deepEqual(stored.slice(0, handSnaps.length), handSnaps, "hand calls stay at the front");
+  assert.ok(stored.slice(handSnaps.length).every((c) => c === "auto"), "the tail is auto");
+  assert.deepEqual(finished.calls, stored, "the finished view carries the same list");
+  const userSnaps = finished.plays.filter(
+    (p) =>
+      p.offenseId === st.userTeamId &&
+      (p.kind === "run" || p.kind === "pass" || p.kind === "sack"),
+  ).length;
+  assert.equal(stored.length, userSnaps, "one recorded call per user offensive snap");
+  assert.ok(finished.lastSnap, "coach finish still has a last snap");
+
+  setCallSheet(st, { snaps: stored });
+  assert.equal(st.rngState, rngBefore, "persisting the coach finish does not move the save RNG");
+  assert.deepEqual(
+    st.players.map((p) => p.injuryWeeks),
+    injuries,
+    "persisting the coach finish does not write injuries",
+  );
+
+  const saved = JSON.parse(JSON.stringify(st)) as typeof st;
+  const resumed = resumeLiveGame(saved, g.id);
+  const again = resumed.peek();
+  assert.equal(again.done, true, "reload after coach finish stays at the final whistle");
+  if (!again.done) throw new Error("expected the resumed game to be finished");
+  assert.deepEqual(again.plays, finished.plays, "reload keeps the coach-finished play log");
+  assert.deepEqual(again.result.box, finished.result.box, "reload keeps the coach-finished box");
+  assert.deepEqual(again.lastSnap, finished.lastSnap, "reload keeps the coach-finished last snap");
+  assert.deepEqual(resumed.snaps(), stored, "reload restores the coach-finished snap list");
+  assert.equal(saved.rngState, rngBefore, "resume does not draw on the save RNG");
+
+  const handOnly = cloneState(saved);
+  setCallSheet(handOnly, { snaps: handSnaps });
+  const rewound = resumeLiveGame(handOnly, g.id);
+  assert.equal(rewound.peek().done, false, "a hand-only sheet still stops at the last hand call");
+  assert.deepEqual(rewound.snaps(), handSnaps);
+
+  const replay = cloneState(saved);
+  const rg = userGame(replay)!;
+  declareGamedayInactives(replay, [rg.homeId, rg.awayId]);
+  const week = simulateGame(replay, rg, new Rng(replay.rngState), userSimOpts(replay, rg));
+  assert.deepEqual(week.box, finished.result.box, "Play Week replays the stored auto tail");
+  assert.deepEqual(week.plays, finished.plays, "Play Week plays match the coach-finished log");
+
+  const decoded = decodeSave(encodeSave(saved));
+  const fromDisk = resumeLiveGame(decoded, g.id);
+  const disk = fromDisk.peek();
+  assert.equal(disk.done, true, "codec round-trip keeps the coach-finished game");
+  assert.deepEqual(disk.plays, finished.plays, "codec round-trip keeps the coach-finished play log");
+  assert.deepEqual(fromDisk.snaps(), stored);
+  assert.equal(decoded.rngState, rngBefore);
 }
 
 console.log("ok    liveGame — resume mid-game; same-seed box and plays match simulateGame");
