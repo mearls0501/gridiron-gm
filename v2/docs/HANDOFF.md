@@ -5,6 +5,46 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-01 — Lane A: keep the called game, and show the button
+
+Worker. Persistence and discovery only. Zero new RNG draws. `sim/game.ts`, dials, `docs/baselines.json`, and `secondScene.ts` are not touched.
+
+Base: `main` `7bd497e5b368ca49480588f47e400dbad3a8ffd3` (Wave 4.4 #129).
+
+### Diagnosis
+
+`/play` kept the in-progress snap list in React state. `createLiveGame` cloned kickoff into a generator that lived on the page. `setCallSheet({ snaps })` ran only inside "Play Week with these calls". A reload built a new generator, so the called snaps, the clock, and the spot in the drive were gone. The opening kickoff row came back because the game started over.
+
+`CallSheet.snaps` already exists. Play Week replays it through `userSimOpts`. Until commit it was empty. No new save field.
+
+Hub and the shell nav had no regular-season link to `/play`. This Week already did.
+
+### Change
+
+- `resumeLiveGame` replays `teams[userTeamId].callSheet.snaps` on a fresh live generator. Missing snaps (an older save, or a week not yet called) still open on the kickoff. The function does not write the save and does not draw on the save RNG. Injuries stay on the clone, as before.
+- `/play` writes that same `snaps` array on each Run / Pass / Coach click. Load and remount call `resumeLiveGame`, so the last snap, the clock, and row 1 (kickoff touchback) come back. Play Week still writes the list and advances. Bulk-sim never enters this path.
+- Regular season only: a nav item "Play the Game" after This Week, matched on exact `/play` so Playoffs does not highlight, and a Hub button on the Next Game card. A bye week gets the same Hub link. The shell is otherwise unchanged.
+
+### Leftover
+
+"Let the coach finish" still does not store the coach's snaps. The tail stays `"auto"` inside `userSimOpts`. A reload after finish and before Play Week restores the last hand-called snap, not the final whistle. Play Week still finishes the rest on auto.
+
+Playoffs still reach `/play` from This Week. The new Hub and nav links are regular season only.
+
+### Untouched
+
+`lib/core/sim/game.ts`, `lib/core/secondScene.ts`, dials, `trades.ts`, contract pricing, waiver wipe, `docs/baselines.json`, `scripts/` (the new assertions sit in the already-registered `livegame` harness). No parent-stream draw.
+
+### Gate
+
+Pending the fast-tier run from `v2/`. Inherited single-seed reds excepted: `leverage.wrongSign` 1, and any documented inherited fast-tier noise.
+
+### Browser evidence
+
+Pending. Sniff: regular-season Hub and nav reach `/play`; Run then Pass; reload; Last snap is still that pass and row 1 is still the kickoff touchback.
+
+---
+
 ## 2026-09-30 — Wave 4.4 Packet 2: path2 burn-in counts emit (report-only)
 
 Worker. Report-only. `path2Counts` is unchanged. Dials, scene logic, K, and `docs/baselines.json` are not touched.

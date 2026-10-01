@@ -14,7 +14,9 @@ import { Rng } from "./rng";
 import { openGameSim, simulateGame } from "./sim/game";
 import { startRegularSeason, advance } from "./season/engine";
 import { declareGamedayInactives } from "./inactives";
-import { createLiveGame } from "./liveGame";
+import { setCallSheet } from "./callSheet";
+import { createLiveGame, resumeLiveGame } from "./liveGame";
+import { encodeSave, decodeSave } from "../store/codec";
 import { SnapCall } from "./types";
 
 function userGame(st: ReturnType<typeof newGame>) {
@@ -210,6 +212,73 @@ for (const seed of [46, 47, 48]) {
   if (step.done) throw new Error("expected a live yield");
   assert.ok(step.value.info.down >= 1 && step.value.info.down <= 4);
   assert.ok(step.value.plays.length >= 1, "live yield includes the engine playLog");
+}
+
+{
+  const st = newGame({ seed: 52 });
+  untilKickoff(st);
+  const g = userGame(st)!;
+  const rngBefore = st.rngState;
+  const injuries = st.players.map((p) => p.injuryWeeks);
+  const live = createLiveGame(st, g.id);
+  const opened = live.peek();
+  assert.equal(opened.done, false);
+  if (opened.done) throw new Error("expected a live snap");
+  const opening = opened.plays[0];
+  assert.equal(opening.kind, "kickoff");
+  assert.equal(opening.result, "touchback");
+  let mid = live.call("run");
+  assert.equal(mid.done, false, "one called snap does not finish the game");
+  if (mid.done) throw new Error("expected to still be live after Run");
+  mid = live.call("pass");
+  assert.deepEqual(live.snaps(), ["run", "pass"]);
+  const midPlays = mid.plays.map((p) => ({ ...p }));
+  const midLast = mid.lastSnap ? { ...mid.lastSnap } : mid.lastSnap;
+  const midInfo = mid.done ? null : { ...mid.info };
+  setCallSheet(st, { snaps: live.snaps() });
+  assert.equal(st.rngState, rngBefore, "persisting snaps does not move the save RNG");
+  assert.deepEqual(st.players.map((p) => p.injuryWeeks), injuries, "persisting snaps does not write injuries");
+
+  const saved = JSON.parse(JSON.stringify(st)) as typeof st;
+  const resumed = resumeLiveGame(saved, g.id);
+  const again = resumed.peek();
+  assert.deepEqual(resumed.snaps(), live.snaps(), "reload restores the called snaps");
+  assert.deepEqual(again.plays, midPlays, "reload restores the same play log");
+  assert.equal(again.plays[0].kind, "kickoff");
+  assert.equal(again.plays[0].result, "touchback", "row 1 is still the kickoff touchback");
+  assert.notEqual(again.plays[0], opening, "reload is a new session, not a second kickoff on the old log");
+  assert.deepEqual(again.lastSnap, midLast, "reload restores the last called snap");
+  assert.equal(again.lastSnap && again.lastSnap.kind, "pass", "last snap is still the called pass");
+  if (midInfo && !again.done) {
+    assert.deepEqual(again.info, midInfo, "reload restores the same clock and spot");
+  }
+  assert.equal(saved.rngState, rngBefore, "resume does not draw on the save RNG");
+
+  if (!mid.done && !again.done) {
+    const cont = live.call("auto");
+    const cont2 = resumed.call("auto");
+    assert.deepEqual(cont2.plays, cont.plays, "resumed generator continues from the restored snap");
+  }
+
+  const decoded = decodeSave(encodeSave(saved));
+  const fromDisk = resumeLiveGame(decoded, g.id);
+  assert.deepEqual(fromDisk.peek().plays, midPlays, "codec round-trip keeps the in-progress snaps");
+  assert.deepEqual(fromDisk.snaps(), ["run", "pass"]);
+  assert.equal(decoded.rngState, rngBefore);
+
+  const old = cloneState(st);
+  delete old.teams[old.userTeamId].callSheet;
+  const fresh = resumeLiveGame(old, g.id);
+  const kick = fresh.peek();
+  assert.deepEqual(fresh.snaps(), [], "old save with no call sheet starts uncalled");
+  assert.equal(kick.done, false);
+  if (!kick.done) {
+    assert.equal(kick.lastSnap, null);
+    assert.equal(kick.plays[0].kind, "kickoff");
+    assert.equal(kick.plays[0].result, "touchback");
+    assert.deepEqual(kick.info, opened.info, "old save opens on the same kickoff state");
+  }
+  assert.equal(old.rngState, rngBefore);
 }
 
 console.log("ok    liveGame — resume mid-game; same-seed box and plays match simulateGame");

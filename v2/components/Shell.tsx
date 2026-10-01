@@ -137,8 +137,18 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
 
           <nav className="flex flex-wrap gap-0.5 -mb-px">
-            {NAV.map((n) => {
-              const active = n.href === "/" ? pathname === "/" : pathname.startsWith(n.href);
+            {(state.phase === "regular"
+              ? NAV.flatMap((n) =>
+                  n.href === "/week" ? [n, { href: "/play", label: "Play the Game" }] : [n],
+                )
+              : NAV
+            ).map((n) => {
+              const active =
+                n.href === "/"
+                  ? pathname === "/"
+                  : n.href === "/play"
+                    ? pathname === "/play"
+                    : pathname.startsWith(n.href);
               return (
                 <Link
                   key={n.href}
