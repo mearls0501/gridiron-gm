@@ -7,7 +7,6 @@ import { playerName } from "@/lib/core/ratings";
 import {
   acceptOffer,
   assetValue,
-  describeAsset,
   executeTrade,
   liveDraftSlot,
   picksOwnedBy,
@@ -24,6 +23,11 @@ import {
   TradeOffer,
 } from "@/lib/core/types";
 import { rosterCapView } from "@/lib/view/rosterCap";
+import {
+  tradeBoardAssetLabel,
+  tradeBoardOvr,
+  tradeBoardOvrSort,
+} from "@/lib/view/tradeBoard";
 import {
   CLOSED_WINDOW_ACTIONS,
   incomingOfferAccept,
@@ -302,12 +306,12 @@ export default function TradesPage() {
                     <AssetPanel
                       label={`${userTeam.abbr} receive`}
                       tone="good"
-                      items={offer.give.map((a) => describeAsset(state, a))}
+                      items={offer.give.map((a) => tradeBoardAssetLabel(state, a))}
                     />
                     <AssetPanel
                       label={`${from.abbr} receive`}
                       tone="bad"
-                      items={offer.get.map((a) => describeAsset(state, a))}
+                      items={offer.get.map((a) => tradeBoardAssetLabel(state, a))}
                     />
                   </div>
 
@@ -353,12 +357,12 @@ export default function TradesPage() {
             <AssetPanel
               label={`${userTeam.abbr} send`}
               tone="bad"
-              items={give.map((a) => describeAsset(state, a))}
+              items={give.map((a) => tradeBoardAssetLabel(state, a))}
             />
             <AssetPanel
               label={`${userTeam.abbr} receive`}
               tone="good"
-              items={get.map((a) => describeAsset(state, a))}
+              items={get.map((a) => tradeBoardAssetLabel(state, a))}
             />
           </div>
 
@@ -519,7 +523,12 @@ function SidePanel({
   const rev = useGame((s) => s.rev);
 
   const roster = useMemo<Player[]>(
-    () => (state ? teamRoster(state, teamId).slice().sort((a, b) => b.ovr - a.ovr || a.id - b.id) : []),
+    () =>
+      state
+        ? teamRoster(state, teamId)
+            .slice()
+            .sort((a, b) => tradeBoardOvrSort(state, b) - tradeBoardOvrSort(state, a) || a.id - b.id)
+        : [],
     // rev changes on every mutation; the state object itself is mutated in place.
     [state, rev, teamId]
   );
@@ -545,7 +554,7 @@ function SidePanel({
       padded={false}
     >
       <div className="max-h-[420px] overflow-y-auto">
-        <Table head={["Player", "Pos", "Age", "OVR", "Cap Hit"]}>
+        <Table head={["Player", "Pos", "Age", teamId === state.userTeamId ? "OVR" : "Scouted", "Cap Hit"]}>
           {roster.map((p) => {
             const a: TradeAsset = { kind: "player", playerId: p.id };
             const on = keys.has(assetKey(a));
@@ -570,7 +579,7 @@ function SidePanel({
                 </Cell>
                 <Cell>{p.age}</Cell>
                 <Cell>
-                  <OvrBadge ovr={p.ovr} size="sm" />
+                  <OvrBadge ovr={tradeBoardOvr(state, p)} size="sm" />
                 </Cell>
                 <Cell>{p.contract ? formatMoney(capHit(p.contract)) : "—"}</Cell>
               </Row>
