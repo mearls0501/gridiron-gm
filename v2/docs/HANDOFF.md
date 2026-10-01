@@ -29,11 +29,18 @@ The draft-clock quote and "They send" line on `/draft` still call `describeAsset
 
 ### Gate
 
-Pending the fast `npm run gate` from `v2/`. Inherited `leverage.wrongSign` 1 is expected.
+`npm run gate` from `v2/` (fast, parallel, 1 seed, 4 cores). Every harness exited 0, including `tradeboard` and `determinism` (2 metrics). One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+`statcheck.wr10RecYds` did not fire. `calibrate` 28 metrics and `statcheck` 23 metrics passed. Not a retune.
 
 ### Browser evidence
 
-Pending a seed-42 franchise: rival Scouted badge on `/trades` matches `/player/[id]` under the same scout state; the user's column still shows true overall.
+Seed 42, Boston Minutemen, default partner Brooklyn Bridges. Elias White (OG) is true 87 and prints `86-90` on the trade board and on `/player/74`. Isiah Garcia stays 91 on the user's column. Screenshots sit on the PR.
 
 ---
 
