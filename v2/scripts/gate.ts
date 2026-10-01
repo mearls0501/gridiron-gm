@@ -63,6 +63,7 @@ interface Step {
 const FAST: Step[] = [
   { name: "typecheck",   cmd: "npx", args: ["tsc", "--noEmit"],                    exitGates: true },
   { name: "simtoast",    cmd: "npx", args: ["tsx", "lib/store/simToast.test.ts"],  exitGates: true },
+  { name: "simto",       cmd: "npx", args: ["tsx", "lib/store/simTo.test.ts"],     exitGates: true },
   { name: "drafttoast",  cmd: "npx", args: ["tsx", "lib/view/draftToast.test.ts"], exitGates: true },
   { name: "newgame",     cmd: "npx", args: ["tsx", "lib/view/newGameRoute.test.ts"], exitGates: true },
   { name: "simmenu",     cmd: "npx", args: ["tsx", "lib/view/simMenu.test.ts"],     exitGates: true },
@@ -111,6 +112,7 @@ const FAST: Step[] = [
 const FULL: Step[] = [
   { name: "typecheck",   cmd: "npx", args: ["tsc", "--noEmit"],                    exitGates: true },
   { name: "simtoast",    cmd: "npx", args: ["tsx", "lib/store/simToast.test.ts"],  exitGates: true },
+  { name: "simto",       cmd: "npx", args: ["tsx", "lib/store/simTo.test.ts"],     exitGates: true },
   { name: "drafttoast",  cmd: "npx", args: ["tsx", "lib/view/draftToast.test.ts"], exitGates: true },
   { name: "newgame",     cmd: "npx", args: ["tsx", "lib/view/newGameRoute.test.ts"], exitGates: true },
   { name: "simmenu",     cmd: "npx", args: ["tsx", "lib/view/simMenu.test.ts"],     exitGates: true },

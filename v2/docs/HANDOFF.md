@@ -5,6 +5,34 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-01 — Hub simTo yields between weeks
+
+Worker. Scheduling only. Zero new RNG draws. `sim/game.ts`, dials, `docs/baselines.json`, and `secondScene.ts` are not touched.
+
+Base: `main` `1b2abba` (trade fog #134).
+
+### Diagnosis
+
+Hub `simTo` drained every week inside one `apply`. `runSim` painted "Simming…" with a 30ms timeout, then `advance` ran on the main thread until the target or a pause. Through the Playoffs with pauses off is about 4.6s here (weeks ~200ms, deadline week ~750ms). The tab does not paint and does not take input for that whole stretch.
+
+### Change
+
+`simToStepper` is the same loop, one `advance` per step. `runSimTo` still drains it synchronously for harnesses and tests. The store's `simTo` publishes the live save and yields (`requestAnimationFrame` then `setTimeout(0)`) between steps. The Sim button reads `Simming… Week N` or the playoff round. Other desks cannot `apply` while that loop is between weeks. Jersey / hall-of-fame housekeeping and the save still run once, at the end, as before.
+
+### Leftover
+
+Hub Continue through a single offseason phase is still one synchronous `advanceOffseason`. Free agency and the draft are multi-second on this box. This packet does not split those phases.
+
+### Untouched
+
+`lib/core/sim/game.ts`, season math, dials, `docs/baselines.json`, trade fog, second scene. No parent-stream draw. The yield reads no clock.
+
+### Gate
+
+Filled in after `npm run gate`.
+
+---
+
 ## 2026-10-01 — Fog the trade board
 
 Worker. Display only. Zero new RNG draws. `trades.ts` pricing, offer generation, accept/reject, and cap checks are not touched. `sim/game.ts`, dials, `docs/baselines.json`, and `secondScene.ts` are not touched.
