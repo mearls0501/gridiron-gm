@@ -31,11 +31,17 @@ The wire has no cut-week stamp, so "recent cut" is not its own sort. Cap-stuck i
 
 ### Gate
 
-Fast `npm run gate` from `v2/` follows this revision. Output pasted on the update.
+`npm run gate` from `v2/` (fast, parallel, 1 seed, 4 cores). Every harness exited 0, including `waiverdesk`, `waivers`, and `determinism`. One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+```
+
+`statcheck.wr10RecYds` did not fire on this run. `docs/baselines.json` was not touched.
 
 ### Browser
 
-New franchise → a populated wire → default scan is the short list, hidden count expands, one claim persists. Evidence on the update.
+Playwright, seed 42, new franchise → Start the Season → Through the Playoffs (pause and resume) → offseason through Roster Cutdown → 2027 preseason. `/roster` Waivers card: **119** on the wire, **0** Claim buttons while the roster was 53/53, **12** "Release someone to claim" rows. Entire wire expanded to 119 rows and still 0 Claim buttons. After one Release, **12** Claim buttons. Claiming the first one left a Withdraw button, still there after reload.
 
 ---
 
