@@ -29,7 +29,18 @@ Hub Continue through a single offseason phase is still one synchronous `advanceO
 
 ### Gate
 
-Filled in after `npm run gate`.
+`npm run gate` from `v2/` (fast, parallel, 1 seed, 4 cores). Determinism passed. `simto` passed: a yielded drain matches synchronous `runSimTo` (`Champion crowned`, same save JSON). One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+No other FAIL. Not a retune.
+
+### Browser evidence
+
+Headed Chrome, new franchise, pause-on-trade and pause-on-injury unchecked, Hub Sim → Through the Playoffs. The button read `Simming… Week 1` through `Week 18`, then Wild Card, Divisional, Conference Championship, and Championship, then Season Review. Wall about 5.9s. The longest gap between paints was the deadline week, under a second. The header week line moved with the button.
 
 ---
 
