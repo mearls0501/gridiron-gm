@@ -43,11 +43,20 @@ A belief-averaged group gap is a number to a tenth. It is not the true gap, and 
 
 ### Gate
 
-Pending the fast gate on this branch.
+`npm run gate` from `v2/` (fast, parallel, 1 seed, 4 cores). `invitedisplay` passed. Determinism passed (2 metrics). `calibrate` 28 metrics and `statcheck` 23 metrics passed. One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+`statcheck.wr10RecYds` did not fire. `docs/baselines.json` was not touched. Not a retune.
 
 ### Browser evidence
 
-Pending.
+Playwright, Chrome, seed 42, Boston Minutemen. Depth chart help names the starter counts in words. QB reads "1 player · 1 starter". WR reads "5 players · 3 starters". The identifier is gone.
+
+Start the Season, week 1 at Cleveland. Their best: Jace Pemberton LB 85-89, Tevin Scott TE 81-85, Jace Williams OG 80-84. The same three strings are the Scouted column on `/trades` for Cleveland. Matchup lines: quarterback play +4.0 OVR, skill positions −3.5 OVR. They're missing says Fully healthy and prints no rating.
 
 ---
 
