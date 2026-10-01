@@ -340,7 +340,9 @@ export function finalizeOffseason(state: GameState): void {
 }
 
 /**
- * One-call offseason advance used by the hub button and the headless harness.
+ * One-call offseason advance used by the headless harness and by Hub
+ * Continue on the short phases. Free agency and the draft are the same
+ * calls, stepped in `offseasonContinueStepper` so the hub can paint.
  * Returns a human-readable description of what just happened.
  */
 export function advanceOffseason(state: GameState): string {
