@@ -12,6 +12,7 @@ import {
   capHit, computeRecords, formatMoney, irCount, recordString, rosterIssues, teamCap,
 } from "@/lib/core/select";
 import { userNextGame, isOnBye, injuredPlayers, weekGames } from "@/lib/core/season/engine";
+import { roundLabel } from "@/lib/core/season/playoffs";
 import { divisionStandings, seasonHasResults } from "@/lib/core/season/standings";
 import {
   applyFifthYearOption, applyFranchiseTag, applyTagExtension, clubFranchiseTaggedPlayer,
@@ -21,12 +22,23 @@ import {
 } from "@/lib/core/offseason";
 import { Rng } from "@/lib/core/rng";
 import { tradeBoardAssetLabel } from "@/lib/view/tradeBoard";
-import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weatherLabel } from "@/lib/core/types";
+import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weatherLabel, type GameState } from "@/lib/core/types";
 import { SeasonReviewPanels, SeasonReviewSummary } from "@/components/SeasonReview";
 import { presentSeasonReview } from "@/lib/view/seasonReview";
 import { hubCampCutdownCopy, hubCampFloorCopy, rosterCapView } from "@/lib/view/rosterCap";
 import { teamLeaders } from "@/lib/view/teamLeaders";
 import { PRIVATE_VISIT_CAP, calendarView } from "@/lib/core/scouting";
+
+/** Live label while Hub simTo yields between weeks. */
+function hubSimLabel(state: GameState): string {
+  if (state.phase === "regular") return `Simming… Week ${state.week}`;
+  if (state.phase === "playoffs") {
+    const round = state.playoffs?.round;
+    return round ? `Simming… ${roundLabel(round)}` : "Simming… Playoffs";
+  }
+  const phase = PHASE_LABEL[state.phase];
+  return phase ? `Simming… ${phase}` : "Simming…";
+}
 
 /** One row in the Sim dropdown. */
 function SimOption({ label, hint, onClick }: { label: string; hint: string; onClick: () => void }) {
@@ -54,9 +66,9 @@ export default function Hub() {
   const apply = useGame((s) => s.apply);
   const simTo = useGame((s) => s.simTo);
   const busy = useGame((s) => s.busy);
+  const simming = useGame((s) => s.simming);
   const [confirming, setConfirming] = useState(false);
   const [simMenu, setSimMenu] = useState(false);
-  const [simming, setSimming] = useState(false);
   const simMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -82,15 +94,9 @@ export default function Hub() {
     };
   }, [simMenu]);
 
-  // The sim runs synchronously in one store apply; the timeout lets the
-  // "Simming…" label paint before the main thread goes heads-down.
   const runSim = (target: Parameters<typeof simTo>[0]) => {
     setSimMenu(false);
-    setSimming(true);
-    setTimeout(() => {
-      simTo(target);
-      setSimming(false);
-    }, 30);
+    void simTo(target);
   };
 
   const derived = useMemo(() => {
@@ -189,7 +195,7 @@ export default function Hub() {
                       disabled={busy || simming}
                       onClick={() => setSimMenu(!simMenu)}
                     >
-                      {simming ? "Simming…" : "Sim ▾"}
+                      {simming ? hubSimLabel(state) : "Sim ▾"}
                     </Button>
                     {simMenu && (
                       <div className="absolute right-0 top-full mt-1 z-30 w-60 bg-[var(--color-surface-3)] border border-[var(--color-line)] rounded-lg shadow-xl overflow-hidden">

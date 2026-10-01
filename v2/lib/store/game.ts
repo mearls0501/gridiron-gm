@@ -7,16 +7,33 @@ import { newGame, NewGameOptions } from "../core/newGame";
 import { advance as advanceSeason } from "../core/season/engine";
 import { advanceOffseason } from "../core/offseason";
 import { saveGame, loadGame, listSaves, lastSaveId, deleteSave } from "./save";
-import { runSimTo, type SimTarget } from "./simTo";
+import { simToStepper, type SimTarget } from "./simTo";
 import { isPendingForcedMove } from "../core/owner";
 
 export type { SimTarget };
+
+/**
+ * Let the browser paint between Hub sim units. rAF runs before the next
+ * paint; the timeout queued from it runs after that paint. No clock is read.
+ */
+function yieldToPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    const afterPaint = () => setTimeout(resolve, 0);
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(afterPaint);
+    else afterPaint();
+  });
+}
+
+/** Blocks other mutations while a Hub simTo is between weeks. Not save state. */
+let simActive = false;
 
 /**
  * Single store holding the whole franchise.
  *
  * Every mutation goes through `apply`, which runs the change against the live
  * state object, bumps a revision counter to trigger re-render, and persists.
+ * Hub simTo steps the same save and commits once at the end, yielding between
+ * weeks so the tab can paint.
  * Because the entire save is one document, a write is atomic — there is no way
  * to end up with a roster that saved but a schedule that didn't.
  */
@@ -25,6 +42,8 @@ interface Store {
   state: GameState | null;
   rev: number;
   busy: boolean;
+  /** True while Hub simTo is yielding between weeks. Not part of the save. */
+  simming: boolean;
   error: string | null;
   toast: string | null;
   hydrated: boolean;
@@ -37,7 +56,7 @@ interface Store {
 
   apply: (fn: (s: GameState) => string | void) => void;
   advance: () => void;
-  simTo: (target: SimTarget) => void;
+  simTo: (target: SimTarget) => Promise<void>;
   setToast: (t: string | null) => void;
   setError: (e: string | null) => void;
 }
@@ -46,6 +65,7 @@ export const useGame = create<Store>((set, get) => ({
   state: null,
   rev: 0,
   busy: false,
+  simming: false,
   error: null,
   toast: null,
   hydrated: false,
@@ -98,6 +118,7 @@ export const useGame = create<Store>((set, get) => ({
   saves: () => listSaves(),
 
   apply(fn) {
+    if (simActive) return;
     const s = get().state;
     if (!s) return;
     try {
@@ -134,14 +155,60 @@ export const useGame = create<Store>((set, get) => ({
     });
   },
 
-  simTo(target) {
-    get().apply((s) => {
-      if (isPendingForcedMove(s)) {
-        return "The owner has ended your time here. Take an open chair or retire the save.";
+  async simTo(target) {
+    if (simActive) return;
+    const s = get().state;
+    if (!s) return;
+    if (isPendingForcedMove(s) || s.forcedMove?.retired) {
+      get().apply((st) => {
+        if (isPendingForcedMove(st)) {
+          return "The owner has ended your time here. Take an open chair or retire the save.";
+        }
+        return "You retired from the chair. The save remains.";
+      });
+      return;
+    }
+
+    simActive = true;
+    set({ simming: true, busy: true });
+    let closed = false;
+    try {
+      await yieldToPaint();
+      const step = simToStepper(s, target);
+      let result = step();
+      while (!result.done) {
+        set({ state: { ...s }, rev: get().rev + 1 });
+        await yieldToPaint();
+        result = step();
       }
-      if (s.forcedMove?.retired) return "You retired from the chair. The save remains.";
-      return runSimTo(s, target);
-    });
+      ensureJerseyNumbers(s);
+      maybeRetireNumbersForHallOfFame(s);
+      const message = result.message;
+      set({
+        state: { ...s },
+        rev: get().rev + 1,
+        toast: message ? message : null,
+        error: null,
+        busy: false,
+        simming: false,
+      });
+      closed = true;
+      void saveGame(s).catch((e) =>
+        set({ error: e instanceof Error ? e.message : "Could not save. Your progress may be lost." })
+      );
+    } catch (e) {
+      set({
+        state: { ...s },
+        rev: get().rev + 1,
+        error: e instanceof Error ? e.message : "Something went wrong.",
+        busy: false,
+        simming: false,
+      });
+      closed = true;
+    } finally {
+      simActive = false;
+      if (!closed) set({ simming: false, busy: false });
+    }
   },
 
   setToast: (t) => set({ toast: t }),
