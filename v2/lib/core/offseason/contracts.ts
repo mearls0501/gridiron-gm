@@ -752,13 +752,25 @@ export function beliefNegotiatedApy(
   return apyFromAsk(state, teamId, askingPrice(state, p, teamId), premium);
 }
 
-/** Reasonable contract length for a player of this age/ability. */
-export function suggestedYears(p: Player): number {
-  if (p.age >= 33) return 1;
-  if (p.age >= 30) return 2;
-  if (p.ovr >= 80) return 5;
-  if (p.ovr >= 72) return 4;
+function yearsForAgeAndOvr(age: number, ovr: number): number {
+  if (age >= 33) return 1;
+  if (age >= 30) return 2;
+  if (ovr >= 80) return 5;
+  if (ovr >= 72) return 4;
   return 3;
+}
+
+/** Reasonable contract length for a player of this age and true overall. Sim paths stay here. */
+export function suggestedYears(p: Player): number {
+  return yearsForAgeAndOvr(p.age, p.ovr);
+}
+
+/**
+ * FA desk "Sug. Yrs". A street free agent follows this club's veteran belief.
+ * `suggestedYears` and `negotiatedApy` stay on true overall so the sim stream does not move.
+ */
+export function deskSuggestedYears(state: GameState, p: Player): number {
+  return yearsForAgeAndOvr(p.age, believedOvr(state, state.userTeamId, p));
 }
 
 // ---------------------------------------------------------------------------

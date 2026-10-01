@@ -7,7 +7,7 @@ import { userNextGame, isOnBye } from "./engine";
 import { divisionStandings, seasonHasResults } from "./standings";
 import { passerRating } from "./stats";
 import { playerName } from "../ratings";
-import { PRIVATE_VISIT_CAP, calendarView } from "../scouting";
+import { PRIVATE_VISIT_CAP, calendarView, userVeteranView, visibleOvr } from "../scouting";
 import { gamedayInactiveView } from "../inactives";
 import {
   demandNearDeadline, holdoutDetail, psychologyView, tradeRequestDetail,
@@ -53,7 +53,7 @@ export interface OpponentPreview {
   form: string;              // "W-L-W last three"
   home: boolean;
   weather: string | null;
-  stars: { name: string; pos: Position; ovr: number }[];
+  stars: { name: string; pos: Position; ovr: string }[];
   out: { name: string; pos: Position; weeks: number }[];
   edges: string[];           // matchup notes, both directions
 }
@@ -290,15 +290,21 @@ function buildActionItems(state: GameState): { action: ActionItem[]; review: str
   return { action, review };
 }
 
-/** Average OVR of the listed starters in a position group. */
-function groupStrength(state: GameState, teamId: number, group: Position[]): number {
+/**
+ * Starter-group average for the week preview.
+ * The user's club stays on true overall. A rival is this desk's veteran belief.
+ */
+export function briefingGroupOvr(state: GameState, teamId: number, group: readonly Position[]): number {
   const t = state.teams[teamId];
   const byId = new Map(state.players.map((p) => [p.id, p]));
+  const own = teamId === state.userTeamId;
   let sum = 0, n = 0;
   for (const pos of group) {
     for (const id of (t.depthChart[pos] ?? []).slice(0, STARTERS[pos])) {
       const p = byId.get(id);
-      if (p) { sum += p.ovr; n++; }
+      if (!p) continue;
+      sum += own ? p.ovr : userVeteranView(state, p).ovr;
+      n++;
     }
   }
   return n ? sum / n : 0;
@@ -328,15 +334,17 @@ function buildOpponent(state: GameState): OpponentPreview | null {
     .map((x) => ((x.homeId === oppId) === (x.homeScore > x.awayScore) && x.homeScore !== x.awayScore ? "W" : x.homeScore === x.awayScore ? "T" : "L"));
 
   const roster = state.players.filter((p) => p.teamId === oppId && !p.prospect);
-  const stars = [...roster].sort((a, b) => b.ovr - a.ovr).slice(0, 3)
-    .map((p) => ({ name: playerName(p), pos: p.pos, ovr: p.ovr }));
+  const stars = [...roster]
+    .sort((a, b) => userVeteranView(state, b).ovr - userVeteranView(state, a).ovr || a.id - b.id)
+    .slice(0, 3)
+    .map((p) => ({ name: playerName(p), pos: p.pos, ovr: visibleOvr(state, p) }));
   const out = roster.filter((p) => p.injuryWeeks > 0).sort((a, b) => b.ovr - a.ovr).slice(0, 4)
     .map((p) => ({ name: playerName(p), pos: p.pos, weeks: p.injuryWeeks }));
 
   const edges: string[] = [];
   const diffs = GROUPS.map((grp) => ({
     grp,
-    diff: groupStrength(state, state.userTeamId, grp.positions) - groupStrength(state, oppId, grp.positions),
+    diff: briefingGroupOvr(state, state.userTeamId, grp.positions) - briefingGroupOvr(state, oppId, grp.positions),
   })).sort((a, b) => b.diff - a.diff);
   const best = diffs[0], worst = diffs[diffs.length - 1];
   if (best.diff >= 2) edges.push(`You hold the edge in ${best.grp.name} (+${best.diff.toFixed(1)} OVR across the starters).`);

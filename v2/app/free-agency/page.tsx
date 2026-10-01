@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import { Rng } from "@/lib/core/rng";
 import { playerName } from "@/lib/core/ratings";
-import { askingPrice, signPlayer, suggestedYears } from "@/lib/core/offseason/contracts";
+import { askingPrice, deskSuggestedYears, signPlayer } from "@/lib/core/offseason/contracts";
 import { userVeteranView, visibleOvr } from "@/lib/core/scouting";
 import {
   FA_ROUNDS, faPool, faPoolFor, liveBids, placeUserBid, userBids, withdrawUserBid,
@@ -146,11 +146,12 @@ export default function FreeAgencyPage() {
     .sort((a, b) => b.apy - a.apy || a.playerId - b.playerId)
     .slice(0, 16);
 
-  /** Prefill the editor with the deal core would consider fair. */
+  /** Prefill the editor from this desk's read of the free agent. */
   function startOffer(p: Player, asking: number) {
+    if (!state) return;
     setOffer({
       playerId: p.id,
-      years: String(suggestedYears(p)),
+      years: String(deskSuggestedYears(state, p)),
       apyM: (asking / 1_000_000).toFixed(2),
     });
   }
@@ -549,7 +550,7 @@ export default function FreeAgencyPage() {
                       ? `${state.teams[bid.teamId]?.abbr ?? "CPU"} ${formatMoney(bid.apy)}`
                       : "—"}
                   </Cell>
-                  <Cell className="text-[var(--color-muted)]">{suggestedYears(p)}</Cell>
+                  <Cell className="text-[var(--color-muted)]">{deskSuggestedYears(state, p)}</Cell>
                   <Cell>
                     {editing ? (
                       <div className="flex items-center justify-end gap-2 whitespace-nowrap">

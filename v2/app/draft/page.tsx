@@ -37,7 +37,7 @@ import {
   scoutingBlockReason,
   setBoardNote,
 } from "@/lib/core/scouting";
-import { describeAsset } from "@/lib/core/trades";
+import { tradeBoardAssetLabel } from "@/lib/view/tradeBoard";
 import { boardGrade, consensusGrade, gradeContext, prospectReports, prospectTraits } from "@/lib/core/scouting-reports";
 import { enterDraft, simEntireDraft, simToUserPick } from "@/lib/core/offseason";
 import { capHit, formatMoney, playerMap } from "@/lib/core/select";
@@ -264,7 +264,7 @@ export default function DraftPage() {
       setMoveUpQuote("NO_DEAL");
       return;
     }
-    setMoveUpQuote(bundle.map((a) => describeAsset(state, a)).join(" + "));
+    setMoveUpQuote(bundle.map((a) => tradeBoardAssetLabel(state, a)).join(" + "));
   }
 
   function doMoveUp() {
@@ -593,7 +593,7 @@ export default function DraftPage() {
                     {state.teams[o.fromTeamId].city} {state.teams[o.fromTeamId].name}
                   </div>
                   <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                    They send: {o.give.map((a) => describeAsset(state, a)).join(" + ")} · for
+                    They send: {o.give.map((a) => tradeBoardAssetLabel(state, a)).join(" + ")} · for
                     your pick #{onClock?.pick}
                   </div>
                   <div className="text-[10px] text-[var(--color-faint)] mt-0.5">{o.rationale}</div>

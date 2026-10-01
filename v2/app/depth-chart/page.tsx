@@ -26,6 +26,7 @@ import {
   Table,
   Tabs,
 } from "@/components/ui";
+import { DEPTH_CHART_HELP, starterCountLabel } from "@/lib/view/depthChartCopy";
 
 /**
  * Editable depth chart.
@@ -135,14 +136,7 @@ export default function DepthChartPage() {
         }
       >
         <div className="space-y-3">
-          <p className="text-sm text-[var(--color-muted)]">
-            This chart drives the simulation. Before each play the engine walks every position list
-            from the top and fields the first{" "}
-            <span className="text-[var(--color-text)]">{"STARTERS[pos]"}</span> healthy players it
-            finds — so the order below is literally who takes the snap. Injured players are skipped
-            and the next man up plays; if a list runs short, the best remaining healthy body on the
-            roster fills in.
-          </p>
+          <p className="text-sm text-[var(--color-muted)]">{DEPTH_CHART_HELP}</p>
           <div className="flex flex-wrap items-center gap-2">
             <Pill tone="accent">Starter</Pill>
             <span className="text-xs text-[var(--color-muted)]">
@@ -176,7 +170,7 @@ export default function DepthChartPage() {
               <Card
                 key={pos}
                 title={pos}
-                subtitle={`${players.length} player${players.length === 1 ? "" : "s"} · ${starters} start${starters === 1 ? "s" : ""}`}
+                subtitle={`${players.length} player${players.length === 1 ? "" : "s"} · ${starterCountLabel(starters)}`}
                 padded={false}
               >
                 {players.length === 0 ? (
