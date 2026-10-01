@@ -5,6 +5,61 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-01 — Invite display leftovers
+
+Worker. Display only. Zero new RNG draws. `sim/game.ts`, dials, `docs/baselines.json`, trade pricing, and `negotiatedApy` are not touched.
+
+Base: `main` `bd80ad2` (Hub simTo #135).
+
+### Diagnosis
+
+Four screens still handed a tester the answer key, or printed a code token.
+
+The depth chart help rendered the identifier `STARTERS[pos]`. Position cards put the plural on the singular: one starter read "1 starts", three read "3 start".
+
+This Week built "Their best" and the starter-group lines from true overall, including an exact gap such as "+4.2 OVR". The trade board already prints `visibleOvr` and ranks on `userVeteranView`. "They're missing" already omits a number.
+
+Draft-clock "Ask their price" and "They send" called `describeAsset`, which appends true overall. That same function writes the trade log, and This Week's "Around the League" reprints those `Trade:` rows. The log is supposed to stay on truth.
+
+Free agency "Sug. Yrs" called `suggestedYears`, which follows true overall (5 at 80, 4 at 72). The OVR badge and the ask on that desk already use the scouted belief. `suggestedYears` is also what CPU free agency and re-signs use for term length. Changing it would move the parent stream. `negotiatedApy` stays on truth for the same reason.
+
+### Change
+
+Depth-chart help names the starter counts in words. Each card says "1 starter" or "3 starters".
+
+The week preview rates the user's starters on true overall and the rival's on `userVeteranView`. "Their best" prints `visibleOvr` and is ordered by that belief. The matchup sentence uses the belief gap. "They're missing" is still names and weeks, still ordered by true overall, still with no rating.
+
+Clock-offer strings use `tradeBoardAssetLabel`. `describeAsset` is unchanged, so the trade log and "Around the League" still record true overall.
+
+`deskSuggestedYears` is the FA column and the offer prefill. It runs the same age ladder on `believedOvr`. `suggestedYears` still reads `p.ovr`. `negotiatedApy` is untouched.
+
+### Leftover
+
+A belief-averaged group gap is a number to a tenth. It is not the true gap, and it is tighter than one player's band because the noises average. "They're missing" still lists the highest true-overall injured names, without a rating.
+
+### Untouched
+
+`lib/core/trades.ts` (math, `describeAsset`, accept/reject), `negotiatedApy`, CPU contract length, `lib/core/sim/game.ts`, dials, `docs/baselines.json`. No parent-stream draw. Assertions are `invitedisplay`, registered in `package.json` `test` and in `scripts/gate.ts` FAST and FULL.
+
+### Gate
+
+`npm run gate` from `v2/` (fast, parallel, 1 seed, 4 cores). `invitedisplay` passed. Determinism passed (2 metrics). `calibrate` 28 metrics and `statcheck` 23 metrics passed. One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+`statcheck.wr10RecYds` did not fire. `docs/baselines.json` was not touched. Not a retune.
+
+### Browser evidence
+
+Playwright, Chrome, seed 42, Boston Minutemen. Depth chart help names the starter counts in words. QB reads "1 player · 1 starter". WR reads "5 players · 3 starters". The identifier is gone.
+
+Start the Season, week 1 at Cleveland. Their best: Jace Pemberton LB 85-89, Tevin Scott TE 81-85, Jace Williams OG 80-84. The same three strings are the Scouted column on `/trades` for Cleveland. Matchup lines: quarterback play +4.0 OVR, skill positions −3.5 OVR. They're missing says Fully healthy and prints no rating.
+
+---
+
 ## 2026-10-01 — Hub simTo yields between weeks
 
 Worker. Scheduling only. Zero new RNG draws. `sim/game.ts`, dials, `docs/baselines.json`, and `secondScene.ts` are not touched.
