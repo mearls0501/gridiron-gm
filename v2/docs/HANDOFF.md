@@ -5,6 +5,46 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-01 — Waiver desk: hide, don't wipe
+
+Worker. Presentation only. Zero new RNG draws. No save field.
+
+Base: `main` `02b18fb` (#131 play-snap persist).
+
+### Diagnosis
+
+The live waiver desk is the Waivers card on `/roster`. The Hub only links there. `waiverWire` painted every `state.waivers` row as a Claim button. After settle, what remains is the cap-stuck residue `stashOrFreeAgent` cannot clear (original club cannot eat the dead money or park him on the practice squad). It is not a missed settle and it is not the free-agent pool.
+
+Seed 42 on this main, headless `advance` / `advanceOffseason`: 118 names at 2027 week 1, 375 at 2028 week 1. The user roster is 53/53, so `submitWaiverClaim` rejects every claim until someone is released. The old 56–62 / ~267 notes are the same residue on an earlier build; the wall is larger now. Do not wipe it.
+
+### Change
+
+`lib/view/waiverDesk.ts` only chooses which rows to show. Default scan is at most 12 players who fit under this club's cap (`capHit` ≤ `teamCap.space`) and are at or above `REPLACEMENT_OVR`, or who fill a hole under `POSITION_MIN`. Overall orders that list. A hole jumps the line. `needsOf` breaks an overall tie and draws the Need pill. Own waives and claims already filed stay on the desk. Everyone else stays on `state.waivers`, counted, and reachable with Entire wire or search. A full roster withholds the Claim button (`Release someone to claim`) because the click cannot succeed. Once a slot exists, the same `submitWaiverClaim` runs, including on a hidden or over-cap name. Ephemeral React state only.
+
+### Leftover
+
+The wire has no cut-week stamp, so "recent cut" is not its own sort. Cap-stuck in the sim (the original club cannot clear the body) is not the same as over this GM's cap. Seed 42 week 1 had about $104M of space, so the hidden mass was below the scan, not unaffordable. The over-cap path is covered by the unit test.
+
+### Untouched
+
+`lib/core/waivers.ts` (claim order, `resolveWaivers`, `settleWaivers`, eligibility), `lib/core/sim/game.ts`, `secondScene.ts`, dials, `docs/baselines.json`, the free-agent pool, the parent RNG stream.
+
+### Gate
+
+`npm run gate` from `v2/` (fast, parallel, 1 seed, 4 cores). Every harness exited 0, including `waiverdesk`, `waivers`, and `determinism`. One FAIL, the inherited single-seed red:
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+```
+
+`statcheck.wr10RecYds` did not fire on this run. `docs/baselines.json` was not touched.
+
+### Browser
+
+Playwright, seed 42, new franchise → Start the Season → Through the Playoffs (pause and resume) → offseason through Roster Cutdown → 2027 preseason. `/roster` Waivers card: **119** on the wire, **0** Claim buttons while the roster was 53/53, **12** "Release someone to claim" rows. Entire wire expanded to 119 rows and still 0 Claim buttons. After one Release, **12** Claim buttons. Claiming the first one left a Withdraw button, still there after reload.
+
+---
+
 ## 2026-10-01 — Lane A: keep the called game, and show the button
 
 Worker. Persistence and discovery only. Zero new RNG draws. `sim/game.ts`, dials, `docs/baselines.json`, and `secondScene.ts` are not touched.

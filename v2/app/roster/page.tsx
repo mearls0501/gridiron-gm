@@ -14,8 +14,11 @@ import {
 } from "@/lib/core/select";
 import { cutPlayer, reconcileRoster } from "@/lib/core/offseason/contracts";
 import {
-  submitWaiverClaim, userHasClaim, waiverWindowLabel, waiverWire, withdrawWaiverClaim,
+  submitWaiverClaim, waiverWindowLabel, waiverWire, withdrawWaiverClaim,
 } from "@/lib/core/waivers";
+import {
+  visibleWaiverRows, waiverDesk, waiverDeskHiddenCopy,
+} from "@/lib/view/waiverDesk";
 import { autoSortDepthChart } from "@/lib/core/generate";
 import { Rng } from "@/lib/core/rng";
 import { playerName } from "@/lib/core/ratings";
@@ -94,6 +97,8 @@ export default function RosterPage() {
   const [sortKey, setSortKey] = useState<SortKey>("ovr");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [wireQuery, setWireQuery] = useState("");
+  const [showEntireWire, setShowEntireWire] = useState(false);
 
   const roster = useMemo<Player[]>(
     () => (state ? teamRoster(state, state.userTeamId) : []),
@@ -104,6 +109,11 @@ export default function RosterPage() {
   const irList = useMemo(() => roster.filter((p) => p.status === "ir"), [roster]);
   const psList = useMemo(() => roster.filter((p) => p.status === "ps"), [roster]);
   const wire = useMemo(() => (state ? waiverWire(state) : []), [state, rev]);
+  const desk = useMemo(() => (state ? waiverDesk(state) : null), [state, rev]);
+  const wireRows = useMemo(
+    () => (desk ? visibleWaiverRows(desk, wireQuery, showEntireWire) : []),
+    [desk, wireQuery, showEntireWire],
+  );
 
   const rows = useMemo<Player[]>(() => {
     const q = query.trim().toLowerCase();
@@ -214,50 +224,108 @@ export default function RosterPage() {
         />
       </div>
 
-      {wire.length > 0 && (
+      {wire.length > 0 && desk && (
         <Card
           title="Waivers"
-          subtitle={`${wire.length} on the wire · ${waiverWindowLabel(state)} Inverse standings — worse record claims first. No cash bid.`}
+          subtitle={
+            desk.rosterFull
+              ? `${wire.length} on the wire · ${desk.toClaim} fits`
+              : `${wire.length} on the wire · ${desk.toClaim} to claim`
+          }
           padded={false}
         >
-          <Table head={["Player", "Pos", "OVR", "From", ""]}>
-            {wire.map(({ entry, player: p }) => {
-              const from = state.teams[entry.originalTeamId];
-              const mine = entry.originalTeamId === teamId;
-              const submitted = userHasClaim(entry, teamId);
-              return (
-                <Row key={p.id}>
-                  <Cell align="left"><PlayerLink p={p} className="font-medium" /></Cell>
-                  <Cell><PosBadge pos={p.pos} /></Cell>
-                  <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
-                  <Cell>{from?.abbr ?? "—"}</Cell>
-                  <Cell>
-                    {mine ? (
-                      <span className="text-[11px] text-[var(--color-muted)]">
-                        Your waive — if unclaimed, this club may stash him on the PS
+          <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-[var(--color-line-soft)]">
+            <input
+              value={wireQuery}
+              onChange={(e) => setWireQuery(e.target.value)}
+              placeholder="Search the wire…"
+              aria-label="Search the waiver wire"
+              className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-lg px-3 py-1.5 text-sm placeholder:text-[var(--color-faint)] outline-none focus:border-[var(--color-accent)] transition-colors min-w-[200px]"
+            />
+            {desk.hidden.length > 0 && (
+              <>
+                <Button
+                  size="sm"
+                  variant={showEntireWire ? "ghost" : "primary"}
+                  onClick={() => setShowEntireWire(false)}
+                >
+                  Fits ({desk.featured.length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={showEntireWire ? "primary" : "ghost"}
+                  onClick={() => setShowEntireWire(true)}
+                >
+                  Entire wire ({wire.length})
+                </Button>
+              </>
+            )}
+          </div>
+          <p className="px-4 py-2 text-xs text-[var(--color-muted)]">
+            {waiverWindowLabel(state)} Inverse standings — worse record claims first. No cash bid.
+            {desk.rosterFull ? " Roster is full — release someone before a claim can land." : ""}
+            {wireQuery.trim()
+              ? ` ${wireRows.length} match${wireRows.length === 1 ? "" : "es"} on the full wire.`
+              : !showEntireWire && waiverDeskHiddenCopy(desk)
+                ? ` ${waiverDeskHiddenCopy(desk)}`
+                : ""}
+          </p>
+          {wireRows.length === 0 ? (
+            <Empty
+              title={wireQuery.trim() ? "No one on the wire matches" : "Nothing to claim from this scan"}
+              hint={wireQuery.trim() ? "Try a name or a position." : waiverDeskHiddenCopy(desk) ?? undefined}
+            />
+          ) : (
+            <Table head={["Player", "Pos", "OVR", "Cap Hit", "From", ""]}>
+              {wireRows.map((row) => {
+                const p = row.player;
+                const from = state.teams[row.entry.originalTeamId];
+                return (
+                  <Row key={p.id}>
+                    <Cell align="left">
+                      <span className="inline-flex items-center gap-2">
+                        <PlayerLink p={p} className="font-medium" />
+                        {row.need && <Pill tone="accent">Need</Pill>}
+                        {row.submitted && <Pill tone="good">Claimed</Pill>}
+                        {!row.own && !row.affordable && <Pill tone="warn">Over cap</Pill>}
                       </span>
-                    ) : submitted ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => move((s) => withdrawWaiverClaim(s, p.id), `Withdrew claim on ${playerName(p)}`)}
-                      >
-                        Withdraw
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => move((s) => submitWaiverClaim(s, p.id), `Claim submitted on ${playerName(p)}`)}
-                      >
-                        Claim
-                      </Button>
-                    )}
-                  </Cell>
-                </Row>
-              );
-            })}
-          </Table>
+                    </Cell>
+                    <Cell><PosBadge pos={p.pos} /></Cell>
+                    <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                    <Cell>{p.contract ? formatMoney(row.hit) : "—"}</Cell>
+                    <Cell>{from?.abbr ?? "—"}</Cell>
+                    <Cell>
+                      {row.own ? (
+                        <span className="text-[11px] text-[var(--color-muted)]">
+                          Your waive — if unclaimed, this club may stash him on the PS
+                        </span>
+                      ) : row.submitted ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => move((s) => withdrawWaiverClaim(s, p.id), `Withdrew claim on ${playerName(p)}`)}
+                        >
+                          Withdraw
+                        </Button>
+                      ) : desk.rosterFull ? (
+                        <span className="text-[11px] text-[var(--color-muted)]">
+                          Release someone to claim
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => move((s) => submitWaiverClaim(s, p.id), `Claim submitted on ${playerName(p)}`)}
+                        >
+                          Claim
+                        </Button>
+                      )}
+                    </Cell>
+                  </Row>
+                );
+              })}
+            </Table>
+          )}
         </Card>
       )}
 
