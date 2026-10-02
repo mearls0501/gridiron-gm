@@ -37,7 +37,22 @@ Seed 90: the shared-rng week did not reproduce the live score. The sealed week d
 
 ### Gate
 
-Pending the serial fast gate.
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). `livegame`, typecheck, determinism, verify, sweep, calibrate (28 metrics), and statcheck (23 metrics) passed. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+`npm run build` from `v2/` completes.
+
+### Browser
+
+Seed 90, Boston at Memphis. Run, Pass, Run, then Let the coach finish. The called game was home–away **9–30** (Boston is away). Play Week with these calls. The hub log read `Week 1: You beat Memphis Kings 30-9`. Week 1 Results showed BOS 30, MEM 9. Same game.
+
+A week that was never opened in `/play` is still the shared-rng sim. The test advances two copies with no seal and no snap list and they match.
 
 ---
 
