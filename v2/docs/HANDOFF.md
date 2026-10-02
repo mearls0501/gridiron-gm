@@ -47,6 +47,17 @@ A call can still be the old bundle when no other package clears the same band. C
 
 CPU-CPU `proposeTrade` / `runCpuTrades` draw sequence and which deals execute. Plan Now pause rule, HC-fire dial, Packet 4 second scene, `docs/baselines.json`, play-calling dials, draft PRs #9, #63, #104–#107. Trade-desk fog: rival overall stays the scouted badge (`tradeBoard`). No parent-stream draw was added.
 
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores, ~20 min). `useroffers`, `tradewindow`, `tradeboard`, typecheck, determinism, verify, sweep, calibrate, statcheck, and scout passed. `contractceiling` 791s, seed 12345 peak top cap **21.7%**, busts 0. `statcheck.wr10RecYds` **1070**, inside the band, did not fire. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not touched.
+
 ---
 
 ## 2026-10-02 — A finished /play game is the official week result
