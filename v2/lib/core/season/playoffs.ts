@@ -14,6 +14,7 @@ import { freeActiveSlot } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
 import { clearCallSheets, userSimOpts } from "../callSheet";
+import { applySealedLive, clearSealedLive } from "../liveGame";
 import { resolveWaivers } from "../waivers";
 
 /**
@@ -170,12 +171,14 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
       state.log.length = logMark;
     };
 
-    let result = simulateGame(state, g, rng, userSimOpts(state, g));
+    const sealed = applySealedLive(state, g.id);
+    let result = sealed ?? simulateGame(state, g, rng, userSimOpts(state, g));
 
     // Playoff games cannot tie. Replay until decided — the old build threw here
-    // and deadlocked the bracket with no recovery path.
+    // and deadlocked the bracket with no recovery path. A sealed live game
+    // keeps the score that was played; it is not drawn again.
     let guard = 0;
-    while (result.homeScore === result.awayScore && guard++ < 20) {
+    while (!sealed && result.homeScore === result.awayScore && guard++ < 20) {
       restore();
       result = simulateGame(state, g, rng, userSimOpts(state, g));
     }
@@ -222,6 +225,7 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
   clearInactives(state);
   clearCallSheets(state);
+  clearSealedLive(state);
 
   // Advance the bracket.
   if (ps.round === "SB") {
