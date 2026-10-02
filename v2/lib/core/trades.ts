@@ -144,6 +144,22 @@ function findPick(state: GameState, a: Extract<TradeAsset, { kind: "pick" }>): P
 // ---------------------------------------------------------------------------
 
 /**
+ * Last year's final order. It does not move until `state.season` does, and
+ * the same save object lives all year. Rebuilding it on every pick turned a
+ * phone call into a sort of every game. Keyed by the save and the season.
+ */
+const pickSlotCache = new WeakMap<GameState, { season: number; order: number[] }>();
+
+function pickSlots(state: GameState): readonly number[] {
+  const season = state.season;
+  const hit = pickSlotCache.get(state);
+  if (hit && hit.season === season) return hit.order;
+  const order = draftOrder(state, season - 1);
+  pickSlotCache.set(state, { season, order });
+  return order;
+}
+
+/**
  * What a pick is worth, in the same units `evaluate()` returns for players.
  *
  * Round is most of it, but WHOSE pick matters: a bad team's second is worth
@@ -168,7 +184,7 @@ export function pickValue(
   // Where in the round it falls. During the draft itself the slot is KNOWN —
   // callers on the clock pass it — otherwise it is estimated from the original
   // club's last finish. `draftOrder` is worst-first, so a low index is early.
-  const order = draftOrder(state, state.season - 1);
+  const order = pickSlots(state);
   const slot = slotIndex ?? order.indexOf(pick.originalTeamId);
   if (slot >= 0) {
     // +25% at the very top of a round, -25% at the bottom.

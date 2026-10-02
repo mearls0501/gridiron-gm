@@ -27,6 +27,8 @@ After a pick is used, skipped to the end of the board, or the draft is marked co
 
 The inquiry key includes `nextTradeId`. Replacing a stale call moves it, and seed 42's free-agency walk then missed every club (`builtN` 0) even though `rngState` was still **485912630**. If that walk places nobody, up to eight further child walks ask again. They do not touch the parent.
 
+`pickValue` still prices a pick from last year's final draft order. That order is computed once per save per season and reused, so a phone call does not re-sort every game for every pick.
+
 ### Checked
 
 Seed 42, full season through camp. Parent `rngState` at tag **4285417656**, at free agency **485912630**. Free agency opened with 1–2 legal calls, each asking for a player. Across the calls that arrived in-season and at free agency, more than one give-shape, and the three-late-picks bundle was not every call. After the draft, no inbox pick was spent or held by the wrong club.
@@ -34,6 +36,8 @@ Seed 42, full season through camp. Parent `rngState` at tag **4285417656**, at f
 Five seeds (1, 7, 42, 99, 123) at week 6 and at free agency, `generateUserOffers` cap 2: at least four give-shapes, the late-pick bundle a minority, every call legal, none naming a used pick. A planted used 4th is removed; a future 2nd stays until that club no longer holds it.
 
 `npx tsx lib/core/userOffers.test.ts`, `tradeWindow.test.ts`, `tradeBoard.test.ts`, and `tsc --noEmit` passed.
+
+Seed 12345 through 2029 still prints top cap 18.1 / 17.7 / 19.5 / 21.7. The slot cache does not move that path.
 
 ### Leftover
 
