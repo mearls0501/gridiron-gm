@@ -9,7 +9,7 @@ import {
 import { positionCount, rosterCount, startSeason } from "../select";
 import { draftOrder } from "../season/standings";
 import { Posture, REPLACEMENT_OVR, frontOffice, teamOutlook } from "../frontOffice";
-import { appendPickOwners, ensurePickInventory, executeTrade, pickValue, picksOwnedBy } from "../trades";
+import { appendPickOwners, dropSpentInboxOffers, ensurePickInventory, executeTrade, pickValue, picksOwnedBy } from "../trades";
 import { TradeAsset, TradeOffer } from "../types";
 import { consensusScore, cpuExpectedView, cpuProspectView, generateProspectProfile, riskDiscount } from "../scouting";
 
@@ -660,6 +660,7 @@ export function makePick(state: GameState, playerId: number, rng: Rng): boolean 
   d.onClock += 1;
   d.clockOffers = [];        // any offers were for the slot that just picked
   if (d.onClock >= d.picks.length) d.complete = true;
+  dropSpentInboxOffers(state);
   return true;
 }
 
@@ -708,6 +709,7 @@ export function cpuPick(state: GameState, rng: Rng): void {
   if (pool.length === 0 || rosterCount(state, pick.teamId) >= CAMP_ROSTER_LIMIT) {
     d.onClock += 1;
     if (d.onClock >= d.picks.length) d.complete = true;
+    dropSpentInboxOffers(state);
     return;
   }
 
@@ -748,6 +750,7 @@ export function runFullDraft(state: GameState, rng: Rng): void {
     if (!stepFullDraft(state, rng)) break;
   }
   d.complete = true;
+  dropSpentInboxOffers(state);
 }
 
 // ---------------------------------------------------------------------------

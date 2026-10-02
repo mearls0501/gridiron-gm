@@ -730,6 +730,9 @@ export function proposeTrade(
   const price = playerTradeValue(state, toTeamId, target, theirs) * 1.18;
 
   // Assemble a package: picks first, then a spare body if picks fall short.
+  // The user inbox does not keep this package. `reshapeUserOffer` rebuilds it
+  // on a child stream. CPU-CPU deals stay here so their draws, and which
+  // trades actually execute, do not move.
   const give: TradeAsset[] = [];
   let offered = 0;
 
@@ -1120,6 +1123,40 @@ export function runCutdownTrades(state: GameState, rng: Rng, attempts = 120): nu
 }
 
 /**
+ * A pick that has been used, or that this club no longer holds, is not an
+ * asset. Drop inbox rows and on-the-clock offers that still name one.
+ * Cap, roster, and a closed window are different refusals — those rows stay
+ * so Reject still works.
+ */
+function offerNamesUnavailablePick(state: GameState, offer: TradeOffer): boolean {
+  const sides: [number, TradeAsset[]][] = [
+    [offer.fromTeamId, offer.give],
+    [offer.toTeamId, offer.get],
+  ];
+  for (const [teamId, assets] of sides) {
+    for (const a of assets) {
+      if (a.kind !== "pick") continue;
+      if (isSpentPick(state, a)) return true;
+      const pick = findPick(state, a);
+      if (!pick || pick.teamId !== teamId) return true;
+    }
+  }
+  return false;
+}
+
+export function dropSpentInboxOffers(state: GameState): void {
+  if (state.tradeOffers?.length) {
+    const next = state.tradeOffers.filter((o) => !offerNamesUnavailablePick(state, o));
+    if (next.length !== state.tradeOffers.length) state.tradeOffers = next;
+  }
+  const clock = state.draft?.clockOffers;
+  if (clock?.length && state.draft) {
+    const next = clock.filter((o) => !offerNamesUnavailablePick(state, o));
+    if (next.length !== clock.length) state.draft.clockOffers = next;
+  }
+}
+
+/**
  * Child stream for a user-inbox search that the weekly parent must not see.
  * Keyed off the save, not off `rng`, so a failed shop pass can still place
  * a call without moving `state.rngState`.
@@ -1139,21 +1176,248 @@ function userInquiryRng(state: GameState): Rng {
 }
 
 /**
+ * Package shape for a call the user actually sees. Separate salt from the
+ * inquiry stream: the shop pass must keep drawing `rng` exactly as before.
+ */
+function userOfferShapeRng(state: GameState): Rng {
+  let h = (state.seed ^ 0x6c62272e) >>> 0;
+  h = Math.imul(h ^ (state.season + 1), 0x85ebca6b) >>> 0;
+  h = Math.imul(h ^ (state.week + 1), 0xc2b2ae35) >>> 0;
+  h = Math.imul(h ^ (state.userTeamId + 1), 0x27d4eb2f) >>> 0;
+  h = Math.imul(h ^ (state.nextTradeId ?? 1), 0x165667b1) >>> 0;
+  let phase = 0;
+  for (let i = 0; i < state.phase.length; i++) {
+    phase = (Math.imul(phase, 33) + state.phase.charCodeAt(i)) >>> 0;
+  }
+  h = Math.imul(h ^ phase, 0x85ebca6b) >>> 0;
+  return new Rng(h);
+}
+
+type IncomingShape = "one" | "two" | "mixed" | "player";
+
+function giveShapeKey(give: TradeAsset[]): string {
+  let players = 0;
+  const rounds: number[] = [];
+  for (const a of give) {
+    if (a.kind === "player") players++;
+    else if (a.kind === "pick") rounds.push(a.round);
+  }
+  rounds.sort((a, b) => a - b);
+  return `${players}p:${rounds.join(",")}`;
+}
+
+/** Three Day-3 picks is the only package the cheapest-first builder knows. */
+function isLateScrapBundle(give: TradeAsset[]): boolean {
+  let picks = 0;
+  for (const a of give) {
+    if (a.kind !== "pick") continue;
+    if (a.round < 5) return false;
+    picks++;
+  }
+  return picks >= 3;
+}
+
+function incomingNeedsBody(state: GameState, fromTeamId: number, give: TradeAsset[]): boolean {
+  if (state.phase.startsWith("offseason")) return false;
+  let leaving = 0;
+  for (const a of give) {
+    if (a.kind !== "player") continue;
+    const p = state.players.find((x) => x.id === a.playerId);
+    if (p && isActiveRoster(p)) leaving++;
+  }
+  return rosterCount(state, fromTeamId) - leaving + 1 > ROSTER_LIMIT;
+}
+
+/**
+ * A call the user sees, in a shape other than three late picks plus a body.
+ *
+ * Same price band and same "both clubs come out ahead" test as `proposeTrade`.
+ * The difference is which assets are allowed to pay that price: one pick, two
+ * picks, a player, or a player and a pick (`docs/nfl-reference.md` §1.4).
+ * Returns null when nothing else clears, and the caller keeps the original.
+ */
+function reshapeUserOffer(
+  state: GameState, base: TradeOffer, rng: Rng, seen: Set<string>,
+): TradeOffer | null {
+  const got = base.get.find((a) => a.kind === "player");
+  if (!got || got.kind !== "player") return null;
+  const target = state.players.find((p) => p.id === got.playerId);
+  if (!target) return null;
+  const { posture } = teamOutlook(state, base.fromTeamId);
+
+  const bag: IncomingShape[] = ["one", "two", "mixed", "player"];
+  const order: IncomingShape[] = [];
+  while (bag.length) {
+    const shape = rng.weighted(bag, (s) =>
+      s === "player" ? 0.45 : s === "one" ? 1.3 : s === "mixed" ? 1.2 : 1
+    );
+    order.push(shape);
+    bag.splice(bag.indexOf(shape), 1);
+  }
+
+  let repeat: TradeOffer | null = null;
+  for (const shape of order) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const before = rng.state;
+      const give = rollIncomingGive(state, base.fromTeamId, base.toTeamId, target, rng, shape);
+      if (!give) {
+        if (rng.state === before) break;
+        continue;
+      }
+      const offer: TradeOffer = { ...base, give, rationale: rationaleFor(posture, true) };
+      if (!checkTrade(state, offer).ok) continue;
+      const key = giveShapeKey(give);
+      if (seen.has(key)) {
+        if (!repeat) repeat = offer;
+        continue;
+      }
+      return offer;
+    }
+  }
+  return repeat;
+}
+
+function rollIncomingGive(
+  state: GameState,
+  fromTeamId: number,
+  toTeamId: number,
+  target: Player,
+  rng: Rng,
+  shape: IncomingShape,
+): TradeAsset[] | null {
+  const { posture } = teamOutlook(state, fromTeamId);
+  const { posture: theirs } = teamOutlook(state, toTeamId);
+  const price = playerTradeValue(state, toTeamId, target, theirs) * 1.18;
+  if (!(price > 0)) return null;
+
+  const except = new Set<number>([target.id]);
+  const inSeason = !state.phase.startsWith("offseason");
+  const picks = picksOwnedBy(state, fromTeamId).map((pk) => ({
+    pk,
+    seller: pickValue(state, toTeamId, pk),
+    buyer: Math.max(0.01, pickValue(state, fromTeamId, pk)),
+  }));
+  const pickW = (row: (typeof picks)[number]) =>
+    Math.pow(row.pk.round, 1.25) * Math.pow(Math.max(0.2, row.seller / row.buyer), 2);
+  const bodies = tradeableFrom(state, fromTeamId, posture)
+    .filter((p) => !except.has(p.id) && (!inSeason || isActiveRoster(p)))
+    .map((p) => ({
+      p,
+      v: playerTradeValue(state, toTeamId, p, theirs),
+      ours: Math.max(0.01, playerTradeValue(state, fromTeamId, p, posture)),
+    }));
+
+  const chipAsset = (): TradeAsset | null => {
+    const chip = pickDepthChip(state, fromTeamId, rng, except);
+    return chip ? { kind: "player", playerId: chip.id } : null;
+  };
+
+  let give: TradeAsset[] | null = null;
+
+  if (shape === "player") {
+    const fit = bodies.filter((x) => x.v >= price * 0.85 && x.v <= price * 1.45);
+    if (!fit.length) return null;
+    const p = rng.weighted(fit, (x) => Math.pow(x.v / x.ours, 2)).p;
+    give = [{ kind: "player", playerId: p.id }];
+  } else if (shape === "one" || shape === "two") {
+    const needChip = incomingNeedsBody(state, fromTeamId, []);
+    const chip = needChip ? chipAsset() : null;
+    if (needChip && !chip) return null;
+    const already = chip ? assetValue(state, toTeamId, chip, theirs) : 0;
+    const lo = price * 0.85 - already;
+    const hi = price * 1.45 - already;
+    if (hi <= 0) return null;
+    if (shape === "one") {
+      const fit = picks.filter((row) => row.seller >= lo && row.seller <= hi);
+      if (!fit.length) return null;
+      const row = rng.weighted(fit, pickW);
+      give = [{ kind: "pick", season: row.pk.season, round: row.pk.round, originalTeamId: row.pk.originalTeamId }];
+    } else {
+      const cands: { a: (typeof picks)[number]; b: (typeof picks)[number] }[] = [];
+      for (let i = 0; i < picks.length; i++) {
+        for (let j = i + 1; j < picks.length; j++) {
+          const v = picks[i].seller + picks[j].seller;
+          if (v >= lo && v <= hi) cands.push({ a: picks[i], b: picks[j] });
+        }
+      }
+      if (!cands.length) return null;
+      const pair = rng.weighted(cands, (c) => pickW(c.a) * pickW(c.b));
+      give = [
+        { kind: "pick", season: pair.a.pk.season, round: pair.a.pk.round, originalTeamId: pair.a.pk.originalTeamId },
+        { kind: "pick", season: pair.b.pk.season, round: pair.b.pk.round, originalTeamId: pair.b.pk.originalTeamId },
+      ];
+    }
+    if (chip) give.push(chip);
+  } else {
+    const fitBody = bodies.filter((x) => x.v >= price * 0.2 && x.v <= price * 0.9);
+    if (!fitBody.length) return null;
+    const body = rng.weighted(fitBody, (x) => Math.pow(Math.max(0.2, x.v / x.ours), 2));
+    const lo = price * 0.85 - body.v;
+    const hi = price * 1.45 - body.v;
+    if (hi <= 0) return null;
+    const fit = picks.filter((row) => row.seller >= lo && row.seller <= hi);
+    if (!fit.length) return null;
+    const row = rng.weighted(fit, pickW);
+    except.add(body.p.id);
+    const base: TradeAsset[] = [
+      { kind: "player", playerId: body.p.id },
+      { kind: "pick", season: row.pk.season, round: row.pk.round, originalTeamId: row.pk.originalTeamId },
+    ];
+    if (incomingNeedsBody(state, fromTeamId, base)) {
+      const chip = chipAsset();
+      if (!chip) return null;
+      base.push(chip);
+    }
+    give = base;
+  }
+
+  if (!give || isLateScrapBundle(give)) return null;
+  for (const a of give) {
+    if (a.kind === "pick" && isSpentPick(state, a)) return null;
+  }
+  const offered = give.reduce((n, a) => n + assetValue(state, toTeamId, a, theirs), 0);
+  if (offered < price * 0.85 || offered > price * 1.45) return null;
+  const myGain =
+    packageValue(state, fromTeamId, [{ kind: "player", playerId: target.id }], posture) -
+    packageValue(state, fromTeamId, give, posture);
+  if (myGain <= 0) return null;
+  return give;
+}
+
+/**
  * The shop pass often finds nobody once expiring contracts are gone: the
  * user's posture is not shopping the players other clubs need. Walk the
  * league once on a child stream and ask. Still capped, still not executed.
  */
-function fillUserInquiries(state: GameState, max: number): void {
+function fillUserInquiries(state: GameState, max: number, shapeRng: Rng, seen: Set<string>): void {
   if (!state.tradeOffers || state.tradeOffers.length >= max) return;
-  const rng = userInquiryRng(state);
+  const before = state.tradeOffers.length;
+  placeInquiries(state, max, userInquiryRng(state), shapeRng, seen);
+  if (state.tradeOffers.length > before || state.tradeOffers.length >= max) return;
+  // The primary inquiry key includes nextTradeId. Replacing a stale call
+  // moves that key, and that stream can miss every club. Further child
+  // walks do not touch the parent.
+  for (let salt = 1; salt <= 8 && (state.tradeOffers?.length ?? 0) < max; salt++) {
+    const alt = userInquiryRng(state);
+    placeInquiries(state, max, new Rng((Math.imul(alt.state, salt) ^ 0x5bd1e995) >>> 0), shapeRng, seen);
+  }
+}
+
+function placeInquiries(
+  state: GameState, max: number, rng: Rng, shapeRng: Rng, seen: Set<string>,
+): void {
+  if (!state.tradeOffers || state.tradeOffers.length >= max) return;
   const ids = rng.shuffle(state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId));
   for (const from of ids) {
     if (state.tradeOffers.length >= max) break;
     if (state.tradeOffers.some((o) => o.fromTeamId === from)) continue;
-    const offer = proposeTrade(state, from, state.userTeamId, rng, "inquiry");
-    if (!offer || !checkTrade(state, offer).ok) continue;
+    const built = proposeTrade(state, from, state.userTeamId, rng, "inquiry");
+    if (!built || !checkTrade(state, built).ok) continue;
+    const offer = reshapeUserOffer(state, built, shapeRng, seen) ?? built;
+    if (!checkTrade(state, offer).ok) continue;
     offer.id = state.nextTradeId ?? 1;
     state.nextTradeId = (state.nextTradeId ?? 1) + 1;
+    seen.add(giveShapeKey(offer.give));
     state.tradeOffers.push(offer);
   }
 }
@@ -1177,17 +1441,22 @@ export function generateUserOffers(state: GameState, rng: Rng, max = 2): TradeOf
   );
 
   const ids = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);
+  const shapeRng = userOfferShapeRng(state);
+  const seen = new Set<string>();
+  for (const o of state.tradeOffers) seen.add(giveShapeKey(o.give));
   let guard = 0;
   while (state.tradeOffers.length < max && guard++ < 24) {
     const from = rng.pick(ids);
-    const offer = proposeTrade(state, from, state.userTeamId, rng);
-    if (!offer) continue;
+    const built = proposeTrade(state, from, state.userTeamId, rng);
+    if (!built) continue;
     if (state.tradeOffers.some((o) => o.fromTeamId === from)) continue;
+    const offer = reshapeUserOffer(state, built, shapeRng, seen) ?? built;
     offer.id = state.nextTradeId ?? 1;
     state.nextTradeId = (state.nextTradeId ?? 1) + 1;
+    seen.add(giveShapeKey(offer.give));
     state.tradeOffers.push(offer);
   }
-  if (state.tradeOffers.length < max) fillUserInquiries(state, max);
+  if (state.tradeOffers.length < max) fillUserInquiries(state, max, shapeRng, seen);
   return state.tradeOffers;
 }
 
