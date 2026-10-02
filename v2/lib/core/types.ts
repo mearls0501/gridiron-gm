@@ -1047,6 +1047,27 @@ export interface LogEntry {
   playerId?: number;
 }
 
+/** One player whose injury fields changed during a finished /play game. */
+export interface SealedLiveInjury {
+  playerId: number;
+  injuryWeeks: number;
+  injuryDesc: string | null;
+}
+
+/**
+ * A finished /play game waiting to become the official result.
+ * Play Week copies this box instead of simulating the user game again.
+ * Missing = no finished live game, so the week sims as before.
+ */
+export interface SealedLiveGame {
+  gameId: number;
+  homeScore: number;
+  awayScore: number;
+  box: BoxScore;
+  injuries: SealedLiveInjury[];
+  log: LogEntry[];
+}
+
 /**
  * One league Hall of Fame induction. Player bodies stay on `state.players`
  * (invariant 4). Missing `state.hallOfFame` = none, so older saves load.
@@ -1311,6 +1332,13 @@ export interface GameState {
    * saves load. The franchise ring is still derived at render time.
    */
   hallOfFame?: HofEntry[];
+
+  /**
+   * Finished /play game for the current week. Play Week commits this
+   * result. Missing = the week sims the user game. Cleared when the
+   * week is committed. Older saves load without it.
+   */
+  sealedLive?: SealedLiveGame;
 
   /** Player-chosen gameplay options. Older saves are backfilled by migrate(). */
   settings?: GameSettings;

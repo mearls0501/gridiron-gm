@@ -6,7 +6,8 @@
  * Same-seed live advance must match simulateGame's box AND plays.
  * Bulk-sim / simulateGame drains in one next() — no live yield.
  * finishAuto records each remaining user snap as "auto" so a reload
- * and Play Week keep the coach-finished game.
+ * keeps the coach-finished game. A finished game is sealed; Play Week
+ * commits that result instead of drawing the user game again.
  *
  * Run: npx tsx lib/core/liveGame.test.ts
  */
@@ -17,7 +18,7 @@ import { openGameSim, simulateGame } from "./sim/game";
 import { startRegularSeason, advance } from "./season/engine";
 import { declareGamedayInactives } from "./inactives";
 import { setCallSheet, userSimOpts } from "./callSheet";
-import { createLiveGame, resumeLiveGame } from "./liveGame";
+import { createLiveGame, resumeLiveGame, writeSealedLive } from "./liveGame";
 import { encodeSave, decodeSave } from "../store/codec";
 import { SnapCall } from "./types";
 
@@ -40,6 +41,11 @@ function untilKickoff(st: ReturnType<typeof newGame>) {
 
 function cloneState(st: ReturnType<typeof newGame>) {
   return JSON.parse(JSON.stringify(st)) as typeof st;
+}
+
+/** Save wire form. Optional play fields (`targetId`) are absent, not undefined. */
+function wire<T>(v: T): T {
+  return JSON.parse(JSON.stringify(v)) as T;
 }
 
 function simWithInactives(st: ReturnType<typeof newGame>, snaps?: SnapCall[]) {
@@ -343,8 +349,8 @@ for (const seed of [46, 47, 48]) {
   const rg = userGame(replay)!;
   declareGamedayInactives(replay, [rg.homeId, rg.awayId]);
   const week = simulateGame(replay, rg, new Rng(replay.rngState), userSimOpts(replay, rg));
-  assert.deepEqual(week.box, finished.result.box, "Play Week replays the stored auto tail");
-  assert.deepEqual(week.plays, finished.plays, "Play Week plays match the coach-finished log");
+  assert.deepEqual(week.box, finished.result.box, "same-rng replay matches the coach-finished box");
+  assert.deepEqual(week.plays, finished.plays, "same-rng replay matches the coach-finished log");
 
   const decoded = decodeSave(encodeSave(saved));
   const fromDisk = resumeLiveGame(decoded, g.id);
@@ -356,3 +362,108 @@ for (const seed of [46, 47, 48]) {
 }
 
 console.log("ok    liveGame — resume mid-game; same-seed box and plays match simulateGame");
+
+{
+  const st = newGame({ seed: 90 });
+  untilKickoff(st);
+  const g = userGame(st)!;
+  const rngBefore = st.rngState;
+  const injuriesBefore = st.players.map((p) => [p.id, p.injuryWeeks, p.injuryDesc] as const);
+  const live = createLiveGame(st, g.id);
+  const hand: SnapCall[] = ["run", "pass", "run"];
+  let mid = live.peek();
+  for (const c of hand) {
+    assert.equal(mid.done, false);
+    mid = live.call(c);
+  }
+  assert.equal(live.seal(), null, "an unfinished game does not seal");
+  const finished = live.finishAuto();
+  if (!finished.done) throw new Error("expected coach finish to reach the whistle");
+  const sealed = live.seal();
+  if (!sealed) throw new Error("expected a seal at the whistle");
+  assert.equal(sealed.gameId, g.id);
+  assert.equal(sealed.homeScore, finished.result.homeScore);
+  assert.equal(sealed.awayScore, finished.result.awayScore);
+  assert.deepEqual(wire(sealed.box), wire(finished.result.box));
+  assert.ok(sealed.box.plays && sealed.box.plays.length > 0, "the seal carries the play log");
+  writeSealedLive(st, sealed);
+  setCallSheet(st, { snaps: live.snaps() });
+  assert.equal(st.rngState, rngBefore, "sealing does not draw on the save RNG");
+  assert.deepEqual(
+    st.players.map((p) => [p.id, p.injuryWeeks, p.injuryDesc] as const),
+    injuriesBefore,
+    "sealing does not write injuries until the week is committed",
+  );
+  assert.deepEqual(st.sealedLive?.homeScore, finished.result.homeScore);
+  assert.deepEqual(st.sealedLive?.box, wire(finished.result.box));
+
+  const isHome = g.homeId === st.userTeamId;
+  const us = isHome ? finished.result.homeScore : finished.result.awayScore;
+  const them = isHome ? finished.result.awayScore : finished.result.homeScore;
+
+  const unbound = cloneState(st);
+  delete unbound.sealedLive;
+  advance(unbound);
+  const wrong = unbound.games.find((x) => x.id === g.id)!;
+  assert.equal(wrong.played, true);
+  assert.notDeepEqual(
+    [wrong.homeScore, wrong.awayScore],
+    [finished.result.homeScore, finished.result.awayScore],
+    "the week engine's shared rng does not reproduce the live score",
+  );
+
+  const quiet = cloneState(st);
+  delete quiet.sealedLive;
+  delete quiet.teams[quiet.userTeamId].callSheet;
+  const quiet2 = cloneState(quiet);
+  advance(quiet);
+  advance(quiet2);
+  const q1 = quiet.games.find((x) => x.id === g.id)!;
+  const q2 = quiet2.games.find((x) => x.id === g.id)!;
+  assert.equal(q1.played, true);
+  assert.deepEqual(q1.boxScore, q2.boxScore, "Hub sim without a live game stays on the shared-rng path");
+  assert.equal(quiet.rngState, quiet2.rngState);
+  assert.equal(quiet.sealedLive, undefined);
+
+  const partial = cloneState(st);
+  delete partial.sealedLive;
+  setCallSheet(partial, { snaps: hand });
+  advance(partial);
+  const part = partial.games.find((x) => x.id === g.id)!;
+  assert.equal(part.played, true);
+  assert.notDeepEqual(part.boxScore, finished.result.box, "a hand-only sheet still finishes on the week sim");
+
+  const bound = cloneState(st);
+  const fromDisk = decodeSave(JSON.parse(JSON.stringify(encodeSave(bound))));
+  assert.equal(fromDisk.sealedLive?.gameId, g.id);
+  assert.deepEqual(fromDisk.sealedLive?.box, wire(finished.result.box), "codec keeps the sealed box");
+  advance(bound);
+  advance(fromDisk);
+  const official = bound.games.find((x) => x.id === g.id)!;
+  const diskGame = fromDisk.games.find((x) => x.id === g.id)!;
+  assert.equal(official.played, true);
+  assert.equal(official.homeScore, finished.result.homeScore);
+  assert.equal(official.awayScore, finished.result.awayScore);
+  assert.deepEqual(official.boxScore, wire(finished.result.box), "Play Week commits the live box");
+  assert.deepEqual(diskGame.boxScore, official.boxScore, "a reloaded seal commits the same box");
+  assert.equal(bound.rngState, fromDisk.rngState, "committing a seal is deterministic");
+  assert.equal(bound.sealedLive, undefined, "the seal is consumed");
+  assert.equal(bound.teams[bound.userTeamId].callSheet, undefined, "the call sheet still clears");
+  assert.ok(
+    bound.log.some((l) => l.kind === "result" && l.text.includes(`${us}-${them}`)),
+    "the week log records the live score",
+  );
+  for (const row of sealed.injuries) {
+    const p = bound.players.find((x) => x.id === row.playerId);
+    assert.ok(p, "injured player still exists");
+    const left = Math.max(0, row.injuryWeeks - 1);
+    assert.equal(p!.injuryWeeks, left, "the live injury is charged for the week that was played");
+    if (left > 0) assert.equal(p!.injuryDesc, row.injuryDesc);
+    else assert.equal(p!.injuryDesc, null);
+  }
+  for (const line of sealed.log) {
+    assert.ok(bound.log.some((l) => l.kind === line.kind && l.text === line.text), "live injury news is kept");
+  }
+}
+
+console.log("ok    liveGame — a finished /play game is the official week result");

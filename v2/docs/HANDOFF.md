@@ -5,6 +5,42 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-02 — A finished /play game is the official week result
+
+Worker. Commit path only. The play engine, dials, and `docs/baselines.json` are not touched.
+
+Base: `main` `ee89476` (#140 live save and empty-shop calls).
+
+### Diagnosis
+
+`/play` sims the user game by itself. `createLiveGame` clones kickoff, then runs `openGameSim` on `new Rng(state.rngState)`. That stream is not the save's. The score on screen is that game. Injuries stay on the clone.
+
+Play Week does not commit it. `simulateWeek` walks every unplayed game in schedule order on one shared `Rng(state.rngState)`. The user game is wherever the schedule put it. Earlier games have already drawn, so the same snap list is a different game. The production pair — live 31–10, official 9–38 — is that second draw.
+
+`liveGame.test` compared the coach-finished box to `simulateGame` on the kickoff rng and labeled the assertion Play Week. The week engine was not in the test. Coach-finish snaps (#136) still replay on a reload. They do not put the week engine on the kickoff stream.
+
+### Change
+
+When the live game reaches the whistle, `seal()` records the score, the box (plays included), in-game injury changes, and the injury log lines from that clone. `/play` writes the seal onto `state.sealedLive` in the same save as the snap list. Reload keeps both.
+
+Play Week, Hub advance, and a playoff round call `applySealedLive` for the matching game id. That copies the box, the injuries, and the injury lines, then marks the game played through the same `applyGameStats` / `recordGame` path as any other result. `simulateGame` is not called for that game. The rest of the slate still sims on the week's rng. The seal is cleared with the call sheet.
+
+No seal means the old path. Never opening `/play`, or hand-calling only part of a game and then advancing, still uses `userSimOpts` on the shared rng. Hand calls plus Let the coach finish reach the whistle, so the seal is that finished game and the commit is that outcome.
+
+A sealed playoff game is not replayed to break a tie. If overtime really ended tied, the existing seed tiebreak (+3) still applies.
+
+Seed 90: the shared-rng week did not reproduce the live score. The sealed week did, including after a codec round trip. Two Hub advances with no seal and no snap list still match each other.
+
+### Untouched
+
+`lib/core/sim/game.ts` outcomes, `choosePass` / dials, `docs/baselines.json`, Plan Now, HC-fire, Packet 4 second scene, draft PRs #9, #63, #104–#107. No new parent-stream draw on a week that was never played live. A sealed week does not spend the user game's draws on the week's rng.
+
+### Gate
+
+Pending the serial fast gate.
+
+---
+
 ## 2026-10-02 — Saves list, incoming calls, run-heavy live game
 
 Worker. Saves-page merge, and a child-stream inquiry when the shop pass finds nobody to offer the user. `docs/baselines.json` and the play-calling dials are not touched.

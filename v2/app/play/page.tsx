@@ -6,7 +6,7 @@ import { useGame } from "@/lib/store/game";
 import { Button, Card, Empty, Pill, TeamMark } from "@/components/ui";
 import { isOnBye, userNextGame } from "@/lib/core/season/engine";
 import { boxAttempts, setCallSheet } from "@/lib/core/callSheet";
-import { resumeLiveGame, type LiveView } from "@/lib/core/liveGame";
+import { resumeLiveGame, writeSealedLive, type LiveView } from "@/lib/core/liveGame";
 import { SnapCall } from "@/lib/core/types";
 import { playerMap } from "@/lib/core/select";
 import {
@@ -19,8 +19,9 @@ import {
  *
  * CPU games stay auto. Bulk-sim never waits here. Each hand call, and every
  * auto snap from Let the coach finish, is written onto the call sheet
- * immediately; a reload replays that list. Play Week replays the same list
- * through simulateGame.
+ * immediately; a reload replays that list. When the game reaches the
+ * whistle, that result is sealed. Play Week commits the seal. A week
+ * with no seal still sims.
  */
 export default function PlayPage() {
   const state = useGame((s) => s.state);
@@ -95,8 +96,10 @@ export default function PlayPage() {
   };
 
   const persistSnaps = (calls: SnapCall[]) => {
+    const sealed = session?.seal() ?? null;
     apply((s) => {
       setCallSheet(s, { snaps: calls });
+      if (sealed) writeSealedLive(s, sealed);
     });
   };
 
@@ -114,8 +117,10 @@ export default function PlayPage() {
 
   const playWeek = () => {
     if (!session || !view?.done) return;
+    const sealed = session.seal();
     apply((s) => {
       setCallSheet(s, { snaps: view.calls });
+      if (sealed && !s.sealedLive) writeSealedLive(s, sealed);
       return "Play-the-Game calls set";
     });
     advance();

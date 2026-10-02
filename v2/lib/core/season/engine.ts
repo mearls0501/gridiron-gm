@@ -13,6 +13,7 @@ import { freeActiveSlot } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
 import { clearCallSheets, userSimOpts } from "../callSheet";
+import { applySealedLive, clearSealedLive } from "../liveGame";
 import { resolveWaivers, settleWaivers } from "../waivers";
 import { runPsychology } from "../psychology";
 
@@ -73,7 +74,9 @@ export function simulateWeek(state: GameState): void {
   const healthyBefore = healthySet(state);
 
   for (const g of games) {
-    const result = simulateGame(state, g, rng, userSimOpts(state, g));
+    // A finished /play game is already the result. Do not draw it again.
+    const sealed = applySealedLive(state, g.id);
+    const result = sealed ?? simulateGame(state, g, rng, userSimOpts(state, g));
     g.homeScore = result.homeScore;
     g.awayScore = result.awayScore;
     g.boxScore = result.box;
@@ -114,6 +117,7 @@ export function simulateWeek(state: GameState): void {
   applyCpuIrAndFill(state, fillRng, played);
   clearInactives(state);
   clearCallSheets(state);
+  clearSealedLive(state);
 
   // The phones stay on until the deadline, but September is quiet and the
   // deadline week is a frenzy: real in-season trades put ~3-4% of the year's
