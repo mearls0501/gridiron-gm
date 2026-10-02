@@ -956,11 +956,22 @@ export function runCpuTrades(state: GameState, rng: Rng, attempts = 120): number
  * minority, and a club reshaping its roster mid-draft is a different decision
  * from moving up the board.
  */
-export function runDraftDayTrades(state: GameState, rng: Rng, attempts = 260): number {
+/** Default search length for the pre-draft pick-swap burst. */
+export const DRAFT_DAY_TRADE_ATTEMPTS = 260;
+
+export function runDraftDayTrades(state: GameState, rng: Rng, attempts = DRAFT_DAY_TRADE_ATTEMPTS): number {
   ensurePickInventory(state);
+  return runDraftDayTradeAttempts(state, rng, attempts);
+}
+
+/**
+ * One slice of the draft-weekend pick-swap search.
+ * `attempts` calls in order match one `runDraftDayTrades` pass.
+ */
+export function runDraftDayTradeAttempts(state: GameState, rng: Rng, attempts: number): number {
   let done = 0;
   const ids = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);
-  if (ids.length < 2) return 0;
+  if (ids.length < 2 || attempts <= 0) return 0;
 
   for (let i = 0; i < attempts; i++) {
     const from = rng.pick(ids);

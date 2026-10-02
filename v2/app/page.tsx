@@ -67,6 +67,7 @@ export default function Hub() {
   const simTo = useGame((s) => s.simTo);
   const busy = useGame((s) => s.busy);
   const simming = useGame((s) => s.simming);
+  const simLabel = useGame((s) => s.simLabel);
   const [confirming, setConfirming] = useState(false);
   const [simMenu, setSimMenu] = useState(false);
   const simMenuRef = useRef<HTMLDivElement>(null);
@@ -228,7 +229,7 @@ export default function Hub() {
                   disabled={busy || simming || !canAdvance}
                   onClick={() => (isOffseason || state.phase === "preseason" ? setConfirming(true) : doAdvance())}
                 >
-                  {primaryLabel}
+                  {simming ? (simLabel ?? hubSimLabel(state)) : primaryLabel}
                 </Button>
               </>
             )}
@@ -238,7 +239,7 @@ export default function Hub() {
         {isOffseason && step && (
           <div className="px-4 pb-4 -mt-1">
             <div className="bg-[var(--color-surface-2)] border border-[var(--color-line-soft)] rounded-lg px-3 py-2.5">
-              <div className="text-xs font-medium">{step.title}</div>
+              <div className="text-xs font-medium">{simming && simLabel ? simLabel : step.title}</div>
               <div className="text-xs text-[var(--color-muted)] mt-0.5">
                 {hubCampFloorCopy(clip) ?? hubCampCutdownCopy(clip) ?? step.description}
               </div>

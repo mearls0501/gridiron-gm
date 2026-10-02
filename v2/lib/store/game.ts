@@ -8,6 +8,7 @@ import { advance as advanceSeason } from "../core/season/engine";
 import { advanceOffseason } from "../core/offseason";
 import { saveGame, loadGame, listSaves, lastSaveId, deleteSave } from "./save";
 import { simToStepper, type SimTarget } from "./simTo";
+import { offseasonContinueStepper, openingOffseasonLabel } from "./offseasonContinue";
 import { isPendingForcedMove } from "../core/owner";
 
 export type { SimTarget };
@@ -24,7 +25,7 @@ function yieldToPaint(): Promise<void> {
   });
 }
 
-/** Blocks other mutations while a Hub simTo is between weeks. Not save state. */
+/** Blocks other mutations while Hub simTo or offseason Continue is between steps. Not save state. */
 let simActive = false;
 
 /**
@@ -33,7 +34,8 @@ let simActive = false;
  * Every mutation goes through `apply`, which runs the change against the live
  * state object, bumps a revision counter to trigger re-render, and persists.
  * Hub simTo steps the same save and commits once at the end, yielding between
- * weeks so the tab can paint.
+ * weeks so the tab can paint. Free agency and the draft do the same between
+ * waves, trade slices, and picks.
  * Because the entire save is one document, a write is atomic — there is no way
  * to end up with a roster that saved but a schedule that didn't.
  */
@@ -42,8 +44,10 @@ interface Store {
   state: GameState | null;
   rev: number;
   busy: boolean;
-  /** True while Hub simTo is yielding between weeks. Not part of the save. */
+  /** True while Hub simTo or offseason Continue is yielding. Not part of the save. */
   simming: boolean;
+  /** Progress copy while `simming`. Not part of the save. */
+  simLabel: string | null;
   error: string | null;
   toast: string | null;
   hydrated: boolean;
@@ -61,11 +65,65 @@ interface Store {
   setError: (e: string | null) => void;
 }
 
+async function continueOffseason(
+  set: (partial: Partial<Store>) => void,
+  get: () => Store,
+): Promise<void> {
+  if (simActive) return;
+  const s = get().state;
+  if (!s) return;
+  if (s.phase !== "offseason-fa" && s.phase !== "offseason-draft") return;
+
+  simActive = true;
+  set({ simming: true, busy: true, simLabel: openingOffseasonLabel(s) });
+  let closed = false;
+  try {
+    await yieldToPaint();
+    const step = offseasonContinueStepper(s);
+    let result = step();
+    while (!result.done) {
+      set({ state: { ...s }, rev: get().rev + 1, simLabel: result.label });
+      await yieldToPaint();
+      result = step();
+    }
+    ensureJerseyNumbers(s);
+    maybeRetireNumbersForHallOfFame(s);
+    const message = result.message;
+    set({
+      state: { ...s },
+      rev: get().rev + 1,
+      toast: message ? message : null,
+      error: null,
+      busy: false,
+      simming: false,
+      simLabel: null,
+    });
+    closed = true;
+    void saveGame(s).catch((e) =>
+      set({ error: e instanceof Error ? e.message : "Could not save. Your progress may be lost." })
+    );
+  } catch (e) {
+    set({
+      state: { ...s },
+      rev: get().rev + 1,
+      error: e instanceof Error ? e.message : "Something went wrong.",
+      busy: false,
+      simming: false,
+      simLabel: null,
+    });
+    closed = true;
+  } finally {
+    simActive = false;
+    if (!closed) set({ simming: false, busy: false, simLabel: null });
+  }
+}
+
 export const useGame = create<Store>((set, get) => ({
   state: null,
   rev: 0,
   busy: false,
   simming: false,
+  simLabel: null,
   error: null,
   toast: null,
   hydrated: false,
@@ -145,6 +203,17 @@ export const useGame = create<Store>((set, get) => ({
   },
 
   advance() {
+    const live = get().state;
+    if (
+      live &&
+      !simActive &&
+      !isPendingForcedMove(live) &&
+      !live.forcedMove?.retired &&
+      (live.phase === "offseason-fa" || live.phase === "offseason-draft")
+    ) {
+      void continueOffseason(set, get);
+      return;
+    }
     get().apply((s) => {
       if (isPendingForcedMove(s)) {
         return "The owner has ended your time here. Take an open chair or retire the save.";
@@ -170,7 +239,7 @@ export const useGame = create<Store>((set, get) => ({
     }
 
     simActive = true;
-    set({ simming: true, busy: true });
+    set({ simming: true, busy: true, simLabel: null });
     let closed = false;
     try {
       await yieldToPaint();
@@ -191,6 +260,7 @@ export const useGame = create<Store>((set, get) => ({
         error: null,
         busy: false,
         simming: false,
+        simLabel: null,
       });
       closed = true;
       void saveGame(s).catch((e) =>
@@ -203,11 +273,12 @@ export const useGame = create<Store>((set, get) => ({
         error: e instanceof Error ? e.message : "Something went wrong.",
         busy: false,
         simming: false,
+        simLabel: null,
       });
       closed = true;
     } finally {
       simActive = false;
-      if (!closed) set({ simming: false, busy: false });
+      if (!closed) set({ simming: false, busy: false, simLabel: null });
     }
   },
 

@@ -663,25 +663,38 @@ export function makePick(state: GameState, playerId: number, rng: Rng): boolean 
   return true;
 }
 
+/** Same ceiling `runDraftUntilUser` has always used. The hub yields one slot at a time. */
+export const DRAFT_UNTIL_USER_LIMIT = 320;
+
+export type DraftUntilUserStep = "picked" | "user" | "stopped";
+
+/** One slot of `runDraftUntilUser`. Stops on the user's clock without picking. */
+export function stepDraftUntilUser(state: GameState, rng: Rng): DraftUntilUserStep {
+  const d = state.draft;
+  if (!d || d.complete) return "stopped";
+  const pick = d.picks[d.onClock];
+  if (!pick) return "stopped";
+  const slotRng = streamForSlot(state, pick, rng);
+  if (pick.teamId === state.userTeamId) {
+    generateClockOffers(state, slotRng);
+    commitStream(state, pick, slotRng, rng);
+    return "user";
+  }
+  // The market between picks. A trade changes who is on the clock but never
+  // hands the slot to the user, so the loop cannot stall.
+  if (slotRng.chance(0.4)) tryCpuClockTrade(state, slotRng);
+  cpuPick(state, slotRng);
+  commitStream(state, pick, slotRng, rng);
+  return "picked";
+}
+
 /** Run CPU picks until the user is on the clock or the draft ends. */
-export function runDraftUntilUser(state: GameState, rng: Rng, limit = 320): void {
+export function runDraftUntilUser(state: GameState, rng: Rng, limit = DRAFT_UNTIL_USER_LIMIT): void {
   const d = state.draft;
   if (!d) return;
   let guard = 0;
   while (!d.complete && guard++ < limit) {
-    const pick = d.picks[d.onClock];
-    if (!pick) break;
-    const slotRng = streamForSlot(state, pick, rng);
-    if (pick.teamId === state.userTeamId) {
-      generateClockOffers(state, slotRng);
-      commitStream(state, pick, slotRng, rng);
-      return;
-    }
-    // The market between picks. A trade changes who is on the clock but never
-    // hands the slot to the user, so the loop cannot stall.
-    if (slotRng.chance(0.4)) tryCpuClockTrade(state, slotRng);
-    cpuPick(state, slotRng);
-    commitStream(state, pick, slotRng, rng);
+    if (stepDraftUntilUser(state, rng) !== "picked") return;
   }
 }
 
@@ -709,19 +722,30 @@ export function cpuPick(state: GameState, rng: Rng): void {
   makePick(state, chosen.id, rng);
 }
 
+/** Same ceiling `runFullDraft` has always used. */
+export const FULL_DRAFT_PICK_GUARD = 400;
+
+/** One headless slot, including the user's auto-pick. False when the board cannot take one. */
+export function stepFullDraft(state: GameState, rng: Rng): boolean {
+  const d = state.draft;
+  if (!d || d.complete) return false;
+  const pick = d.picks[d.onClock];
+  if (!pick) return false;
+  const slotRng = streamForSlot(state, pick, rng);
+  // The clock market runs headlessly too — a simmed draft is still a draft.
+  if (pick.teamId !== state.userTeamId && slotRng.chance(0.4)) tryCpuClockTrade(state, slotRng);
+  // Auto-pick for the user when they choose to sim the whole thing.
+  cpuPick(state, slotRng);
+  commitStream(state, pick, slotRng, rng);
+  return true;
+}
+
 export function runFullDraft(state: GameState, rng: Rng): void {
   const d = state.draft;
   if (!d) return;
   let guard = 0;
-  while (!d.complete && guard++ < 400) {
-    const pick = d.picks[d.onClock];
-    if (!pick) break;
-    const slotRng = streamForSlot(state, pick, rng);
-    // The clock market runs headlessly too — a simmed draft is still a draft.
-    if (pick.teamId !== state.userTeamId && slotRng.chance(0.4)) tryCpuClockTrade(state, slotRng);
-    // Auto-pick for the user when they choose to sim the whole thing.
-    cpuPick(state, slotRng);
-    commitStream(state, pick, slotRng, rng);
+  while (!d.complete && guard++ < FULL_DRAFT_PICK_GUARD) {
+    if (!stepFullDraft(state, rng)) break;
   }
   d.complete = true;
 }
