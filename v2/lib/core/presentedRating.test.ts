@@ -25,6 +25,9 @@ assert.equal(presentOvrText("K", "84-88"), "72-76");
 assert.equal(presentOvrText("K", "?"), "?");
 assert.equal(presentOvrText("WR", "84-88"), "84-88");
 assert.equal(presentPotText("WR", 74, "96-99"), "86-87");
+assert.equal(presentPotText("K", 65.39051966487898, "65-68"), "53-56");
+assert.equal(presentPotText("WR", 74.5, "96-99"), "86-87");
+assert.equal(presentPotText("P", 70.2, "?"), "?");
 
 {
   let prev = -1;
@@ -56,7 +59,27 @@ assert.equal(presentPotText("WR", 74, "96-99"), "86-87");
     : `${intel.ovrLow}-${intel.ovrHigh}`;
   assert.equal(visibleOvr(st, rivalK), presentOvrText("K", raw));
   assert.notEqual(visibleOvr(st, rivalK), String(rivalK.ovr));
+  assert.match(visibleOvr(st, rivalK), /^\d{2}(-\d{2})?$/);
+  assert.match(visiblePot(st, rivalK), /^\d{2}(-\d{2})?$/);
+  const faK = st.players.find((p) => p.teamId === null && p.pos === "K" && !p.prospect && !p.retired);
+  assert.ok(faK);
+  assert.match(visibleOvr(st, faK), /^\d{2}(-\d{2})?$/);
+  assert.match(visiblePot(st, faK), /^\d{2}(-\d{2})?$/);
+  assert.notEqual(visibleOvr(st, faK), String(faK.ovr));
+  for (const p of st.players) {
+    if (p.retired) continue;
+    if (knowsOwn(st, p)) continue;
+    const ovr = visibleOvr(st, p);
+    const pot = visiblePot(st, p);
+    assert.doesNotMatch(ovr, /\./);
+    assert.doesNotMatch(pot, /\./);
+    if (p.pos === "K" || p.pos === "P") assert.notEqual(ovr, String(p.ovr));
+  }
   assert.equal(st.rngState, rngBefore);
+}
+
+function knowsOwn(st: ReturnType<typeof newGame>, p: Player): boolean {
+  return !p.prospect && p.teamId === st.userTeamId;
 }
 
 function active(players: Player[], teamId: number): Player[] {

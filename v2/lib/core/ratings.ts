@@ -112,10 +112,12 @@ export function presentOvrText(pos: Position, label: string): string {
 /**
  * Compress every integer in a potential label. `anchorOvr` is the overall
  * the label is already allowed to sit next to — stored, for your own roster,
- * or the belief, for everyone else. Never the other one.
+ * or the belief, for everyone else. Never the other one. A belief is a
+ * fraction; the printed band is still whole numbers.
  */
 export function presentPotText(pos: Position, anchorOvr: number, label: string): string {
-  return label.replace(/\d+/g, (n) => String(presentedPot(pos, anchorOvr, Number(n))));
+  const anchor = Math.round(anchorOvr);
+  return label.replace(/\d+/g, (n) => String(presentedPot(pos, anchor, Number(n))));
 }
 
 /** Human-readable tier for UI. */
