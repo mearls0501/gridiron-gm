@@ -10,6 +10,10 @@ import { attrBand, getIntel, publicIntel } from "./scouting";
  * read. The numeric estimate bands still exist underneath — they feed the
  * engine and these functions — but no prospect surface renders them.
  *
+ * The board rank is the department's order of its own blends. Consensus is
+ * the media's order of the public blends. They share a shade vocabulary and
+ * nothing else, so a shallow file can disagree without anyone printing OVR.
+ *
  * Everything here is DERIVED and deterministic: stable hashes only, no RNG
  * draws, no stored state, no save growth. The same save produces the same
  * grades, the same prose, the same sources, forever.
@@ -49,8 +53,10 @@ export function sourceFor(state: GameState, p: Player): Source {
 // ---------------------------------------------------------------------------
 
 export interface GradeContext {
-  /** Market values of the whole class, sorted descending. */
-  sorted: number[];
+  /** Consensus rank by player id. 1 is the top of the media board. */
+  market: Map<number, number>;
+  /** Department rank by player id. 1 is the top of your board. */
+  department: Map<number, number>;
 }
 
 /** Present ability and projection blended the way a draft board weighs them. */
@@ -60,57 +66,91 @@ function blend(i: { ovrLow: number; ovrHigh: number; potLow: number; potHigh: nu
   return ovrMid * 0.55 + potMid * 0.45;
 }
 
+function rankMap(pool: Player[], value: (p: Player) => number): Map<number, number> {
+  const order = pool.slice().sort((a, b) => value(b) - value(a) || a.id - b.id);
+  const ranks = new Map<number, number>();
+  for (let i = 0; i < order.length; i++) ranks.set(order[i].id, i + 1);
+  return ranks;
+}
+
 /**
- * Build once per screen; ranks any estimate against the class. Both the
- * consensus grade and your board grade are ranked on this same scale — the
- * market's blended public estimates — so an unscouted player grades exactly
- * where the market has him, and your work moves YOUR number against a
- * stable market, not against a different formula.
+ * Build once per screen. Consensus ranks the public blends against each
+ * other. Your board ranks the department's blends against each other.
+ * Ties break on player id so every prospect has a slot to hang a judgment
+ * on — a shared shade is not a rank.
  */
 export function gradeContext(state: GameState, pool: Player[]): GradeContext {
-  const sorted = pool.map((q) => blend(publicIntel(state, q))).sort((a, b) => b - a);
-  return { sorted };
+  return {
+    market: rankMap(pool, (q) => blend(publicIntel(state, q))),
+    department: rankMap(pool, (q) => blend(getIntel(state, q))),
+  };
 }
 
-function slotFor(value: number, ctx: GradeContext): number {
-  // Position this value would hold on the market's board.
-  let lo = 0, hi = ctx.sorted.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (ctx.sorted[mid] > value) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo + 1;
+function ordinal(round: number): string {
+  if (round === 1) return "1st";
+  if (round === 2) return "2nd";
+  if (round === 3) return "3rd";
+  return `${round}th`;
 }
 
-const SHADES = ["Early", "Mid", "Late"];
-
-function slotLabel(slot: number): string {
-  if (slot <= 10) return "Top-10 pick";
-  if (slot <= 32) return `${SHADES[Math.min(2, Math.floor(((slot - 11) / 22) * 3))]} Round 1`;
-  for (let r = 2; r <= 7; r++) {
-    const start = 32 * (r - 1) + 1;
-    if (slot <= 32 * r) {
-      const shade = SHADES[Math.min(2, Math.floor(((slot - start) / 32) * 3))];
-      return `${shade} Round ${r}`;
-    }
+/** Shade only. The rank lives beside it so a one-slot move is visible. */
+export function slotShade(slot: number): string {
+  if (slot <= 5) return "Top 5";
+  if (slot <= 10) return "Top 10";
+  if (slot <= 224) {
+    const round = Math.ceil(slot / 32);
+    const idx = slot - 32 * (round - 1);
+    const shade =
+      round === 1
+        ? idx <= 16
+          ? "Early"
+          : idx <= 24
+            ? "Mid"
+            : "Late"
+        : idx <= 11
+          ? "Early"
+          : idx <= 22
+            ? "Mid"
+            : "Late";
+    return `${shade} ${ordinal(round)}`;
   }
   if (slot <= 320) return "Priority UDFA";
   return "Camp invite";
+}
+
+function slotLabel(slot: number): string {
+  const shade = slotShade(slot);
+  if (shade === "Camp invite") return shade;
+  return `#${slot} · ${shade}`;
 }
 
 export type Conviction = "low" | "medium" | "high";
 
 export interface Grade {
   label: string;
+  /** Board order. 1 is the best player on that board. */
   slot: number;
+  /** Round shade without the rank — "Mid 1st", "Top 10". */
+  shade: string;
   conviction: Conviction;
+}
+
+function gradeAt(slot: number, conviction: Conviction): Grade {
+  return { label: slotLabel(slot), slot, shade: slotShade(slot), conviction };
 }
 
 /** What the market thinks. Public, free, sometimes wrong. */
 export function consensusGrade(state: GameState, p: Player, ctx: GradeContext): Grade {
-  const slot = slotFor(blend(publicIntel(state, p)), ctx);
-  return { label: slotLabel(slot), slot, conviction: "medium" };
+  const slot = ctx.market.get(p.id) ?? ctx.market.size + 1;
+  return gradeAt(slot, "medium");
+}
+
+/**
+ * Spots your board is higher than consensus. Negative means the market
+ * likes him more. Zero is "in line".
+ */
+export function boardLean(board: Grade, market: Grade): number {
+  return market.slot - board.slot;
 }
 
 /**
@@ -120,11 +160,10 @@ export function consensusGrade(state: GameState, p: Player, ctx: GradeContext): 
  */
 export function boardGrade(state: GameState, p: Player, ctx: GradeContext): Grade {
   const intel = getIntel(state, p);
-  const value = blend(intel);
   const width = intel.ovrHigh - intel.ovrLow + (intel.potHigh - intel.potLow);
   const conviction: Conviction = width <= 14 ? "high" : width <= 22 ? "medium" : "low";
-  const slot = slotFor(value, ctx);
-  return { label: slotLabel(slot), slot, conviction };
+  const slot = ctx.department.get(p.id) ?? ctx.department.size + 1;
+  return gradeAt(slot, conviction);
 }
 
 // ---------------------------------------------------------------------------
@@ -231,7 +270,8 @@ function pick<T>(arr: T[], h: number): T {
  * from his two loudest strengths and loudest weakness (by scouted estimate,
  * so a wrong band writes a wrong report — that is the game), plus flag
  * reports for anything a method uncovered, plus a divergence note when your
- * board disagrees with the market by a round or more.
+ * board disagrees with the market by half a round or more. A soft trait
+ * read says so — the file does not talk like a finished grade at 12%.
  */
 export function prospectReports(
   state: GameState, p: Player, ctx: GradeContext
@@ -243,7 +283,7 @@ export function prospectReports(
 
   const traits = relevantAttrs(p.pos).map((key) => {
     const band = attrBand(state, p, key);
-    return { key, mid: (band.low + band.high) / 2 };
+    return { key, mid: (band.low + band.high) / 2, certain: band.high - band.low <= 6 };
   });
   const sorted = [...traits].sort((a, b) => b.mid - a.mid);
   const best = sorted.slice(0, 2);
@@ -252,9 +292,12 @@ export function prospectReports(
   const s1 = pick(STRENGTH[best[0].key] ?? ["does his job"], h);
   const s2 = best[1] ? pick(STRENGTH[best[1].key] ?? ["contributes"], h >>> 3) : null;
   const w1 = pick(WEAKNESS[worst.key] ?? ["needs polish"], h >>> 6);
+  const soft = !best[0].certain || (best[1] != null && !best[1].certain) || !worst.certain;
   out.push({
     source: src,
-    text: `${cap(s1)}${s2 ? `; ${s2}` : ""}. On the other side of the ledger: ${w1}.`,
+    text: soft
+      ? `Early look, still soft: ${s1}${s2 ? `; ${s2}` : ""}. On the other side of the ledger: ${w1}.`
+      : `${cap(s1)}${s2 ? `; ${s2}` : ""}. On the other side of the ledger: ${w1}.`,
   });
 
   if (intel.medical) {
@@ -286,13 +329,15 @@ export function prospectReports(
 
   const board = boardGrade(state, p, ctx);
   const market = consensusGrade(state, p, ctx);
-  if (Math.abs(board.slot - market.slot) >= 32) {
+  const gap = Math.abs(board.slot - market.slot);
+  if (gap >= 16) {
+    const hedge = board.conviction === "low" ? "Shallow file. " : "";
     out.push({
       source: { name: sourceFor(state, p).name, role: "cross-check" },
       text:
         board.slot < market.slot
-          ? "We are meaningfully higher than the market on this player. If the room believes the file, he's a target."
-          : "The market likes him more than we do. Let someone else pay the consensus price.",
+          ? `${hedge}We have him ${gap} spots higher than the market (#${board.slot} on our board, #${market.slot} on theirs). If the room believes the file, he's a target.`
+          : `${hedge}The market has him ${gap} spots higher than we do (theirs #${market.slot}, ours #${board.slot}). Let someone else pay the consensus price.`,
     });
   }
   return out;

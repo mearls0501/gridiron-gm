@@ -5,6 +5,50 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-02 — Draft board rank, not a consensus photocopy
+
+Worker. Display and the user's unworked belief only. Zero new RNG draws. CPU boards, pick selection, dials, and `docs/baselines.json` are not touched.
+
+Base: `main` `480a140` (#138 hub continue).
+
+### Diagnosis
+
+The opening board was a wall of `Top-10 pick` because two separate things collapsed.
+
+`getIntel` with no stored row returned `publicIntel`. The free 12% from `initialScoutingPass` is that public band (`p.scouted` / `p.scoutedOvr*`), so Your Board and Consensus were the same grade until a method was stored. The default Board sort was also the public-band order in `draftBoard`, not the department's order.
+
+`slotLabel` then threw away the slot. Ten men shared `Top-10 pick`. A film study that moved a man ten spots changed the words (`Top-10 pick` → `Early Round 1` / `Mid Round 1`) and left nothing finer to hang a judgment on. The file only spoke up when the two grades were a full round apart, and it stated trait lines as finished even when the bands were still wide.
+
+### 256 picks
+
+Intentional. Year-0 / no-FA stays 224 (`draftRules` and `scoutcheck` both still read 224 of 224). After a real free agency, compensatory slots append on Day 3 (`buildDraftPicks`, max 4 per club). Seed 1002, one season, landed at **264** (224 + 40 comps): rounds 1–2 stay 32, rounds 3–7 grow. A multi-year sit at 256 is 32 comps, inside that formula. Not a bug. Left alone.
+
+### Change
+
+Until a method is stored, the department read is the public band shifted by a stable private miss (`DEPT_OVR_SD` 3.4, `DEPT_POT_SD` 4.0), keyed `(seed, class season, user club, player)`. Width stays. The center is not true overall. The first film study now starts from that prior, so it does not snap back onto the media. `cpuProspectView` / `cpuPick` do not read it.
+
+Your board rank is the department's blends ordered against each other. Consensus rank is the public blends ordered against each other. Ties break on player id, so every prospect has a slot. The label is `#14 · Mid 1st` (Top 5 / Top 10, then Early / Mid / Late inside the round). The board column shows the lean versus consensus (`+8` / `-5`). The war room says the same lean in words. The file hedges when a cited trait band is still wide, and a cross-check names both ranks once they differ by 16 spots. The Board tab sorts by your rank.
+
+Seed 42, year 0: 98% of the class differs from consensus; the media top 32 move 7 spots on average; 31 of those 32 stay inside our top 64. Film on the department's #1 moved him to `#11 · Early 1st`.
+
+### What stayed fogged
+
+No prospect surface prints true overall, potential, or a numeric band. Traits stay verdicts, with `?` when the band is wide. Medical, character, and coachability stay unknown until that method. Closed windows stay closed. Rival and CPU boards are unchanged.
+
+### Untouched
+
+`cpuBoardValue`, `cpuProspectView`, `cpuExpectedView`, draft pick selection, `docs/baselines.json`, dials, `sim/game.ts`, second scene. No parent-stream draw. Assertions are `boardgrade`, registered in `package.json` `test` and in `scripts/gate.ts` FAST and FULL.
+
+### Gate
+
+`npm run build` from `v2/` completes. `npx tsc --noEmit` passes. `npx tsx lib/core/scouting-reports.test.ts` passes. `npx tsx scripts/scoutcheck.ts` passes (leak MAE 2.05, film width drop 16.95, draft 224/224, CPU read unchanged by user film).
+
+### Browser
+
+Headless Chrome, seed 42, new franchise, `/draft`. Opening board is `#1 Top 5 +8` against consensus `#9 Top 10`, then a real order through `#8`, scouting still 12%. War room on Mason Adams II: `#1 · Top 5`, conviction low, consensus `#9 · Top 10`, vs market 8 higher, medical/character unknown, Film Study open, the other four methods closed. No OVR string. Film Study moved the grade to `#11 · Early 1st`. His player page shows the same grade and no overall.
+
+---
+
 ## 2026-10-01 — Hub offseason Continue yields
 
 Worker. Scheduling and labels only. Zero new RNG draws. Free-agency bid math, draft selection, dials, `docs/baselines.json`, and `sim/game.ts` are not touched.

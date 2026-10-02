@@ -664,15 +664,16 @@ export function ensureScouting(state: GameState): ScoutingState {
 }
 
 /**
- * The department's current belief about one prospect. Falls back to the free
- * public read — the legacy shared band (kept in sync for old saves and for
- * `displayedOvr`) plus a wide consensus-centred potential band — until the
- * user actually spends work on him.
+ * The department's current belief about one prospect. A stored row is work
+ * the user already paid for. Until then the grade is a shallow private read:
+ * the public band, shifted by stable noise that is not the media's miss and
+ * not the answer key. That is what makes an unworked board disagree with
+ * consensus instead of photocopying it.
  */
 export function getIntel(state: GameState, p: Player): UserIntel {
   const row = state.scouting?.season === state.season ? state.scouting.intel[p.id] : undefined;
   if (row) return row;
-  return defaultIntel(state, p);
+  return departmentIntel(state, p);
 }
 
 /**
@@ -698,6 +699,46 @@ function defaultIntel(state: GameState, p: Player): UserIntel {
     potHigh: Math.min(99, Math.round(potMid) + 8),
     medical: null,
     character: null,
+  };
+}
+
+// Shallow-read miss on top of the public band. Design noise, same family as
+// OWN_OVR_SD — not an NFL rate. Wide enough that the free 12% pass is a
+// different order from the media, narrow enough that the top of the class
+// stays the top of the class. Width of the band is preserved; only the
+// center moves. Keyed off the user's club so it is not consensusScore's hash.
+const DEPT_OVR_SD = 3.4;
+const DEPT_POT_SD = 4.0;
+
+function shiftBand(low: number, high: number, shift: number): { low: number; high: number } {
+  const width = high - low;
+  let mid = (low + high) / 2 + shift;
+  const minMid = 30 + width / 2;
+  const maxMid = 99 - width / 2;
+  if (mid < minMid) mid = minMid;
+  if (mid > maxMid) mid = maxMid;
+  const lo = Math.round(mid - width / 2);
+  const hi = lo + width;
+  return {
+    low: clamp(lo, 30, 99),
+    high: clamp(hi, lo, 99),
+  };
+}
+
+/** Public band plus the department's own shallow miss. No stored row. */
+function departmentIntel(state: GameState, p: Player): UserIntel {
+  const pub = defaultIntel(state, p);
+  const season = p.draftClassSeason ?? 0;
+  const ovrShift = stableNormal(state.seed, season, state.userTeamId + 0xd0a7d, p.id) * DEPT_OVR_SD;
+  const potShift = stableNormal(state.seed, season, state.userTeamId + 0xd0a7d, p.id ^ 0x51a7) * DEPT_POT_SD;
+  const ovr = shiftBand(pub.ovrLow, pub.ovrHigh, ovrShift);
+  const pot = shiftBand(pub.potLow, pub.potHigh, potShift);
+  return {
+    ...pub,
+    ovrLow: ovr.low,
+    ovrHigh: ovr.high,
+    potLow: pot.low,
+    potHigh: pot.high,
   };
 }
 
@@ -727,7 +768,9 @@ export function runScoutingMethod(
   if (!p || !p.prospect || !p.profile) return false;
 
   const s = ensureScouting(state);
-  const intel = s.intel[playerId] ?? { ...defaultIntel(state, p), methods: {} };
+  // Seed from the department prior, not the media band, so the first study
+  // moves your grade instead of snapping it back onto consensus.
+  const intel = s.intel[playerId] ?? { ...getIntel(state, p), methods: {} };
   s.intel[playerId] = intel;
   if (method === "privateWorkout") s.visitsRemaining = Math.max(0, s.visitsRemaining - 1);
   intel.methods[method] = (intel.methods[method] ?? 0) + 1;
