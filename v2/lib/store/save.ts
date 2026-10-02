@@ -19,8 +19,9 @@ import { decodeSave, encodeSave, EncodedSave } from "./codec";
  * Everything written here goes through `codec.ts`, which drops the zero fields
  * out of stat rows on the way out and puts them back on the way in. A
  * 20-season franchise is 12 MB on disk instead of 34 MB. Nothing above this
- * module ever sees an encoded save: `loadGame`, `listSaves` and `importSave`
- * all hand back a fully rehydrated `GameState`.
+ * module ever sees an encoded save: `loadGame` and `importSave` migrate.
+ * `listSaves` decodes each row for the Saves page; the live franchise is
+ * merged in by the page and is already migrated.
  */
 
 const DB_NAME = "gridiron-gm";
@@ -49,13 +50,39 @@ function tx<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObjectStore) 
   return openDb().then(
     (db) =>
       new Promise<T>((resolve, reject) => {
+        let settled = false;
+        const ok = (value: T) => {
+          if (settled) return;
+          settled = true;
+          resolve(value);
+        };
+        const fail = (err: unknown) => {
+          if (settled) return;
+          settled = true;
+          reject(err instanceof Error ? err : new Error("Save operation failed."));
+        };
         const t = db.transaction(store, mode);
         const req = fn(t.objectStore(store));
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error ?? new Error("Save operation failed."));
+        req.onsuccess = () => ok(req.result);
+        req.onerror = () => fail(req.error ?? new Error("Save operation failed."));
+        t.onabort = () => fail(t.error ?? new Error("Save operation failed."));
         t.oncomplete = () => db.close();
       })
   );
+}
+
+/**
+ * The Saves page paints from this. The live franchise wins over a stale
+ * disk copy of the same id — Hub sim writes the document at the end of the
+ * run, and a fat get() can fail while the club is already on screen.
+ */
+export function mergeSaveList(live: GameState | null, disk: GameState[]): GameState[] {
+  const byId = new Map<string, GameState>();
+  for (const row of disk) {
+    if (row?.id) byId.set(row.id, row);
+  }
+  if (live?.id) byId.set(live.id, live);
+  return [...byId.values()].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
 }
 
 export interface SaveSummary {
@@ -85,10 +112,21 @@ export async function loadGame(id: string): Promise<GameState | null> {
 }
 
 export async function listSaves(): Promise<GameState[]> {
-  const all = await tx<EncodedSave[]>(STORE, "readonly", (s) => s.getAll());
-  return (all ?? [])
-    .map(decodeSave)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+  // One key at a time. getAll() of a mid-season franchise (box scores and
+  // all) is the read that blanks this page while the club is already loaded
+  // via get(lastSaveId). A single bad row must not hide the others.
+  const keys = await tx<IDBValidKey[]>(STORE, "readonly", (s) => s.getAllKeys());
+  const out: GameState[] = [];
+  for (const key of keys ?? []) {
+    try {
+      const raw = await tx<EncodedSave | undefined>(STORE, "readonly", (s) => s.get(key));
+      if (!raw) continue;
+      out.push(decodeSave(raw));
+    } catch {
+      continue;
+    }
+  }
+  return out.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
 }
 
 export async function deleteSave(id: string): Promise<void> {

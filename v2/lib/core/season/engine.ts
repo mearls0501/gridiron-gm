@@ -133,8 +133,9 @@ export function simulateWeek(state: GameState): void {
     // deal (player deals clear ~2x as often per attempt as pick swaps did).
     runCpuTrades(state, tradeRng, Math.max(3, Math.round(185 * weight)));
     // A GM's phone follows the same calendar: an offer most weeks was noise.
+    // Two can sit. The gate above is what keeps Plan Now from stopping every week.
     if (tradeRng.next() < Math.min(1, 3.6 * weight)) {
-      generateUserOffers(state, tradeRng, 1);
+      generateUserOffers(state, tradeRng, 2);
     }
   } else if (state.week === TRADE_DEADLINE_WEEK + 1) {
     state.log.push({
