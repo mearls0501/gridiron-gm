@@ -23,7 +23,7 @@ Lowering kicking attributes by the same 12 points the roster needed would move f
 
 `presentedOvr` subtracts 12 for kickers and punters. Graded attributes on the player card move with the badge, so the card still averages. Fogged bands shift by the same 12. The center is still the belief, not the stored grade. `describeAsset` and the trade log stay on the stored grade.
 
-`presentedPot` leaves a gap of 6 alone and compresses the rest (`6 + round((gap-6)*0.35)`), then sits that on the roster overall. A 74/99 prints 87. A 99 remains only when the stored overall is already 93 or better.
+`presentedPot` leaves a gap of 6 alone and compresses the rest (`6 + round((gap-6)*0.35)`), then sits that on the roster overall. A 74/99 prints 87. A 99 remains only when the stored overall is already 93 or better. A fogged potential band rounds the belief before that compression, so the card prints `53-56` and not the raw fraction.
 
 Five seeds after the scale: specialists are 1.19% of top-10 slots and 4 of 800 top-5 slots. 99 potential is 15 of 8,480 rostered players (0.18%). Seed 42 Boston's kicker prints 79/83 and is fifth, behind two linemen at 82. Seed 1's 98 overall edge still prints 99.
 
@@ -37,11 +37,20 @@ The development wall is still the stored potential. A maxed staff can buy back m
 
 ### Gate
 
-Pending in this note until the fast serial gate finishes. `npx tsc --noEmit` passes. `scoutcheck` passes and `scout.leakMae` is still 2.05. `presentedrating`, `tradeboard`, and `invitedisplay` pass.
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores, ~22 min). `presentedrating`, typecheck, determinism, verify 348/348, calibrate (`fgPct` 86.48), statcheck (`wr10RecYds` 1070, inside the band), and scout (`leakMae` 2.05, `visibleOvr` collapsed-to-truth 0/80) passed. `K.kac` still moves `fgPct` the right way (+12.1). One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
 
 ### Browser
 
-Pending in this note until the fresh-franchise pass is in.
+Seed 42, Boston, fresh franchise. On `main` the roster sorts Isiah Garcia (K) first at 91/95, and Uriah Nakamura (CB, 21) prints 99 potential. After the scale the same club sorts Nico Wilson II (OT) 82/82, Cameron Sinclair II (OG) 82/82, James Rutledge (TE) 79, Isaac Harris Jr. (EDGE) 79, then Garcia at 79/83. The 53-man prints zero 99s. His card shows kick accuracy 78 and kick power 83 next to the 79 badge.
+
+Free agency still shows ranges. Ethan Johnson (K) is `51-55` overall and `53-56` potential, both whole numbers, and the kick traits read `limited?` rather than attributes. The draft board still says the user will never see a rating.
 
 ---
 
