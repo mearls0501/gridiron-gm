@@ -37,7 +37,22 @@ Film Study window gating, Plan Now's pause rule (length, open window, new call),
 
 ### Gate
 
-`userOffers` and `saveList` are registered in `package.json` `test` and in `scripts/gate.ts` FAST and FULL.
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores, ~29.5 min). `savelist`, `useroffers`, typecheck, determinism, verify, calibrate, and statcheck passed (`statcheck.wr10RecYds` 1070, inside the band, did not fire). One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+`npm run build` from `v2/` completes.
+
+### Browser
+
+Seed 42. Header Saves, with the disk row deleted and the franchise still in memory: My Franchise, Boston Minutemen, Current pill. The page did not say "No saves yet". It wrote the row back; a reload still listed it. Same row at a phone width.
+
+Sim toward the deadline paused in week 2 with two calls: Columbus Cavalry and Pittsburgh Forge. Accept and Reject were both on the offer. Nothing was accepted.
 
 ---
 
