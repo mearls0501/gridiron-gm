@@ -38,7 +38,7 @@ import {
   setBoardNote,
 } from "@/lib/core/scouting";
 import { tradeBoardAssetLabel } from "@/lib/view/tradeBoard";
-import { boardGrade, consensusGrade, gradeContext, prospectReports, prospectTraits } from "@/lib/core/scouting-reports";
+import { boardGrade, boardLean, consensusGrade, gradeContext, prospectReports, prospectTraits } from "@/lib/core/scouting-reports";
 import { enterDraft, simEntireDraft, simToUserPick } from "@/lib/core/offseason";
 import { capHit, formatMoney, playerMap } from "@/lib/core/select";
 import { simEntireDraftToast } from "@/lib/view/draftToast";
@@ -142,10 +142,12 @@ export default function DraftPage() {
       if (q && !playerName(p).toLowerCase().includes(q)) return false;
       return true;
     });
-    if (sortKey === "board") return filtered;
-    // "Your Grade" sorts by YOUR board's opinion (grade slot), not the
-    // public band — that's the whole point of doing the work.
+    // "Board" and "Your Grade" are the department's order. The public
+    // band is consensus, and it has its own column.
     const slot = (p: Player) => boardGrade(state!, p, ctx).slot;
+    if (sortKey === "board") {
+      return filtered.slice().sort((a, b) => slot(a) - slot(b) || a.id - b.id);
+    }
     return filtered.slice().sort((a, b) => {
       switch (sortKey) {
         case "band":
@@ -436,9 +438,9 @@ export default function DraftPage() {
           <p className="text-sm text-[var(--color-muted)]">
             The draft runs during the offseason, after free agency closes. Until then this
             is a scouting board. You will never see a rating — only your department&apos;s
-            round grade, its conviction, and what your people wrote. An unworked prospect
-            grades wherever the market has him; the work is what earns you a different
-            opinion, and the market is sometimes wrong.
+            rank, its round shade, and what your people wrote. The free look already
+            disagrees with the media in places. Film and visits tighten that lean, and
+            both sides are sometimes wrong.
           </p>
           <p className="text-xs text-[var(--color-faint)] mt-2">
             {WINDOW_LABEL[cal.window]} is open. Miss a window and that information does not
@@ -709,11 +711,12 @@ export default function DraftPage() {
                 {(() => {
                   const g = boardGrade(state, focus, ctx);
                   const m = consensusGrade(state, focus, ctx);
+                  const lean = boardLean(g, m);
                   return (
                     <div className="space-y-1 text-xs">
-                      <div className="flex justify-between">
+                      <div className="flex justify-between gap-3">
                         <span className="text-[var(--color-faint)]">Board grade</span>
-                        <span className="font-medium">{g.label}</span>
+                        <span className="font-medium text-right">{g.label}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[var(--color-faint)]">Conviction</span>
@@ -729,9 +732,23 @@ export default function DraftPage() {
                           {g.conviction}
                         </span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between gap-3">
                         <span className="text-[var(--color-faint)]">Consensus</span>
-                        <span className="text-[var(--color-muted)]">{m.label}</span>
+                        <span className="text-[var(--color-muted)] text-right">{m.label}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-[var(--color-faint)]">Vs market</span>
+                        <span
+                          className={
+                            lean > 0
+                              ? "text-[var(--color-good)]"
+                              : lean < 0
+                                ? "text-[var(--color-warn)]"
+                                : "text-[var(--color-muted)]"
+                          }
+                        >
+                          {lean === 0 ? "In line" : lean > 0 ? `${lean} higher` : `${-lean} lower`}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[var(--color-faint)]">Work invested</span>
@@ -983,6 +1000,8 @@ export default function DraftPage() {
                   <Cell>
                     {(() => {
                       const g = boardGrade(state, p, ctx);
+                      const m = consensusGrade(state, p, ctx);
+                      const lean = boardLean(g, m);
                       return (
                         <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                           <span
@@ -996,15 +1015,37 @@ export default function DraftPage() {
                             )}
                             title={`${g.conviction} conviction`}
                           />
-                          <span className="text-xs font-medium">{g.label}</span>
+                          <span className="text-xs font-semibold tnum">#{g.slot}</span>
+                          <span className="text-[10px] text-[var(--color-muted)]">{g.shade}</span>
+                          {lean !== 0 && (
+                            <span
+                              className={cx(
+                                "text-[10px] tnum font-medium",
+                                lean > 0 ? "text-[var(--color-good)]" : "text-[var(--color-warn)]"
+                              )}
+                              title={
+                                lean > 0
+                                  ? `${lean} spots higher than consensus`
+                                  : `${-lean} spots lower than consensus`
+                              }
+                            >
+                              {lean > 0 ? `+${lean}` : lean}
+                            </span>
+                          )}
                         </div>
                       );
                     })()}
                   </Cell>
                   <Cell>
-                    <span className="text-xs text-[var(--color-muted)] whitespace-nowrap">
-                      {consensusGrade(state, p, ctx).label}
-                    </span>
+                    {(() => {
+                      const m = consensusGrade(state, p, ctx);
+                      return (
+                        <span className="text-xs text-[var(--color-muted)] whitespace-nowrap">
+                          <span className="tnum">#{m.slot}</span>{" "}
+                          <span className="text-[10px]">{m.shade}</span>
+                        </span>
+                      );
+                    })()}
                   </Cell>
                   <Cell>
                     <div className="flex items-center justify-end gap-2">
