@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import { Rng } from "@/lib/core/rng";
-import { displayedOvr, playerName, POSITION_VALUE } from "@/lib/core/ratings";
+import { displayedOvr, playerName, POSITION_VALUE, presentOvrText, presentedOvr } from "@/lib/core/ratings";
 import {
   UDFA_SIGNINGS_MAX,
   acceptClockOffer,
@@ -1180,7 +1180,7 @@ export default function DraftPage() {
                     {/* Drafted players are no longer prospects, so displayedOvr
                         returns their real rating — and if one somehow still is,
                         it returns the band rather than leaking the truth. */}
-                    <Cell>{p ? <OvrBadge ovr={displayedOvr(p)} size="sm" /> : "—"}</Cell>
+                    <Cell>{p ? <OvrBadge ovr={p.prospect ? presentOvrText(p.pos, displayedOvr(p)) : presentedOvr(p.pos, p.ovr)} size="sm" /> : "—"}</Cell>
                   </Row>
                 );
               })}

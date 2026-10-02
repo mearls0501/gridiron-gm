@@ -10,6 +10,7 @@
 import assert from "node:assert/strict";
 import { newGame } from "../core/newGame";
 import { teamRoster } from "../core/select";
+import { presentedOvr } from "../core/ratings";
 import { knowsTrueRatings, userVeteranView, visibleOvr } from "../core/scouting";
 import { describeAsset } from "../core/trades";
 import { Player, TradeAsset } from "../core/types";
@@ -34,10 +35,10 @@ assert.ok(own.length > 10 && rivals.length > 10, "need both rosters");
   let collapsed = 0;
   for (const p of rivals) {
     const shown = tradeBoardOvr(st, p);
-    const page = knowsTrueRatings(st, p) ? p.ovr : visibleOvr(st, p);
+    const page = knowsTrueRatings(st, p) ? presentedOvr(p.pos, p.ovr) : visibleOvr(st, p);
     assert.equal(shown, page, `${p.lastName} badge must match the player page`);
     assert.equal(typeof shown, "string");
-    assert.equal(tradeBoardOvrSort(st, p), userVeteranView(st, p).ovr);
+    assert.equal(tradeBoardOvrSort(st, p), presentedOvr(p.pos, userVeteranView(st, p).ovr));
     if (shown === String(p.ovr)) collapsed++;
     const asset: TradeAsset = { kind: "player", playerId: p.id };
     const label = tradeBoardAssetLabel(st, asset);
@@ -55,11 +56,16 @@ assert.ok(own.length > 10 && rivals.length > 10, "need both rosters");
 
 {
   for (const p of own) {
-    assert.equal(tradeBoardOvr(st, p), p.ovr);
+    const shown = presentedOvr(p.pos, p.ovr);
+    assert.equal(tradeBoardOvr(st, p), shown);
     assert.equal(typeof tradeBoardOvr(st, p), "number");
-    assert.equal(tradeBoardOvrSort(st, p), p.ovr);
+    assert.equal(tradeBoardOvrSort(st, p), shown);
     const asset: TradeAsset = { kind: "player", playerId: p.id };
-    assert.equal(tradeBoardAssetLabel(st, asset), describeAsset(st, asset));
+    const label = `${p.firstName} ${p.lastName} (${p.pos}, ${shown})`;
+    assert.equal(tradeBoardAssetLabel(st, asset), label);
+    assert.equal(describeAsset(st, asset), `${p.firstName} ${p.lastName} (${p.pos}, ${p.ovr})`);
+    if (p.pos === "K" || p.pos === "P") assert.notEqual(label, describeAsset(st, asset));
+    else assert.equal(label, describeAsset(st, asset));
   }
 }
 

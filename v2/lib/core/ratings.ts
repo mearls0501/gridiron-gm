@@ -53,6 +53,71 @@ export const POSITION_VALUE: Record<Position, number> = {
   TE: 0.95, LB: 0.9, OG: 0.9, C: 0.85, RB: 0.7, K: 0.35, P: 0.3,
 };
 
+/**
+ * Roster scale for specialists.
+ *
+ * Stored overall is a position grade. Every depth-chart starter, including
+ * the only kicker and both punters, is drawn from the same band, so a
+ * league-average specialist sorts with the skill players. The kick engine
+ * reads `kac` / `kpw`, not this number. A 12-point drop in those attributes
+ * moves field-goal probability by about 5.5 points, outside `calibrate.fgPct`
+ * (86 ± 4), so the attributes stay and only the number a roster prints moves.
+ * Fogged bands shift by the same amount — the center is still the belief,
+ * not the stored grade.
+ */
+export const SPECIALIST_ROSTER_SHIFT = 12;
+
+export function presentedOvr(pos: Position, ovr: number): number {
+  if (pos !== "K" && pos !== "P") return ovr;
+  return clamp(ovr - SPECIALIST_ROSTER_SHIFT, 1, 99);
+}
+
+/**
+ * Headroom above 6 is compressed so a mid player cannot print 99. A 99
+ * remains only when he is already a 93, which is the far tail of the
+ * position grade. Mean growth is untouched: `ceiling` still reads stored `pot`.
+ */
+function presentedHeadroom(gap: number): number {
+  if (gap <= 6) return gap;
+  return 6 + Math.round((gap - 6) * 0.35);
+}
+
+export function presentedPot(pos: Position, ovr: number, pot: number): number {
+  const shown = presentedOvr(pos, ovr);
+  const gap = Math.max(0, pot - ovr);
+  return clamp(shown + presentedHeadroom(gap), shown, 99);
+}
+
+/** Graded specialist attributes, shifted with the roster overall so the card still averages. */
+export function presentedAttr(pos: Position, key: AttrKey, value: number): number {
+  if (pos !== "K" && pos !== "P") return value;
+  if (!relevantAttrs(pos).includes(key)) return value;
+  return clamp(value - SPECIALIST_ROSTER_SHIFT, 1, 99);
+}
+
+export function presentedAttrBand(
+  pos: Position, key: AttrKey, band: { low: number; high: number },
+): { low: number; high: number } {
+  const low = presentedAttr(pos, key, band.low);
+  const high = presentedAttr(pos, key, band.high);
+  return { low: Math.min(low, high), high: Math.max(low, high) };
+}
+
+/** Shift every integer in an OVR label (`86`, `84-88`, `?`). Non-specialists pass through. */
+export function presentOvrText(pos: Position, label: string): string {
+  if (pos !== "K" && pos !== "P") return label;
+  return label.replace(/\d+/g, (n) => String(presentedOvr(pos, Number(n))));
+}
+
+/**
+ * Compress every integer in a potential label. `anchorOvr` is the overall
+ * the label is already allowed to sit next to — stored, for your own roster,
+ * or the belief, for everyone else. Never the other one.
+ */
+export function presentPotText(pos: Position, anchorOvr: number, label: string): string {
+  return label.replace(/\d+/g, (n) => String(presentedPot(pos, anchorOvr, Number(n))));
+}
+
 /** Human-readable tier for UI. */
 export function ovrTier(ovr: number): { label: string; tone: string } {
   if (ovr >= 90) return { label: "Elite", tone: "elite" };

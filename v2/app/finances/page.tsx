@@ -21,6 +21,7 @@ import {
   restructurePreview,
 } from "@/lib/core/offseason/contracts";
 import { POSITION_GROUP, POSITIONS, Player } from "@/lib/core/types";
+import { presentedOvr } from "@/lib/core/ratings";
 import {
   Bar,
   Button,
@@ -270,7 +271,7 @@ export default function FinancesPage() {
                   </Cell>
                   <Cell>{p.age}</Cell>
                   <Cell>
-                    <OvrBadge ovr={p.ovr} size="sm" />
+                    <OvrBadge ovr={presentedOvr(p.pos, p.ovr)} size="sm" />
                   </Cell>
                   <Cell className="font-medium">{formatMoney(capHit(p.contract))}</Cell>
                   <Cell className="text-[var(--color-muted)]">{formatMoney(baseSalary(p))}</Cell>

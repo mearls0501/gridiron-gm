@@ -1,4 +1,5 @@
 import { clamp, Rng } from "./rng";
+import { presentOvrText, presentPotText, presentedOvr, presentedPot } from "./ratings";
 import { frontOffice } from "./frontOffice";
 import { NEUTRAL_SHARE, share } from "./staff";
 import {
@@ -287,21 +288,23 @@ function formatBand(low: number, high: number): string {
 export function visibleOvr(state: GameState, p: Player): string {
   if (p.prospect) {
     const i = getIntel(state, p);
-    return formatBand(i.ovrLow, i.ovrHigh);
+    return presentOvrText(p.pos, formatBand(i.ovrLow, i.ovrHigh));
   }
-  if (knowsTrueRatings(state, p)) return String(p.ovr);
+  if (knowsTrueRatings(state, p)) return String(presentedOvr(p.pos, p.ovr));
   const i = veteranIntel(state, p);
-  return formatBand(i.ovrLow, i.ovrHigh);
+  return presentOvrText(p.pos, formatBand(i.ovrLow, i.ovrHigh));
 }
 
 export function visiblePot(state: GameState, p: Player): string {
   if (p.prospect) {
     const i = getIntel(state, p);
-    return formatBand(i.potLow, i.potHigh);
+    const anchor = (i.ovrLow + i.ovrHigh) / 2;
+    return presentPotText(p.pos, anchor, formatBand(i.potLow, i.potHigh));
   }
-  if (knowsTrueRatings(state, p)) return String(p.pot);
+  if (knowsTrueRatings(state, p)) return String(presentedPot(p.pos, p.ovr, p.pot));
+  const view = userVeteranView(state, p);
   const i = veteranIntel(state, p);
-  return formatBand(i.potLow, i.potHigh);
+  return presentPotText(p.pos, view.ovr, formatBand(i.potLow, i.potHigh));
 }
 
 /**

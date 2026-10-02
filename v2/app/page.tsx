@@ -27,6 +27,7 @@ import { SeasonReviewPanels, SeasonReviewSummary } from "@/components/SeasonRevi
 import { presentSeasonReview } from "@/lib/view/seasonReview";
 import { hubCampCutdownCopy, hubCampFloorCopy, rosterCapView } from "@/lib/view/rosterCap";
 import { teamLeaders } from "@/lib/view/teamLeaders";
+import { presentedOvr } from "@/lib/core/ratings";
 import { PRIVATE_VISIT_CAP, calendarView } from "@/lib/core/scouting";
 
 /** Live label while Hub simTo yields between weeks. */
@@ -283,7 +284,7 @@ export default function Hub() {
         const taggedPlayer = clubFranchiseTaggedPlayer(state, team.id);
         const names = expiringPlayers(state, team.id)
           .slice()
-          .sort((a, b) => b.ovr - a.ovr);
+          .sort((a, b) => presentedOvr(b.pos, b.ovr) - presentedOvr(a.pos, a.ovr) || a.id - b.id);
         return (
           <Card
             title="Franchise Tag"
@@ -338,7 +339,7 @@ export default function Hub() {
       {state.phase === "offseason-final" && (() => {
         const tagged = tagExtensionPlayers(state, team.id)
           .slice()
-          .sort((a, b) => b.ovr - a.ovr);
+          .sort((a, b) => presentedOvr(b.pos, b.ovr) - presentedOvr(a.pos, a.ovr) || a.id - b.id);
         const extended = (state.tagExtensions ?? []).filter(
           (e) => e.season === state.season && e.teamId === team.id && e.extended
         );
@@ -414,7 +415,7 @@ export default function Hub() {
       {state.phase === "offseason-final" && (() => {
         const names = fifthYearOptionPlayers(state, team.id)
           .slice()
-          .sort((a, b) => b.ovr - a.ovr);
+          .sort((a, b) => presentedOvr(b.pos, b.ovr) - presentedOvr(a.pos, a.ovr) || a.id - b.id);
         const picked = (state.fifthYearOptions ?? []).filter(
           (o) => o.season === state.season && o.teamId === team.id && o.pickedUp
         );
@@ -771,7 +772,7 @@ export default function Hub() {
                       <PlayerLink p={row.player} className="truncate" />
                     </span>
                   </Cell>
-                  <Cell><OvrBadge ovr={row.player.ovr} size="sm" /></Cell>
+                  <Cell><OvrBadge ovr={presentedOvr(row.player.pos, row.player.ovr)} size="sm" /></Cell>
                   <Cell><span className="text-xs text-[var(--color-muted)]">{row.text}</span></Cell>
                 </Row>
               ))}
@@ -815,14 +816,14 @@ export default function Hub() {
           <Table head={["Player", "Pos", "Age", "OVR", "Cap Hit"]}>
             {roster
               .slice()
-              .sort((a, b) => b.ovr - a.ovr)
+              .sort((a, b) => presentedOvr(b.pos, b.ovr) - presentedOvr(a.pos, a.ovr) || a.id - b.id)
               .slice(0, 5)
               .map((p) => (
                 <Row key={p.id}>
                   <Cell align="left"><PlayerLink p={p} /></Cell>
                   <Cell><PosBadge pos={p.pos} /></Cell>
                   <Cell>{p.age}</Cell>
-                  <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                  <Cell><OvrBadge ovr={presentedOvr(p.pos, p.ovr)} size="sm" /></Cell>
                   <Cell>{formatMoney(p.contract ? (p.contract.baseSalary[0] ?? 0) + (p.contract.bonusProrationYears > 0 ? p.contract.signingBonus / p.contract.bonusProrationYears : 0) : 0)}</Cell>
                 </Row>
               ))}

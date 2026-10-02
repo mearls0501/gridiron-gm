@@ -21,7 +21,7 @@ import {
 } from "@/lib/view/waiverDesk";
 import { autoSortDepthChart } from "@/lib/core/generate";
 import { Rng } from "@/lib/core/rng";
-import { playerName } from "@/lib/core/ratings";
+import { playerName, presentedOvr, presentedPot } from "@/lib/core/ratings";
 import {
   GameState,
   POSITION_GROUP,
@@ -79,8 +79,8 @@ function compare(a: Player, b: Player, key: SortKey): number {
     case "name": return playerName(a).localeCompare(playerName(b));
     case "pos": return POSITIONS.indexOf(a.pos) - POSITIONS.indexOf(b.pos);
     case "age": return a.age - b.age;
-    case "ovr": return a.ovr - b.ovr;
-    case "pot": return a.pot - b.pot;
+    case "ovr": return presentedOvr(a.pos, a.ovr) - presentedOvr(b.pos, b.ovr);
+    case "pot": return presentedPot(a.pos, a.ovr, a.pot) - presentedPot(b.pos, b.ovr, b.pot);
     case "cap": return capHit(a.contract) - capHit(b.contract);
     case "years": return yearsLeft(a) - yearsLeft(b);
     case "status": return a.injuryWeeks - b.injuryWeeks;
@@ -291,7 +291,7 @@ export default function RosterPage() {
                       </span>
                     </Cell>
                     <Cell><PosBadge pos={p.pos} /></Cell>
-                    <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                    <Cell><OvrBadge ovr={presentedOvr(p.pos, p.ovr)} size="sm" /></Cell>
                     <Cell>{p.contract ? formatMoney(row.hit) : "—"}</Cell>
                     <Cell>{from?.abbr ?? "—"}</Cell>
                     <Cell>
@@ -439,13 +439,16 @@ export default function RosterPage() {
                   </Cell>
                   <Cell>{p.age}</Cell>
                   <Cell>
-                    <OvrBadge ovr={p.ovr} size="sm" />
+                    <OvrBadge ovr={presentedOvr(p.pos, p.ovr)} size="sm" />
                   </Cell>
                   <Cell>
                     <div className="flex items-center justify-end gap-2">
-                      <span className="text-[var(--color-muted)]">{p.pot}</span>
+                      <span className="text-[var(--color-muted)]">{presentedPot(p.pos, p.ovr, p.pot)}</span>
                       <span className="w-12 shrink-0">
-                        <Bar value={p.pot} tone={p.pot > p.ovr + 6 ? "good" : "accent"} />
+                        <Bar
+                          value={presentedPot(p.pos, p.ovr, p.pot)}
+                          tone={presentedPot(p.pos, p.ovr, p.pot) > presentedOvr(p.pos, p.ovr) + 6 ? "good" : "accent"}
+                        />
                       </span>
                     </div>
                   </Cell>
@@ -530,7 +533,7 @@ export default function RosterPage() {
                 <Cell className="tnum text-[var(--color-muted)]">
                   {typeof p.number === "number" ? `#${p.number}` : "—"}
                 </Cell>
-                <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                <Cell><OvrBadge ovr={presentedOvr(p.pos, p.ovr)} size="sm" /></Cell>
                 <Cell>
                   {p.injuryWeeks > 0 ? (
                     <Pill tone="bad">{p.injuryDesc ?? "Injured"} · {p.injuryWeeks}w</Pill>
@@ -572,7 +575,7 @@ export default function RosterPage() {
                 <Cell className="tnum text-[var(--color-muted)]">
                   {typeof p.number === "number" ? `#${p.number}` : "—"}
                 </Cell>
-                <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                <Cell><OvrBadge ovr={presentedOvr(p.pos, p.ovr)} size="sm" /></Cell>
                 <Cell>{p.psElevations ?? 0} / 3</Cell>
                 <Cell>
                   {canElevateFromPs(state, p) && (

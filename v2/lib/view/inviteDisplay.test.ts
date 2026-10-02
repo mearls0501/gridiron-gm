@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { newGame } from "../core/newGame";
 import { deskSuggestedYears, negotiatedApy, suggestedYears } from "../core/offseason/contracts";
-import { playerName } from "../core/ratings";
+import { playerName, presentedOvr } from "../core/ratings";
 import { teamRoster } from "../core/select";
 import { userVeteranView, visibleOvr } from "../core/scouting";
 import { briefingGroupOvr, buildBriefing } from "../core/season/briefing";
@@ -119,7 +119,10 @@ const GROUPS: { name: string; positions: Position[] }[] = [
   const roster = st.players.filter((p) => p.teamId === rivalId && !p.prospect);
   const ranked = roster
     .slice()
-    .sort((a, b) => userVeteranView(st, b).ovr - userVeteranView(st, a).ovr || a.id - b.id)
+    .sort((a, b) =>
+      presentedOvr(b.pos, userVeteranView(st, b).ovr)
+      - presentedOvr(a.pos, userVeteranView(st, a).ovr)
+      || a.id - b.id)
     .slice(0, 3);
   const hurt = roster.slice().sort((a, b) => b.ovr - a.ovr);
   hurt[0].injuryWeeks = 4;

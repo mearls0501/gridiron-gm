@@ -27,6 +27,7 @@ import {
   Tabs,
 } from "@/components/ui";
 import { DEPTH_CHART_HELP, starterCountLabel } from "@/lib/view/depthChartCopy";
+import { presentedOvr } from "@/lib/core/ratings";
 
 /**
  * Editable depth chart.
@@ -194,7 +195,7 @@ export default function DepthChartPage() {
                           </div>
                         </Cell>
                         <Cell>
-                          <OvrBadge ovr={p.ovr} size="sm" />
+                          <OvrBadge ovr={presentedOvr(p.pos, p.ovr)} size="sm" />
                         </Cell>
                         <Cell>
                           <div className="flex items-center justify-end gap-1">

@@ -5,6 +5,46 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-02 — Roster scale for specialists and 99 potential
+
+Worker. Display only. Zero new RNG draws. Kick attributes, contracts, CPU boards, `docs/baselines.json`, and the play-calling dials are not touched.
+
+Base: `main` `ee89476` (#140 saves / incoming calls).
+
+### Diagnosis
+
+Year-0 rosters, ten seeds, after `newGame`. Stored overall is a position grade. Depth-chart starters sit together: quarterbacks 77.2, edges 78.0, kickers 76.3, punters 76.6. A club carries one kicker and two punters, and every one of them is generated in that starter band, so they sort with the stars. Kickers were in the team top 5 on 26% of clubs (mean rank 13.4). Specialists took 11.5% of top-10 roster slots against 5.7% of the roster. A 53-man cannot put five kickers and punters in its top 10 — the cap is three — so that playtest count was the league feeling, not one club's math. Seed 42 Boston's best player was a kicker, 91 overall.
+
+99 potential is the wide projection (`POT_SPREAD` 2, noise `5 * POT_SPREAD`) clamped at 99. 5.7% of rostered players, 15% of starters, 11% of players under 24. The label piles up, so it stops meaning a ceiling.
+
+Lowering kicking attributes by the same 12 points the roster needed would move field-goal probability by about 5.5 points (`(kac-50)*0.0030 + (kpw-50)*0.0016`). `calibrate.fgPct` is 86 ± 4. That is a sim-outcome dial or a baseline move. Not done.
+
+### Change
+
+`presentedOvr` subtracts 12 for kickers and punters. Graded attributes on the player card move with the badge, so the card still averages. Fogged bands shift by the same 12. The center is still the belief, not the stored grade. `describeAsset` and the trade log stay on the stored grade.
+
+`presentedPot` leaves a gap of 6 alone and compresses the rest (`6 + round((gap-6)*0.35)`), then sits that on the roster overall. A 74/99 prints 87. A 99 remains only when the stored overall is already 93 or better.
+
+Five seeds after the scale: specialists are 1.19% of top-10 slots and 4 of 800 top-5 slots. 99 potential is 15 of 8,480 rostered players (0.18%). Seed 42 Boston's kicker prints 79/83 and is fifth, behind two linemen at 82. Seed 1's 98 overall edge still prints 99.
+
+### Leftover
+
+The development wall is still the stored potential. A maxed staff can buy back more than the desk's Unrealised column shows, because that column is the roster label. The trade log still records the stored grade (`K, 91`). Retirement lines parsed out of that log do too. Narrowing the projection draw would make the stored 99 rare and would move `ceiling`. That is a generation dial. Not done.
+
+### Untouched
+
+`lib/core/sim/game.ts`, `POT_SPREAD`, `rosterSlotOvr`, kick attributes, contracts, `cpuProspectView`, `docs/baselines.json`, Plan Now, the HC-fire dial, Packet 4 second scene, draft PRs #9, #63, #104–#107. No parent-stream draw. Assertions are `presentedrating`, registered in `package.json` `test` and in `scripts/gate.ts` FAST and FULL.
+
+### Gate
+
+Pending in this note until the fast serial gate finishes. `npx tsc --noEmit` passes. `scoutcheck` passes and `scout.leakMae` is still 2.05. `presentedrating`, `tradeboard`, and `invitedisplay` pass.
+
+### Browser
+
+Pending in this note until the fresh-franchise pass is in.
+
+---
+
 ## 2026-10-02 — Incoming calls are not one late-pick template
 
 Worker. CPU offers the user sees, and picks that are already gone. `docs/baselines.json` and the play-calling dials are not touched. CPU-CPU execution stays on `proposeTrade`.
