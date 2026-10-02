@@ -5,6 +5,57 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-02 — Saves list, incoming calls, run-heavy live game
+
+Worker. Saves-page merge, and a child-stream inquiry when the shop pass finds nobody to offer the user. `docs/baselines.json` and the play-calling dials are not touched.
+
+Base: `main` `41a49cd` (#139 draft board).
+
+### Diagnosis
+
+**Saves.** `/saves` painted "No saves yet" from an empty `useState` until `listSaves()` finished, and it never consulted the franchise already in the store. `listSaves` was one `getAll()` of every full document. A mid-season save is the fat one (current-season box scores). That read is slow, and a rejection left the list empty while the shell still showed the club. Hub sim also keeps the live week in memory and writes IndexedDB at the end of the run, so the disk row can be behind the franchise on screen. Export used whichever copy the list had decoded.
+
+**Incoming offers.** Outgoing propose → accept was fine. The phone was not. In-season calls are gated by the existing calendar (`3.6 * week weight`, deadline week certain, September rare) and the engine asked for `max = 1`, so a sitting offer blocked the next one. Free agency was the empty pool: `runOffseasonTrades` runs after contracts expire, `proposeTrade` only targets players that club's posture will already shop, and that intersection is often empty (`noTargets` on 40/40 draws, seed 42). Seed 42 opened free agency with **0** calls; 3 of 5 seeds did the same on the tag → FA step. The 24-draw pass cannot invent a target it refuses to look at. CPU-CPU volume is a different path and was left on its dials.
+
+**Week 8 run game.** Not a live-play bug. `finishAuto` / `/play` use the same `choosePass` as bulk sim. Across 24 user games at week 8 the mean was about 35 pass / 24 rush; play logs sat at 153–184 events. The tail is a blowout. Seed 12, all 16 games: Baltimore **22 pass / 60 rush**, 153 play-log events, **40–0**. The QA sample (~18 pass / 61 rush, ~146 snaps) is that script: base pass rate floors at 0.40, then a big lead in the second half pulls the clamp down to 0.15. Season totals stay on the dial because most games are not 40-point wins. Left alone.
+
+### Change
+
+The Saves page shows the in-memory franchise immediately and merges it over a stale disk copy of the same id. "No saves yet" waits until the read finishes and there is still nothing, including no live club. Listing reads one key at a time so one bad row does not blank the rest; a failed read surfaces the error and keeps the live row. If the live id is absent from a successful read, the page writes it. Export of the current row uses the live document.
+
+`generateUserOffers` still does the shop pass on the rng it was given. If that leaves the inbox short of its cap, a child stream keyed by seed / season / week / club / phase / `nextTradeId` asks about a contracted player at any real hole, not only the top-five shop list. The buyer's own gain test and `checkTrade` still have to pass. Nothing auto-accepts. In-season the calendar gate is unchanged; the cap is 2, matching the "couple of live offers" the function already documented. Plan Now still pauses only when the inbox grows during an open window.
+
+Seed 42, tag → FA: inbox **2**, both legal, `rngState` still **485912630**.
+
+### Leftover
+
+A week the calendar gate does not hit still does not ring. Two offers can sit until the user rejects one; this packet does not auto-expire a call mid-season. A 40-point game will still be run-heavy. That is the script.
+
+### Untouched
+
+Film Study window gating, Plan Now's pause rule (length, open window, new call), HC-fire dial, Packet 4 second scene, `docs/baselines.json`, `choosePass` / `passBias` / snap shares, draft PRs #9, #63, #104–#107. No parent-stream draw. Shop-pass draw count on the rng handed to `generateUserOffers` is unchanged; the inquiry uses its own `Rng`.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores, ~29.5 min). `savelist`, `useroffers`, typecheck, determinism, verify, calibrate, and statcheck passed (`statcheck.wr10RecYds` 1070, inside the band, did not fire). One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+`npm run build` from `v2/` completes.
+
+### Browser
+
+Seed 42. Header Saves, with the disk row deleted and the franchise still in memory: My Franchise, Boston Minutemen, Current pill. The page did not say "No saves yet". It wrote the row back; a reload still listed it. Same row at a phone width.
+
+Sim toward the deadline paused in week 2 with two calls: Columbus Cavalry and Pittsburgh Forge. Accept and Reject were both on the offer. Nothing was accepted.
+
+---
+
 ## 2026-10-02 — Draft board rank, not a consensus photocopy
 
 Worker. Display and the user's unworked belief only. Zero new RNG draws. CPU boards, pick selection, dials, and `docs/baselines.json` are not touched.

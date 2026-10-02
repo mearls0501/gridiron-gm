@@ -677,15 +677,44 @@ function rationaleFor(posture: Posture, wantsPlayer: boolean): string {
  * trades should be uncommon enough to be news.
  */
 export function proposeTrade(
-  state: GameState, fromTeamId: number, toTeamId: number, rng: Rng
+  state: GameState,
+  fromTeamId: number,
+  toTeamId: number,
+  rng: Rng,
+  pool: "shop" | "inquiry" = "shop",
 ): TradeOffer | null {
   if (fromTeamId === toTeamId) return null;
   const { posture } = teamOutlook(state, fromTeamId);
   const { posture: theirs } = teamOutlook(state, toTeamId);
 
   const wants = new Set(needsOf(state, fromTeamId));
-  const targets = tradeableFrom(state, toTeamId, theirs)
-    .filter((p) => wants.has(p.pos))
+  // CPU-CPU deals only move players that club is already willing to shop.
+  // A call to the user is different: nothing executes until they accept, and
+  // the shop is often empty once free agency has stripped expiring deals.
+  // Asking about a real body at a position of need is the phone call. The
+  // buyer's own books (`myGain`) still have to like it.
+  let targets = tradeableFrom(state, toTeamId, theirs).filter((p) => wants.has(p.pos));
+  if (targets.length === 0 && pool === "inquiry") {
+    const asked = new Set<number>();
+    for (const o of state.tradeOffers ?? []) {
+      for (const a of o.get) if (a.kind === "player") asked.add(a.playerId);
+    }
+    // Top-five needs miss the bodies still under contract after the purge.
+    // Any real hole is enough for a call the user can refuse.
+    const holes = new Set(
+      (Object.keys(POSITION_TARGET) as Position[]).filter(
+        (pos) =>
+          needHeadcount(state, fromTeamId, pos) < POSITION_TARGET[pos] ||
+          starterDeficit(state, fromTeamId, pos) > 0,
+      ),
+    );
+    targets = teamRoster(state, toTeamId).filter((p) => {
+      if (!p.contract || p.retired || p.prospect || !isActiveRoster(p)) return false;
+      if (asked.has(p.id) || !holes.has(p.pos)) return false;
+      return p.ovr >= REPLACEMENT_OVR;
+    });
+  }
+  targets = targets
     .sort(
       (a, b) =>
         playerTradeValue(state, fromTeamId, b, posture) -
@@ -1091,6 +1120,45 @@ export function runCutdownTrades(state: GameState, rng: Rng, attempts = 120): nu
 }
 
 /**
+ * Child stream for a user-inbox search that the weekly parent must not see.
+ * Keyed off the save, not off `rng`, so a failed shop pass can still place
+ * a call without moving `state.rngState`.
+ */
+function userInquiryRng(state: GameState): Rng {
+  let h = (state.seed ^ 0x9e3779b9) >>> 0;
+  h = Math.imul(h ^ (state.season + 1), 0x85ebca6b) >>> 0;
+  h = Math.imul(h ^ (state.week + 1), 0xc2b2ae35) >>> 0;
+  h = Math.imul(h ^ (state.userTeamId + 1), 0x27d4eb2f) >>> 0;
+  h = Math.imul(h ^ (state.nextTradeId ?? 1), 0x165667b1) >>> 0;
+  let phase = 0;
+  for (let i = 0; i < state.phase.length; i++) {
+    phase = (Math.imul(phase, 33) + state.phase.charCodeAt(i)) >>> 0;
+  }
+  h = Math.imul(h ^ phase, 0x27d4eb2f) >>> 0;
+  return new Rng(h);
+}
+
+/**
+ * The shop pass often finds nobody once expiring contracts are gone: the
+ * user's posture is not shopping the players other clubs need. Walk the
+ * league once on a child stream and ask. Still capped, still not executed.
+ */
+function fillUserInquiries(state: GameState, max: number): void {
+  if (!state.tradeOffers || state.tradeOffers.length >= max) return;
+  const rng = userInquiryRng(state);
+  const ids = rng.shuffle(state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId));
+  for (const from of ids) {
+    if (state.tradeOffers.length >= max) break;
+    if (state.tradeOffers.some((o) => o.fromTeamId === from)) continue;
+    const offer = proposeTrade(state, from, state.userTeamId, rng, "inquiry");
+    if (!offer || !checkTrade(state, offer).ok) continue;
+    offer.id = state.nextTradeId ?? 1;
+    state.nextTradeId = (state.nextTradeId ?? 1) + 1;
+    state.tradeOffers.push(offer);
+  }
+}
+
+/**
  * Offers put in front of the user.
  *
  * The CPU comes to the user for the same reasons it goes to anyone else — it
@@ -1119,6 +1187,7 @@ export function generateUserOffers(state: GameState, rng: Rng, max = 2): TradeOf
     state.nextTradeId = (state.nextTradeId ?? 1) + 1;
     state.tradeOffers.push(offer);
   }
+  if (state.tradeOffers.length < max) fillUserInquiries(state, max);
   return state.tradeOffers;
 }
 

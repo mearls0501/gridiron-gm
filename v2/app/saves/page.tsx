@@ -6,7 +6,7 @@ import { Button, Card, Empty, Pill, TeamMark } from "@/components/ui";
 import { PHASE_LABEL } from "@/components/Shell";
 import { GameState } from "@/lib/core/types";
 import { computeRecords, recordString } from "@/lib/core/select";
-import { exportSave, importSave } from "@/lib/store/save";
+import { exportSave, importSave, mergeSaveList, saveGame } from "@/lib/store/save";
 
 /**
  * Save management. Export/import exists so a franchise is never trapped in one
@@ -14,12 +14,35 @@ import { exportSave, importSave } from "@/lib/store/save";
  */
 export default function SavesPage() {
   const { state, saves, load, remove, setError } = useGame();
-  const [list, setList] = useState<GameState[]>([]);
+  const [disk, setDisk] = useState<GameState[] | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const refresh = () => void saves().then(setList);
-  useEffect(refresh, [saves, state]);
+  useEffect(() => {
+    let dead = false;
+    saves()
+      .then((rows) => {
+        if (dead) return;
+        setDisk(rows);
+        const live = useGame.getState().state;
+        if (live && !rows.some((row) => row.id === live.id)) {
+          void saveGame(live).catch((err) => {
+            setError(err instanceof Error ? err.message : "Could not save. Your progress may be lost.");
+          });
+        }
+      })
+      .catch((err) => {
+        if (dead) return;
+        setDisk([]);
+        setError(err instanceof Error ? err.message : "Could not read saved games.");
+      });
+    return () => {
+      dead = true;
+    };
+  }, [saves, state?.id, setError]);
+
+  const list = mergeSaveList(state, disk ?? []);
+  const showEmpty = disk !== null && list.length === 0;
 
   return (
     <div className="space-y-4 max-w-3xl">
@@ -40,7 +63,7 @@ export default function SavesPage() {
                 try {
                   const s = await importSave(f);
                   await load(s.id);
-                  refresh();
+                  setDisk(await saves());
                 } catch (err) {
                   setError(err instanceof Error ? err.message : "That file could not be imported.");
                 } finally {
@@ -53,12 +76,15 @@ export default function SavesPage() {
         }
         padded={false}
       >
-        {list.length === 0 ? (
+        {showEmpty ? (
           <Empty title="No saves yet" />
+        ) : disk === null && list.length === 0 ? (
+          <Empty title="Loading saves…" />
         ) : (
           <div className="divide-y divide-[var(--color-line-soft)]">
             {list.map((s) => {
-              const team = s.teams[s.userTeamId];
+              const team = s.teams?.[s.userTeamId];
+              if (!team) return null;
               const rec = computeRecords(s).get(team.id)!;
               const active = state?.id === s.id;
               return (
@@ -80,7 +106,13 @@ export default function SavesPage() {
                     {!active && (
                       <Button size="sm" onClick={() => void load(s.id)}>Load</Button>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => exportSave(s)}>Export</Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => exportSave(state?.id === s.id ? state : s)}
+                    >
+                      Export
+                    </Button>
                     {confirmId === s.id ? (
                       <>
                         <Button
@@ -89,7 +121,7 @@ export default function SavesPage() {
                           onClick={async () => {
                             await remove(s.id);
                             setConfirmId(null);
-                            refresh();
+                            setDisk(await saves());
                           }}
                         >
                           Delete for good
