@@ -7,7 +7,8 @@ import { settleWaivers } from "../waivers";
 import { recordSeasonHistory, reapplyRetirementDead, runProgression, OffseasonReport } from "./progression";
 import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, runCpuFifthYearOptions, runCpuFranchiseTags, runCpuTagExtensions, runCpuVoidYears, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
-import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
+import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase } from "./draft";
+import { ensureFutureClasses, promoteDraftClass } from "../futureClass";
 import { ensureScouting, pruneScouting } from "../scouting";
 import { dropSpentInboxOffers, ensurePickInventory, generateUserOffers, prunePickInventory, pruneStaleTradeInbox, rolloverTradeCounter, runCpuTrades, runDraftDayTrades } from "../trades";
 import { runHousekeeping } from "../housekeeping";
@@ -307,9 +308,10 @@ export function finalizeOffseason(state: GameState): void {
   refreshCpuStaff(state);
   ensureScouting(state);
 
-  // Seed next year's class so the user can scout during the season.
-  generateDraftClass(state, rng, state.season);
-  initialScoutingPass(state, state.season, rng);
+  // The class that was living in the future becomes this year's board.
+  // Same two parent draws as a fresh roll. Camp bodies are a child stream.
+  promoteDraftClass(state, rng);
+  ensureFutureClasses(state);
 
   refreshDepthCharts(state);
   // Roll the pick horizon forward so next year's class is tradeable too.

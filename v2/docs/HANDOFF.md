@@ -5,6 +5,53 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-03 — Future classes are alive before they are scouted
+
+Worker. A pipeline on top of this-year scouting. The current class, its windows, and the CPU hash read stay. `docs/baselines.json`, play-calling, Plan Now, the HC-fire dial, and Wave Packet 4 are not touched.
+
+### Diagnosis
+
+`draftClass(state, season)` already filters `prospect && draftClassSeason === season`. It was never hard-wired to one season. What was true is that only one class existed. `newGame` and `finalizeOffseason` each call `generateDraftClass` for `state.season` and nothing else. After the draft, `pruneScouting` drops that class's intel. The next board is a fresh roll at rollover, the week it becomes the scouting class.
+
+Public info on a prospect is still school, size, combine, and the consensus board. The user still has the calendar (in-season film, all-star interview, combine medical, one pro day, 30 private visits, UDFA prep). True `ceiling` is not scoutable. There are no named scouts. Each CPU club's read is still `cpuProspectView`: truth plus a stable hash keyed by seed, season, club, and player.
+
+### Change
+
+Two later classes sit on `state.players` for the same horizon as draft picks (`PICK_HORIZON` 3: this year, plus one, plus two). They are generated on a child stream keyed `(seed, class season, "futureClass")`. Their ids start at 1_000_000 (`nextFuturePlayerId`) so street signings keep `nextPlayerId`. `newGame` still builds this year's class with the old parent draws, stores `rngState`, and only then fills the future boards.
+
+Each regular-season week, a per-player child stream keyed `(seed, season, week, futureClass:playerId)` can injure a future prospect or move an underclassman. A class two years out can declare early into the nearer class. A class one year out can stay in school. Neither move can enter the class being scouted. A public injury worsens the hidden medical grade, durability, and one trait, then recomputes overall. It does not touch `pot` or `ceiling`. A few of those injuries remove the player from the draft. The same week does not apply twice (`futureClassTick`). An old save catches up weeks already played in `migrate` and does not rewrite `rngState` or the current board.
+
+At rollover, if that living board is already there, it becomes the scouting class. The parent still spends the same two integers `generateDraftClass` and `initialScoutingPass` always spent. Camp bodies, who were never on the future board, are added on a child stream (`futureCamp`) so the draft year still has a camp pool. The public 12% pass then runs on whoever is actually in the class. If nothing is waiting (a new game's first class, or a save that never grew one), the old generator runs.
+
+The Draft page shows the future boards: school, size, campus forty, consensus rank, and the public note. Film, visits, and medicals refuse a future id. The player page for those names shows the consensus rank and the public sheet, not attribute ranges. Rates are proposed defaults, ungated, in `nfl-reference.md` §4.
+
+Seed 42: this year's ids stay under 1_000_000, the next two classes exist, 18 weeks leave injuries and class moves, none of those men enter this year's class, `rngState` and `nextPlayerId` do not move, film still lands on this year's class, and promotion keeps the living ids. A stripped save refilled in `catchUpFutureClasses` with the same current board and the same `rngState`.
+
+### Leftover
+
+The opened class is a different set of people from the fresh roll the old rollover would have written, starting the year after the first. Year 0's draft is the class `generateDraftClass` still builds. Parent draw count at rollover matches; the draft at the end of year 1 reads the living class, so later seasons can diverge. That is the feature. It was not retuned.
+
+Future-class bodies are about 0.43 MB on a year-0 document (504 names). The window slides; it is not another class piled on every season. `drift.saveMbAtEnd` was not re-measured here. Do not move the lock for it in this packet.
+
+Camp fodder is still born the year the class is scouted, not three years early. A wiped future board (everyone medically out) falls through to a fresh roll. The proposed rates do not do that.
+
+### Untouched
+
+This-year windows, visit cap, method caps, `cpuProspectView`, `cpuBoardValue`, consensus math, `pruneScouting`, true `ceiling`. Plan Now, HC-fire, Packet 4 second scene, `docs/baselines.json`, `sim/game.ts` dials. No parent-stream draw. Assertions are `futureclass`, registered in `package.json` `test` and in `scripts/gate.ts` FAST and FULL.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores, ~23 min). `futureclass`, typecheck, determinism, verify (348/348), sweep, calibrate, statcheck, and scout passed. `contractceiling` 880s, seed 12345 peak top cap **21.7%**, busts 0. `statcheck.wr10RecYds` **1070**, inside the band, did not fire. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not touched.
+
+---
+
 ## 2026-10-02 — Roster scale for specialists and 99 potential
 
 Worker. Display only. Zero new RNG draws. Kick attributes, contracts, CPU boards, `docs/baselines.json`, and the play-calling dials are not touched.

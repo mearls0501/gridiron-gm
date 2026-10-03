@@ -484,6 +484,16 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
 
 ## 4. What remains uncalibrated, on purpose
 
+- **Future-class pipeline rates.** Added 2026-10-03. Not in T/D/S/P.
+  Later classes exist before they are scouted; injuries and early
+  declarations change who is in them. There is no traced weekly hazard
+  for college prospects in this file, so the rates are proposed
+  defaults, ungated, and not a lock: about 4.5% of a future class
+  takes a public injury across an 18-week season (about 12% of those
+  are out of the draft), about 8% of underclassmen two years out
+  declare early, and about 5% of underclassmen one year out stay in
+  school. None of those draws touch the parent RNG. Do not tune the
+  draft or the play engine to them.
 - **Risk-grade teeth (medical / character).** Added 2026-09-16
   (Wave 4.0 Packet 5). This file has **no** injury-rate-by-medical-grade
   or holdout-by-character series in T/D/S/P. Combine orthopedic

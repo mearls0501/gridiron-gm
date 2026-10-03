@@ -11,7 +11,8 @@ import {
   POSITION_WEIGHTS, ovrTier, presentedAttr, presentedAttrBand, presentedOvr, presentedPot, relevantAttrs,
 } from "@/lib/core/ratings";
 import { attrBand, knowsTrueRatings, veteranIntel, visibleOvr, visiblePot } from "@/lib/core/scouting";
-import { boardGrade, gradeContext, verdictFor } from "@/lib/core/scouting-reports";
+import { boardGrade, consensusGrade, gradeContext, verdictFor } from "@/lib/core/scouting-reports";
+import { isFutureProspect } from "@/lib/core/futureClass";
 import { capHit, deadMoney, formatMoney } from "@/lib/core/select";
 import { careerTotals, cmpPct, fgPct, passerRating, ypc, ypr } from "@/lib/core/season/stats";
 import { askingPrice } from "@/lib/core/offseason/contracts";
@@ -186,6 +187,14 @@ function prospectGrade(state: GameState, p: Player): string {
   return boardGrade(state, p, gradeContext(state, pool)).label;
 }
 
+/** Public rank for a class that is not scoutable yet. */
+function futureConsensus(state: GameState, p: Player): string {
+  const pool = state.players.filter(
+    (q) => q.prospect && q.draftClassSeason === p.draftClassSeason && !q.retired && !q.pipeline?.camp
+  );
+  return consensusGrade(state, p, gradeContext(state, pool)).label;
+}
+
 export default function PlayerPage() {
   const params = useParams<{ id: string }>();
   const state = useGame((s) => s.state);
@@ -233,6 +242,7 @@ export default function PlayerPage() {
   const totals = careerTotals(p);
   const known = knowsTrueRatings(state, p);
   const fog = !p.prospect && !known;
+  const future = isFutureProspect(state, p);
   const scouted = fog ? veteranIntel(state, p) : null;
   const shownOvr = presentedOvr(p.pos, p.ovr);
   const shownPot = presentedPot(p.pos, p.ovr, p.pot);
@@ -248,7 +258,9 @@ export default function PlayerPage() {
           </h1>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">
             {p.prospect
-              ? `${p.draftClassSeason ?? state.season} draft class`
+              ? future
+                ? `${p.draftClassSeason} class — not scoutable yet`
+                : `${p.draftClassSeason ?? state.season} draft class`
               : team
                 ? `${team.city} ${team.name}`
                 : "Unsigned free agent"}
@@ -296,9 +308,11 @@ export default function PlayerPage() {
             {p.prospect ? (
               <div className="text-right">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
-                  Scouted Grade
+                  {future ? "Consensus" : "Scouted Grade"}
                 </div>
-                <div className="text-lg font-semibold">{prospectGrade(state, p)}</div>
+                <div className="text-lg font-semibold">
+                  {future ? futureConsensus(state, p) : prospectGrade(state, p)}
+                </div>
               </div>
             ) : (
               <>
@@ -325,7 +339,18 @@ export default function PlayerPage() {
       </Card>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {p.prospect ? (
+        {future ? (
+          <>
+            <Stat label="Consensus" value={futureConsensus(state, p)} sub="Public board" />
+            <Stat label="Scouting" value="Closed" sub="Opens the year of the draft" />
+            <Stat label="Age" value={p.age} />
+            <Stat
+              label="Class"
+              value={p.draftClassSeason ?? "—"}
+              sub={p.profile?.college ?? "Campus"}
+            />
+          </>
+        ) : p.prospect ? (
           <>
             <Stat label="Board Grade" value={prospectGrade(state, p)} sub="Your department's call" />
             <Stat label="Scouting" value={`${Math.round(p.scouted)}%`} sub="Effort invested" />
@@ -355,7 +380,25 @@ export default function PlayerPage() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title="Contract" className="lg:col-span-1">
-          {p.prospect ? (
+          {future ? (
+            <div className="space-y-3">
+              <p className="text-xs text-[var(--color-muted)]">
+                This class is not the one you are scouting. School, size, campus testing, and the
+                consensus board are public. Your department does not open a file until the year
+                of the draft.
+              </p>
+              {(p.pipeline?.notes ?? []).length > 0 && (
+                <ul className="text-xs text-[var(--color-text)] space-y-1">
+                  {p.pipeline!.notes.map((note, i) => (
+                    <li key={`${i}:${note}`}>{note}</li>
+                  ))}
+                </ul>
+              )}
+              <Link href="/draft" className="text-xs text-[var(--color-accent)] hover:underline">
+                Future classes
+              </Link>
+            </div>
+          ) : p.prospect ? (
             <div className="space-y-3">
               <p className="text-xs text-[var(--color-muted)]">
                 Draft prospects sign rookie deals the moment they are picked. Nothing is owed until
@@ -450,15 +493,19 @@ export default function PlayerPage() {
         <Card
           title={`Key Attributes — ${p.pos}`}
           subtitle={
-            p.prospect || fog
-              ? "Scouted ranges — your department's read, not the truth"
-              : "Weighted heaviest for this position"
+            future
+              ? "Public sheet only. Traits open the year of the draft."
+              : p.prospect || fog
+                ? "Scouted ranges — your department's read, not the truth"
+                : "Weighted heaviest for this position"
           }
           className="lg:col-span-2"
           actions={
-            <Button size="sm" variant="ghost" onClick={() => setShowAllAttrs(!showAllAttrs)}>
-              {showAllAttrs ? "Hide the rest" : `Show all ${ATTR_KEYS.length}`}
-            </Button>
+            future ? undefined : (
+              <Button size="sm" variant="ghost" onClick={() => setShowAllAttrs(!showAllAttrs)}>
+                {showAllAttrs ? "Hide the rest" : `Show all ${ATTR_KEYS.length}`}
+              </Button>
+            )
           }
         >
           {p.prospect && p.profile && (
@@ -479,7 +526,12 @@ export default function PlayerPage() {
               )}
             </div>
           )}
-          {key.length === 0 ? (
+          {future ? (
+            <p className="text-xs text-[var(--color-muted)]">
+              School, size, and campus testing are public. Attribute ranges are a scouting
+              product, and this class is not the one being scouted.
+            </p>
+          ) : key.length === 0 ? (
             <Empty title="No weighted attributes for this position." />
           ) : (
             <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -497,7 +549,7 @@ export default function PlayerPage() {
             </div>
           )}
 
-          {showAllAttrs && (
+          {showAllAttrs && !future && (
             <div className="mt-5 pt-4 border-t border-[var(--color-line-soft)]">
               <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-3">
                 Everything Else

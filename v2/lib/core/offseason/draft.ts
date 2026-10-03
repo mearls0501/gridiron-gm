@@ -105,13 +105,25 @@ const ELITE_DEPTH = 48;
  * advances by exactly one step no matter how big the class is, so the class
  * model and the season simulation are finally independent.
  */
-export function generateDraftClass(state: GameState, parent: Rng, season: number): Player[] {
-  const rng = new Rng(parent.int(1, 0x7ffffffe));
+/**
+ * Write a class onto `rng`. The caller owns the stream.
+ *
+ * `generateDraftClass` still forks that stream from one parent draw. The
+ * future-class pipeline calls this on its own child stream and never
+ * touches the parent. Draw order inside a full class (board, then camp)
+ * is the same sequence this function has always used.
+ */
+export function writeDraftClass(
+  state: GameState,
+  rng: Rng,
+  season: number,
+  opts: { board: boolean; camp: boolean; nextId: () => number; markCamp?: boolean },
+): Player[] {
   const out: Player[] = [];
 
   const add = (targetOvr: number, pos: Position) => {
     const age = rng.int(21, 23);
-    const p = makePlayer(rng, state.nextPlayerId++, {
+    const p = makePlayer(rng, opts.nextId(), {
       pos, targetOvr, age, season, prospect: true,
       potBoost: rng.chance(0.12) ? rng.int(3, 9) : 0,
     });
@@ -121,29 +133,43 @@ export function generateDraftClass(state: GameState, parent: Rng, season: number
     // hidden risk grades scouting can reveal. Same child stream, so class
     // size still cannot couple to the league's simulation stream.
     generateProspectProfile(rng, p);
+    if (opts.markCamp) p.pipeline = { notes: [], camp: true };
     out.push(p);
     state.players.push(p);
   };
 
-  const board = DRAFT_BOARD + rng.int(-8, 8);
-  for (let rank = 0; rank < board; rank++) {
-    const elite = rank < ELITE_DEPTH;
-    const pos = rng.weighted(POSITIONS, (q) => {
-      const base = POSITION_TARGET[q] * (POSITION_VALUE[q] * 0.5 + 0.6);
-      return elite && q === "QB" ? base * ELITE_QB_SUPPRESSION : base;
-    });
-    add(boardQuality(rank, rng), pos);
+  if (opts.board) {
+    const board = DRAFT_BOARD + rng.int(-8, 8);
+    for (let rank = 0; rank < board; rank++) {
+      const elite = rank < ELITE_DEPTH;
+      const pos = rng.weighted(POSITIONS, (q) => {
+        const base = POSITION_TARGET[q] * (POSITION_VALUE[q] * 0.5 + 0.6);
+        return elite && q === "QB" ? base * ELITE_QB_SUPPRESSION : base;
+      });
+      add(boardQuality(rank, rng), pos);
+    }
   }
 
   // The camp pool. Flat and low: these are bodies, not prospects.
-  const camp = CAMP_POOL + rng.int(-30, 30);
-  for (let i = 0; i < camp; i++) {
-    const pos = rng.weighted(POSITIONS, (q) => POSITION_TARGET[q]);
-    add(clamp(Math.round(rng.normal(49, 4)), 40, 60), pos);
+  if (opts.camp) {
+    const camp = CAMP_POOL + rng.int(-30, 30);
+    for (let i = 0; i < camp; i++) {
+      const pos = rng.weighted(POSITIONS, (q) => POSITION_TARGET[q]);
+      add(clamp(Math.round(rng.normal(49, 4)), 40, 60), pos);
+    }
   }
 
   ensureJerseyNumbers(state);
   return out;
+}
+
+export function generateDraftClass(state: GameState, parent: Rng, season: number): Player[] {
+  const rng = new Rng(parent.int(1, 0x7ffffffe));
+  return writeDraftClass(state, rng, season, {
+    board: true,
+    camp: true,
+    nextId: () => state.nextPlayerId++,
+  });
 }
 
 // ---------------------------------------------------------------------------
