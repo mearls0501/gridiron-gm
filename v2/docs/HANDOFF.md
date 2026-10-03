@@ -5,6 +5,61 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-02 — Incoming calls are not one late-pick template
+
+Worker. CPU offers the user sees, and picks that are already gone. `docs/baselines.json` and the play-calling dials are not touched. CPU-CPU execution stays on `proposeTrade`.
+
+### Diagnosis
+
+`proposeTrade` builds one package: the seller's cheapest picks, up to three, then the cheapest body that closes the gap. In the regular season a 53-man club that only sends picks also has to attach a depth-chart body. Every call that cleared was that shape. Seed 7, 32 successful `proposeTrade` draws at week 6 and again in free agency: **32/32** were one player plus three 7ths (2026, 2027, 2028). Seed 42's live inbox was the same pair of calls from week 3 through week 9.
+
+Those three cheapest picks include the current class. Free agency builds the inbox, then the draft uses the class. `isSpentPick` is true once `draft.complete` is set, and `checkTrade` refuses the row, but nothing rewrites the inbox until the next `generateUserOffers`. Camp still showed the call. Seed 42 after the draft: Memphis's offer still listed `2026 R5 (MEM) (used)` and Nashville's listed `2026 R7 (BKN) (used)`.
+
+CPU-CPU volume is a different path. It uses the same builder, on purpose: changing it would move which trades execute and the parent stream. The phone is the part that looked templated.
+
+### Change
+
+The shop pass and the inquiry still call `proposeTrade` on the rng they already had, so the draw count on that rng does not change. The package the user sees is rebuilt on a child stream keyed by seed / season / week / club / phase / `nextTradeId` (a different salt from the inquiry stream). Same price band and the same "both clubs come out ahead" test. The assets that are allowed to pay it are one pick, two picks, a player, or a player and a pick. Three Day-3 picks are rejected on that path. If nothing else clears, the original package is kept.
+
+In-season, a picks-only package still attaches one depth-chart body when the roster would go to 54. That body is the roster rule, not a third seventh.
+
+After a pick is used, skipped to the end of the board, or the draft is marked complete, inbox rows and on-the-clock offers that name a spent pick — or a pick this club no longer holds — are dropped. Cap, roster, and a closed window do not drop a row. Reject still clears those.
+
+The inquiry key includes `nextTradeId`. Replacing a stale call moves it, and seed 42's free-agency walk then missed every club (`builtN` 0) even though `rngState` was still **485912630**. If that walk places nobody, up to eight further child walks ask again. They do not touch the parent.
+
+`pickValue` still prices a pick from last year's final draft order. That order is computed once per save per season and reused, so a phone call does not re-sort every game for every pick.
+
+### Checked
+
+Seed 42, full season through camp. Parent `rngState` at tag **4285417656**, at free agency **485912630**. Free agency opened with 1–2 legal calls, each asking for a player. Across the calls that arrived in-season and at free agency, more than one give-shape, and the three-late-picks bundle was not every call. After the draft, no inbox pick was spent or held by the wrong club.
+
+Five seeds (1, 7, 42, 99, 123) at week 6 and at free agency, `generateUserOffers` cap 2: at least four give-shapes, the late-pick bundle a minority, every call legal, none naming a used pick. A planted used 4th is removed; a future 2nd stays until that club no longer holds it.
+
+`npx tsx lib/core/userOffers.test.ts`, `tradeWindow.test.ts`, `tradeBoard.test.ts`, and `tsc --noEmit` passed.
+
+Seed 12345 through 2029 still prints top cap 18.1 / 17.7 / 19.5 / 21.7. The slot cache does not move that path.
+
+### Leftover
+
+A call can still be the old bundle when no other package clears the same band. Camp can still show a call that fails the cap after the UDFA chase (seed 42, Philadelphia: "cannot fit the contracts"). Accept refuses it. It does not name a used pick. The inquiry fallback does not run when the primary walk already placed a call.
+
+### Untouched
+
+CPU-CPU `proposeTrade` / `runCpuTrades` draw sequence and which deals execute. Plan Now pause rule, HC-fire dial, Packet 4 second scene, `docs/baselines.json`, play-calling dials, draft PRs #9, #63, #104–#107. Trade-desk fog: rival overall stays the scouted badge (`tradeBoard`). No parent-stream draw was added.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores, ~20 min). `useroffers`, `tradewindow`, `tradeboard`, typecheck, determinism, verify, sweep, calibrate, statcheck, and scout passed. `contractceiling` 791s, seed 12345 peak top cap **21.7%**, busts 0. `statcheck.wr10RecYds` **1070**, inside the band, did not fire. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not touched.
+
+---
+
 ## 2026-10-02 — A finished /play game is the official week result
 
 Worker. Commit path only. The play engine, dials, and `docs/baselines.json` are not touched.

@@ -9,7 +9,7 @@ import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, runCpuFif
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase, generateDraftClass, initialScoutingPass } from "./draft";
 import { ensureScouting, pruneScouting } from "../scouting";
-import { ensurePickInventory, generateUserOffers, prunePickInventory, pruneStaleTradeInbox, rolloverTradeCounter, runCpuTrades, runDraftDayTrades } from "../trades";
+import { dropSpentInboxOffers, ensurePickInventory, generateUserOffers, prunePickInventory, pruneStaleTradeInbox, rolloverTradeCounter, runCpuTrades, runDraftDayTrades } from "../trades";
 import { runHousekeeping } from "../housekeeping";
 import { refreshCpuStaff } from "../staff";
 import { runPsychology } from "../psychology";
@@ -224,6 +224,7 @@ export function simEntireDraft(state: GameState): void {
  * hit the street; every club fills toward 90. Board cap of 4 is unchanged.
  */
 export function enterCampAfterDraft(state: GameState, rng: Rng): number {
+  dropSpentInboxOffers(state);
   const n = runUdfaChase(state, rng);
   if (state.draft) convertUndrafted(state, state.draft.season);
   const TIME = typeof process !== "undefined" && process.env.WAIVER_TIME === "1";
