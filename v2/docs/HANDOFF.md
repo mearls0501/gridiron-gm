@@ -41,7 +41,14 @@ This-year windows, visit cap, method caps, `cpuProspectView`, `cpuBoardValue`, c
 
 ### Gate
 
-Pending the fast serial run from `v2/` (4 cores). Not a retune.
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores, ~23 min). `futureclass`, typecheck, determinism, verify (348/348), sweep, calibrate, statcheck, and scout passed. `contractceiling` 880s, seed 12345 peak top cap **21.7%**, busts 0. `statcheck.wr10RecYds` **1070**, inside the band, did not fire. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not touched.
 
 ---
 
