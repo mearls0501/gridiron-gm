@@ -9,7 +9,7 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 Worker. Display only. Zero new RNG draws. Kick attributes, contracts, CPU boards, `docs/baselines.json`, and the play-calling dials are not touched.
 
-Base: `main` `ee89476` (#140 saves / incoming calls).
+Base: `main` `f6388ec` (#143 varied CPU trades). Rebased onto that tip. The scale is the same display pass that was measured on `ee89476`.
 
 ### Diagnosis
 
