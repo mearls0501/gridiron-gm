@@ -259,6 +259,12 @@ export interface Player {
    * Optional so every save written before 2026-07-30 still loads.
    */
   profile?: ProspectProfile;
+  /**
+   * College pipeline. Missing = no public event yet, so older saves load.
+   * The current scouting class does not grow one of these until something
+   * happened while the class was still in the future.
+   */
+  pipeline?: ProspectPipeline;
 
   // Health
   injuryWeeks: number;     // 0 = healthy
@@ -927,6 +933,21 @@ export interface ProspectProfile {
   coachability: number;
 }
 
+/**
+ * Scars on a prospect before his class is the one being scouted.
+ * Missing = nothing has happened. Notes are public. `camp` marks a
+ * body added when the class becomes current, not a name on the
+ * future board. Ceiling is never written here.
+ */
+export interface ProspectPipeline {
+  notes: string[];
+  /** League year of the last public college injury. */
+  injurySeason?: number;
+  /** League year of the last class move (early declare or stay in school). */
+  moveSeason?: number;
+  camp?: boolean;
+}
+
 export type ScoutingMethod =
   | "film" | "proDay" | "privateWorkout" | "medical" | "interview";
 
@@ -1263,6 +1284,11 @@ export interface GameState {
   week: number;          // 1..18 during regular season
 
   nextPlayerId: number;
+  /**
+   * Ids for future-class prospects. Missing = start at 1_000_000.
+   * Kept off `nextPlayerId` so street signings stay on the old counter.
+   */
+  nextFuturePlayerId?: number;
   nextGameId: number;
 
   teams: Team[];
@@ -1318,6 +1344,11 @@ export interface GameState {
    * evaluate once on migrate. Idempotent per (season, week).
    */
   psychTick?: { season: number; week: number };
+  /**
+   * Last regular-season week the future-class pipeline resolved.
+   * Missing = not run yet. Idempotent per (season, week).
+   */
+  futureClassTick?: { season: number; week: number };
   /**
    * User-GM forced move. Missing = none, so older saves load.
    * Pending while `resolved` is missing/false.

@@ -16,6 +16,7 @@ import { clearCallSheets, userSimOpts } from "../callSheet";
 import { applySealedLive, clearSealedLive } from "../liveGame";
 import { resolveWaivers, settleWaivers } from "../waivers";
 import { runPsychology } from "../psychology";
+import { tickFutureClasses } from "../futureClass";
 
 /**
  * Share of in-season trade activity by distance from the deadline, derived
@@ -149,6 +150,9 @@ export function simulateWeek(state: GameState): void {
   }
 
   state.rngState = rng.state;
+  // College news for classes that are not this year's. Child stream only —
+  // the week's parent state is already stored.
+  tickFutureClasses(state);
 }
 
 /**

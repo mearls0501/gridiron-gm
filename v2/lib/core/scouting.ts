@@ -611,11 +611,19 @@ export function methodCapReason(method: ScoutingMethod): string | null {
   return `Already used ${METHOD_LABEL[method]} on this prospect (${cap} per cycle).`;
 }
 
+/** Film, visits, and medicals are the current class only. */
+function scoutingThisClass(state: GameState, playerId: number): boolean {
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p?.prospect) return false;
+  return (p.draftClassSeason ?? state.season) === state.season;
+}
+
 export function canRunScoutingMethod(
   state: GameState, method: ScoutingMethod, playerId?: number
 ): boolean {
   if (!methodAllowed(state, method)) return false;
   if (method === "privateWorkout" && ensureScouting(state).visitsRemaining <= 0) return false;
+  if (playerId != null && !scoutingThisClass(state, playerId)) return false;
   if (playerId != null && methodAtCap(state, playerId, method)) return false;
   return true;
 }
@@ -623,6 +631,9 @@ export function canRunScoutingMethod(
 export function scoutingBlockReason(
   state: GameState, method: ScoutingMethod, playerId?: number
 ): string | null {
+  if (playerId != null && !scoutingThisClass(state, playerId)) {
+    return "That class is not scoutable yet. Film, visits, and medicals open the year it enters the draft.";
+  }
   const s = ensureScouting(state);
   if (!WINDOW_METHODS[s.window].includes(method)) {
     return `${METHOD_LABEL[method]} is not available during ${WINDOW_LABEL[s.window]}. Miss that window and the information does not exist this cycle.`;
@@ -769,6 +780,7 @@ export function runScoutingMethod(
   if (!canRunScoutingMethod(state, method, playerId)) return false;
   const p = state.players.find((x) => x.id === playerId);
   if (!p || !p.prospect || !p.profile) return false;
+  if ((p.draftClassSeason ?? state.season) !== state.season) return false;
 
   const s = ensureScouting(state);
   // Seed from the department prior, not the media band, so the first study

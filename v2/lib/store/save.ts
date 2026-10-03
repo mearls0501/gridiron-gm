@@ -6,6 +6,7 @@ import { GameState, STATE_VERSION, defaultSettings } from "../core/types";
 import { blankRecordBook } from "../core/season/records";
 import { SCHEMES, evenBudget } from "../core/staff";
 import { ensureScouting } from "../core/scouting";
+import { catchUpFutureClasses } from "../core/futureClass";
 import { pruneStaleTradeInbox } from "../core/trades";
 import { decodeSave, encodeSave, EncodedSave } from "./codec";
 
@@ -206,6 +207,10 @@ export function migrate(state: GameState): GameState {
   // the parent RNG. Hall auto-retire no-ops until Packet 3 writes
   // `state.hallOfFame`.
   ensureJerseyNumbers(state);
+  // Future classes for a save written before the pipeline. Child stream.
+  // Does not rewrite the class already being scouted, and does not
+  // read rngState.
+  catchUpFutureClasses(state);
   maybeRetireNumbersForHallOfFame(state);
   // Per-league-year mechanical counters. Pre-field saves default to 0.
   if (!state.seasonCounters) state.seasonCounters = { tradesExecuted: 0 };

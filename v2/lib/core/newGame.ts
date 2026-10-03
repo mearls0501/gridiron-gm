@@ -4,6 +4,7 @@ import { createNewGame, NewGameOptions, refreshDepthCharts } from "./generate";
 import { ensureJerseyNumbers } from "./jersey";
 import { reconcileRoster } from "./offseason/contracts";
 import { generateDraftClass, initialScoutingPass } from "./offseason/draft";
+import { ensureFutureClasses } from "./futureClass";
 import { ensureOwners, stampSeasonExpectedWins } from "./owner";
 import { ensureScouting } from "./scouting";
 import { GameState } from "./types";
@@ -38,6 +39,8 @@ export function newGame(opts: NewGameOptions = {}): GameState {
   ensureCoaches(state);
   ensureOwners(state);
   state.rngState = rng.state;
+  // Later classes. Child stream — parent rngState is already stored.
+  ensureFutureClasses(state);
   // Preseason, no games yet: outlook is the roster plus a neutral record.
   // Does not draw. Parent rngState is already stored.
   stampSeasonExpectedWins(state);

@@ -39,6 +39,7 @@ import {
 } from "@/lib/core/scouting";
 import { tradeBoardAssetLabel } from "@/lib/view/tradeBoard";
 import { boardGrade, boardLean, consensusGrade, gradeContext, prospectReports, prospectTraits } from "@/lib/core/scouting-reports";
+import { futureClassCounts, futureClassRows, futureSeasons } from "@/lib/core/futureClass";
 import { enterDraft, simEntireDraft, simToUserPick } from "@/lib/core/offseason";
 import { capHit, formatMoney, playerMap } from "@/lib/core/select";
 import { simEntireDraftToast } from "@/lib/view/draftToast";
@@ -110,6 +111,8 @@ export default function DraftPage() {
   const [focusId, setFocusId] = useState<number | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [moveUpQuote, setMoveUpQuote] = useState<string | null>(null);
+  const [futureSeason, setFutureSeason] = useState<number | null>(null);
+  const [showFutureAll, setShowFutureAll] = useState(false);
 
   // Board source: the live draft pool when a draft exists, otherwise the class
   // that is currently being scouted ahead of the offseason.
@@ -134,6 +137,17 @@ export default function DraftPage() {
   // Grade context ranks every estimate against the whole class's consensus —
   // built from the unfiltered pool so filters never move anyone's grade.
   const ctx = useMemo(() => gradeContext(state!, pool), [state, pool, rev]);
+
+  const horizon = state ? futureSeasons(state) : [];
+  const shownFuture = futureSeason != null && horizon.includes(futureSeason)
+    ? futureSeason
+    : horizon[0] ?? null;
+  const futureRows = useMemo(
+    () => (state && shownFuture != null ? futureClassRows(state, shownFuture) : []),
+    [state, shownFuture, rev],
+  );
+  const futureCounts = futureClassCounts(futureRows);
+  const futureVisible = showFutureAll ? futureRows : futureRows.slice(0, 32);
 
   const rows = useMemo<Player[]>(() => {
     const q = query.trim().toLowerCase();
@@ -920,6 +934,71 @@ export default function DraftPage() {
           </Card>
         );
       })()}
+
+      {shownFuture != null && (
+        <Card
+          title="Future classes"
+          subtitle={
+            futureCounts.names === 0
+              ? `${shownFuture} is empty`
+              : `${futureCounts.names} names · ${futureCounts.injuries} injur${futureCounts.injuries === 1 ? "y" : "ies"} · ${futureCounts.declared} early declaration${futureCounts.declared === 1 ? "" : "s"} · ${futureCounts.returned} staying in school`
+          }
+          padded={false}
+        >
+          <div className="px-4 py-3 space-y-3 border-b border-[var(--color-line-soft)]">
+            <p className="text-sm text-[var(--color-muted)]">
+              These classes are already in the league. Film, visits, and medicals stay on the{" "}
+              {state.season} board. What you can see here is public: school, size, campus testing,
+              and the consensus board. A knee or an early declaration changes who is in the class
+              before that year opens.
+            </p>
+            <Tabs
+              value={String(shownFuture)}
+              onChange={(year) => {
+                setFutureSeason(Number(year));
+                setShowFutureAll(false);
+              }}
+              options={horizon.map((year) => ({ value: String(year), label: String(year) }))}
+            />
+          </div>
+          {futureRows.length === 0 ? (
+            <Empty title={`No one is in the ${shownFuture} class.`} />
+          ) : (
+            <Table
+              head={["Prospect", "Pos", "Year", "School", "Size", "40", "Consensus", "News"]}
+            >
+              {futureVisible.map((row) => (
+                <Row key={row.id}>
+                  <Cell align="left">
+                    {(() => {
+                      const person = state.players.find((p) => p.id === row.id);
+                      return person ? <PlayerLink p={person} className="font-medium" /> : row.name;
+                    })()}
+                  </Cell>
+                  <Cell>
+                    <PosBadge pos={row.pos} />
+                  </Cell>
+                  <Cell>{row.classYear}</Cell>
+                  <Cell>{row.college}</Cell>
+                  <Cell>{row.size}</Cell>
+                  <Cell>{row.forty ? `${row.forty}s` : "—"}</Cell>
+                  <Cell>{row.consensus}</Cell>
+                  <Cell align="left">
+                    {row.notes.length > 0 ? row.notes[row.notes.length - 1] : "—"}
+                  </Cell>
+                </Row>
+              ))}
+            </Table>
+          )}
+          {futureRows.length > 32 && (
+            <div className="px-4 py-3">
+              <Button size="sm" variant="ghost" onClick={() => setShowFutureAll((v) => !v)}>
+                {showFutureAll ? "Show the top 32" : `Show all ${futureRows.length}`}
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card
         title={d ? "Big board" : `${state.season} draft class`}
