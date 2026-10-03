@@ -46,7 +46,18 @@ The GM still calls one snap at a time. There is still no formation. A coach-fini
 
 ### Gate
 
-Pending the fast serial run on this branch.
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). `snapintent` passed. Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), and statcheck (23 metrics) passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+### Browser
+
+Seed 90, Boston at Memphis, week 1. Opening snap is 1st & 10, own 25, tied. Stay on schedule and Play the score send Coach. Lean on the ground sends Run. Open it up sends Pass. A few snaps later the down is 2nd & long and Stay on schedule's chip is Pass ("Second and eight or more."). Reload kept the seven snaps, the kickoff row, and Last snap. A phone-width window stacks the four calls. Let the coach finish reached Game called. The box was 35 pass attempts and 30 rush attempts, and Run was gone.
 
 ---
 
