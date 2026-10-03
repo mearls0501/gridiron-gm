@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useGame } from "@/lib/store/game";
-import { playerName } from "@/lib/core/ratings";
+import { playerName, presentedOvr, presentedPot } from "@/lib/core/ratings";
 import { teamRoster } from "@/lib/core/select";
 import {
   MAX_FOCUS,
@@ -130,8 +130,14 @@ export default function FrontOfficePage() {
     () =>
       roster
         .filter((p) => p.age < p.peakAge)
-        .map((p) => ({ p, room: p.pot - p.ovr, locked: p.pot - p.ceiling }))
-        .sort((a, b) => b.room - a.room),
+        .map((p) => {
+          const room = presentedPot(p.pos, p.ovr, p.pot) - presentedOvr(p.pos, p.ovr);
+          const trueRoom = Math.max(0, p.pot - p.ovr);
+          const lockedTrue = Math.max(0, p.pot - p.ceiling);
+          const locked = trueRoom === 0 ? 0 : Math.min(room, Math.round(lockedTrue * room / trueRoom));
+          return { p, room, locked };
+        })
+        .sort((a, b) => b.room - a.room || a.p.id - b.p.id),
     [roster]
   );
 
@@ -317,7 +323,7 @@ export default function FrontOfficePage() {
                     <Cell align="left"><PosBadge pos={p.pos} /></Cell>
                     <Cell align="left">{playerName(p)}</Cell>
                     <Cell>{p.age}</Cell>
-                    <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                    <Cell><OvrBadge ovr={presentedOvr(p.pos, p.ovr)} size="sm" /></Cell>
                     <Cell>{room > 0 ? `+${room}` : "—"}</Cell>
                     <Cell>
                       {locked > 0 ? <Pill tone="accent">{`+${locked}`}</Pill> : <span className="text-[var(--color-faint)]">—</span>}
@@ -396,7 +402,7 @@ export default function FrontOfficePage() {
                       <Row key={p.id}>
                         <Cell align="left"><PosBadge pos={p.pos} /></Cell>
                         <Cell align="left">{playerName(p)}</Cell>
-                        <Cell><OvrBadge ovr={p.ovr} size="sm" /></Cell>
+                        <Cell><OvrBadge ovr={presentedOvr(p.pos, p.ovr)} size="sm" /></Cell>
                         <Cell><Pill tone={w.tone}>{w.label}</Pill></Cell>
                       </Row>
                     );

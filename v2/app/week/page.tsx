@@ -8,7 +8,7 @@ import { PHASE_LABEL } from "@/components/Shell";
 import { buildBriefing } from "@/lib/core/season/briefing";
 import { OFFSEASON_STEPS } from "@/lib/core/offseason";
 import { isActiveRoster, teamRoster } from "@/lib/core/select";
-import { playerName } from "@/lib/core/ratings";
+import { playerName, presentedOvr } from "@/lib/core/ratings";
 import { POSITIONS } from "@/lib/core/types";
 import {
   activateFromInactive, canSit, gamedayInactiveView, isSat, sitPlayer,
@@ -328,7 +328,7 @@ export default function WeekPage() {
                     <div key={p.id} className="flex items-center gap-2 px-4 py-2 text-sm">
                       <PosBadge pos={p.pos} />
                       <span className="font-medium min-w-0 truncate">{playerName(p)}</span>
-                      <span className="text-xs text-[var(--color-faint)] tnum">{p.ovr}</span>
+                      <span className="text-xs text-[var(--color-faint)] tnum">{presentedOvr(p.pos, p.ovr)}</span>
                       {p.injuryWeeks > 0 && <Pill tone="warn">out</Pill>}
                       {sat && <Pill tone="accent">inactive</Pill>}
                       <span className="ml-auto">

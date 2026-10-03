@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import { Rng } from "@/lib/core/rng";
-import { playerName } from "@/lib/core/ratings";
+import { playerName, presentedOvr } from "@/lib/core/ratings";
 import { askingPrice, deskSuggestedYears, signPlayer } from "@/lib/core/offseason/contracts";
 import { userVeteranView, visibleOvr } from "@/lib/core/scouting";
 import {
@@ -95,8 +95,8 @@ export default function FreeAgencyPage() {
       (p) => !q || playerName(p).toLowerCase().includes(q)
     );
     return filtered.sort((a, b) => {
-      const va = userVeteranView(state, a).ovr;
-      const vb = userVeteranView(state, b).ovr;
+      const va = presentedOvr(a.pos, userVeteranView(state, a).ovr);
+      const vb = presentedOvr(b.pos, userVeteranView(state, b).ovr);
       switch (sortKey) {
         case "ovr":
           return vb - va || a.id - b.id;

@@ -6,7 +6,7 @@ import { computeRecords, recordString, rosterIssues, teamCap, formatMoney, ordin
 import { userNextGame, isOnBye } from "./engine";
 import { divisionStandings, seasonHasResults } from "./standings";
 import { passerRating } from "./stats";
-import { playerName } from "../ratings";
+import { playerName, presentedOvr } from "../ratings";
 import { PRIVATE_VISIT_CAP, calendarView, userVeteranView, visibleOvr } from "../scouting";
 import { gamedayInactiveView } from "../inactives";
 import {
@@ -335,7 +335,10 @@ function buildOpponent(state: GameState): OpponentPreview | null {
 
   const roster = state.players.filter((p) => p.teamId === oppId && !p.prospect);
   const stars = [...roster]
-    .sort((a, b) => userVeteranView(state, b).ovr - userVeteranView(state, a).ovr || a.id - b.id)
+    .sort((a, b) =>
+      presentedOvr(b.pos, userVeteranView(state, b).ovr)
+      - presentedOvr(a.pos, userVeteranView(state, a).ovr)
+      || a.id - b.id)
     .slice(0, 3)
     .map((p) => ({ name: playerName(p), pos: p.pos, ovr: visibleOvr(state, p) }));
   const out = roster.filter((p) => p.injuryWeeks > 0).sort((a, b) => b.ovr - a.ovr).slice(0, 4)

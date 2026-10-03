@@ -5,6 +5,55 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-02 — Roster scale for specialists and 99 potential
+
+Worker. Display only. Zero new RNG draws. Kick attributes, contracts, CPU boards, `docs/baselines.json`, and the play-calling dials are not touched.
+
+Base: `main` `f6388ec` (#143 varied CPU trades). Rebased onto that tip. The scale is the same display pass that was measured on `ee89476`.
+
+### Diagnosis
+
+Year-0 rosters, ten seeds, after `newGame`. Stored overall is a position grade. Depth-chart starters sit together: quarterbacks 77.2, edges 78.0, kickers 76.3, punters 76.6. A club carries one kicker and two punters, and every one of them is generated in that starter band, so they sort with the stars. Kickers were in the team top 5 on 26% of clubs (mean rank 13.4). Specialists took 11.5% of top-10 roster slots against 5.7% of the roster. A 53-man cannot put five kickers and punters in its top 10 — the cap is three — so that playtest count was the league feeling, not one club's math. Seed 42 Boston's best player was a kicker, 91 overall.
+
+99 potential is the wide projection (`POT_SPREAD` 2, noise `5 * POT_SPREAD`) clamped at 99. 5.7% of rostered players, 15% of starters, 11% of players under 24. The label piles up, so it stops meaning a ceiling.
+
+Lowering kicking attributes by the same 12 points the roster needed would move field-goal probability by about 5.5 points (`(kac-50)*0.0030 + (kpw-50)*0.0016`). `calibrate.fgPct` is 86 ± 4. That is a sim-outcome dial or a baseline move. Not done.
+
+### Change
+
+`presentedOvr` subtracts 12 for kickers and punters. Graded attributes on the player card move with the badge, so the card still averages. Fogged bands shift by the same 12. The center is still the belief, not the stored grade. `describeAsset` and the trade log stay on the stored grade.
+
+`presentedPot` leaves a gap of 6 alone and compresses the rest (`6 + round((gap-6)*0.35)`), then sits that on the roster overall. A 74/99 prints 87. A 99 remains only when the stored overall is already 93 or better. A fogged potential band rounds the belief before that compression, so the card prints `53-56` and not the raw fraction.
+
+Five seeds after the scale: specialists are 1.19% of top-10 slots and 4 of 800 top-5 slots. 99 potential is 15 of 8,480 rostered players (0.18%). Seed 42 Boston's kicker prints 79/83 and is fifth, behind two linemen at 82. Seed 1's 98 overall edge still prints 99.
+
+### Leftover
+
+The development wall is still the stored potential. A maxed staff can buy back more than the desk's Unrealised column shows, because that column is the roster label. The trade log still records the stored grade (`K, 91`). Retirement lines parsed out of that log do too. Narrowing the projection draw would make the stored 99 rare and would move `ceiling`. That is a generation dial. Not done.
+
+### Untouched
+
+`lib/core/sim/game.ts`, `POT_SPREAD`, `rosterSlotOvr`, kick attributes, contracts, `cpuProspectView`, `docs/baselines.json`, Plan Now, the HC-fire dial, Packet 4 second scene, draft PRs #9, #63, #104–#107. No parent-stream draw. Assertions are `presentedrating`, registered in `package.json` `test` and in `scripts/gate.ts` FAST and FULL.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores, ~22 min). `presentedrating`, typecheck, determinism, verify 348/348, calibrate (`fgPct` 86.48), statcheck (`wr10RecYds` 1070, inside the band), and scout (`leakMae` 2.05, `visibleOvr` collapsed-to-truth 0/80) passed. `K.kac` still moves `fgPct` the right way (+12.1). One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+### Browser
+
+Seed 42, Boston, fresh franchise. On `main` the roster sorts Isiah Garcia (K) first at 91/95, and Uriah Nakamura (CB, 21) prints 99 potential. After the scale the same club sorts Nico Wilson II (OT) 82/82, Cameron Sinclair II (OG) 82/82, James Rutledge (TE) 79, Isaac Harris Jr. (EDGE) 79, then Garcia at 79/83. The 53-man prints zero 99s. His card shows kick accuracy 78 and kick power 83 next to the 79 badge.
+
+Free agency still shows ranges. Ethan Johnson (K) is `51-55` overall and `53-56` potential, both whole numbers, and the kick traits read `limited?` rather than attributes. The draft board still says the user will never see a rating.
+
+---
+
 ## 2026-10-02 — Incoming calls are not one late-pick template
 
 Worker. CPU offers the user sees, and picks that are already gone. `docs/baselines.json` and the play-calling dials are not touched. CPU-CPU execution stays on `proposeTrade`.

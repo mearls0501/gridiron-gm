@@ -7,7 +7,9 @@ import { useGame } from "@/lib/store/game";
 import {
   ATTR_KEYS, ATTR_LABEL, AttrKey, GameState, Player, Position, SeasonStatLine,
 } from "@/lib/core/types";
-import { POSITION_WEIGHTS, ovrTier, relevantAttrs } from "@/lib/core/ratings";
+import {
+  POSITION_WEIGHTS, ovrTier, presentedAttr, presentedAttrBand, presentedOvr, presentedPot, relevantAttrs,
+} from "@/lib/core/ratings";
 import { attrBand, knowsTrueRatings, veteranIntel, visibleOvr, visiblePot } from "@/lib/core/scouting";
 import { boardGrade, gradeContext, verdictFor } from "@/lib/core/scouting-reports";
 import { capHit, deadMoney, formatMoney } from "@/lib/core/select";
@@ -22,7 +24,8 @@ import {
  *
  * The one hard rule here: a draft prospect's true ability is never rendered,
  * and neither is a free agent's or another club's veteran's. Those get scouted
- * bands. Own-roster players stay exact — that is already the convention.
+ * bands. Own-roster players stay a number. Specialists print the roster scale
+ * (`presentedOvr`), and their graded attributes move with it.
  */
 
 /** Left-aligned header cell (Table right-aligns everything after column 0). */
@@ -231,7 +234,9 @@ export default function PlayerPage() {
   const known = knowsTrueRatings(state, p);
   const fog = !p.prospect && !known;
   const scouted = fog ? veteranIntel(state, p) : null;
-  const tier = known ? ovrTier(p.ovr) : null;
+  const shownOvr = presentedOvr(p.pos, p.ovr);
+  const shownPot = presentedPot(p.pos, p.ovr, p.pot);
+  const tier = known ? ovrTier(shownOvr) : null;
 
   return (
     <div className="space-y-4">
@@ -302,7 +307,7 @@ export default function PlayerPage() {
                     {fog ? "Scouted" : "Overall"}
                   </div>
                   <div className="mt-1">
-                    <OvrBadge ovr={fog ? visibleOvr(state, p) : p.ovr} />
+                    <OvrBadge ovr={fog ? visibleOvr(state, p) : shownOvr} />
                   </div>
                 </div>
                 <div className="text-right">
@@ -310,7 +315,7 @@ export default function PlayerPage() {
                     Potential
                   </div>
                   <div className="mt-1">
-                    <OvrBadge ovr={fog ? visiblePot(state, p) : p.pot} />
+                    <OvrBadge ovr={fog ? visiblePot(state, p) : shownPot} />
                   </div>
                 </div>
               </>
@@ -340,8 +345,8 @@ export default function PlayerPage() {
           </>
         ) : (
           <>
-            <Stat label="Overall" value={p.ovr} sub={tier?.label} />
-            <Stat label="Potential" value={p.pot} sub={p.pot > p.ovr ? `+${p.pot - p.ovr} to grow` : "At ceiling"} />
+            <Stat label="Overall" value={shownOvr} sub={tier?.label} />
+            <Stat label="Potential" value={shownPot} sub={shownPot > shownOvr ? `+${shownPot - shownOvr} to grow` : "At ceiling"} />
             <Stat label="Durability" value={p.durability} sub={injured ? "Currently hurt" : "Healthy"} tone={injured ? "bad" : undefined} />
             <Stat label="Peak Age" value={p.peakAge} sub={p.age < p.peakAge ? "Still rising" : "Past peak"} />
           </>
@@ -478,14 +483,17 @@ export default function PlayerPage() {
             <Empty title="No weighted attributes for this position." />
           ) : (
             <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-              {key.map((k) => (
-                <AttrRow
-                  key={k}
-                  k={k}
-                  v={p.attrs[k]}
-                  band={p.prospect || fog ? attrBand(state, p, k) : undefined}
-                />
-              ))}
+              {key.map((k) => {
+                const band = p.prospect || fog ? attrBand(state, p, k) : undefined;
+                return (
+                  <AttrRow
+                    key={k}
+                    k={k}
+                    v={p.prospect ? p.attrs[k] : presentedAttr(p.pos, k, p.attrs[k])}
+                    band={band && !p.prospect ? presentedAttrBand(p.pos, k, band) : band}
+                  />
+                );
+              })}
             </div>
           )}
 
@@ -499,14 +507,15 @@ export default function PlayerPage() {
               ) : (
                 <div className="grid gap-x-6 gap-y-2.5 sm:grid-cols-3 lg:grid-cols-4">
                   {rest.map((k) => {
-                    const band = p.prospect || fog ? attrBand(state, p, k) : null;
+                    const raw = p.prospect || fog ? attrBand(state, p, k) : null;
+                    const band = raw && !p.prospect ? presentedAttrBand(p.pos, k, raw) : raw;
                     return (
                       <div key={k} className="flex items-baseline justify-between gap-2">
                         <span className="text-xs text-[var(--color-faint)] truncate">
                           {ATTR_LABEL[k]}
                         </span>
                         <span className="text-xs tnum text-[var(--color-muted)]">
-                          {band ? verdictFor((band.low + band.high) / 2) : p.attrs[k]}
+                          {band ? verdictFor((band.low + band.high) / 2) : presentedAttr(p.pos, k, p.attrs[k])}
                         </span>
                       </div>
                     );
