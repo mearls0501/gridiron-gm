@@ -5,6 +5,51 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-03 — /play calls a situation, and stores a snap
+
+Worker. The desk only. `choosePass`, `passBias`, snap shares, the kick / pass / run engines, and `docs/baselines.json` are not touched.
+
+### Diagnosis
+
+The hypothesis holds. `SnapCall` is `"run" | "pass" | "auto"`. In the play loop a pass forces a pass, a run forces a run, and anything else — `"auto"`, or a list that has run out — calls `choosePass()`. That is the staff mix: coach `passBias`, the game script's lean, down and distance, and the score and the clock. There is no formation and no play tree. Kneel, the fourth-down go-or-kick, and pre-snap penalties all resolve before the desk is asked. `/play` was four buttons on top of that fact.
+
+A 40-point game stays run-heavy because the pass rate floors at 0.40 and a big lead pulls the clamp toward 0.15. That is the script. Left alone.
+
+### Change
+
+Four situation calls sit on the snap. Each one reads the down the engine already yielded and resolves to `run`, `pass`, or `auto` before `call()` stores it. Reload and Play Week replay that stored list. The play loop does not read the new file.
+
+The button shows which of the three this snap will send. The page states the rule.
+
+- **Stay on schedule.** Third or fourth and five or more is a pass. Third or fourth and two or fewer is a run. Second and eight or more is a pass. Two yards or fewer, or inside the two, is a run. Every other down is the coach (`auto`).
+- **Lean on the ground.** Third or fourth and seven or more is a pass. Every other down is a run. It never sends `auto`. On third and six it still runs, which is where it splits from Stay on schedule.
+- **Open it up.** Two yards or fewer, or inside the three, is a run. Every other down is a pass. It never sends `auto`. On the goal line it runs, which is where it splits from Pass.
+- **Play the score.** A lead of nine or more from the fourth quarter on, or fifteen or more in the third, is a run. Any lead with under five minutes left from the fourth on (overtime included) is a run. A deficit of nine or more from the fourth on, or any deficit with under five minutes left then, is a pass. Every other spot is the coach. On third and long with a two-score lead in the fourth, this runs while the other three throw.
+- **Run.** Forces a run on this snap.
+- **Pass.** Forces a pass on this snap.
+- **Coach this snap.** `auto`. The staff mix, including this week's call sheet when one is set.
+- **Let the coach finish.** `auto` for every user snap left. Unchanged.
+
+These thresholds are the buttons. They are not an NFL rate and `choosePass` does not read them. Fourth down, when the desk sees it, is a snap the staff already chose to play. A kneel still happens before the desk.
+
+### Checked
+
+`npx tsx lib/core/snapIntent.test.ts` passed. Across the down / distance / score grid every intent stays inside `run` / `pass` / `auto`, and no two intents are the same map. Seed 90: a short plan stored run, pass, and auto, and a reload replayed those snaps. `tsc --noEmit` passed.
+
+### Leftover
+
+The GM still calls one snap at a time. There is still no formation. A coach-finished 40-point game is still run-heavy.
+
+### Untouched
+
+`lib/core/sim/game.ts`, `choosePass`, `passBias`, snap shares, kick / pass / run outcomes, `docs/baselines.json`.
+
+### Gate
+
+Pending the fast serial run on this branch.
+
+---
+
 ## 2026-10-03 — Future classes are alive before they are scouted
 
 Worker. A pipeline on top of this-year scouting. The current class, its windows, and the CPU hash read stay. `docs/baselines.json`, play-calling, Plan Now, the HC-fire dial, and Wave Packet 4 are not touched.

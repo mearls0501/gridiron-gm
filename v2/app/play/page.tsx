@@ -5,8 +5,14 @@ import { useEffect, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import { Button, Card, Empty, Pill, TeamMark } from "@/components/ui";
 import { isOnBye, userNextGame } from "@/lib/core/season/engine";
-import { boxAttempts, setCallSheet } from "@/lib/core/callSheet";
+import {
+  AGGRESSION_AGGRESSIVE, AGGRESSION_CONSERVATIVE, PASS_LEAN_PASS, PASS_LEAN_RUN,
+  boxAttempts, callSheetView, setCallSheet,
+} from "@/lib/core/callSheet";
 import { resumeLiveGame, writeSealedLive, type LiveView } from "@/lib/core/liveGame";
+import {
+  SNAP_INTENT_CHOICES, offenseMargin, resolveSnapIntent, snapSendWord,
+} from "@/lib/core/snapIntent";
 import { SnapCall } from "@/lib/core/types";
 import { playerMap } from "@/lib/core/select";
 import {
@@ -19,7 +25,8 @@ import {
  *
  * CPU games stay auto. Bulk-sim never waits here. Each hand call, and every
  * auto snap from Let the coach finish, is written onto the call sheet
- * immediately; a reload replays that list. When the game reaches the
+ * immediately; a reload replays that list. A situation call resolves to
+ * run, pass, or auto before it is stored. When the game reaches the
  * whistle, that result is sealed. Play Week commits the seal. A week
  * with no seal still sims.
  */
@@ -31,6 +38,7 @@ export default function PlayPage() {
   const [view, setView] = useState<LiveView | null>(null);
   const [session, setSession] = useState<ReturnType<typeof resumeLiveGame> | null>(null);
   const [committed, setCommitted] = useState(false);
+  const [lastSend, setLastSend] = useState<string | null>(null);
 
   const game = state ? userNextGame(state) : undefined;
   const onBye = state ? isOnBye(state, state.userTeamId) : false;
@@ -52,6 +60,7 @@ export default function PlayPage() {
     setSession(live);
     setView(live.peek());
     setCommitted(false);
+    setLastSend(null);
   }, [state?.id, state?.season, state?.week, state?.phase]);
 
   if (!state) return null;
@@ -94,6 +103,12 @@ export default function PlayPage() {
     const p = players.get(id);
     return p ? p.lastName : "";
   };
+  const sheet = callSheetView(us);
+  const sheetBits: string[] = [];
+  if (sheet.passLean === PASS_LEAN_RUN) sheetBits.push("run-heavy");
+  else if (sheet.passLean === PASS_LEAN_PASS) sheetBits.push("pass-heavy");
+  if (sheet.aggression === AGGRESSION_CONSERVATIVE) sheetBits.push("conservative on fourth down");
+  else if (sheet.aggression === AGGRESSION_AGGRESSIVE) sheetBits.push("aggressive on fourth down");
 
   const persistSnaps = (calls: SnapCall[]) => {
     const sealed = session?.seal() ?? null;
@@ -103,10 +118,11 @@ export default function PlayPage() {
     });
   };
 
-  const pick = (c: SnapCall) => {
+  const pick = (c: SnapCall, via?: string) => {
     if (!session) return;
     setView(session.call(c));
     persistSnaps(session.snaps());
+    setLastSend(via ? `${via} → ${snapSendWord(c)}` : snapSendWord(c));
   };
 
   const finish = () => {
@@ -139,13 +155,26 @@ export default function PlayPage() {
       {view && !view.done && (
         <Card
           title={`${quarterLabel(view.info.quarter)} · ${clockLabel(view.info.clock)}`}
-          subtitle={`${view.info.down} & ${view.info.toGo} · ball on the ${view.info.yardLine}`}
+          subtitle={`${view.info.down} & ${view.info.toGo} · ${spotLabel(view.info.yardLine)}`}
         >
           <p className="text-sm mb-3 tnum">
             {us.abbr} {userIsHome ? view.info.homeScore : view.info.awayScore}
             {" — "}
             {opp.abbr} {userIsHome ? view.info.awayScore : view.info.homeScore}
+            <span className="text-[var(--color-muted)]">
+              {" · "}
+              {(() => {
+                const margin = offenseMargin(view.info);
+                if (margin === 0) return "Tied";
+                return margin > 0 ? `Up ${margin}` : `Down ${-margin}`;
+              })()}
+            </span>
           </p>
+          {view.info.down === 4 && (
+            <p className="text-xs text-[var(--color-muted)] mb-3">
+              The staff already sent the offense out on fourth down. This desk calls the snap.
+            </p>
+          )}
           {view.lastSnap && (
             <div className="mb-3 px-3 py-2 rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-line-soft)]">
               <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-0.5">
@@ -160,14 +189,55 @@ export default function PlayPage() {
               </p>
             </div>
           )}
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+            The call
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {SNAP_INTENT_CHOICES.map((choice) => {
+              const resolved = resolveSnapIntent(choice.id, view.info);
+              return (
+                <button
+                  key={choice.id}
+                  type="button"
+                  onClick={() => pick(resolved.call, choice.label)}
+                  className="text-left border rounded-lg px-3 py-2 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] border-[var(--color-line)] cursor-pointer"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-medium">{choice.label}</span>
+                    <span className="text-[11px] font-semibold text-[var(--color-accent)] shrink-0">
+                      {snapSendWord(resolved.call)}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[var(--color-muted)] mt-0.5">{resolved.because}</p>
+                </button>
+              );
+            })}
+          </div>
+          <ul className="mt-3 space-y-1.5 text-[11px] text-[var(--color-muted)]">
+            {SNAP_INTENT_CHOICES.map((choice) => (
+              <li key={choice.id}>
+                <span className="text-[var(--color-text)]">{choice.label}.</span> {choice.rule}
+              </li>
+            ))}
+          </ul>
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mt-4 mb-1.5">
+            This snap
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" onClick={() => pick("run")}>Run</Button>
             <Button variant="primary" onClick={() => pick("pass")}>Pass</Button>
-            <Button onClick={() => pick("auto")}>Coach this snap</Button>
+            <Button onClick={() => pick("auto", "Coach this snap")}>Coach this snap</Button>
             <Button variant="ghost" onClick={finish}>Let the coach finish</Button>
           </div>
-          <p className="text-xs text-[var(--color-muted)] mt-3">
-            {view.calls.length} snap{view.calls.length === 1 ? "" : "s"} called. Formations are the engine&apos;s — kneel is already in the play loop.
+          {lastSend && (
+            <p className="text-xs mt-3">Last call: {lastSend}</p>
+          )}
+          <p className="text-xs text-[var(--color-muted)] mt-2">
+            {snapMix(view.calls)}.
+            {" "}Run forces a run. Pass forces a pass. Coach this snap is the staff mix for the down, the distance, the score, and the clock.
+            {sheetBits.length > 0 ? ` This week's sheet is ${sheetBits.join(" and ")}, and the coach's snaps follow it.` : ""}
+            {" "}Let the coach finish uses that mix for the snaps that are left.
+            Formations stay with the engine. A kneel, once the lead and the clock have ended the game, is taken before this desk.
           </p>
         </Card>
       )}
@@ -263,4 +333,15 @@ export default function PlayPage() {
       )}
     </div>
   );
+}
+
+function snapMix(calls: SnapCall[]): string {
+  let run = 0, pass = 0, coach = 0;
+  for (const c of calls) {
+    if (c === "run") run++;
+    else if (c === "pass") pass++;
+    else coach++;
+  }
+  const n = calls.length;
+  return `${n} snap${n === 1 ? "" : "s"} · ${run} run · ${pass} pass · ${coach} coach`;
 }
