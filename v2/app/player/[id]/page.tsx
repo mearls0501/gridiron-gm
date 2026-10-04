@@ -13,6 +13,7 @@ import {
 import { attrBand, knowsTrueRatings, veteranIntel, visibleOvr, visiblePot } from "@/lib/core/scouting";
 import { boardGrade, consensusGrade, gradeContext, verdictFor } from "@/lib/core/scouting-reports";
 import { isFutureProspect } from "@/lib/core/futureClass";
+import { prospectTesting } from "@/lib/view/scoutFog";
 import { capHit, deadMoney, formatMoney } from "@/lib/core/select";
 import { careerTotals, cmpPct, fgPct, passerRating, ypc, ypr } from "@/lib/core/season/stats";
 import { askingPrice } from "@/lib/core/offseason/contracts";
@@ -243,6 +244,7 @@ export default function PlayerPage() {
   const known = knowsTrueRatings(state, p);
   const fog = !p.prospect && !known;
   const future = isFutureProspect(state, p);
+  const testing = p.prospect && p.profile ? prospectTesting(state, p) : null;
   const scouted = fog ? veteranIntel(state, p) : null;
   const shownOvr = presentedOvr(p.pos, p.ovr);
   const shownPot = presentedPot(p.pos, p.ovr, p.pot);
@@ -515,14 +517,14 @@ export default function PlayerPage() {
               <span className="tnum">
                 {Math.floor(p.profile.heightIn / 12)}&apos;{p.profile.heightIn % 12}&quot; · {p.profile.weightLb} lb
               </span>
-              {p.profile.combine.forty != null && (
-                <span className="tnum">40yd {p.profile.combine.forty.toFixed(2)}s</span>
+              {testing?.forty != null && (
+                <span className="tnum">40yd {testing.forty}s</span>
               )}
-              {p.profile.combine.vertical != null && (
-                <span className="tnum">Vert {p.profile.combine.vertical}&quot;</span>
+              {testing?.vertical != null && (
+                <span className="tnum">Vert {testing.vertical}&quot;</span>
               )}
-              {p.profile.combine.bench != null && (
-                <span className="tnum">Bench {p.profile.combine.bench}</span>
+              {testing?.bench != null && (
+                <span className="tnum">Bench {testing.bench}</span>
               )}
             </div>
           )}

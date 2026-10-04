@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import { Rng } from "@/lib/core/rng";
-import { displayedOvr, playerName, POSITION_VALUE, presentOvrText, presentedOvr } from "@/lib/core/ratings";
+import { playerName, POSITION_VALUE } from "@/lib/core/ratings";
 import {
   UDFA_SIGNINGS_MAX,
   acceptClockOffer,
@@ -45,6 +45,7 @@ import { capHit, formatMoney, playerMap } from "@/lib/core/select";
 import { simEntireDraftToast } from "@/lib/view/draftToast";
 import { POSITIONS, Player, Position, ScoutingMethod } from "@/lib/core/types";
 import { rosterCapView } from "@/lib/view/rosterCap";
+import { recentPickSlots } from "@/lib/view/scoutFog";
 import {
   Bar,
   Button,
@@ -52,7 +53,6 @@ import {
   Cell,
   cx,
   Empty,
-  OvrBadge,
   Pill,
   PlayerLink,
   PosBadge,
@@ -66,11 +66,9 @@ import {
 /**
  * The draft room.
  *
- * The one rule this screen holds absolutely: a prospect's true `ovr` and `pot`
- * never reach the DOM. Everything the user sees about an undrafted player comes
- * from `displayedOvr`, which reads the scouted band — a deliberately wrong
- * estimate that tightens as work is done inside the open window. Showing the
- * real number anywhere would delete the entire draft game.
+ * The one rule this screen holds absolutely: a prospect's true overall and
+ * potential never reach the DOM. Undrafted names are round grades. A pick
+ * already in shows his slot on your board and on consensus — not a rating.
  */
 
 type SortKey = "board" | "band" | "age" | "scouted" | "pos";
@@ -1234,10 +1232,11 @@ export default function DraftPage() {
               hint="Selections appear here as they happen. Use “Sim to my pick” to let the CPU run its board."
             />
           ) : (
-            <Table head={["Rd", "Pick", "Team", "Player", "Pos", "OVR"]}>
+            <Table head={["Rd", "Pick", "Team", "Player", "Pos", "Your board", "Consensus"]}>
               {recent.map((pick) => {
                 const p = pick.playerId !== null ? byId.get(pick.playerId) : undefined;
                 const pickTeam = state.teams[pick.teamId];
+                const slots = p ? recentPickSlots(state, p) : null;
                 return (
                   <Row key={pick.pick} highlight={pick.teamId === teamId}>
                     <Cell align="left">{pick.round}</Cell>
@@ -1256,10 +1255,8 @@ export default function DraftPage() {
                       )}
                     </Cell>
                     <Cell>{p ? <PosBadge pos={p.pos} /> : "—"}</Cell>
-                    {/* Drafted players are no longer prospects, so displayedOvr
-                        returns their real rating — and if one somehow still is,
-                        it returns the band rather than leaking the truth. */}
-                    <Cell>{p ? <OvrBadge ovr={p.prospect ? presentOvrText(p.pos, displayedOvr(p)) : presentedOvr(p.pos, p.ovr)} size="sm" /> : "—"}</Cell>
+                    <Cell>{slots ? slots.board : "—"}</Cell>
+                    <Cell>{slots ? slots.consensus : "—"}</Cell>
                   </Row>
                 );
               })}

@@ -285,6 +285,28 @@ function sizeLabel(p: Player): string {
   return `${ft}'${inch}" · ${profile.weightLb} lb`;
 }
 
+/**
+ * Hand-timed campus forty. The stored `combine.forty` is the electronic
+ * clock, and it is not public until that class reaches the combine window.
+ * Pure function of the id and the stored time — no draw.
+ */
+export function campusForty(p: Player): number | null {
+  const official = p.profile?.combine.forty;
+  if (official == null) return null;
+  let h = Math.imul(p.id ^ 0x40c0de, 0x7feb352d) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x846ca68b) >>> 0;
+  h ^= h >>> 16;
+  const mag = ((h & 0xff) % 15 + 1) / 100;
+  const sign = (h & 0x100) === 0 ? -1 : 1;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  let t = round2(official + sign * mag);
+  if (t < 4.22 || t > 5.6) t = round2(official - sign * mag);
+  if (t < 4.22) t = 4.22;
+  if (t > 5.6) t = 5.6;
+  if (t === official) t = official <= 4.22 ? round2(official + 0.01) : round2(official - 0.01);
+  return t;
+}
+
 /** Public sheet for one future class. No overall, no potential, no ceiling. */
 export function futureClassRows(state: GameState, season: number): FutureClassRow[] {
   const pool = state.players.filter(
@@ -293,7 +315,7 @@ export function futureClassRows(state: GameState, season: number): FutureClassRo
   const ctx = gradeContext(state, pool);
   const rows = pool.map((p) => {
     const grade = consensusGrade(state, p, ctx);
-    const forty = p.profile?.combine.forty;
+    const forty = campusForty(p);
     return {
       id: p.id,
       name: playerName(p),
