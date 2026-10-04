@@ -5,6 +5,43 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-04 — Recent picks and future classes stop leaking the sheet
+
+Worker. Display only. `docs/baselines.json`, `choosePass`, `passBias`, snap shares, and the sim dials are not touched. No named scouts, scheme-fit grades, draft ticker, or new RNG draws.
+
+### Diagnosis
+
+Recent picks called `presentedOvr` once a man was drafted, because `prospect` flips off in `makePick` and `displayedOvr` then returns the stored overall. That is the true number, whoever took him. Other clubs already print `visibleOvr` on the surfaces that were fixed earlier. A numeric band on this row would still be a rating.
+
+The player page line under school and size printed `combine.forty`, vertical, and bench for every prospect. Those drills are generated with the profile, including classes that have not reached the combine. The future-class card used that same electronic forty.
+
+### Change
+
+The recent-picks row shows his slot on the user's board and on consensus (`boardGrade` / `consensusGrade` over the class). No overall, no potential, no band.
+
+Until that class is in the combine window, the player page prints a campus forty only. The campus time is a pure function of the player id and the stored forty — hand time, not a draw, and not the electronic clock. Vertical and bench appear once the window is combine or later. A future class never gets that sheet. The future-class card forty is the campus time.
+
+### Checked
+
+Seed 42 in the browser. Preseason: the future card has a forty and no overall; a future prospect and a current prospect show `40yd` and not Vert or Bench. Mid-draft: Recent picks headers are Your board and Consensus; a CPU pick (Sanchez, 73) is not printed as 73. A future prospect still hides the combine forty, vertical, and bench. A current-class prospect in the draft shows Vert and Bench.
+
+### Untouched
+
+Plan Now, the HC-fire dial, Wave Packet 4, hold PRs #9, #63, #104–#107. `choosePass`, `passBias`, snap shares, `docs/baselines.json`. No parent-stream draw. Assertions are `scoutfog`, registered in `package.json` `test` and in `scripts/gate.ts` FAST and FULL.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). `scoutfog` passed. Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+---
+
 ## 2026-10-03 — /play calls a situation, and stores a snap
 
 Worker. The desk only. `choosePass`, `passBias`, snap shares, the kick / pass / run engines, and `docs/baselines.json` are not touched.
