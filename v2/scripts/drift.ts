@@ -20,6 +20,7 @@ import { payroll } from "../lib/core/frontOffice";
 import { capHit, isActiveRoster } from "../lib/core/select";
 import { GameState, Player, Position, salaryCap } from "../lib/core/types";
 import { encodeSave } from "../lib/store/codec";
+import { schemeFit, schemeFor } from "../lib/core/staff";
 import { emitAll, progress, seedFor } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 20);
@@ -64,6 +65,8 @@ interface Snapshot {
   holdouts: number;
   tradeRequests: number;
   holdoutGamesMissed: number;
+  cpuDraftFitSum: number;
+  cpuDraftFitN: number;
 }
 
 function runOne(seed: number): Snapshot[] {
@@ -138,6 +141,8 @@ function runOne(seed: number): Snapshot[] {
     const table = leagueStandings(st, season);
     const bottom6 = new Set(table.slice(-6).map((r) => r.teamId));
     let pick1Ok = false;
+    let cpuDraftFitSum = 0;
+    let cpuDraftFitN = 0;
     let o = 0;
     while (isOffseason(st.phase) && o++ < 12) {
       const before = st.phase;
@@ -149,6 +154,20 @@ function runOne(seed: number): Snapshot[] {
       // the clock and future firsts move as sweeteners; conflating the two
       // made a working trade market read as a broken draft order.
       if (before === "offseason-fa" && st.draft) pick1Ok = bottom6.has(st.draft.picks[0].originalTeamId);
+      // Report-only. True scheme fit of CPU picks in rounds 1–3, at the
+      // club that drafted them. Read once the board is full and before
+      // finalize throws the draft away. No band.
+      if (before === "offseason-draft" && st.draft) {
+        const byId = new Map(st.players.map((p) => [p.id, p]));
+        for (const pk of st.draft.picks) {
+          if (pk.round > 3 || pk.teamId === st.userTeamId || pk.playerId === null) continue;
+          const p = byId.get(pk.playerId);
+          const team = st.teams[pk.teamId];
+          if (!p || !team) continue;
+          cpuDraftFitSum += schemeFit(p, schemeFor(team, p.pos));
+          cpuDraftFitN += 1;
+        }
+      }
     }
 
     out.push({
@@ -200,6 +219,8 @@ function runOne(seed: number): Snapshot[] {
       holdoutGamesMissed: st.seasonCounters?.holdoutGamesMissedLast
         ?? st.seasonCounters?.holdoutGamesMissed
         ?? 0,
+      cpuDraftFitSum,
+      cpuDraftFitN,
       franchiseTags: (st.franchiseTags ?? []).filter((t) => t.season === season).length,
       // League dead money / cap. Additive emit so a panel can see if CPU
       // void-year use runs away. nfl-reference.md §4 notes ~5–8%.
@@ -331,6 +352,13 @@ guard(mean(last.map((r) => r.saveMB)) < 20, "save stays inside a sane quota",
 
 const tenureWins = flat.reduce((n, r) => n + r.hcFireTenureWins, 0);
 const tenureSeasons = flat.reduce((n, r) => n + r.hcFireTenureSeasons, 0);
+const cpuDraftFitN = flat.reduce((n, r) => n + r.cpuDraftFitN, 0);
+const cpuDraftFitMean = cpuDraftFitN > 0
+  ? flat.reduce((n, r) => n + r.cpuDraftFitSum, 0) / cpuDraftFitN
+  : 0;
+console.log(
+  `  cpu draft fit, rounds 1–3 at the drafting club: ${cpuDraftFitMean.toFixed(3)} (n=${cpuDraftFitN})`
+);
 
 emitAll({
   "drift.p0Failures": failures,
@@ -354,6 +382,7 @@ emitAll({
   "drift.holdoutsPerSeason": mean(flat.map((r) => r.holdouts)),
   "drift.tradeRequestsPerSeason": mean(flat.map((r) => r.tradeRequests)),
   "drift.holdoutGamesMissedPerSeason": mean(flat.map((r) => r.holdoutGamesMissed)),
+  "drift.cpuDraftFitMean": cpuDraftFitMean,
 });
 console.log(failures === 0 ? "\nno P0 regressions" : `\n${failures} P0 REGRESSIONS`);
 process.exit(failures > 0 ? 1 : 0);
