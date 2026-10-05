@@ -32,6 +32,21 @@ Seed 42. Pre-combine, DeShawn Young prints `Campus 40yd 4.84s` (his electronic f
 
 Plan Now, the HC-fire dial, Wave Packet 4, hold PRs #9, #63, #104–#107. `choosePass`, `passBias`, snap shares, `docs/baselines.json`, `DRAFT_BOARD`, `cpuProspectView`. No parent-stream draw. Assertions stay in `scoutfog`.
 
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). `scoutfog` passed. Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+### Browser
+
+Seed 42, fresh franchise, `/draft` before the combine. The big board has Size, 40, Bench, and Vert. Bench and Vert are blank. DeShawn Young (EDGE) is 6'5" · 254 lb and 4.84s. His war room says Testing — Campus, hand-timed forty, 4.84s · 55th, and no other drills. A future-class player page shows Campus and a forty only.
+
 ---
 
 ## 2026-10-04 — Recent picks and future classes stop leaking the sheet
