@@ -5,6 +5,34 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-05 — Paced draft night
+
+Worker. The room only. Step 3 of the Opus 5.5 draft plan, after scheme-fit on main (`6bbdab7`). `docs/baselines.json`, `choosePass`, `passBias`, snap shares, and the draft dials are not touched. `lib/core` does not read a clock.
+
+### Diagnosis
+
+"Sim to my pick" and "Sim entire draft" called `simToUserPick` / `simEntireDraft` in one shot. The one-pick loop (`stepDraftUntilUser` / `stepFullDraft`) was already what Hub Continue yields on. The buttons did not. A clock trade landed in the log with the desk's asset line, and nothing stopped the room when a starred or tier-1 name was not going to last on the public board.
+
+### Change
+
+Both buttons run that same one-pick loop. Instant drains it. Fast and broadcast yield between picks the way Hub sim yields, and the wait is the pace. Declining the alert does not draw and does not change the pick.
+
+The ticker row is the club, the player, his position, his school, his slot on the user's board, his consensus slot, and reach or slide against that consensus slot. No overall and no potential. A clock trade uses `tradeBoardAssetLabel`. The alert calls `quoteMoveUp` only when a starred or tier-1 prospect's consensus slot is already on the clock and still in front of the user's next pick. CPU trade-ups stay the existing clock market.
+
+### Checked
+
+Seed 42. A yielded full draft, an instant drain of the same stepper, and a run that declines every move-up alert pick the same players as `simEntireDraft`, including who traded on the clock. "Sim to my pick" matches `simToUserPick` the same way.
+
+### Untouched
+
+Plan Now, the HC-fire dial, Wave Packet 4, hold PRs #9, #63, #104–#107. `DRAFT_BOARD`, `boardQuality`, `ELITE_QB_SUPPRESSION`, `CLOCK_TRADES_MAX`, the clock-trade chance, trade-up bars, `choosePass`, `passBias`, snap shares, `docs/baselines.json`, named scouts, the focus list, the class-strength dial, CPU scheme-fit drafting. Calendar, visits, method caps, `cpuProspectView`, `cpuExpectedView`, `cpuBoardValue`.
+
+### Gate
+
+Pending `npm run gate:serial` from `v2/`. The seed-42 draft-night test passed.
+
+---
+
 ## 2026-10-05 — Scheme-fit grades on the draft board
 
 Worker. Display only. Step 2 of the Opus 5.5 draft plan, after athletic testing (#147, `7425509`). `docs/baselines.json`, `choosePass`, `passBias`, snap shares, draft dials, and CPU hash reads are not touched. `staff.ts` is not touched.
