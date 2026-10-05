@@ -517,6 +517,11 @@ export default function PlayerPage() {
               <span className="tnum">
                 {Math.floor(p.profile.heightIn / 12)}&apos;{p.profile.heightIn % 12}&quot; · {p.profile.weightLb} lb
               </span>
+              {testing?.eraLabel && (
+                <span className="uppercase tracking-wider text-[10px] text-[var(--color-faint)]">
+                  {testing.eraLabel}
+                </span>
+              )}
               {testing?.forty != null && (
                 <span className="tnum">40yd {testing.forty}s</span>
               )}
