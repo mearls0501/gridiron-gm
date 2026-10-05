@@ -7,13 +7,18 @@
 import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { Rng } from "./rng";
-import { cpuProspectView, getIntel, publicIntel, runScoutingMethod } from "./scouting";
+import { cpuProspectView, attrBand, getIntel, publicIntel, runScoutingMethod } from "./scouting";
 import {
   boardGrade,
   consensusGrade,
   gradeContext,
   prospectReports,
+  schemeVerdictFromBands,
+  scoutedSchemeFit,
+  type SchemeFitVerdict,
 } from "./scouting-reports";
+import { schemeFit, schemeFor, schemeById } from "./staff";
+import { ATTR_KEYS, type AttrKey } from "./types";
 const state = newGame({ seed: 42, userTeamId: 0 });
 const rngBefore = state.rngState;
 const pool = state.players.filter(
@@ -87,6 +92,104 @@ for (const p of pool.slice(0, 40)) {
 }
 assert.ok(soft >= 30, `soft reads ${soft}/40`);
 assert.ok(called >= 8, `rank gaps called ${called}/40`);
+
+function fitWord(score: number): Exclude<SchemeFitVerdict, "?"> {
+  if (score >= 0.15) return "strong";
+  if (score <= -0.15) return "poor";
+  return "some";
+}
+
+// Zero-width bands sitting on the true attributes must name the same word
+// as schemeFit. The display path is the formula, not a second opinion.
+{
+  for (const p of pool.slice(0, 40)) {
+    const s = schemeFor(state.teams[state.userTeamId], p.pos);
+    const bands: Partial<Record<AttrKey, { low: number; high: number }>> = {};
+    for (const k of ATTR_KEYS) bands[k] = { low: p.attrs[k], high: p.attrs[k] };
+    const fromBands = schemeVerdictFromBands(p.pos, s, bands);
+    const fromTruth = s ? fitWord(schemeFit(p, s)) : "some";
+    assert.equal(fromBands, fromTruth, `${p.pos} band formula drifted from schemeFit`);
+  }
+}
+
+// A wide emphasised band is "?", even when the midpoint would be a word.
+{
+  const vertical = schemeById("vertical");
+  assert.ok(vertical);
+  const bands: Partial<Record<AttrKey, { low: number; high: number }>> = {};
+  for (const k of ATTR_KEYS) bands[k] = { low: 70, high: 70 };
+  bands.spd = { low: 40, high: 70 };
+  assert.equal(schemeVerdictFromBands("WR", vertical, bands), "?");
+}
+
+// The verdict follows the bands. Truth that would grade strong does not
+// leak into a read whose midpoints grade poor.
+{
+  const vertical = schemeById("vertical");
+  assert.ok(vertical);
+  const poor: Partial<Record<AttrKey, { low: number; high: number }>> = {};
+  for (const k of ATTR_KEYS) poor[k] = { low: 80, high: 80 };
+  poor.spd = { low: 40, high: 40 };
+  poor.jmp = { low: 40, high: 40 };
+  assert.equal(schemeVerdictFromBands("WR", vertical, poor), "poor");
+
+  const truth = pool.find((p) => p.pos === "WR");
+  assert.ok(truth);
+  const saved = { ...truth.attrs };
+  truth.attrs = { ...saved, spd: 95, jmp: 95, rte: 60, cth: 60, acc: 60, agi: 60, awr: 60, elu: 60 };
+  try {
+    assert.equal(fitWord(schemeFit(truth, vertical)), "strong");
+    assert.equal(schemeVerdictFromBands("WR", vertical, poor), "poor");
+  } finally {
+    truth.attrs = saved;
+  }
+}
+
+{
+  const userScheme = (p: (typeof pool)[number]) => schemeFor(state.teams[state.userTeamId], p.pos);
+  const seen = new Set<SchemeFitVerdict>();
+  let followed = 0;
+  let split = 0;
+  for (const p of pool) {
+    const fit = scoutedSchemeFit(state, p);
+    assert.match(fit.verdict, /^(strong|some|poor|\?)$/);
+    assert.equal("score" in fit, false);
+    const bands: Partial<Record<AttrKey, { low: number; high: number }>> = {};
+    for (const k of ATTR_KEYS) bands[k] = attrBand(state, p, k);
+    assert.equal(fit.verdict, schemeVerdictFromBands(p.pos, userScheme(p), bands));
+    followed++;
+    seen.add(fit.verdict);
+    if (fit.verdict !== "?") {
+      const truth = fitWord(schemeFit(p, userScheme(p)));
+      if (truth !== fit.verdict) split++;
+    }
+  }
+  assert.equal(followed, pool.length);
+  for (const word of ["strong", "some", "poor", "?"] as const) {
+    assert.ok(seen.has(word), `seed 42 opening board is missing ${word}`);
+  }
+  assert.ok(split > 0, "every tight read matched the true attributes");
+
+  const named = (first: string, last: string, pos: string) =>
+    pool.find((p) => p.firstName === first && p.lastName === last && p.pos === pos);
+  const davis = named("Nico", "Davis", "TE");
+  const delacroix = named("Dax", "Delacroix", "WR");
+  const flores = named("Carlos", "Flores", "WR");
+  const young = named("DeShawn", "Young", "EDGE");
+  assert.ok(davis && delacroix && flores && young);
+  assert.equal(scoutedSchemeFit(state, davis).verdict, "strong");
+  assert.equal(scoutedSchemeFit(state, davis).identity, "Vertical Passing");
+  const middle = scoutedSchemeFit(state, delacroix);
+  assert.equal(middle.verdict, "some");
+  assert.equal(middle.applies, true);
+  assert.equal(middle.identity, "Vertical Passing");
+  assert.equal(scoutedSchemeFit(state, flores).verdict, "poor");
+  assert.equal(scoutedSchemeFit(state, flores).best, "Spread and Space");
+  const edge = scoutedSchemeFit(state, young);
+  assert.equal(edge.verdict, "?");
+  assert.equal(edge.identity, "Pressure and Man");
+  assert.equal(edge.best, "?");
+}
 
 {
   const sample = pool.slice(20, 32);

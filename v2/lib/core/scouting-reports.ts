@@ -1,6 +1,8 @@
 import { AttrKey, ATTR_LABEL, GameState, Player, Position } from "./types";
 import { relevantAttrs } from "./ratings";
+import { clamp } from "./rng";
 import { attrBand, getIntel, publicIntel } from "./scouting";
+import { Scheme, SCHEMES, schemeFor } from "./staff";
 
 /**
  * The judgment layer: everything the war room SAYS about a prospect.
@@ -186,6 +188,12 @@ export function verdictFor(mid: number): TraitVerdict {
   return "limited";
 }
 
+/**
+ * A band this wide or tighter is a finished read. Wider than this, the trait
+ * line prints a question mark and a scheme-fit grade refuses to pick a word.
+ */
+export const TRAIT_CERTAIN_WIDTH = 6;
+
 /** Position-relevant traits as verdicts, uncertain ones flagged. */
 export function prospectTraits(state: GameState, p: Player): Trait[] {
   return relevantAttrs(p.pos).map((key) => {
@@ -195,9 +203,146 @@ export function prospectTraits(state: GameState, p: Player): Trait[] {
       key,
       label: ATTR_LABEL[key],
       verdict: verdictFor(mid),
-      certain: band.high - band.low <= 6,
+      certain: band.high - band.low <= TRAIT_CERTAIN_WIDTH,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Scheme fit — a word for the user's identity, from band midpoints
+// ---------------------------------------------------------------------------
+
+export type SchemeFitVerdict = "strong" | "some" | "poor" | "?";
+
+/**
+ * The user's scheme fit for someone outside his own roster.
+ *
+ * `verdict` is the identity that governs this position. `best` is the name of
+ * the best of the eight identities, "?" when every identity that names the
+ * position is still on a wide band, and null when none of them do (a kicker).
+ * There is no score on this object.
+ */
+export interface ScoutedSchemeFit {
+  verdict: SchemeFitVerdict;
+  /** The user's offensive or defensive identity, whichever side he plays. */
+  identity: string | null;
+  /**
+   * Best identity name. "?" when those bands are still wide. Null when no
+   * identity names the position.
+   */
+  best: string | null;
+  /** False when the user's identity does not lean on this position. */
+  applies: boolean;
+}
+
+/** Same edge the Front Office page calls "suit" / "don't". A word, not a score. */
+const FIT_SUIT = 0.15;
+
+type Band = { low: number; high: number };
+
+function bandWide(band: Band | undefined): boolean {
+  if (!band) return true;
+  return band.high - band.low > TRAIT_CERTAIN_WIDTH;
+}
+
+function bandMid(band: Band): number {
+  return (band.low + band.high) / 2;
+}
+
+/**
+ * The same measurement as `schemeFit`, read off band midpoints.
+ *
+ * A 15-point edge on the emphasised attributes is a full fit. Staff code is
+ * not called with a prospect's true attributes — this function never sees them.
+ */
+function fitFromMids(pos: Position, scheme: Scheme, mid: (key: AttrKey) => number): number {
+  const keys = scheme.emphasis[pos];
+  if (!keys || !keys.length) return 0;
+  const rel = relevantAttrs(pos);
+  if (!rel.length) return 0;
+  let base = 0;
+  for (const k of rel) base += mid(k);
+  base /= rel.length;
+  let sum = 0;
+  for (const k of keys) sum += mid(k) - base;
+  return clamp(sum / keys.length / 15, -1, 1);
+}
+
+function wordFor(score: number): Exclude<SchemeFitVerdict, "?"> {
+  if (score >= FIT_SUIT) return "strong";
+  if (score <= -FIT_SUIT) return "poor";
+  return "some";
+}
+
+/**
+ * Verdict for one identity from band edges. Missing or wide emphasised
+ * bands are "?". A position the identity does not name is "some".
+ */
+export function schemeVerdictFromBands(
+  pos: Position,
+  scheme: Scheme | null,
+  bands: Partial<Record<AttrKey, Band>>,
+): SchemeFitVerdict {
+  if (!scheme) return "some";
+  const keys = scheme.emphasis[pos];
+  if (!keys || !keys.length) return "some";
+  if (keys.some((k) => bandWide(bands[k]))) return "?";
+  const rel = relevantAttrs(pos);
+  if (!rel.length || rel.some((k) => !bands[k]) || keys.some((k) => !bands[k])) return "?";
+  return wordFor(fitFromMids(pos, scheme, (k) => bandMid(bands[k]!)));
+}
+
+/** Board order for the four words. "?" sorts after a real read. */
+export function schemeFitSortRank(verdict: SchemeFitVerdict): number {
+  if (verdict === "strong") return 0;
+  if (verdict === "some") return 1;
+  if (verdict === "poor") return 2;
+  return 3;
+}
+
+/**
+ * Scheme-fit grades for a prospect or another club's player.
+ *
+ * Every attribute that enters the grade is an `attrBand` midpoint. Own-roster
+ * truth stays on `schemeFit` in the Front Office; this path does not read
+ * `p.attrs`.
+ */
+export function scoutedSchemeFit(state: GameState, p: Player): ScoutedSchemeFit {
+  const need = new Set<AttrKey>(relevantAttrs(p.pos));
+  for (const s of SCHEMES) {
+    for (const k of s.emphasis[p.pos] ?? []) need.add(k);
+  }
+  const bands: Partial<Record<AttrKey, Band>> = {};
+  for (const k of need) bands[k] = attrBand(state, p, k);
+
+  const team = state.teams[state.userTeamId];
+  const scheme = team ? schemeFor(team, p.pos) : null;
+  const keys = scheme?.emphasis[p.pos];
+  const applies = !!keys && keys.length > 0;
+
+  let best: string | null = null;
+  let bestScore = -Infinity;
+  let anyNamed = false;
+  let anyCertain = false;
+  for (const s of SCHEMES) {
+    const emphasised = s.emphasis[p.pos];
+    if (!emphasised || !emphasised.length) continue;
+    anyNamed = true;
+    if (emphasised.some((k) => bandWide(bands[k]))) continue;
+    anyCertain = true;
+    const score = fitFromMids(p.pos, s, (k) => bandMid(bands[k]!));
+    if (score > bestScore) {
+      bestScore = score;
+      best = s.name;
+    }
+  }
+
+  return {
+    verdict: schemeVerdictFromBands(p.pos, scheme, bands),
+    identity: scheme?.name ?? null,
+    best: anyNamed && !anyCertain ? "?" : best,
+    applies,
+  };
 }
 
 // ---------------------------------------------------------------------------

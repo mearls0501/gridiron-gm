@@ -11,7 +11,7 @@ import {
   POSITION_WEIGHTS, ovrTier, presentedAttr, presentedAttrBand, presentedOvr, presentedPot, relevantAttrs,
 } from "@/lib/core/ratings";
 import { attrBand, knowsTrueRatings, veteranIntel, visibleOvr, visiblePot } from "@/lib/core/scouting";
-import { boardGrade, consensusGrade, gradeContext, verdictFor } from "@/lib/core/scouting-reports";
+import { boardGrade, consensusGrade, gradeContext, scoutedSchemeFit, verdictFor } from "@/lib/core/scouting-reports";
 import { isFutureProspect } from "@/lib/core/futureClass";
 import { prospectTesting } from "@/lib/view/scoutFog";
 import { capHit, deadMoney, formatMoney } from "@/lib/core/select";
@@ -245,6 +245,7 @@ export default function PlayerPage() {
   const fog = !p.prospect && !known;
   const future = isFutureProspect(state, p);
   const testing = p.prospect && p.profile ? prospectTesting(state, p) : null;
+  const scheme = p.prospect && !future ? scoutedSchemeFit(state, p) : null;
   const scouted = fog ? veteranIntel(state, p) : null;
   const shownOvr = presentedOvr(p.pos, p.ovr);
   const shownPot = presentedPot(p.pos, p.ovr, p.pot);
@@ -308,14 +309,26 @@ export default function PlayerPage() {
           </div>
           <div className="ml-auto flex items-center gap-3">
             {p.prospect ? (
-              <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
-                  {future ? "Consensus" : "Scouted Grade"}
+              <>
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+                    {future ? "Consensus" : "Scouted Grade"}
+                  </div>
+                  <div className="text-lg font-semibold">
+                    {future ? futureConsensus(state, p) : prospectGrade(state, p)}
+                  </div>
                 </div>
-                <div className="text-lg font-semibold">
-                  {future ? futureConsensus(state, p) : prospectGrade(state, p)}
-                </div>
-              </div>
+                {scheme && (
+                  <div className="text-right">
+                    <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+                      Scheme fit
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {scheme.verdict}
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <>
                 <div className="text-right">
@@ -355,6 +368,17 @@ export default function PlayerPage() {
         ) : p.prospect ? (
           <>
             <Stat label="Board Grade" value={prospectGrade(state, p)} sub="Your department's call" />
+            <Stat
+              label="Scheme fit"
+              value={scheme?.verdict ?? "?"}
+              sub={
+                scheme?.verdict === "?"
+                  ? "Bands still wide"
+                  : scheme?.applies
+                    ? (scheme.identity ?? "Your identity")
+                    : "Not graded here"
+              }
+            />
             <Stat label="Scouting" value={`${Math.round(p.scouted)}%`} sub="Effort invested" />
             <Stat label="Age" value={p.age} />
             <Stat
