@@ -5,6 +5,50 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-05 — Public athletic testing on the draft board
+
+Worker. Display only. The combine sheet was already generated. This packet decides which of those numbers are public. `docs/baselines.json`, `choosePass`, `passBias`, snap shares, draft dials, and CPU hash reads are not touched.
+
+### Diagnosis
+
+`generateProspectProfile` already writes forty, ten-split, bench, vertical, broad, three-cone, and shuttle, with gaps where a man did not run a drill. #146 stopped the player page and the future-class card from printing that sheet before the combine window, and reused a stable campus forty. The war room on `/draft` still printed the electronic sheet from day one. The big board had no size or testing columns.
+
+### Change
+
+`lib/view/athleticSheet.ts` is the public sheet. It does not draw, and nothing in the CPU draft path imports it.
+
+- Before the combine window, the board and the war room show size and the #146 campus forty. Bench and vertical stay blank.
+- In the combine window, invitees show the verified sheet. An invite is consensus rank through the shade `slotShade` already calls Priority UDFA. The next shade is Camp invite, and those men wait. A blank on the sheet is a drill he did not run. No second number is invented.
+- From pro days on, everyone else gets that same sheet. Invitees stay labeled Combine. The others are labeled Pro day.
+- The big board columns are size, forty, bench, and vertical. A percentile sits on a public number and compares it only to the same clock, at that position, in this class. There is no NFL cutoff.
+- The war room header says Campus, Combine, or Pro day.
+- The future-class card is unchanged: school, size, campus forty, consensus, injury, declaration.
+
+### Checked
+
+Seed 42. Pre-combine, DeShawn Young prints `Campus 40yd 4.84s` (his electronic forty is 4.71; the campus time is the existing hand-time helper). At the combine he is an invitee and the board shows 4.71. Miguel Jennings is camp-shade, still on a campus forty through the combine window, then his pro-day forty is 5.17. A future-class row is still campus forty only, with no vertical and no bench. `rngState` does not move.
+
+### Untouched
+
+Plan Now, the HC-fire dial, Wave Packet 4, hold PRs #9, #63, #104–#107. `choosePass`, `passBias`, snap shares, `docs/baselines.json`, `DRAFT_BOARD`, `cpuProspectView`. No parent-stream draw. Assertions stay in `scoutfog`.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). `scoutfog` passed. Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+### Browser
+
+Seed 42, fresh franchise, `/draft` before the combine. The big board has Size, 40, Bench, and Vert. Bench and Vert are blank. DeShawn Young (EDGE) is 6'5" · 254 lb and 4.84s. His war room says Testing — Campus, hand-timed forty, 4.84s · 55th, and no other drills. A future-class player page shows Campus and a forty only.
+
+---
+
 ## 2026-10-04 — Recent picks and future classes stop leaking the sheet
 
 Worker. Display only. `docs/baselines.json`, `choosePass`, `passBias`, snap shares, and the sim dials are not touched. No named scouts, scheme-fit grades, draft ticker, or new RNG draws.

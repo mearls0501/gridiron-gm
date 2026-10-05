@@ -40,6 +40,7 @@ import {
 import { tradeBoardAssetLabel } from "@/lib/view/tradeBoard";
 import { boardGrade, boardLean, consensusGrade, gradeContext, prospectReports, prospectTraits } from "@/lib/core/scouting-reports";
 import { futureClassCounts, futureClassRows, futureSeasons } from "@/lib/core/futureClass";
+import { athleticClass, athleticSheet, boardTesting, ordinal } from "@/lib/view/athleticSheet";
 import { enterDraft, simEntireDraft, simToUserPick } from "@/lib/core/offseason";
 import { capHit, formatMoney, playerMap } from "@/lib/core/select";
 import { simEntireDraftToast } from "@/lib/view/draftToast";
@@ -146,6 +147,10 @@ export default function DraftPage() {
   );
   const futureCounts = futureClassCounts(futureRows);
   const futureVisible = showFutureAll ? futureRows : futureRows.slice(0, 32);
+  const athletics = useMemo(
+    () => (state ? athleticClass(state, state.draft?.season ?? state.season) : null),
+    [state, rev],
+  );
 
   const rows = useMemo<Player[]>(() => {
     const q = query.trim().toLowerCase();
@@ -182,7 +187,7 @@ export default function DraftPage() {
     [state, rev]
   );
 
-  if (!state) return null;
+  if (!state || !athletics) return null;
 
   const teamId = state.userTeamId;
   const clip = rosterCapView(state, teamId);
@@ -362,6 +367,10 @@ export default function DraftPage() {
     "Prospect",
     "Pos",
     "Age",
+    "Size",
+    "40",
+    "Bench",
+    "Vert",
     "Your Board",
     "Consensus",
     "Scouting",
@@ -678,18 +687,13 @@ export default function DraftPage() {
         const intel = getIntel(state, focus);
         const note = boardNote(state, focus.id);
         const pr = focus.profile;
-        const ft = (n: number) => `${Math.floor(n / 12)}'${n % 12}"`;
-        const c = pr.combine;
-        const measurables: [string, string][] = [
-          ["Ht / Wt", `${ft(pr.heightIn)} · ${pr.weightLb} lb`],
-          ["40-yard", c.forty != null ? `${c.forty.toFixed(2)}s` : "—"],
-          ["10-yd split", c.tenSplit != null ? `${c.tenSplit.toFixed(2)}s` : "—"],
-          ["Vertical", c.vertical != null ? `${c.vertical}"` : "—"],
-          ["Broad", c.broad != null ? ft(Math.round(c.broad)) : "—"],
-          ["3-cone", c.threeCone != null ? `${c.threeCone.toFixed(2)}s` : "—"],
-          ["Shuttle", c.shortShuttle != null ? `${c.shortShuttle.toFixed(2)}s` : "—"],
-          ["Bench", c.bench != null ? `${c.bench} reps` : "—"],
-        ];
+        const sheet = athleticSheet(state, focus, athletics);
+        const eraNote =
+          sheet.era === "campus"
+            ? "Hand-timed forty. Verified drills are not out."
+            : sheet.era === "combine"
+              ? "Combine. A blank is a drill he did not run."
+              : "Pro day. A blank is a drill he did not run.";
         const methods: ScoutingMethod[] = ["film", "proDay", "privateWorkout", "medical", "interview"];
         return (
           <Card
@@ -703,14 +707,20 @@ export default function DraftPage() {
           >
             <div className="grid gap-5 lg:grid-cols-4 sm:grid-cols-2">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
-                  Testing — public
+                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1">
+                  Testing — {sheet.eraLabel}
                 </div>
+                <p className="text-[10px] text-[var(--color-faint)] mb-2">{eraNote}</p>
                 <div className="space-y-1">
-                  {measurables.map(([k, v]) => (
-                    <div key={k} className="flex justify-between text-xs">
-                      <span className="text-[var(--color-faint)]">{k}</span>
-                      <span className="tnum">{v}</span>
+                  {sheet.rows.map((row) => (
+                    <div key={row.label} className="flex justify-between gap-3 text-xs">
+                      <span className="text-[var(--color-faint)]">{row.label}</span>
+                      <span className="tnum text-right">
+                        {row.value}
+                        {row.percentile != null && (
+                          <span className="text-[var(--color-faint)]"> · {ordinal(row.percentile)}</span>
+                        )}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1074,6 +1084,40 @@ export default function DraftPage() {
                     <PosBadge pos={p.pos} />
                   </Cell>
                   <Cell>{p.age}</Cell>
+                  {(() => {
+                    const meas = boardTesting(athleticSheet(state, p, athletics), p.pos);
+                    return (
+                      <>
+                        <Cell>
+                          <span className="tnum whitespace-nowrap text-xs">{meas.size}</span>
+                        </Cell>
+                        <Cell>
+                          <span className="tnum whitespace-nowrap" title={meas.fortyTitle}>
+                            {meas.forty}
+                            {meas.fortyPct && (
+                              <span className="text-[10px] text-[var(--color-faint)]"> {meas.fortyPct}</span>
+                            )}
+                          </span>
+                        </Cell>
+                        <Cell>
+                          <span className="tnum whitespace-nowrap" title={meas.benchTitle}>
+                            {meas.bench}
+                            {meas.benchPct && (
+                              <span className="text-[10px] text-[var(--color-faint)]"> {meas.benchPct}</span>
+                            )}
+                          </span>
+                        </Cell>
+                        <Cell>
+                          <span className="tnum whitespace-nowrap" title={meas.verticalTitle}>
+                            {meas.vertical}
+                            {meas.verticalPct && (
+                              <span className="text-[10px] text-[var(--color-faint)]"> {meas.verticalPct}</span>
+                            )}
+                          </span>
+                        </Cell>
+                      </>
+                    );
+                  })()}
                   <Cell>
                     {(() => {
                       const g = boardGrade(state, p, ctx);
