@@ -1010,6 +1010,56 @@ export interface ScoutingState {
   opened: ScoutingWindow[];
   /** Windows that have closed. A closed window cannot be reopened. */
   closed: ScoutingWindow[];
+  /**
+   * Prospects the user's desk is watching this cycle. Cap 12.
+   * Missing = empty, so older saves load. Does not expire when a
+   * window closes. Removing a name does not delete his intel.
+   */
+  focus?: number[];
+  /**
+   * Last weekly focus-film pass. News for the Hub. Missing = none yet.
+   * Idempotent per (season, week).
+   */
+  focusFilm?: {
+    season: number;
+    week: number;
+    lines: { playerId: number; scoutId: string }[];
+  };
+}
+
+/** Area, national, or the college director. Not a quality tier. */
+export type ScoutRole = "area" | "national" | "director";
+
+/** Which way a scout misses. Not a grade. */
+export type ScoutLean = "high" | "low";
+
+/**
+ * One person in the user's college department. CPU clubs do not have
+ * these. Identity is a hash of the franchise, so a reload cannot
+ * reshuffle the room. Quality is not stored here.
+ */
+export interface NamedScout {
+  id: string;
+  name: string;
+  role: ScoutRole;
+  /** Area scouts: their slice of the college map. Empty otherwise. */
+  regions: string[];
+  /** National and the director: the positions their lens names. */
+  positions: Position[];
+  /** Short label for the position lens. Empty for an area scout. */
+  lensLabel: string;
+  lean: ScoutLean;
+}
+
+/**
+ * A user draft pick credited to named scouts. The record is derived
+ * later from `outcomes.ts`. No rating is stored.
+ */
+export interface ScoutCredit {
+  playerId: number;
+  season: number;
+  round: number;
+  scoutIds: string[];
 }
 
 export interface FaBid {
@@ -1327,6 +1377,16 @@ export interface GameState {
 
   /** The user's scouting intel + war-room board for the current class. */
   scouting?: ScoutingState;
+  /**
+   * The user's five college scouts. Missing = build from the franchise
+   * hash on load. CPU clubs are not in this list.
+   */
+  scoutStaff?: NamedScout[];
+  /**
+   * User draft picks attributed to those scouts. Missing = none.
+   * CPU picks are not written here.
+   */
+  scoutCredits?: ScoutCredit[];
   /** Future draft pick ownership. Optional so older saves still load. */
   pickOwners?: PickOwnership[];
   /** Offers currently sitting in front of the user. */

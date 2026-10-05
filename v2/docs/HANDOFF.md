@@ -5,6 +5,73 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-05 — Named scouts and a focus list
+
+Worker. First packet that changes scouting math and the save. Step 4 of the Opus 5.5 draft plan, after paced draft night on main (`ec628ba`). `docs/baselines.json`, `choosePass`, `passBias`, snap shares, and the draft dials are not touched.
+
+### Diagnosis
+
+The department was a budget share and a per-prospect hash name. Nothing persisted as a person, nothing colored one region against another, and nothing kept a short list of names on film through the season.
+
+### Change
+
+Five named scouts, user club only. Identity is a hash of seed and `userTeamId`, stored once on `GameState.scoutStaff`, so a new season does not reshuffle the room. Three area scouts partition the existing `COLLEGE_REGIONS` list. One national scout. One college director. Lenses and leans, not tiers. An area lean colors that scout's schools. The national lean and the director lean apply only on their position groups, and those two groups disagree. The national lens is the only sharpness: tighter on his positions, wider off them. Area identity cannot tighten everyone, because the regions partition the class.
+
+The lean is demeaned over the current class, so the shifts sum to 0. The lens scales are divided by their root mean square, so the mean of scale squared is 1. A film, pro day, or private workout draws `truth + shift + normal(0, errSd * scale * scoutQuality)`. Two normals, same as before. At an even staff budget `scoutQuality` is 1, so the class-average error of that work sample matches the sample the department already took. Quality is still only the scouting share of the staff budget. Unworked `departmentIntel` is not shifted, so the free board stays the board from before this packet. CPU hashes are not read and not written.
+
+The focus list is up to 12 current-class ids on `ScoutingState.focus`. It does not expire when a window closes. Taking a name off deletes the id only. Intel, board notes, and film counts stay. During the in-season film window, `tickFocusFilm` studies up to three focus names a week. The pick order and each study use a child RNG (`focusFilm`, `focusFilm:<playerId>`), after `state.rngState` is stored, the same shape as `tickFutureClasses`. Each study counts against the existing two-film cap. The Hub card is the week just played, past tense.
+
+A user pick (including a headless auto-pick) writes `scoutCredits`. The director is on every user pick, the area scout when the school is his, the national scout when the position is his lens. The staff sentence uses `isHit`, `isBust`, and `starterSeasons` from `outcomes.ts`. It does not print a rating or a true overall. CPU picks write nothing.
+
+### Migration
+
+`scoutStaff` and `scoutCredits` live on `GameState`, outside the calendar that `pruneScouting` throws away. `focus` and `focusFilm` live on `ScoutingState`, so they die with the class. An old save gets `ensureScoutStaff` on load (hash, no draw) and `focus: []` when the field is missing. `focusFilm` and `scoutCredits` stay absent until the first filmed week or the first user pick. CPU clubs gain no staff and no credits. A new game calls `ensureScoutStaff` after the parent stream is stored.
+
+### Checked
+
+Seed 42, Boston Minutemen (`userTeamId` 0):
+
+- Ruth Vogel — area — optimistic — Kingsley, Redmond, Alcott, Brier, Dunmore, Eastvale, Galloway, Holloway, Ironwood
+- Ruth Ward — area — cautious — Juniper, Kessler, Loxley, Marlowe, Northport, Caldwell, Ridgemont, Lakewood
+- Victor Ward — area — cautious — Harrison, Delmar, Fairbank, Stone Valley, Crestline, Weston, Millbrook, Ashford
+- Victor Yeung — national — cautious — skill (RB/WR/TE)
+- Ruth Shah — director — optimistic — quarterbacks
+
+Week-1 focus film with the first four current-class ids pinned (three filmed, the two-film cap untouched):
+
+- Ruth Vogel watched Evan Ulrich (DT, Holloway State)
+- Ruth Vogel watched Garrett Wright III (EDGE, Brier College)
+- Victor Ward watched Lincoln Lopez (C, Millbrook University)
+
+`scoutcheck`: after user film, club 9's read stayed 87.5/99.0. `leakMae` 2.05. `filmWidthDrop` 16.95.
+
+### Untouched
+
+Plan Now, the HC-fire dial, Wave Packet 4, hold PRs #9, #63, #104–#107. Calendar, 30 visits, method caps 2/1/1/1, pro days in March, `cpuProspectView`, `cpuExpectedView`, `cpuBoardValue`, the future-class pipeline, department ranks, priority UDFA chase cap 4, the draft dials. No class-strength dial, no ceiling or dev-trait reveal, no perk trees, no weekly points. `choosePass`, `passBias`, snap shares, `docs/baselines.json`. CPU scheme-fit drafting is not this packet.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). `scoutstaff` passed. Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+### Careers and drift
+
+`npx tsx scripts/careers.ts 24` exited 0. Headlines: `hofInducteesPerClass` 7.0625, `r1BustPct` 8.59, `starterRateMae` 7.30, `medicalMajorGamesMissedRatio` 1.186, `matureCareers` 8065.
+
+`npx tsx scripts/drift.ts 20` (seed 12345). Save size stays inside the #91 locks: `saveMbAtEnd` **13.20** (max 15.89), `saveGrowthMbPerSeason` **0.49** (max 0.61). Not a retune. One live guard missed by a season — 34-year-olds rated below 27-year-olds in 16/20 seasons, and the cut is strictly above 80%. The other guards passed, including OVR drift −2.2 inside −1.70±1.5. `drift.p0Failures` 1. Baselines were not edited.
+
+### Browser
+
+Seed 42, Boston. Staff → College scouting lists the five names above. Each line ends "No draft picks on file." The draft focus list opens at 0 of 12. Mason Adams II (CB, Loxley A&M) byline: "Ruth Ward, area scout · cautious". Pinning four names and removing Julian Kirkland leaves three. Toast: "Julian Kirkland is off the focus list. The file stays." At 390px the Remove control stays on screen. After Start the Season and Play Week 1, Hub shows Scouting / Week 1 film: "Ruth Ward, area scout watched Mason Adams II (CB).", "Ruth Vogel, area scout watched Xavier Ramirez (C).", "Ruth Vogel, area scout watched Garrett Wright III (EDGE)."
+
+---
+
 ## 2026-10-05 — Paced draft night
 
 Worker. The room only. Step 3 of the Opus 5.5 draft plan, after scheme-fit on main (`6bbdab7`). `docs/baselines.json`, `choosePass`, `passBias`, snap shares, and the draft dials are not touched. `lib/core` does not read a clock.

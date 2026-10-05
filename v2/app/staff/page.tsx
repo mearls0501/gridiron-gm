@@ -18,6 +18,14 @@ import {
 } from "@/lib/core/coaches";
 import { ensureOwners, isPendingForcedMove, ownerJobView } from "@/lib/core/owner";
 import { schemeById } from "@/lib/core/staff";
+import {
+  leanWord,
+  lensWord,
+  roleWord,
+  scoutRecordText,
+  scoutRecords,
+  userScouts,
+} from "@/lib/core/scoutStaff";
 import { formatMoney } from "@/lib/core/select";
 import {
   Button, Card, Cell, Empty, Pill, Row, Stat, Table, TeamMark,
@@ -213,6 +221,33 @@ export default function StaffPage() {
           />
         ))}
       </div>
+
+      {mine && (
+        <Card
+          title="College scouting"
+          subtitle="Five people. Lenses and leans, not grades. Accuracy is the scouting share of the staff budget."
+        >
+          <div className="space-y-3">
+            {(() => {
+              const records = scoutRecords(state);
+              return userScouts(state).map((scout) => {
+              const record = records.find((r) => r.scoutId === scout.id);
+              return (
+                <div key={scout.id} className="border-b border-[var(--color-line-soft)] pb-3 last:border-0 last:pb-0">
+                  <div className="text-sm font-medium">{scout.name}</div>
+                  <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                    {roleWord(scout)} · {leanWord(scout.lean)} · {lensWord(scout)}
+                  </div>
+                  <div className="text-xs text-[var(--color-faint)] mt-1">
+                    {record ? scoutRecordText(record) : "No draft picks on file."}
+                  </div>
+                </div>
+              );
+            });
+            })()}
+          </div>
+        </Card>
+      )}
 
       {hiring && mine && (
         <Card

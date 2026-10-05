@@ -29,6 +29,7 @@ import { hubCampCutdownCopy, hubCampFloorCopy, rosterCapView } from "@/lib/view/
 import { teamLeaders } from "@/lib/view/teamLeaders";
 import { presentedOvr } from "@/lib/core/ratings";
 import { PRIVATE_VISIT_CAP, calendarView } from "@/lib/core/scouting";
+import { focusFilmLines } from "@/lib/core/scoutStaff";
 
 /** Live label while Hub simTo yields between weeks. */
 function hubSimLabel(state: GameState): string {
@@ -129,6 +130,7 @@ export default function Hub() {
   const { team, rec, cap, next, bye, injured, onIr, issues, clip, divRank, roster, topPerformers } = derived;
   const cal = calendarView(state);
   const offers = state.tradeOffers ?? [];
+  const filmNews = focusFilmLines(state);
 
   const isOffseason = state.phase.startsWith("offseason");
   const step = OFFSEASON_STEPS[state.phase];
@@ -576,6 +578,16 @@ export default function Hub() {
               </div>
             ))}
           </div>
+        </Card>
+      )}
+
+      {filmNews.length > 0 && (
+        <Card title="Scouting" subtitle={`Week ${filmNews[0].week} film`}>
+          <ul className="space-y-1">
+            {filmNews.map((line) => (
+              <li key={line.playerId} className="text-sm">{line.text}</li>
+            ))}
+          </ul>
         </Card>
       )}
 

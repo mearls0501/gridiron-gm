@@ -12,6 +12,7 @@ import { Posture, REPLACEMENT_OVR, frontOffice, teamOutlook } from "../frontOffi
 import { appendPickOwners, dropSpentInboxOffers, ensurePickInventory, executeTrade, pickValue, picksOwnedBy } from "../trades";
 import { TradeAsset, TradeOffer } from "../types";
 import { consensusScore, cpuExpectedView, cpuProspectView, generateProspectProfile, riskDiscount } from "../scouting";
+import { creditUserDraft } from "../scoutStaff";
 
 /**
  * Draft class generation, scouting and the draft itself.
@@ -677,6 +678,7 @@ export function makePick(state: GameState, playerId: number, rng: Rng): boolean 
   p.scoutedOvrLow = null;
   p.scoutedOvrHigh = null;
   pick.playerId = p.id;
+  if (pick.teamId === state.userTeamId) creditUserDraft(state, p, pick.round);
 
   state.log.push({
     season: state.season, week: state.week, kind: "draft",
