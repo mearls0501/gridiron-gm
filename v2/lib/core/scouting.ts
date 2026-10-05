@@ -1,7 +1,7 @@
 import { clamp, Rng } from "./rng";
 import { playerName, presentOvrText, presentPotText, presentedOvr, presentedPot } from "./ratings";
 import { frontOffice } from "./frontOffice";
-import { NEUTRAL_SHARE, schemeFor, share } from "./staff";
+import { NEUTRAL_SHARE, share } from "./staff";
 import {
   COLLEGE_REGIONS,
   FOCUS_CAP,
@@ -205,50 +205,6 @@ export function cpuExpectedView(
   const ovr = anchor + (view.ovr - anchor) * keepOvr;
   const room = Math.max(0, view.pot - view.ovr) * keepRoom;
   return { ovr, pot: ovr + room };
-}
-
-/**
- * What one club believes about how a prospect fits its identity, -1..+1.
- *
- * A pure hash of (seed, class, club, scheme, player). It does not read
- * `p.attrs` and it does not call `schemeFit`. The true sheet stays on the
- * field and on the user's own roster; the draft board display stays on
- * scouting-band midpoints. Two clubs disagree, the same club holds the same
- * opinion on reload, and a position the identity does not name is 0.
- *
- * The draw is a symmetric normal, scaled so a full ±1 is an outlier. Across
- * a class and across the league the belief sits on 0, which is what lets the
- * board's small lean redistribute who wants whom without minting value.
- */
-const SCHEME_FIT_BELIEF_SD = 0.45;
-const SCHEME_FIT_LANE = 0x5c1e11;
-
-function schemeLane(id: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < id.length; i++) {
-    h ^= id.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
-
-export function cpuSchemeFitBelief(
-  state: GameState, teamId: number, p: Player
-): number {
-  const team = state.teams[teamId];
-  if (!team) return 0;
-  const scheme = schemeFor(team, p.pos);
-  if (!scheme) return 0;
-  const emphasised = scheme.emphasis[p.pos];
-  if (!emphasised || emphasised.length === 0) return 0;
-  const season = p.draftClassSeason ?? 0;
-  const n = stableNormal(
-    state.seed,
-    season,
-    (teamId + 1) ^ schemeLane(scheme.id),
-    p.id ^ SCHEME_FIT_LANE
-  );
-  return clamp(n * SCHEME_FIT_BELIEF_SD, -1, 1);
 }
 
 /** <1 = sees the class better than the league, 1.0 exactly at an even split. */
