@@ -36,7 +36,18 @@ Plan Now, the HC-fire dial, Wave Packet 4, hold PRs #9, #63, #104–#107. `choos
 
 ### Gate
 
-`npm run gate:serial` from `v2/` (fast, serial, 1 seed). Result recorded after the run.
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). `boardgrade` and `scoutfog` passed. Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+### Browser
+
+Seed 42, Boston, fresh franchise, `/draft`. The Fit column is words only. Nico Davis (TE) is strong, Dax Delacroix (WR) is some, Carlos Flores (WR) is poor, DeShawn Young (EDGE) is ?. Fit sort puts strong first, then some. Carlos Flores's war room says Scheme fit poor and Best identity Spread and Space, with medical and character still unknown. DeShawn Young's war room says Scheme fit ? and Best identity ?. Nico Davis's player page says Scheme fit strong, Vertical Passing. Marcus Wilson in the 2027 class shows consensus and no scheme fit. Phone width was not checked.
 
 ---
 
