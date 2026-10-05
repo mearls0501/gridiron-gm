@@ -29,7 +29,18 @@ Plan Now, the HC-fire dial, Wave Packet 4, hold PRs #9, #63, #104–#107. `DRAFT
 
 ### Gate
 
-Pending `npm run gate:serial` from `v2/`. The seed-42 draft-night test passed.
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). `draftnight` passed. Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+### Browser
+
+Seed 42, Boston, Fast. On the clock at pick 15, Sim to my pick stayed disabled. Sim entire draft moved the ticker while the picks were still coming in. One row was HOU, Bryson Everhart, QB, Crestline University, board #292, consensus #333, reach 61. A clock trade read `BUF move up to #19 — send 2026 #26 (BUF), 2028 R3 (BUF)`. No overall and no potential on the row. A phone-width window still showed the pace control and the ticker. The move-up card did not appear on that sitting. The seed-42 test is what checks it: a tier-1 name whose consensus slot is already on the clock, still in front of the next user pick.
 
 ---
 
