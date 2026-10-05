@@ -5,6 +5,52 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-05 — Scheme-fit grades on the draft board
+
+Worker. Display only. Step 2 of the Opus 5.5 draft plan, after athletic testing (#147, `7425509`). `docs/baselines.json`, `choosePass`, `passBias`, snap shares, draft dials, and CPU hash reads are not touched. `staff.ts` is not touched.
+
+### Diagnosis
+
+`schemeFit` already scores a player against the eight identities. The Front Office page runs that on true attributes for the user's own roster. A prospect has no such grade. His attribute panel is already `attrBand` midpoints and a trait word, with `?` when the band is wider than 6. The draft board had board grade, consensus, and the public athletic sheet, plus medical and character in the war room. Nothing said whether he fits the club's identity, and nothing was allowed to answer that from the true sheet.
+
+### Change
+
+`scoutedSchemeFit` in `lib/core/scouting-reports.ts` reads `attrBand` midpoints and returns a word: strong, some, poor, or `?`. The cut is the same 0.15 edge the Front Office page already calls suit / don't. A position the identity does not name is some. An emphasised band wider than 6 is `?`, the same line as the trait verdicts. It can also name the best of the eight identities, or `?` when every identity that names the position is still wide. There is no score on the object, and the function does not read `p.attrs`.
+
+The big board has a Fit column and a Fit sort. The war room lists Scheme fit and Best identity next to medical and character. A current-class prospect page shows the same word beside the scouted grade. Future classes stay on the public card. CPU draft value does not import it.
+
+### Checked
+
+Seed 42, Boston Minutemen (Vertical Passing / Pressure and Man), opening board:
+
+- strong — Nico Davis, TE, Vertical Passing (also his best identity)
+- some — Dax Delacroix, WR, Vertical Passing, and the identity does grade the position
+- poor — Carlos Flores, WR, Vertical Passing; best identity Spread and Space
+- ? — DeShawn Young, EDGE, Pressure and Man; best identity `?` because the emphasised bands are still wide
+
+A zero-width band on the true attributes names the same word as `schemeFit`. A receiver whose true attributes would grade strong still prints poor when the bands say so. At least one tight read on this seed disagrees with the true fit. `rngState` does not move.
+
+### Untouched
+
+Plan Now, the HC-fire dial, Wave Packet 4, hold PRs #9, #63, #104–#107. `choosePass`, `passBias`, snap shares, `docs/baselines.json`, `staff.ts`, `cpuProspectView`, `cpuExpectedView`, `cpuBoardValue`. No named scouts, focus list, draft ticker, or class-strength dial. No parent-stream draw. Assertions stay in `scouting-reports.test.ts` (`boardgrade`).
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). `boardgrade` and `scoutfog` passed. Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+### Browser
+
+Seed 42, Boston, fresh franchise, `/draft`. The Fit column is words only. Nico Davis (TE) is strong, Dax Delacroix (WR) is some, Carlos Flores (WR) is poor, DeShawn Young (EDGE) is ?. Fit sort puts strong first, then some. Carlos Flores's war room says Scheme fit poor and Best identity Spread and Space, with medical and character still unknown. DeShawn Young's war room says Scheme fit ? and Best identity ?. Nico Davis's player page says Scheme fit strong, Vertical Passing. Marcus Wilson in the 2027 class shows consensus and no scheme fit. Phone width was not checked.
+
+---
+
 ## 2026-10-05 — Public athletic testing on the draft board
 
 Worker. Display only. The combine sheet was already generated. This packet decides which of those numbers are public. `docs/baselines.json`, `choosePass`, `passBias`, snap shares, draft dials, and CPU hash reads are not touched.

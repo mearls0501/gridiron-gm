@@ -38,7 +38,17 @@ import {
   setBoardNote,
 } from "@/lib/core/scouting";
 import { tradeBoardAssetLabel } from "@/lib/view/tradeBoard";
-import { boardGrade, boardLean, consensusGrade, gradeContext, prospectReports, prospectTraits } from "@/lib/core/scouting-reports";
+import {
+  boardGrade,
+  boardLean,
+  consensusGrade,
+  gradeContext,
+  prospectReports,
+  prospectTraits,
+  schemeFitSortRank,
+  scoutedSchemeFit,
+  type SchemeFitVerdict,
+} from "@/lib/core/scouting-reports";
 import { futureClassCounts, futureClassRows, futureSeasons } from "@/lib/core/futureClass";
 import { athleticClass, athleticSheet, boardTesting, ordinal } from "@/lib/view/athleticSheet";
 import { enterDraft, simEntireDraft, simToUserPick } from "@/lib/core/offseason";
@@ -72,15 +82,30 @@ import {
  * already in shows his slot on your board and on consensus — not a rating.
  */
 
-type SortKey = "board" | "band" | "age" | "scouted" | "pos";
+type SortKey = "board" | "band" | "age" | "scouted" | "pos" | "fit";
 
 const SORTS: { value: SortKey; label: string }[] = [
   { value: "board", label: "Board" },
   { value: "band", label: "Your Grade" },
+  { value: "fit", label: "Fit" },
   { value: "age", label: "Age" },
   { value: "scouted", label: "Scouting" },
   { value: "pos", label: "Position" },
 ];
+
+function fitClass(verdict: SchemeFitVerdict): string {
+  if (verdict === "strong") return "text-[var(--color-good)] font-medium";
+  if (verdict === "poor") return "text-[var(--color-warn)]";
+  if (verdict === "?") return "text-[var(--color-faint)]";
+  return "text-[var(--color-muted)]";
+}
+
+function fitTitle(identity: string | null, applies: boolean, verdict: SchemeFitVerdict): string {
+  const name = identity ?? "No identity";
+  if (!applies) return `${name} does not grade this position.`;
+  if (verdict === "?") return `${name} — the emphasized reads are still wide.`;
+  return name;
+}
 
 const POS_OPTIONS: { value: Position | "ALL"; label: string }[] = [
   { value: "ALL", label: "All" },
@@ -152,6 +177,13 @@ export default function DraftPage() {
     [state, rev],
   );
 
+  const fits = useMemo(() => {
+    const m = new Map<number, ReturnType<typeof scoutedSchemeFit>>();
+    if (!state) return m;
+    for (const p of pool) m.set(p.id, scoutedSchemeFit(state, p));
+    return m;
+  }, [state, pool, rev]);
+
   const rows = useMemo<Player[]>(() => {
     const q = query.trim().toLowerCase();
     const filtered = pool.filter((p) => {
@@ -178,9 +210,17 @@ export default function DraftPage() {
             POSITIONS.indexOf(a.pos) - POSITIONS.indexOf(b.pos) ||
             slot(a) - slot(b)
           );
+        case "fit": {
+          const fa = fits.get(a.id);
+          const fb = fits.get(b.id);
+          return (
+            schemeFitSortRank(fa?.verdict ?? "?") - schemeFitSortRank(fb?.verdict ?? "?") ||
+            slot(a) - slot(b)
+          );
+        }
       }
     });
-  }, [pool, pos, sortKey, query, state, ctx, rev]);
+  }, [pool, pos, sortKey, query, state, ctx, rev, fits]);
 
   const byId = useMemo(
     () => (state ? playerMap(state) : new Map<number, Player>()),
@@ -373,6 +413,7 @@ export default function DraftPage() {
     "Vert",
     "Your Board",
     "Consensus",
+    "Fit",
     "Scouting",
     "",
   ];
@@ -788,6 +829,26 @@ export default function DraftPage() {
                           {intel.character ?? "unknown"}
                         </span>
                       </div>
+                      {(() => {
+                        const fit = fits.get(focus.id) ?? scoutedSchemeFit(state, focus);
+                        return (
+                          <>
+                            <div className="flex justify-between gap-3">
+                              <span className="text-[var(--color-faint)]">Scheme fit</span>
+                              <span
+                                className={fitClass(fit.verdict)}
+                                title={fitTitle(fit.identity, fit.applies, fit.verdict)}
+                              >
+                                {fit.verdict}
+                              </span>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                              <span className="text-[var(--color-faint)]">Best identity</span>
+                              <span className="text-right">{fit.best ?? "—"}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
                       <div className="flex justify-between">
                         <span className="text-[var(--color-faint)]">Coachability</span>
                         <span>
@@ -1164,6 +1225,20 @@ export default function DraftPage() {
                         <span className="text-xs text-[var(--color-muted)] whitespace-nowrap">
                           <span className="tnum">#{m.slot}</span>{" "}
                           <span className="text-[10px]">{m.shade}</span>
+                        </span>
+                      );
+                    })()}
+                  </Cell>
+                  <Cell>
+                    {(() => {
+                      const fit = fits.get(p.id);
+                      const verdict = fit?.verdict ?? "?";
+                      return (
+                        <span
+                          className={cx("text-xs whitespace-nowrap", fitClass(verdict))}
+                          title={fit ? fitTitle(fit.identity, fit.applies, fit.verdict) : undefined}
+                        >
+                          {verdict}
                         </span>
                       );
                     })()}
