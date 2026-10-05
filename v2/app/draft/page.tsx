@@ -51,9 +51,9 @@ import {
 } from "@/lib/core/scouting-reports";
 import { futureClassCounts, futureClassRows, futureSeasons } from "@/lib/core/futureClass";
 import { athleticClass, athleticSheet, boardTesting, ordinal } from "@/lib/view/athleticSheet";
-import { enterDraft, simEntireDraft, simToUserPick } from "@/lib/core/offseason";
+import { enterDraft } from "@/lib/core/offseason";
 import { capHit, formatMoney, playerMap } from "@/lib/core/select";
-import { simEntireDraftToast } from "@/lib/view/draftToast";
+import { DRAFT_PACE_OPTIONS, tickerPickText, type DraftPace } from "@/lib/view/draftNight";
 import { POSITIONS, Player, Position, ScoutingMethod } from "@/lib/core/types";
 import { rosterCapView } from "@/lib/view/rosterCap";
 import { recentPickSlots } from "@/lib/view/scoutFog";
@@ -127,6 +127,14 @@ export default function DraftPage() {
   const state = useGame((s) => s.state);
   const rev = useGame((s) => s.rev);
   const apply = useGame((s) => s.apply);
+  const simming = useGame((s) => s.simming);
+  const busy = useGame((s) => s.busy);
+  const draftTape = useGame((s) => s.draftTape);
+  const draftAlert = useGame((s) => s.draftAlert);
+  const simDraft = useGame((s) => s.simDraft);
+  const dismissDraftAlert = useGame((s) => s.dismissDraftAlert);
+  const cancelDraftRun = useGame((s) => s.cancelDraftRun);
+  const pushDraftTape = useGame((s) => s.pushDraftTape);
 
   const [pos, setPos] = useState<Position | "ALL">("ALL");
   const [sortKey, setSortKey] = useState<SortKey>("board");
@@ -137,6 +145,7 @@ export default function DraftPage() {
   const [moveUpQuote, setMoveUpQuote] = useState<string | null>(null);
   const [futureSeason, setFutureSeason] = useState<number | null>(null);
   const [showFutureAll, setShowFutureAll] = useState(false);
+  const [pace, setPace] = useState<DraftPace>("fast");
 
   // Board source: the live draft pool when a draft exists, otherwise the class
   // that is currently being scouted ahead of the offseason.
@@ -326,7 +335,9 @@ export default function DraftPage() {
     setMoveUpQuote(bundle.map((a) => tradeBoardAssetLabel(state, a)).join(" + "));
   }
 
-  function doMoveUp() {
+  function doMoveUp(price: string | null) {
+    const pickNo = onClock?.pick;
+    cancelDraftRun();
     setMoveUpQuote(null);
     apply((s) => {
       const ok = acceptMoveUp(s);
@@ -334,6 +345,16 @@ export default function DraftPage() {
       const slot = s.draft ? s.draft.picks[s.draft.onClock] : null;
       return `You are on the clock at pick ${slot?.pick ?? "?"}.`;
     });
+    const toast = useGame.getState().toast;
+    if (price && price !== "NO_DEAL" && pickNo != null && toast?.startsWith("You are on the clock")) {
+      pushDraftTape({
+        kind: "trade",
+        pick: pickNo,
+        club: "You",
+        text: `You move up to #${pickNo} — send ${price}`,
+        sent: price.split(" + "),
+      });
+    }
   }
 
   function signPriority(p: Player) {
@@ -370,26 +391,11 @@ export default function DraftPage() {
   }
 
   function simToMe() {
-    apply((s) => {
-      const live = s.draft;
-      if (!live) return "There is no draft in progress.";
-      const before = live.onClock;
-      simToUserPick(s);
-      const made = live.onClock - before;
-      if (live.complete) return `Draft complete — ${made} more pick${made === 1 ? "" : "s"} made`;
-      if (made === 0) return "You are already on the clock.";
-      const slot = live.picks[live.onClock];
-      return `${made} pick${made === 1 ? "" : "s"} made — you are on the clock at pick ${slot?.pick ?? ""}`;
-    });
+    void simDraft("until", pace);
   }
 
   function simAll() {
-    apply((s) => {
-      const live = s.draft;
-      if (!live) return "There is no draft in progress.";
-      simEntireDraft(s);
-      return simEntireDraftToast(live.picks, s.userTeamId);
-    });
+    void simDraft("full", pace);
   }
 
   function openDraftRoom() {
@@ -535,11 +541,11 @@ export default function DraftPage() {
                 : undefined
           }
           actions={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <Button
                 size="sm"
                 onClick={simToMe}
-                disabled={d.complete || myTurn || myUpcoming.length === 0}
+                disabled={d.complete || myTurn || myUpcoming.length === 0 || simming || busy || draftAlert !== null}
                 title={
                   d.complete
                     ? "The draft is complete"
@@ -556,7 +562,7 @@ export default function DraftPage() {
                 size="sm"
                 variant="primary"
                 onClick={simAll}
-                disabled={d.complete}
+                disabled={d.complete || simming || busy || draftAlert !== null}
                 title={
                   d.complete
                     ? "The draft is complete"
@@ -568,6 +574,18 @@ export default function DraftPage() {
             </div>
           }
         >
+          {!d.complete && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Pace</span>
+              <Tabs
+                value={pace}
+                onChange={(next) => {
+                  if (!simming && !busy) setPace(next);
+                }}
+                options={DRAFT_PACE_OPTIONS}
+              />
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <div>
               <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
@@ -623,6 +641,105 @@ export default function DraftPage() {
         </Card>
       )}
 
+      {d && (simming || draftTape.length > 0) && (
+        <Card
+          title="Draft ticker"
+          subtitle={simming ? "The room is moving" : "Latest from this sitting"}
+          padded={false}
+        >
+          {draftTape.length === 0 ? (
+            <Empty title="The room is coming to order" hint="The next selection will read out here." />
+          ) : (
+            <div>
+              {(() => {
+                const live = draftTape[draftTape.length - 1];
+                if (live.kind === "trade") {
+                  return (
+                    <div className="px-4 py-3 text-sm">
+                      <span className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mr-2">Trade</span>
+                      {live.text}
+                    </div>
+                  );
+                }
+                return (
+                  <Table head={["Club", "Player", "Pos", "School", "Your board", "Consensus", "Reach / slide"]}>
+                    <Row highlight>
+                      <Cell align="left">{live.club}</Cell>
+                      <Cell>{live.player}</Cell>
+                      <Cell>{live.forfeited ? "—" : <PosBadge pos={live.pos as Position} />}</Cell>
+                      <Cell>{live.school}</Cell>
+                      <Cell>{live.board}</Cell>
+                      <Cell>{live.consensus}</Cell>
+                      <Cell>
+                        <span
+                          className={
+                            live.reachSlide.startsWith("reach")
+                              ? "text-[var(--color-warn)]"
+                              : live.reachSlide.startsWith("slide")
+                                ? "text-[var(--color-good)]"
+                                : "text-[var(--color-muted)]"
+                          }
+                        >
+                          {live.reachSlide}
+                        </span>
+                      </Cell>
+                    </Row>
+                  </Table>
+                );
+              })()}
+              {draftTape.length > 1 && (
+                <div className="px-4 py-2 border-t border-[var(--color-line-soft)] space-y-1">
+                  {draftTape.slice(0, -1).reverse().map((item, i) => (
+                    <div key={`${item.kind}-${item.pick}-${i}`} className="text-xs text-[var(--color-muted)]">
+                      {item.kind === "trade" ? item.text : tickerPickText(item)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {d && draftAlert && !d.complete && (
+        <Card
+          title="He will not last"
+          subtitle={`${draftAlert.name} is on your board, and consensus has him gone before you pick.`}
+        >
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <span className="font-medium">{draftAlert.name}</span>
+            <PosBadge pos={draftAlert.pos as Position} />
+            <span className="text-[var(--color-muted)]">{draftAlert.school}</span>
+            <span className="text-xs text-[var(--color-muted)]">Your board {draftAlert.board}</span>
+            <span className="text-xs text-[var(--color-muted)]">Consensus {draftAlert.consensus}</span>
+            <span className="text-xs text-[var(--color-faint)]">
+              On the clock at #{draftAlert.onPick} · you pick at #{draftAlert.userPick}
+            </span>
+          </div>
+          {(() => {
+            const bundle = quoteMoveUp(state);
+            const price = bundle ? bundle.map((a) => tradeBoardAssetLabel(state, a)).join(" + ") : null;
+            return (
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <span className="text-sm">
+                  {price ? (
+                    <>They want: <span className="font-medium">{price}</span></>
+                  ) : (
+                    <span className="text-[var(--color-muted)]">No deal — you cannot cover their price for this slot.</span>
+                  )}
+                </span>
+                <Button size="sm" variant="primary" onClick={() => doMoveUp(price)} disabled={!price}>
+                  Move up to #{onClock?.pick}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={dismissDraftAlert}>
+                  Let the room have him
+                </Button>
+              </div>
+            );
+          })()}
+        </Card>
+      )}
+
       {!d && needs.length > 0 && (
         <Card title="Positions of need" subtitle="Below the target count on your roster right now">
           <div className="flex flex-wrap gap-1.5">
@@ -671,7 +788,7 @@ export default function DraftPage() {
         </Card>
       )}
 
-      {d && !d.complete && !myTurn && myUpcoming.length > 0 && (
+      {d && !d.complete && !myTurn && myUpcoming.length > 0 && !draftAlert && !simming && (
         <Card
           title="Work the phones"
           subtitle={`${onClockTeam?.abbr ?? ""} are on the clock at #${onClock?.pick ?? ""}. You can call about moving up.`}
@@ -694,7 +811,7 @@ export default function DraftPage() {
               <span className="text-sm">
                 They want: <span className="font-medium">{moveUpQuote}</span>
               </span>
-              <Button size="sm" variant="primary" onClick={doMoveUp}>
+              <Button size="sm" variant="primary" onClick={() => doMoveUp(moveUpQuote)}>
                 Do it — move up to #{onClock?.pick}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setMoveUpQuote(null)}>

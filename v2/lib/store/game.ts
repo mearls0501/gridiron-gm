@@ -9,7 +9,16 @@ import { advanceOffseason } from "../core/offseason";
 import { saveGame, loadGame, listSaves, lastSaveId, deleteSave } from "./save";
 import { simToStepper, type SimTarget } from "./simTo";
 import { offseasonContinueStepper, openingOffseasonLabel } from "./offseasonContinue";
+import { draftNightStepper, drainDraftNight, type DraftNightMode, type DraftNightStep } from "./draftNight";
 import { isPendingForcedMove } from "../core/owner";
+import {
+  DRAFT_PACE_MS,
+  moveUpAlert,
+  moveUpAlertKey,
+  type DraftPace,
+  type DraftTapeItem,
+  type MoveUpAlert,
+} from "../view/draftNight";
 
 export type { SimTarget };
 
@@ -25,8 +34,36 @@ function yieldToPaint(): Promise<void> {
   });
 }
 
-/** Blocks other mutations while Hub simTo or offseason Continue is between steps. Not save state. */
+/** Hold the draft room on a pick. The wait is the pace. The draft does not read it. */
+function yieldForPace(pace: DraftPace): Promise<void> {
+  const ms = DRAFT_PACE_MS[pace];
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    const afterPaint = () => setTimeout(resolve, ms);
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(afterPaint);
+    else afterPaint();
+  });
+}
+
+/** Blocks other mutations while Hub simTo, offseason Continue, or a paced draft is between steps. Not save state. */
 let simActive = false;
+
+/** Prospects the room already warned about. Not save state. */
+const ignoredDraftAlerts = new Set<string>();
+/**
+ * The paced run waiting on a move-up alert. The stepper stays so the next
+ * pick draws the same stream an uninterrupted night would. Not save state.
+ */
+let pausedDraft: {
+  mode: DraftNightMode;
+  pace: DraftPace;
+  step: () => DraftNightStep;
+} | null = null;
+
+function clearDraftSession(): void {
+  ignoredDraftAlerts.clear();
+  pausedDraft = null;
+}
 
 /**
  * Single store holding the whole franchise.
@@ -48,6 +85,10 @@ interface Store {
   simming: boolean;
   /** Progress copy while `simming`. Not part of the save. */
   simLabel: string | null;
+  /** Picks and clock trades the draft room is reading. Not part of the save. */
+  draftTape: DraftTapeItem[];
+  /** A starred name the public board says will not last. Not part of the save. */
+  draftAlert: MoveUpAlert | null;
   error: string | null;
   toast: string | null;
   hydrated: boolean;
@@ -61,6 +102,10 @@ interface Store {
   apply: (fn: (s: GameState) => string | void) => void;
   advance: () => void;
   simTo: (target: SimTarget) => Promise<void>;
+  simDraft: (mode: DraftNightMode, pace: DraftPace) => Promise<void>;
+  dismissDraftAlert: () => void;
+  cancelDraftRun: () => void;
+  pushDraftTape: (item: DraftTapeItem) => void;
   setToast: (t: string | null) => void;
   setError: (e: string | null) => void;
 }
@@ -118,12 +163,126 @@ async function continueOffseason(
   }
 }
 
+async function simDraftNight(
+  set: (partial: Partial<Store>) => void,
+  get: () => Store,
+  mode: DraftNightMode,
+  pace: DraftPace,
+  resume?: () => DraftNightStep,
+): Promise<void> {
+  if (simActive) return;
+  const s = get().state;
+  if (!s?.draft || s.draft.complete) return;
+
+  simActive = true;
+  if (!resume) pausedDraft = null;
+  set({ simming: true, busy: true, simLabel: "The draft is on the clock", draftAlert: null });
+  let closed = false;
+  const tape = () => get().draftTape;
+  const remember = (events: DraftTapeItem[]) => {
+    if (events.length === 0) return tape();
+    return [...tape(), ...events].slice(-8);
+  };
+  try {
+    if (pace === "instant") {
+      const drained = drainDraftNight(s, mode);
+      ensureJerseyNumbers(s);
+      maybeRetireNumbersForHallOfFame(s);
+      set({
+        state: { ...s },
+        rev: get().rev + 1,
+        toast: drained.message ? drained.message : null,
+        error: null,
+        busy: false,
+        simming: false,
+        simLabel: null,
+        draftAlert: null,
+        draftTape: drained.events.slice(-8),
+      });
+      closed = true;
+      void saveGame(s).catch((e) =>
+        set({ error: e instanceof Error ? e.message : "Could not save. Your progress may be lost." })
+      );
+      return;
+    }
+
+    await yieldToPaint();
+    const step = resume ?? draftNightStepper(s, mode);
+    while (true) {
+      const alert = moveUpAlert(s, ignoredDraftAlerts);
+      if (alert) {
+        pausedDraft = { mode, pace, step };
+        ensureJerseyNumbers(s);
+        maybeRetireNumbersForHallOfFame(s);
+        set({
+          state: { ...s },
+          rev: get().rev + 1,
+          draftAlert: alert,
+          busy: false,
+          simming: false,
+          simLabel: null,
+          error: null,
+        });
+        closed = true;
+        void saveGame(s).catch((e) =>
+          set({ error: e instanceof Error ? e.message : "Could not save. Your progress may be lost." })
+        );
+        return;
+      }
+      const result = step();
+      const nextTape = remember(result.events);
+      if (result.done) {
+        ensureJerseyNumbers(s);
+        maybeRetireNumbersForHallOfFame(s);
+        set({
+          state: { ...s },
+          rev: get().rev + 1,
+          toast: result.message ? result.message : null,
+          error: null,
+          busy: false,
+          simming: false,
+          simLabel: null,
+          draftAlert: null,
+          draftTape: nextTape,
+        });
+        closed = true;
+        void saveGame(s).catch((e) =>
+          set({ error: e instanceof Error ? e.message : "Could not save. Your progress may be lost." })
+        );
+        return;
+      }
+      set({
+        state: { ...s },
+        rev: get().rev + 1,
+        simLabel: result.label,
+        draftTape: nextTape,
+      });
+      await yieldForPace(pace);
+    }
+  } catch (e) {
+    set({
+      state: { ...s },
+      rev: get().rev + 1,
+      error: e instanceof Error ? e.message : "Something went wrong.",
+      busy: false,
+      simming: false,
+      simLabel: null,
+    });
+    closed = true;
+  } finally {
+    simActive = false;
+    if (!closed) set({ simming: false, busy: false, simLabel: null });
+  }
+}
+
 export const useGame = create<Store>((set, get) => ({
   state: null,
   rev: 0,
   busy: false,
   simming: false,
   simLabel: null,
+  draftTape: [],
+  draftAlert: null,
   error: null,
   toast: null,
   hydrated: false,
@@ -147,9 +306,17 @@ export const useGame = create<Store>((set, get) => ({
   async startNew(opts) {
     set({ busy: true, error: null });
     try {
+      clearDraftSession();
       const s = newGame(opts);
       await saveGame(s);
-      set({ state: s, rev: get().rev + 1, busy: false, toast: "Franchise created" });
+      set({
+        state: s,
+        rev: get().rev + 1,
+        busy: false,
+        toast: "Franchise created",
+        draftTape: [],
+        draftAlert: null,
+      });
     } catch (e) {
       set({ busy: false, error: e instanceof Error ? e.message : "Could not create the franchise." });
     }
@@ -160,8 +327,16 @@ export const useGame = create<Store>((set, get) => ({
     try {
       const s = await loadGame(id);
       if (!s) throw new Error("That save could not be found.");
+      clearDraftSession();
       await saveGame(s);
-      set({ state: s, rev: get().rev + 1, busy: false, toast: "Franchise loaded" });
+      set({
+        state: s,
+        rev: get().rev + 1,
+        busy: false,
+        toast: "Franchise loaded",
+        draftTape: [],
+        draftAlert: null,
+      });
     } catch (e) {
       set({ busy: false, error: e instanceof Error ? e.message : "Could not load that save." });
     }
@@ -280,6 +455,29 @@ export const useGame = create<Store>((set, get) => ({
       simActive = false;
       if (!closed) set({ simming: false, busy: false, simLabel: null });
     }
+  },
+
+  async simDraft(mode, pace) {
+    await simDraftNight(set, get, mode, pace);
+  },
+
+  dismissDraftAlert() {
+    const alert = get().draftAlert;
+    if (alert) ignoredDraftAlerts.add(moveUpAlertKey(alert.season, alert.playerId));
+    const run = pausedDraft;
+    pausedDraft = null;
+    set({ draftAlert: null });
+    if (run) void simDraftNight(set, get, run.mode, run.pace, run.step);
+  },
+
+  cancelDraftRun() {
+    if (simActive) return;
+    pausedDraft = null;
+    set({ draftAlert: null, simming: false, busy: false, simLabel: null });
+  },
+
+  pushDraftTape(item) {
+    set({ draftTape: [...get().draftTape, item].slice(-8) });
   },
 
   setToast: (t) => set({ toast: t }),
