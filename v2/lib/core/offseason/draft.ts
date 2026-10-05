@@ -632,7 +632,9 @@ function cpuBoardValue(
   // more. Discounting by whether he displaces the incumbent is what stops
   // contenders spending firsts on a position they have already solved — the
   // need term alone was far too weak a lever against the salary multiplier.
-  const startsHere = clamp((view.ovr - incumbent + 6) / 12, 0.25, 1);
+  // Quarterbacks have no 0.25 floor. A prospect the club reads below its
+  // starter does not keep a quarter of sqrt(POSITION_VALUE.QB).
+  const startsHere = clamp((view.ovr - incumbent + 6) / 12, p.pos === "QB" ? 0 : 0.25, 1);
   const above = Math.max(1, perceived - REPLACEMENT_OVR + upside);
   // Medical and character checks are table stakes for a real department, so
   // known risk prices in league-wide rather than per-club.

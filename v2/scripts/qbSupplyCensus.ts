@@ -128,7 +128,7 @@ function components(state: GameState, teamId: number, p: Player, posture: Postur
   const needWeight = (1 - fo.bpaBias) * 0.55;
   const bias = fo.posBias[p.pos] ?? 1;
   const rebuildUpside = posture === "rebuild" ? 1 + room * 0.012 : 1;
-  const startsHere = clamp((view.ovr - incumbent + 6) / 12, 0.25, 1);
+  const startsHere = clamp((view.ovr - incumbent + 6) / 12, p.pos === "QB" ? 0 : 0.25, 1);
   const above = Math.max(1, perceived - REPLACEMENT_OVR + upside);
   return {
     above,

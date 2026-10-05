@@ -58,6 +58,9 @@ interface Snapshot {
   trades: number;
   franchiseTags: number;
   deadMoneyPct: number;
+  qbsDrafted: number;
+  qbsPerClub53: number;
+  qbsPerClubPs: number;
   hcFires: number;
   hcExpiries: number;
   hcFireTenureWins: number;
@@ -170,6 +173,23 @@ function runOne(seed: number): Snapshot[] {
       }
     }
 
+    // Report-only. Cutdown spring, same moment as the QB supply census:
+    // the class just drafted, then active and practice-squad quarterbacks
+    // per club. Real drafted per class is 11.6 (nfl-reference.md §2.7a).
+    // Real on the 53 is ~2.6, as named in that census. No band.
+    const qbClass = st.season - 1;
+    let qbsDrafted = 0;
+    let qbsOn53 = 0;
+    let qbsOnPs = 0;
+    for (const p of st.players) {
+      if (p.pos !== "QB" || p.retired || p.prospect) continue;
+      if (p.draftedRound != null && p.draftClassSeason === qbClass) qbsDrafted++;
+      if (p.teamId === null) continue;
+      if (isActiveRoster(p)) qbsOn53++;
+      else if (p.status === "ps") qbsOnPs++;
+    }
+    const qbClubs = Math.max(1, st.teams.length);
+
     out.push({
       season, ovrMean: mean(ovrs),
       n85: ovrs.filter((v) => v >= 85).length,
@@ -225,6 +245,9 @@ function runOne(seed: number): Snapshot[] {
       // League dead money / cap. Additive emit so a panel can see if CPU
       // void-year use runs away. nfl-reference.md §4 notes ~5–8%.
       deadMoneyPct: st.teams.reduce((n, t) => n + (t.deadCap ?? 0), 0) / Math.max(1, cap * 32) * 100,
+      qbsDrafted,
+      qbsPerClub53: qbsOn53 / qbClubs,
+      qbsPerClubPs: qbsOnPs / qbClubs,
     });
     const snap = out[out.length - 1];
     progress(
@@ -376,6 +399,9 @@ emitAll({
   "drift.eliteGrowthRatio": eliteGrowth,
   "drift.franchiseTagsPerSeason": mean(flat.map((r) => r.franchiseTags)),
   "drift.deadMoneyPct": mean(flat.map((r) => r.deadMoneyPct)),
+  "drift.qbsDraftedPerClass": mean(flat.map((r) => r.qbsDrafted)),
+  "drift.qbsPerClub53": mean(flat.map((r) => r.qbsPerClub53)),
+  "drift.qbsPerClubPs": mean(flat.map((r) => r.qbsPerClubPs)),
   "drift.hcFiresPerSeason": mean(flat.map((r) => r.hcFires)),
   "drift.hcExpiriesPerSeason": mean(flat.map((r) => r.hcExpiries)),
   "drift.hcFireTenureWinAvg": tenureSeasons > 0 ? tenureWins / tenureSeasons : 0,
