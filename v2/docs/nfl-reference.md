@@ -442,6 +442,18 @@ This is the number `careers.secondSceneStarPct` will lock against. It is
 **not** in `baselines.json` in this packet — Studio `careers 24` + panel
 is the follow-up. Do not invent a band here.
 
+### 2.7a QBs drafted per class — the §2.7 population base
+
+Added 2026-10-05 (Wave 4.4 Packet C). Source D, the same
+[nflverse `draft_picks`](https://github.com/nflverse/nflverse-data/releases/download/draft_picks/draft_picks.csv)
+filter named in the §2.7 population: classes **2010–2019**,
+`draft_picks.position = QB`, **n = 116**. Ten classes.
+
+**11.6 quarterbacks drafted per class** (116 / 10). That is how many
+QBs a class adds. §2.4's round-1 figure is 3.27 per draft (10.3% of
+round 1, 2011–2025). The 11.4% figure above is the path-2 event rate
+inside this same pool of 116. No `baselines.json` row.
+
 ### 2.8 Undrafted free agents — confidence MEDIUM
 
 - **369 UDFAs signed league-wide in 2025**, 6–20 per club, mean 11.5
@@ -1893,4 +1905,28 @@ S6.9 reason family as Wave 3.7: PS/IR/waiver/camp-90 bodies plus
 Wave 1/2 fields on the encoded save. The **20 MB quota** guard is
 unchanged. `capBustSeasons` 0.40 and `franchiseTagsPerSeason`
 16.62 remain findings, not retuned.
+
+---
+
+## 7. People
+
+### 7.1 Head-coach firings
+
+Added 2026-10-05 (Wave 4.4 Packet C). Not in T/D/S/P.
+[Sports Illustrated, "NFL head coach firings by year"](https://www.si.com/nfl/nfl-head-coach-firings-by-year)
+(Madison Williams, published 2026-01-06): head coaches fired, in-season
+and after the season, 2017–2025.
+
+| season | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 |
+|---|---|---|---|---|---|---|---|---|---|
+| firings | 7 | 8 | 5 | 7 | 8 | 5 | 9 | 7 | 8 |
+
+**Mean 7.1** firings per season (7+8+5+7+8+5+9+7+8 = 64; 64/9 = 7.1).
+SI labels the 2025 cell Ongoing; it reads 8 on that page. The series
+above is that table.
+
+This is the traced league-wide firing rate. The counter it names is
+`drift.hcFiresPerSeason`. Contract expiries stay on
+`drift.hcExpiriesPerSeason`. No dial moves, and `docs/baselines.json`
+is not edited.
 
