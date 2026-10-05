@@ -7,6 +7,7 @@ import { generateDraftClass, initialScoutingPass } from "./offseason/draft";
 import { ensureFutureClasses } from "./futureClass";
 import { ensureOwners, stampSeasonExpectedWins } from "./owner";
 import { ensureScouting } from "./scouting";
+import { ensureScoutStaff } from "./scoutStaff";
 import { GameState } from "./types";
 import { ensurePickInventory } from "./trades";
 
@@ -41,6 +42,8 @@ export function newGame(opts: NewGameOptions = {}): GameState {
   state.rngState = rng.state;
   // Later classes. Child stream — parent rngState is already stored.
   ensureFutureClasses(state);
+  // Named scouts. Hash only — parent rngState is already stored.
+  ensureScoutStaff(state);
   // Preseason, no games yet: outlook is the roster plus a neutral record.
   // Does not draw. Parent rngState is already stored.
   stampSeasonExpectedWins(state);

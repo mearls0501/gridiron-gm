@@ -1,7 +1,17 @@
 import { clamp, Rng } from "./rng";
-import { presentOvrText, presentPotText, presentedOvr, presentedPot } from "./ratings";
+import { playerName, presentOvrText, presentPotText, presentedOvr, presentedPot } from "./ratings";
 import { frontOffice } from "./frontOffice";
 import { NEUTRAL_SHARE, share } from "./staff";
+import {
+  COLLEGE_REGIONS,
+  FOCUS_CAP,
+  FOCUS_FILM_PER_WEEK,
+  coveringScout,
+  focusPickRng,
+  focusStudyRng,
+  prospectReadAdjust,
+  userScouts,
+} from "./scoutStaff";
 import {
   AttrKey, BoardNote, CombineMetric, GameState, Player, Position,
   ProspectProfile, RiskGrade, SCOUTING_WINDOWS, ScoutingMethod,
@@ -324,13 +334,6 @@ export function riskDiscount(p: Player): number {
 // Prospect profiles — generation
 // ---------------------------------------------------------------------------
 
-const REGION = [
-  "Northport", "Caldwell", "Ridgemont", "Lakewood", "Harrison", "Delmar",
-  "Fairbank", "Stone Valley", "Crestline", "Weston", "Millbrook", "Ashford",
-  "Kingsley", "Redmond", "Alcott", "Brier", "Dunmore", "Eastvale", "Galloway",
-  "Holloway", "Ironwood", "Juniper", "Kessler", "Loxley", "Marlowe",
-] as const;
-
 const SCHOOL_KIND = ["State", "Tech", "A&M", "University", "College"] as const;
 
 /** Height/weight priors by position: [meanIn, sdIn, meanLb, sdLb]. */
@@ -385,8 +388,8 @@ export function generateProspectProfile(rng: Rng, p: Player): void {
   const yr = rng.next();
   const profile: ProspectProfile = {
     college: rng.chance(0.85)
-      ? `${rng.pick(REGION as unknown as string[])} ${rng.pick(SCHOOL_KIND as unknown as string[])}`
-      : rng.pick(REGION as unknown as string[]),
+      ? `${rng.pick(COLLEGE_REGIONS as unknown as string[])} ${rng.pick(SCHOOL_KIND as unknown as string[])}`
+      : rng.pick(COLLEGE_REGIONS as unknown as string[]),
     classYear: yr < 0.1 ? "SO" : yr < 0.52 ? "JR" : yr < 0.88 ? "SR" : "RS_SR",
     heightIn,
     weightLb,
@@ -518,6 +521,7 @@ function freshCalendar(state: GameState): ScoutingState {
     visitsRemaining: PRIVATE_VISIT_CAP,
     opened: [w],
     closed: [],
+    focus: [],
   };
 }
 
@@ -527,6 +531,7 @@ function migrateCalendar(state: GameState, s: ScoutingState): void {
   if (typeof s.visitsRemaining !== "number") s.visitsRemaining = PRIVATE_VISIT_CAP;
   if (!Array.isArray(s.opened)) s.opened = [];
   if (!Array.isArray(s.closed)) s.closed = [];
+  if (!Array.isArray(s.focus)) s.focus = [];
   if (s.opened.length === 0) {
     for (const w of SCOUTING_WINDOWS) {
       if (windowIndex(w) <= windowIndex(s.window)) s.opened.push(w);
@@ -795,13 +800,19 @@ export function runScoutingMethod(
 
   if (method === "film" || method === "proDay" || method === "privateWorkout") {
     const w = method === "privateWorkout" ? 0.65 : method === "film" ? 0.5 : 0.35;
-    const ovrSample = p.ovr + rng.normal(0, ovrErrSd(intel.effort));
+    // Lean is zero-sum across the class. Lens scale has unit mean square.
+    // q is 1 at an even budget, so the class-average sample matches the
+    // one this function took before named scouts existed. Two normals,
+    // same as before — the caller's stream does not grow.
+    const q = scoutQuality(state, state.userTeamId);
+    const adj = prospectReadAdjust(state, p);
+    const ovrSample = p.ovr + adj.shift + rng.normal(0, ovrErrSd(intel.effort) * adj.scale * q);
     const ovrMid = ((intel.ovrLow + intel.ovrHigh) / 2) * (1 - w) + ovrSample * w;
     const ow = ovrWidth(intel.effort);
     intel.ovrLow = clamp(Math.round(ovrMid - ow / 2), 30, 99);
     intel.ovrHigh = clamp(Math.round(ovrMid + ow / 2), intel.ovrLow, 99);
 
-    const potSample = p.pot + rng.normal(0, potErrSd(intel.effort));
+    const potSample = p.pot + adj.shift + rng.normal(0, potErrSd(intel.effort) * adj.scale * q);
     const potMid = ((intel.potLow + intel.potHigh) / 2) * (1 - w) + potSample * w;
     const pw = potWidth(intel.effort);
     intel.potLow = clamp(Math.round(potMid - pw / 2), 30, 99);
@@ -822,6 +833,79 @@ export function runScoutingMethod(
 /** A spent class's intel and board are dead weight. Called at the rollover. */
 export function pruneScouting(state: GameState): void {
   if (state.scouting && state.scouting.season < state.season) delete state.scouting;
+}
+
+/** Ids on the focus list this cycle. Empty when the calendar is another year. */
+export function focusIds(state: GameState): number[] {
+  const s = state.scouting;
+  if (!s || s.season !== state.season || !Array.isArray(s.focus)) return [];
+  return s.focus;
+}
+
+/**
+ * Pin or unpin a current-class prospect. Unpinning deletes the id only.
+ * Intel, board notes, and film counts stay.
+ */
+export function setFocus(
+  state: GameState, playerId: number, on: boolean
+): "added" | "removed" | "full" | "closed" {
+  const s = ensureScouting(state);
+  if (!s.focus) s.focus = [];
+  const at = s.focus.indexOf(playerId);
+  if (!on) {
+    if (at >= 0) s.focus.splice(at, 1);
+    return "removed";
+  }
+  if (at >= 0) return "added";
+  if (!scoutingThisClass(state, playerId)) return "closed";
+  if (s.focus.length >= FOCUS_CAP) return "full";
+  s.focus.push(playerId);
+  return "added";
+}
+
+/**
+ * Weekly film on a few focus names during the in-season window.
+ *
+ * Child streams only, same shape as `tickFutureClasses`. Each study
+ * counts against the existing per-prospect film cap. A second call
+ * for the same week does nothing. An empty list writes the tick and
+ * no intel.
+ */
+export function tickFocusFilm(state: GameState, week = state.week): void {
+  if (week < 1) return;
+  const s = ensureScouting(state);
+  if (s.window !== "filmFocus") return;
+  const prev = s.focusFilm;
+  if (prev && prev.season === state.season && prev.week >= week) return;
+  const ids = (s.focus ?? [])
+    .filter((id) => scoutingThisClass(state, id))
+    .sort((a, b) => a - b);
+  const order = focusPickRng(state, week).shuffle(ids);
+  const lines: { playerId: number; scoutId: string }[] = [];
+  for (const id of order) {
+    if (lines.length >= FOCUS_FILM_PER_WEEK) break;
+    if (!canRunScoutingMethod(state, "film", id)) continue;
+    const rng = focusStudyRng(state, week, id);
+    if (!runScoutingMethod(state, id, "film", rng)) continue;
+    const p = state.players.find((x) => x.id === id);
+    lines.push({ playerId: id, scoutId: p ? coveringScout(state, p).id : "" });
+  }
+  s.focusFilm = { season: state.season, week, lines };
+  if (!lines.length) return;
+  const staff = userScouts(state);
+  const names = lines.map((line) => {
+    const p = state.players.find((x) => x.id === line.playerId);
+    const scout = staff.find((sc) => sc.id === line.scoutId);
+    const who = p ? playerName(p) : "a prospect";
+    const by = scout ? scout.name : "The desk";
+    return `${by} watched ${who}`;
+  });
+  state.log.push({
+    season: state.season,
+    week,
+    kind: "system",
+    text: `Focus film: ${names.join("; ")}.`,
+  });
 }
 
 // ---------------------------------------------------------------------------

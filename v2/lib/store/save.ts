@@ -6,6 +6,7 @@ import { GameState, STATE_VERSION, defaultSettings } from "../core/types";
 import { blankRecordBook } from "../core/season/records";
 import { SCHEMES, evenBudget } from "../core/staff";
 import { ensureScouting } from "../core/scouting";
+import { ensureScoutStaff } from "../core/scoutStaff";
 import { catchUpFutureClasses } from "../core/futureClass";
 import { pruneStaleTradeInbox } from "../core/trades";
 import { decodeSave, encodeSave, EncodedSave } from "./codec";
@@ -185,6 +186,9 @@ export function migrate(state: GameState): GameState {
   }
   // Point-pool leftovers become a real calendar; does not crash old saves.
   ensureScouting(state);
+  // User college department. Hash of the franchise; no draw. CPU clubs
+  // stay without a stored staff.
+  ensureScoutStaff(state);
   // Void years are additive; missing = 0 so an old deal loads unchanged.
   for (const p of state.players) {
     if (p.contract && typeof p.contract.voidYears !== "number") p.contract.voidYears = 0;

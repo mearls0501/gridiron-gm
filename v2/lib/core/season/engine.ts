@@ -17,6 +17,7 @@ import { applySealedLive, clearSealedLive } from "../liveGame";
 import { resolveWaivers, settleWaivers } from "../waivers";
 import { runPsychology } from "../psychology";
 import { tickFutureClasses } from "../futureClass";
+import { tickFocusFilm } from "../scouting";
 
 /**
  * Share of in-season trade activity by distance from the deadline, derived
@@ -153,6 +154,9 @@ export function simulateWeek(state: GameState): void {
   // College news for classes that are not this year's. Child stream only —
   // the week's parent state is already stored.
   tickFutureClasses(state);
+  // Focus-list film for the user's desk. Child stream only. Empty list
+  // writes a tick and no intel, and does not touch a CPU read.
+  tickFocusFilm(state);
 }
 
 /**

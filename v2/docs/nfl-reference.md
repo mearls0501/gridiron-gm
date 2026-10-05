@@ -484,6 +484,16 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
 
 ## 4. What remains uncalibrated, on purpose
 
+- **Named-scout leans and lenses.** Added 2026-10-05. Not in T/D/S/P.
+  The user's department is five people (three area, one national, one
+  college director). A lean is a signed miss and a lens is where that
+  miss gets smaller. Neither is a scout grade. The point size of a
+  lean and the raw on-lens / off-lens scales are design noise. The
+  class mean of the lean is removed and the lens scales are
+  normalised to unit mean square, so at an even scouting budget the
+  class-average error of a work sample matches the sample the
+  department already took. Quality stays the scouting share of the
+  staff budget. Ungated. Do not lock a band on it.
 - **Future-class pipeline rates.** Added 2026-10-03. Not in T/D/S/P.
   Later classes exist before they are scouted; injuries and early
   declarations change who is in them. There is no traced weekly hazard

@@ -36,7 +36,15 @@ import {
   runScoutingMethod,
   scoutingBlockReason,
   setBoardNote,
+  setFocus,
+  focusIds,
 } from "@/lib/core/scouting";
+import {
+  FOCUS_CAP,
+  coveringScout,
+  leanWord,
+  roleWord,
+} from "@/lib/core/scoutStaff";
 import { tradeBoardAssetLabel } from "@/lib/view/tradeBoard";
 import {
   boardGrade,
@@ -304,6 +312,17 @@ export default function DraftPage() {
     });
   }
 
+  function pinFocus(p: Player) {
+    apply((s) => {
+      const on = focusIds(s).includes(p.id);
+      const result = setFocus(s, p.id, !on);
+      if (result === "full") return `The focus list holds ${FOCUS_CAP}.`;
+      if (result === "closed") return "That class is not scoutable yet.";
+      if (result === "removed") return `${playerName(p)} is off the focus list. The file stays.`;
+      return `${playerName(p)} is on the focus list.`;
+    });
+  }
+
   function acceptOffer(offerId: number) {
     apply((s) => {
       const rng = new Rng(s.rngState);
@@ -523,6 +542,35 @@ export default function DraftPage() {
           )}
         </Card>
       )}
+
+      <Card
+        title="Focus list"
+        subtitle={`${focusIds(state).length} of ${FOCUS_CAP}. It stays until you take a name off. Taking him off leaves the file.`}
+      >
+        {focusIds(state).length === 0 ? (
+          <p className="text-sm text-[var(--color-muted)]">
+            Pin a name from the war room. During the season the desk puts a few of them on film, and that film counts against the two-study cap.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {focusIds(state).map((id) => {
+              const p = byId.get(id);
+              if (!p) return null;
+              const scout = coveringScout(state, p);
+              return (
+                <li key={id} className="flex items-center gap-2 text-sm">
+                  <PlayerLink p={p} />
+                  <PosBadge pos={p.pos} />
+                  <span className="text-xs text-[var(--color-faint)] truncate">
+                    {scout.name} · {leanWord(scout.lean)}
+                  </span>
+                  <Button size="sm" variant="ghost" onClick={() => pinFocus(p)}>Remove</Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
 
       {d && (
         <Card
@@ -844,6 +892,7 @@ export default function DraftPage() {
         if (!focus || !focus.prospect || !focus.profile) return null;
         const intel = getIntel(state, focus);
         const note = boardNote(state, focus.id);
+        const desk = coveringScout(state, focus);
         const pr = focus.profile;
         const sheet = athleticSheet(state, focus, athletics);
         const eraNote =
@@ -1053,6 +1102,13 @@ export default function DraftPage() {
                   </Button>
                   <Button
                     size="sm"
+                    variant={focusIds(state).includes(focus.id) ? "primary" : "ghost"}
+                    onClick={() => pinFocus(focus)}
+                  >
+                    {focusIds(state).includes(focus.id) ? "On the focus list" : "Add to focus"}
+                  </Button>
+                  <Button
+                    size="sm"
                     variant={note.avoid ? "primary" : "ghost"}
                     onClick={() => setNote(focus, { avoid: !note.avoid })}
                   >
@@ -1087,6 +1143,9 @@ export default function DraftPage() {
               <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
                 The File
               </div>
+              <p className="text-xs text-[var(--color-muted)] mb-2">
+                {desk.name}, {roleWord(desk)} · {leanWord(desk.lean)}
+              </p>
               <div className="space-y-2.5">
                 {prospectReports(state, focus, ctx).map((r, i) => (
                   <div key={i} className="text-sm">

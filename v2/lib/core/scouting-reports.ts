@@ -2,6 +2,13 @@ import { AttrKey, ATTR_LABEL, GameState, Player, Position } from "./types";
 import { relevantAttrs } from "./ratings";
 import { clamp } from "./rng";
 import { attrBand, getIntel, publicIntel } from "./scouting";
+import {
+  collegeRegion,
+  coveringScout,
+  leanWord,
+  nationalScout,
+  roleWord,
+} from "./scoutStaff";
 import { Scheme, SCHEMES, schemeFor } from "./staff";
 
 /**
@@ -25,10 +32,6 @@ import { Scheme, SCHEMES, schemeFor } from "./staff";
 // Sources — your department, generated from the franchise, stable forever
 // ---------------------------------------------------------------------------
 
-const FIRST = ["Dan", "Marcus", "Elena", "Ray", "Tobias", "Grady", "Simone", "Walt", "Priya", "Cole", "Dez", "Martha"];
-const LAST = ["Reyes", "Okafor", "Lindqvist", "Battle", "Merriweather", "Cho", "Delgado", "Krebs", "Sowell", "Fontaine", "Barr", "Ostrowski"];
-const ROLES = ["area scout", "area scout", "area scout", "national cross-checker", "college director"];
-
 function hash32(a: number, b: number, c: number): number {
   let h = (a ^ (b * 0x9e3779b1) ^ (c * 0x85ebca6b)) >>> 0;
   h = Math.imul(h ^ (h >>> 16), 0x45d9f3b) >>> 0;
@@ -41,13 +44,15 @@ export interface Source {
   role: string;
 }
 
-/** The department member whose desk this prospect lands on. Stable per save. */
+/** The area scout whose region this school sits in. Stable for the franchise. */
 export function sourceFor(state: GameState, p: Player): Source {
-  const idx = hash32(state.seed, state.userTeamId, p.id);
-  const first = FIRST[idx % FIRST.length];
-  const last = LAST[(idx >>> 4) % LAST.length];
-  const role = ROLES[(idx >>> 8) % ROLES.length];
-  return { name: `${first.charAt(0)}. ${last}`, role };
+  const scout = coveringScout(state, p);
+  const region = collegeRegion(p.profile?.college ?? "");
+  const where = scout.role === "area" && region ? region : (scout.lensLabel || "the board");
+  return {
+    name: scout.name,
+    role: `${roleWord(scout)} · ${leanWord(scout.lean)} on ${where}`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -477,8 +482,12 @@ export function prospectReports(
   const gap = Math.abs(board.slot - market.slot);
   if (gap >= 16) {
     const hedge = board.conviction === "low" ? "Shallow file. " : "";
+    const national = nationalScout(state);
     out.push({
-      source: { name: sourceFor(state, p).name, role: "cross-check" },
+      source: {
+        name: national.name,
+        role: `${roleWord(national)} · ${leanWord(national.lean)} on ${national.lensLabel}`,
+      },
       text:
         board.slot < market.slot
           ? `${hedge}We have him ${gap} spots higher than the market (#${board.slot} on our board, #${market.slot} on theirs). If the room believes the file, he's a target.`
