@@ -11,7 +11,7 @@ import { draftOrder } from "../season/standings";
 import { Posture, REPLACEMENT_OVR, frontOffice, teamOutlook } from "../frontOffice";
 import { appendPickOwners, dropSpentInboxOffers, ensurePickInventory, executeTrade, pickValue, picksOwnedBy } from "../trades";
 import { TradeAsset, TradeOffer } from "../types";
-import { consensusScore, cpuExpectedView, cpuProspectView, cpuSchemeFitBelief, generateProspectProfile, riskDiscount } from "../scouting";
+import { consensusScore, cpuExpectedView, cpuProspectView, generateProspectProfile, riskDiscount } from "../scouting";
 import { creditUserDraft } from "../scoutStaff";
 
 /**
@@ -556,22 +556,6 @@ export function availableProspects(state: GameState, season: number): Player[] {
 }
 
 /**
- * How far a hashed scheme-fit belief may move one CPU board.
- *
- * ±8% at a full ±1 opinion, and a typical opinion is well inside that.
- * The belief itself is mean-zero, so the lean evens out across a class:
- * it changes who a club wants, and it does not raise the league's bid.
- */
-const SCHEME_FIT_LEAN = 0.08;
-
-/** 1 when the identity does not grade the position. Otherwise `1 + lean * belief`. */
-export function cpuSchemeFitMultiplier(
-  state: GameState, teamId: number, p: Player
-): number {
-  return 1 + SCHEME_FIT_LEAN * cpuSchemeFitBelief(state, teamId, p);
-}
-
-/**
  * CPU board value. Uses the CPU's own noisy read of a prospect, positional
  * value, and roster need — so CPU teams draft plausibly without perfect
  * information and without a position-vocabulary bug locking out whole groups.
@@ -646,13 +630,8 @@ function cpuBoardValue(
   const above = Math.max(1, perceived - REPLACEMENT_OVR + upside);
   // Medical and character checks are table stakes for a real department, so
   // known risk prices in league-wide rather than per-club.
-  //
-  // Scheme fit is the club's own hashed opinion of its identity, never the
-  // true attribute sheet and never the grade on the user's board. The
-  // belief is mean-zero and the lean is small, so the multiplier sits on 1
-  // across a class and only reshuffles a close board.
   return above * Math.sqrt(POSITION_VALUE[p.pos]) * startsHere * bias * rebuildUpside *
-    (1 + need * needWeight) * riskDiscount(p) * cpuSchemeFitMultiplier(state, teamId, p);
+    (1 + need * needWeight) * riskDiscount(p);
 }
 
 /**

@@ -5,43 +5,6 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
-## 2026-10-05 — CPU clubs draft on a hashed scheme-fit belief
-
-Worker. Optional step 5 of the Opus 5.5 draft plan, after named scouts on main (`79eaee3`). Rebased onto that commit. Scout staff, the focus list, and `creditUserDraft` stay. `docs/baselines.json`, `choosePass`, `passBias`, snap shares, and the draft dials are not touched.
-
-### Diagnosis
-
-`cpuBoardValue` priced a prospect from the club's noisy talent read, need, and positional value. It did not ask whether the man fit the club's identity. The user's board already prints a scheme-fit word from scouting-band midpoints. Feeding that word, or `schemeFit` on the true sheet, into the CPU board would hand the clubs the answer key.
-
-### Change
-
-`cpuSchemeFitBelief` is a pure hash of seed, class, club, scheme, and player. It does not read `p.attrs` and it does not call `schemeFit`. A position the identity does not name is 0. The draw is a symmetric normal, so across a class the belief sits on 0.
-
-`cpuBoardValue` multiplies by `1 + 0.08 * belief`. A full opinion is ±8%. A typical one is inside that. `cpuExpectedView` is unchanged. The user's Fit column is unchanged.
-
-### Checked
-
-Seed 42, headless draft after the first season, against fit-blind main (`79eaee3`). 31 of the 32 round-1 names are the same players. 19 of them move slots. One name swaps: Preston Wright II (EDGE) falls out, Derrick Rodriguez (CB) comes in at 32. Position counts move by one (EDGE 10 → 9, CB 7 → 8). Quarterbacks stay at 1 of 32. Pick 1 flips between two men who were already the top of the board: Tampa Bay takes Ivan Johnson (EDGE) instead of Julian Kirkland (CB). Kirkland goes 3rd, to Pittsburgh.
-
-Careers 24 / seed 12345: `careers.r1QbSharePct` **9.64**, under the max of 16. Named scouts did not move this seed-42 draft, so that careers read is the board after the rebase.
-
-### Untouched
-
-Plan Now, the HC-fire dial, Wave Packet 4, hold PRs #9, #63, #104–#107. `DRAFT_BOARD`, `boardQuality`, `ELITE_QB_SUPPRESSION`, `CLOCK_TRADES_MAX`, the clock-trade chance, trade-up bars, `choosePass`, `passBias`, snap shares, `docs/baselines.json`. No class-strength dial and no ceiling leak. Named scouts and the focus list from #151 stay.
-
-### Gate
-
-`npm run gate:serial` from `v2/` after the rebase (fast, serial, 1 seed, 4 cores). `fitbelief` and `scoutstaff` passed. Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
-
-```
-FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
-GATE FAIL  1 problem
-```
-
-Not a retune. `docs/baselines.json` was not edited.
-
----
-
 ## 2026-10-05 — Named scouts and a focus list
 
 Worker. First packet that changes scouting math and the save. Step 4 of the Opus 5.5 draft plan, after paced draft night on main (`ec628ba`). `docs/baselines.json`, `choosePass`, `passBias`, snap shares, and the draft dials are not touched.
