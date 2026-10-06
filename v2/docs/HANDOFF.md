@@ -5,6 +5,74 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-05 — QB supply: drop the startsHere floor for quarterbacks
+
+Worker. Wave 4.4 Packet B, built as signed in `docs/qb-supply-census-2026-10.md` (#155). Matt **SIGNED** 2026-10-05. Base `d684048` (#155). Draft PR. **Do not merge until the Wave 4.4 Packet A panel table posts.** Packet D (#154, CPU believed scheme fit) also edits `cpuBoardValue` and merges first.
+
+### Diagnosis
+
+The census on seed 12345, twelve cutdown springs, drafted **35.92** quarterbacks a class against a real **11.6** (`nfl-reference.md` §2.7a). `startsHere` sat on the 0.25 floor for 79% of those picks, so a prospect the club read at least 3 points below its starter kept a quarter of `sqrt(POSITION_VALUE.QB)`. The same run kept **3.98** quarterbacks on the 53 (real ~2.6, as that census names it) and **2.22** on the practice squad. **68.8%** of third quarterbacks (214 of 311) stayed on ability alone, with the 3.4× premium and the draft-capital hold both off.
+
+### Change
+
+In `cpuBoardValue`, quarterbacks clamp `startsHere` at 0. Every other position keeps 0.25. `POSITION_VALUE`, the thin bonus, `reconcileRoster`, cutdown, `choosePass`, `passBias`, snap shares, and the sim dials are untouched.
+
+`scripts/drift.ts` emits three report-only lines, no `baselines.json` row: `drift.qbsDraftedPerClass` (real 11.6), `drift.qbsPerClub53` (real ~2.6), `drift.qbsPerClubPs`. They are the cutdown spring: the class just drafted, then active and practice-squad quarterbacks per club. The census replica copies the same floor so its engine match check still holds. That is the one `scripts/` edit the packet ordered, plus the replica line the check requires.
+
+### Census, same seed and seasons
+
+`npx tsx scripts/qbSupplyCensus.ts 12 12345`. Opening roster excluded. Before is this tree before the floor change and matches #155. After is the floor at 0.
+
+| | before | after | real |
+|---|---:|---:|---:|
+| QBs drafted per class | **35.92** | **13.42** | 11.6 |
+| QBs per club on the 53 | **3.98** | **3.77** | ~2.6 |
+| QBs per club on the practice squad | **2.22** | **1.54** | — |
+
+League practice-squad quarterbacks **71.0 → 49.4**. Picks **431 → 161**. Round 7 **157 → 3**. Round 1 **37 → 45** (3.1 → 3.75 per class). Third quarterbacks still on the 53: **311 → 298** clubs, and **76.8%** of those (229 of 298) still survive on ability (was 68.8%). The 53 does not move to ~2.6. Cutdown was not touched.
+
+### Rows, not retuned
+
+`docs/baselines.json` was not edited.
+
+| row | this run | lock | |
+|---|---:|---|---|
+| `drift.p0Failures` | **1** | max 0 | Age ordering **12/20** (nearest prior seed-12345 read was 16/20, also one failure). Emit unchanged. |
+| `tails.milestonesOff` | **25** | max 16 | Single seed, 16 seasons. Known-high. Last panel **21.20** (seeds to 24). Same family. |
+| `staff.problems` | **0** | max 0 | Inside. |
+| `staff.leagueOvrDelta` | **0.72** | max 1.2 | Inside. Note on the lock is 0.70. |
+| `coherence.outlierExplainedPct` | **84.17** | min 85 | Default 5-season read. Same soft miss as the recorded seed-1 **84.62**. |
+| `drift.franchiseTagsPerSeason` | **15.8** | 14 ± 4 | Inside. |
+| `drift.deadMoneyPct` | **5.41** | no band | Near the prior panel note ~5.30. |
+| `careers.r1QbSharePct` | **8.59** | max 16 | Careers 24, seed 12345. Under the ceiling. |
+
+Drift 20, seed 12345, the new emits: drafted **13.1**, on the 53 **3.84**, on the practice squad **1.75**. `drift.ovrDrift` **−2.12**, inside −1.70 ± 1.5.
+
+### Leftover
+
+The signed change takes the draft from 35.9 toward 11.6 and does not take the 53 from 3.98 to ~2.6. That is the census's own cutdown finding, confirmed. Do not open a cutdown packet from this result. Round 1 rose inside the twelve-season census and the careers share stayed under 16. Do not retune the board to pull round 1 back down.
+
+Packet D's `perceived` term is not in the census replica. After D merges, the replica match check throws until `schemePts` is copied. The `startsHere` line itself is the only board edit, so the rebase stays on that line.
+
+`~2.6` on the 53 is the comparison the census names. §2.7a traces 11.6. This file does not add a traced computation for ~2.6, and the emit stays ungated.
+
+### Untouched
+
+`POSITION_VALUE`, the thin bonus, `reconcileRoster`, cutdown, `choosePass`, `passBias`, snap shares, sim dials, `docs/baselines.json`. No re-lock.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+---
+
 ## 2026-10-06 — Wave 4.4 Packet A: Studio panel GATE table @ 79eaee3 (report-only)
 
 Docs only. Wave 4.4 close-out Packet A. **Report-only. No re-lock.**
