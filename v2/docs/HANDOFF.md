@@ -5,6 +5,78 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-05 — QB supply: drop the startsHere floor for quarterbacks
+
+Worker. Wave 4.4 Packet B, built as signed in `docs/qb-supply-census-2026-10.md` (#155). Matt **SIGNED** 2026-10-05. Rebased onto `0f4702f` (Packet D, #154). Draft PR. **Do not merge until Packet D's Studio GATE table posts.** Packet A's panel table is on main.
+
+### Diagnosis
+
+The census on seed 12345, twelve cutdown springs, drafted **35.92** quarterbacks a class against a real **11.6** (`nfl-reference.md` §2.7a). `startsHere` sat on the 0.25 floor for 79% of those picks, so a prospect the club read at least 3 points below its starter kept a quarter of `sqrt(POSITION_VALUE.QB)`. The same run kept **3.98** quarterbacks on the 53 (real ~2.6, as that census names it) and **2.22** on the practice squad. **68.8%** of third quarterbacks (214 of 311) stayed on ability alone, with the 3.4× premium and the draft-capital hold both off.
+
+### Change
+
+In `cpuBoardValue`, quarterbacks clamp `startsHere` at 0. Every other position keeps 0.25. `POSITION_VALUE`, the thin bonus, `reconcileRoster`, cutdown, `choosePass`, `passBias`, snap shares, and the sim dials are untouched.
+
+`scripts/drift.ts` emits three report-only lines, no `baselines.json` row: `drift.qbsDraftedPerClass` (real 11.6), `drift.qbsPerClub53` (real ~2.6), `drift.qbsPerClubPs`. They are the cutdown spring: the class just drafted, then active and practice-squad quarterbacks per club. The census replica copies the same floor, and after the rebase it also copies Packet D's `schemePts` line, so the engine match check still holds. That copy is the measurement sync this section already required once D landed. It is not a dial change.
+
+### Census, same seed and seasons
+
+`npx tsx scripts/qbSupplyCensus.ts 12 12345`. Opening roster excluded. Before is the floor at 0.25 and matches #155. Pre-rebase is the floor at 0 on base `d684048`, before D's scheme-fit term. Rebased is this head: the same floor, plus D's `schemePts` on `perceived`. The replica matched the engine on **147** quarterback picks.
+
+| | before | pre-rebase | rebased | real |
+|---|---:|---:|---:|---:|
+| QBs drafted per class | **35.92** | **13.42** | **12.25** | 11.6 |
+| QBs per club on the 53 | **3.98** | **3.77** | **3.72** | ~2.6 |
+| QBs per club on the practice squad | **2.22** | **1.54** | **1.71** | — |
+
+League practice-squad quarterbacks **71.0 → 49.4 → 54.8**. Picks **431 → 161 → 147**. Round 7 **157 → 3 → 5**. Round 1 **37 → 45 → 36** (3.1 → 3.75 → 3.0 per class; rebased true OVR **70.3**). Third quarterbacks still on the 53: **311 → 298 → 300** clubs, and **70.0%** of the rebased clubs (210 of 300) still survive on ability (pre-rebase 76.8%, before 68.8%). The 53 does not move to ~2.6. Cutdown was not touched.
+
+### Rows, not retuned
+
+`docs/baselines.json` was not edited. Pre-rebase is the floor-only run. Rebased is this head.
+
+| row | pre-rebase | rebased | lock |
+|---|---:|---:|---|
+| `drift.p0Failures` | **1** (age **12/20**) | **1** (age **16/20**) | max 0 |
+| `tails.milestonesOff` | **25** | **25** | max 16 |
+| `staff.problems` | **0** | **0** | max 0 |
+| `staff.leagueOvrDelta` | **0.72** | **0.69** | max 1.2 |
+| `coherence.outlierExplainedPct` | **84.17** | **84.17** | min 85 |
+| `drift.franchiseTagsPerSeason` | **15.8** | **15.25** | 14 ± 4 |
+| `drift.deadMoneyPct` | **5.41** | **5.35** | no band |
+| `careers.r1QbSharePct` | **8.59** | **7.55** | max 16 |
+
+The age guard is the only P0. It wants strictly more than 80% of seasons. Named scouts and Packet D's main were **16/20**. The floor-only run was **12/20**. This head is **16/20** again. Emit unchanged. Not retuned.
+
+`tails.ts 16` and `coherence.ts 5` match the pre-rebase read exactly. `milestonesOff` **25** is this single seed, known-high (last panel **21.20**). Coherence **84.17** is the same soft miss as the recorded seed-1 **84.62**. `staff.problems` stays 0. `staff.leagueOvrDelta` **0.686**, inside max 1.2 (the lock's note is 0.70). Tags stay inside 14 ± 4. `deadMoneyPct` has no band. Careers 24, seed 12345, stays under max 16.
+
+Drift 20, seed 12345, the new emits: drafted **12.2** (pre-rebase **13.1**), on the 53 **3.86** (pre-rebase **3.84**), on the practice squad **1.88** (pre-rebase **1.75**). `drift.ovrDrift` **−1.87** (pre-rebase **−2.12**), inside −1.70 ± 1.5. `drift.cpuDraftFitMean` **0.0642** (Packet D's own after, on its branch, was **0.0664**). No band. Not retuned.
+
+### Leftover
+
+The signed change takes the draft from 35.9 toward 11.6 and does not take the 53 from 3.98 to ~2.6. The rebased head is **12.25** drafted and **3.72** on the 53. That is the census's own cutdown finding, confirmed again. Do not open a cutdown packet from this result. Round 1 on this head is **36**, next to the before count of **37**, and the careers share is **7.55**. Do not retune the board.
+
+Rebased onto `0f4702f`. The only conflict was `docs/HANDOFF.md`. `cpuBoardValue` auto-merged: Packet D's `schemePts` term is unchanged, and quarterbacks still clamp `startsHere` at 0. Packet D's disagreement stands in its own section and is not coded around: `need` and `startsHere` still compare the unadjusted view to the incumbent, and the four points sit on `perceived` only.
+
+`~2.6` on the 53 is the comparison the census names. §2.7a traces 11.6. This file does not add a traced computation for ~2.6, and the emit stays ungated.
+
+### Untouched
+
+`POSITION_VALUE`, the thin bonus, `reconcileRoster`, cutdown, `choosePass`, `passBias`, snap shares, sim dials, `docs/baselines.json`. No re-lock.
+
+### Gate
+
+Rebased head. `npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Same FAIL as the pre-rebase run. Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+---
+
 ## 2026-10-06 — Wave 4.4 Packet A: Studio panel GATE table @ 79eaee3 (report-only)
 
 Docs only. Wave 4.4 close-out Packet A. **Report-only. No re-lock.**
