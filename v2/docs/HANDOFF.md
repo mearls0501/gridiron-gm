@@ -48,7 +48,16 @@ Report-only. `docs/baselines.json` was not edited. No band.
 
 ### Gate
 
-`npx tsc --noEmit` passed. The new owner tests passed, including every worked-example row, the 3-win and 5-win first seasons, and both expiring cases. `npm run gate:serial` result is filled in after that run.
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited. `careers` and `drift` were not in this fast gate. Their movement from season 2 is for a solo packet and a panel.
+
+Staff, in the browser, on a fresh franchise: the owner card shows weighted wins **0.0**, bar **3.8** (patience 0.60), seat **safe**, and "No completed season is being counted yet. One-and-done is 3.8 wins or fewer." The heat stat is gone. Hub and Staff both render.
 
 ---
 
