@@ -543,8 +543,8 @@ export interface CoachingStaff {
 }
 
 /**
- * Owner of a club. Patience and heat are proposed defaults — flagged for Matt.
- * `firingEnabled` gates whether heat can actually cost the GM the chair.
+ * Owner of a club. Patience is generated once. `firingEnabled` gates
+ * whether the two-season rule can cost the GM the chair.
  */
 export interface Owner {
   name: string;
@@ -1093,8 +1093,8 @@ export interface TeamRecord {
   confW: number; confL: number; confT: number;
   /**
    * Owner win target locked before this season (`OWNER_WIN_TARGET` of the
-   * preseason outlook). Missing on older rows; heat then uses the current
-   * outlook for that row only.
+   * preseason outlook). Missing on older rows; the two-season rule then
+   * uses the current outlook for that row only.
    */
   expectedWins?: number;
 }
@@ -1305,6 +1305,15 @@ export interface SeasonCounters {
   hcFireTenureWinsLast?: number;
   hcFireTenureSeasons?: number;
   hcFireTenureSeasonsLast?: number;
+  /**
+   * Sum of the fired coach's last-season wins (the newer year, not the
+   * 60/40 blend). Drift divides by `hcFires` for the mean. Report-only.
+   */
+  hcFiredLastSeasonWins?: number;
+  hcFiredLastSeasonWinsLast?: number;
+  /** CPU head-coach fires whose tenure was a single season. */
+  hcOneAndDone?: number;
+  hcOneAndDoneLast?: number;
   /** Holdout declarations this league year. Incremented in fileDemand. */
   holdouts?: number;
   holdoutsLast?: number;

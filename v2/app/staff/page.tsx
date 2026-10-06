@@ -182,7 +182,11 @@ export default function StaffPage() {
         >
           <div className="grid gap-2 sm:grid-cols-4 mb-3">
             <Stat label="Patience" value={job.owner.patience.toFixed(2)} sub="0 impatient · 1 patient" />
-            <Stat label="Heat" value={Math.round(job.heat)} sub={`fire at ${Math.round(job.threshold)}`} />
+            <Stat
+              label="Weighted wins"
+              value={job.weightedWins.toFixed(1)}
+              sub={`bar ${job.bar.toFixed(1)} · margin ${job.margin.toFixed(1)}`}
+            />
             <Stat
               label="Last season"
               value={job.recentWins == null ? "—" : job.recentWins.toFixed(job.recentWins % 1 ? 1 : 0)}

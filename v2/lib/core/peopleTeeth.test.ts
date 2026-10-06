@@ -154,14 +154,14 @@ function plantStandings(st: GameState, season: number, winsFor: (teamId: number)
   const fired = fireCpuHeadCoaches(st);
   assert.equal(st.rngState, parent);
   const after = st.teams.filter((t) => t.id !== st.userTeamId && t.coaches?.hc).map((t) => t.coaches!.hc!.id);
-  assert.ok(fired >= 1, `owner heat should fire some CPU HCs (fired ${fired})`);
+  assert.ok(fired >= 1, `two-season rule should fire some CPU HCs (fired ${fired})`);
   assert.ok(after.length < before.length, "fired chairs are empty for the carousel");
   assert.equal(st.seasonCounters?.hcFires, fired, "hcFires increments at the fire site");
   rolloverTradeCounter(st);
   assert.equal(st.seasonCounters?.hcFires, 0, "rollover resets hcFires");
   assert.equal(st.seasonCounters?.hcFiresLast, fired, "closed year lives on hcFiresLast");
   console.log(`##M people.cpuHcFiresPlanted ${fired}`);
-  ok(`owner heat fired ${fired} CPU HC(s) on a planted 3-14 / 11-6 split`);
+  ok(`two-season rule fired ${fired} CPU HC(s) on a planted 3-14 / 11-6 split`);
 }
 
 {

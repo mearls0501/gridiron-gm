@@ -1,5 +1,5 @@
 import { makeCoachName } from "./names";
-import { OWNER_MIN_SEASONS, fireHeatThreshold, heatSinceSeason, heatWatchLine } from "./owner";
+import { OWNER_MIN_SEASONS, ownerJudgment, tenureRows } from "./owner";
 import { Rng, clamp } from "./rng";
 import {
   Coach,
@@ -213,10 +213,6 @@ export function firstSeasonCoaching(state: GameState): number {
   return state.season;
 }
 
-function hcTenureSeasons(state: GameState, person: CoachPerson): number {
-  return state.history.filter((h) => h.season >= person.hiredSeason).length;
-}
-
 export function releaseCoach(
   state: GameState, teamId: number, role: CoachRole, kind: "fired" | "expired",
 ): { ok: boolean; reason?: string } {
@@ -346,15 +342,14 @@ function extendCpuHeadCoach(person: CoachPerson): void {
 }
 
 /**
- * Owner heat fires CPU head coaches. Same signed dials as the GM chair
- * (patience / win targets / fire heat / two-season look). Heat is only
- * the seasons since `hc.hiredSeason`, each graded on that row's
- * `expectedWins`. `firingEnabled` does not gate this — settings must
- * not change the sim.
+ * Two-season rule fires CPU head coaches. Same judgment as the GM chair
+ * (`ownerJudgment` / `wouldFire`). Wins are only the seasons since
+ * `hc.hiredSeason`, each carrying that row's `expectedWins`.
+ * `firingEnabled` does not gate this — settings must not change the sim.
  *
  * An expiring deal (one year left, so the next tick would empty the
- * chair) is decided here: heat at or above the watched line is not
- * renewed and counts as a fire; otherwise the deal is extended.
+ * chair) is decided here: within 1.0 win of the bar (margin ≤ 1) is
+ * not renewed and counts as a fire; otherwise the deal is extended.
  * Call before `tickCoachContracts`.
  */
 export function fireCpuHeadCoaches(state: GameState): number {
@@ -364,10 +359,18 @@ export function fireCpuHeadCoaches(state: GameState): number {
     if (team.id === state.userTeamId) continue;
     const hc = team.coaches?.hc;
     if (!hc || !team.owner) continue;
-    const patience = team.owner.patience;
-    const heat = heatSinceSeason(state, team.id, patience, hc.hiredSeason);
-    const threshold = fireHeatThreshold(patience);
+    const rows = tenureRows(state, team.id, hc.hiredSeason);
+    const judged = ownerJudgment(
+      team.owner.patience,
+      rows.map((r) => r.wins),
+      rows.map((r) => r.expectedWins),
+      true,
+    );
     const expiring = hc.yearsRemaining <= 1;
+    // In term, `wouldFire` is weighted wins ≤ bar (one-and-done at four
+    // or fewer). An expiring coach is also not renewed within a win of
+    // that same bar. A coach clear of the bar is extended.
+    const wouldFire = expiring ? rows.length > 0 && judged.margin <= 1 : judged.wouldFire;
 
     const dismiss = (): boolean => {
       const hiredSeason = hc.hiredSeason;
@@ -375,19 +378,17 @@ export function fireCpuHeadCoaches(state: GameState): number {
       if (!r.ok) return false;
       n++;
       if (!state.seasonCounters) state.seasonCounters = {};
-      state.seasonCounters.hcFires = (state.seasonCounters.hcFires ?? 0) + 1;
+      const c = state.seasonCounters;
+      c.hcFires = (c.hcFires ?? 0) + 1;
+      const last = rows.length ? rows[rows.length - 1].wins : 0;
+      c.hcFiredLastSeasonWins = (c.hcFiredLastSeasonWins ?? 0) + last;
+      if (rows.length < OWNER_MIN_SEASONS) c.hcOneAndDone = (c.hcOneAndDone ?? 0) + 1;
       recordFiredHcTenure(state, team.id, hiredSeason);
       return true;
     };
 
-    if (expiring && heat >= heatWatchLine(threshold)) {
-      dismiss();
-      continue;
-    }
-    if (expiring) extendCpuHeadCoach(hc);
-    if (hcTenureSeasons(state, hc) < OWNER_MIN_SEASONS) continue;
-    if (heat < threshold) continue;
-    dismiss();
+    if (expiring && !wouldFire) extendCpuHeadCoach(hc);
+    if (wouldFire) dismiss();
   }
   return n;
 }
