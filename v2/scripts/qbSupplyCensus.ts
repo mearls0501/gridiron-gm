@@ -25,7 +25,8 @@ import { POSITION_VALUE } from "../lib/core/ratings";
 import {
   evaluate, frontOffice, Posture, REPLACEMENT_OVR, teamOutlook,
 } from "../lib/core/frontOffice";
-import { cpuExpectedView, riskDiscount } from "../lib/core/scouting";
+import { cpuExpectedView, cpuSchemeFitBelief, riskDiscount } from "../lib/core/scouting";
+import { NEUTRAL_SHARE, share } from "../lib/core/staff";
 import { isActiveRoster, positionCount } from "../lib/core/select";
 import { draftCapitalHold } from "../lib/core/offseason/contracts";
 import {
@@ -119,7 +120,10 @@ function components(state: GameState, teamId: number, p: Player, posture: Postur
   const fo = frontOffice(state, teamId);
   const view = cpuExpectedView(state, teamId, p);
   const room = Math.max(0, view.pot - view.ovr);
-  const perceived = view.ovr + (fo.risk - 0.5) * room * 0.35;
+  // Same perceived term as `cpuBoardValue`, including Packet D's believed fit.
+  const schemePts = cpuSchemeFitBelief(state, teamId, p) * 4 *
+    clamp(share(state.teams[teamId], "scheme") / NEUTRAL_SHARE, 0, 2);
+  const perceived = view.ovr + (fo.risk - 0.5) * room * 0.35 + schemePts;
   const upside = room * (0.18 + fo.risk * 0.30);
   const incumbent = startersAt(state, teamId, p.pos);
   const marginal = clamp((view.ovr - incumbent) / 20, -0.6, 1);

@@ -7,7 +7,7 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ## 2026-10-05 — QB supply: drop the startsHere floor for quarterbacks
 
-Worker. Wave 4.4 Packet B, built as signed in `docs/qb-supply-census-2026-10.md` (#155). Matt **SIGNED** 2026-10-05. Base `d684048` (#155). Draft PR. **Do not merge until the Wave 4.4 Packet A panel table posts.** Packet D (#154, CPU believed scheme fit) also edits `cpuBoardValue` and merges first.
+Worker. Wave 4.4 Packet B, built as signed in `docs/qb-supply-census-2026-10.md` (#155). Matt **SIGNED** 2026-10-05. Rebased onto `0f4702f` (Packet D, #154). Draft PR. **Do not merge until Packet D's Studio GATE table posts.** Packet A's panel table is on main.
 
 ### Diagnosis
 
@@ -52,7 +52,9 @@ Drift 20, seed 12345, the new emits: drafted **13.1**, on the 53 **3.84**, on th
 
 The signed change takes the draft from 35.9 toward 11.6 and does not take the 53 from 3.98 to ~2.6. That is the census's own cutdown finding, confirmed. Do not open a cutdown packet from this result. Round 1 rose inside the twelve-season census and the careers share stayed under 16. Do not retune the board to pull round 1 back down.
 
-Packet D's `perceived` term is not in the census replica. After D merges, the replica match check throws until `schemePts` is copied. The `startsHere` line itself is the only board edit, so the rebase stays on that line.
+Rebased onto `0f4702f`. The only conflict was `docs/HANDOFF.md`. `cpuBoardValue` auto-merged: Packet D's `schemePts` term is unchanged, and quarterbacks still clamp `startsHere` at 0. The census replica copies that same `schemePts` line so the engine match check still holds. That copy is the measurement sync this section already required once D landed. It is not a dial change. Packet D's disagreement stands in its own section and is not coded around: `need` and `startsHere` still compare the unadjusted view to the incumbent, and the four points sit on `perceived` only.
+
+The census and row tables above are the pre-rebase run (base `d684048`). The rebased readings are filled in after the re-run on this head.
 
 `~2.6` on the 53 is the comparison the census names. §2.7a traces 11.6. This file does not add a traced computation for ~2.6, and the emit stays ungated.
 
