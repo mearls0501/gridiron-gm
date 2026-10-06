@@ -134,6 +134,83 @@ Not run in this packet. The table is the Studio log. Docs only.
 
 ---
 
+## 2026-10-05 — Wave 4.4 Packet D: CPU drafts on believed scheme fit
+
+Worker. Replaces #150, reverted in #152. Matt SIGNED 2026-10-05. Built as written from `d3eb5b8` (#151 at `79eaee3`). `docs/baselines.json`, `choosePass`, `passBias`, snap shares, and sim dials are not touched. No re-lock.
+
+Sign line: "A CPU club values a prospect at what it believes he will play at in its own scheme: its noisy read of his true fit, through the same 4-point effect the field already uses."
+
+Draft PR #154. Do not merge until Packet A's panel table posts.
+
+### Diagnosis
+
+#150's belief was a pure hash of (seed, class, club, scheme, player). It never read the player's real fit, so the board gained a private taste and not a judgment. Scheme fit is already real on the field: `schemeAdjustment` is `schemeFit` × 4 × clamp(scheme share / neutral, 0, 2), and the attribute and development multipliers are ±16%.
+
+### Change
+
+`cpuSchemeFitBelief` is `schemeFit` against that club's identity, plus a stable normal on #150's hash lane and keys, times `FIT_ERR_SD` (0.35) times `scoutQuality`, clamped to −1..+1. A position the identity does not name is 0. A club that funds scouting is tighter, the same shape as `cpuProspectView`.
+
+`cpuBoardValue` adds `belief × 4 × clamp(share(team, "scheme") / NEUTRAL_SHARE, 0, 2)` to `perceived`. That is `schemeAdjustment` with the believed fit in place of the true one. There is no `SCHEME_FIT_LEAN`, no `cpuSchemeFitMultiplier`, and no lean dial. `FIT_ERR_SD` is the only new number.
+
+`drift.cpuDraftFitMean` is report-only: the mean true fit of CPU picks in rounds 1–3, at the drafting club. No band. The emit is the signed exception to the scripts/ read-only rule, alongside the `fitbelief` registration in `package.json` and `scripts/gate.ts` FAST and FULL.
+
+Seed 42, club 4, even budget, graded men in the class: belief vs true fit **r = 0.737**.
+
+### Disagreement (not coded)
+
+`need` and `startsHere` still compare the unadjusted view to the incumbent. The four points sit on `perceived` only, which is what the packet wrote, so that is what shipped. A club can believe a man is four points more valuable in its scheme and still judge whether he wins the job off the raw read.
+
+A headless auto-pick for the user's club goes through `cpuBoardValue`, so that path prices the belief. `boardGrade` and `scoutedSchemeFit` do not.
+
+### Checked
+
+Seed 42, headless draft after the first season, against fit-blind main (`d3eb5b8`). 8 of 32 slots keep the same player. 26 of 32 names stay in round 1. Pick 1 stays Julian Kirkland, CB, Tampa Bay (true fit +0.367). The user's pick 15 stays Jaylen Kendrick III, S, Boston. Six names fall out (Andre Nguyen, James Campbell, Lincoln Caldwell, Preston Wright II, Tate Ingersoll II, William Zamora) and six come in (Chris White, Grady Tillman, Lincoln Lopez, Miguel Ivey, Nico Davis, William Carter). EDGE stays 10 and CB stays 7. Quarterbacks go from 1 (Micah Tillman) to 2 (Micah Tillman, Miguel Ivey). That one draft's CPU round-1 true-fit mean moves from −0.039 to +0.026.
+
+### Untouched
+
+Plan Now, the HC-fire dial, Wave Packet 4, hold PRs #9, #63, #104–#107. `choosePass`, `passBias`, snap shares, `docs/baselines.json`, `schemeAttrMultiplier`, `schemeDevelopmentMultiplier`, the user's Fit column, `scoutedSchemeFit`, `boardGrade`. No re-lock.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). `fitbelief` passed. Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+### Moved rows (not tuned)
+
+Drift 20 / seed 12345. Before is main at `d3eb5b8` with the report-only emit and no board change. After is this branch.
+
+| row | main | after | lock |
+|---|---|---|---|
+| `drift.p0Failures` | **1** | **0** | max 0 |
+| `drift.cpuDraftFitMean` | **0.0045** (n=2127) | **0.0664** (n=2114) | none |
+| `drift.franchiseTagsPerSeason` | **14.55** | **15.05** | 14 ± 4 |
+| `drift.deadMoneyPct` | **5.611** | **5.525** | none |
+| `tails.milestonesOff` | **25** | **25** | max 16 |
+| `coherence.outlierExplainedPct` | **84.17** | **84.17** | min 85 |
+| `staff.problems` | **0** | **0** | max 0 |
+| `staff.leagueOvrDelta` | **0.627** | **0.588** | max 1.2 |
+| `careers.r1QbSharePct` | — | **9.375** | max 16 |
+
+`p0Failures` 1 → 0 is the 34-year-old guard, which wants strictly more than 80% of seasons. Main was 16/20 and failed. After is 17/20 and passes. That is the draft stream moving, not a fix.
+
+Tags stay inside 14 ± 4. `deadMoneyPct` has no band. `cpuDraftFitMean` has no band; the mean true fit of early CPU picks rose off zero. `staff.problems` stays 0. `staff.leagueOvrDelta` moves 0.627 → 0.588, both inside the max of 1.2. Staff is `staffcheck.ts 8`, seed 4242.
+
+`tails.ts 16` and `coherence.ts 5` never enter the draft. Both readings match main exactly. `milestonesOff` 25 is this single seed, not the 5-seed panel (known-open panel 16.0, max 16). Coherence is under the floor of 85 on main. Neither was retuned.
+
+Careers 24 / seed 12345: `careers.r1QbSharePct` **9.375**, under the max of 16.
+
+### Browser
+
+No page changed. The user's board and `scoutedSchemeFit` are asserted untouched in `fitbelief`.
+
+---
+
 ## 2026-10-05 — Named scouts and a focus list
 
 Worker. First packet that changes scouting math and the save. Step 4 of the Opus 5.5 draft plan, after paced draft night on main (`ec628ba`). `docs/baselines.json`, `choosePass`, `passBias`, snap shares, and the draft dials are not touched.

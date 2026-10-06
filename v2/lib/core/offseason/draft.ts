@@ -11,8 +11,9 @@ import { draftOrder } from "../season/standings";
 import { Posture, REPLACEMENT_OVR, frontOffice, teamOutlook } from "../frontOffice";
 import { appendPickOwners, dropSpentInboxOffers, ensurePickInventory, executeTrade, pickValue, picksOwnedBy } from "../trades";
 import { TradeAsset, TradeOffer } from "../types";
-import { consensusScore, cpuExpectedView, cpuProspectView, generateProspectProfile, riskDiscount } from "../scouting";
+import { consensusScore, cpuExpectedView, cpuProspectView, cpuSchemeFitBelief, generateProspectProfile, riskDiscount } from "../scouting";
 import { creditUserDraft } from "../scoutStaff";
+import { NEUTRAL_SHARE, share } from "../staff";
 
 /**
  * Draft class generation, scouting and the draft itself.
@@ -572,7 +573,12 @@ function cpuBoardValue(
   // per-call jitter is gone too — a war room holds an opinion.
   const view = cpuExpectedView(state, teamId, p);
   const room = Math.max(0, view.pot - view.ovr);
-  const perceived = view.ovr + (fo.risk - 0.5) * room * 0.35;
+  // Scheme fit, with the believed fit in place of the true one. The field
+  // already pays schemeFit × 4 × clamp(scheme share / neutral, 0, 2). A
+  // prospect has no club, so that term does not run until he is drafted.
+  const schemePts = cpuSchemeFitBelief(state, teamId, p) * 4 *
+    clamp(share(state.teams[teamId], "scheme") / NEUTRAL_SHARE, 0, 2);
+  const perceived = view.ovr + (fo.risk - 0.5) * room * 0.35 + schemePts;
   const upside = room * (0.18 + fo.risk * 0.30);
 
   // Need is about QUALITY, not bodies. Counting heads said a club with three
