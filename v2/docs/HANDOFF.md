@@ -57,6 +57,8 @@ GATE FAIL  1 problem
 
 Not a retune. `docs/baselines.json` was not edited. `careers` and `drift` were not in this fast gate. Their movement from season 2 is for a solo packet and a panel.
 
+Re-run after the rebase onto `64e029c`. Same FAIL. Year-0 headlines are the same bytes: `calibrate.pts` `23.723333333333333`, `calibrate.passYds` `237.32833333333335`, `statcheck.wr10RecYds` **1070**. Verify 348/348.
+
 Staff, in the browser, on a fresh franchise: the owner card shows weighted wins **0.0**, bar **3.8** (patience 0.60), seat **safe**, and "No completed season is being counted yet. One-and-done is 3.8 wins or fewer." The heat stat is gone. Hub and Staff both render.
 
 ---
