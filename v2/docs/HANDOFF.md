@@ -21,6 +21,8 @@ The call is `reconcileRoster(..., ROSTER_LIMIT, true)` inside `finalizeOffseason
 
 `drift.qbsPerClub53` is the panel read. Expect **≤ 3.0**. No `baselines.json` row. Do not retune toward the census comparison of ~2.6. That comparison stays in `nfl-reference.md` §2.7b. The firing-rule panel on `1d24605` read about **3.90**. The #156 panel at `5f64073` read **3.908**.
 
+A local seed-12345 run, four cutdowns, is not that panel. Per-club means **2.375 / 2.531 / 2.688 / 2.813**, max **3** every spring. Seeds 7 and 42, first cutdown only, **2.406** and **2.563**, max **3**.
+
 `drift.qbsDraftedPerClass` and `drift.qbsPerClubPs` are untouched emits. No band.
 
 ### Disagreement
@@ -34,6 +36,17 @@ None with the signed text. The census comparison of ~2.6 is not the rule this pa
 ### Next
 
 The Studio panel for this packet is next. Solo. Calibration freeze comes after that panel.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck is the first step and passed (`tsc --noEmit`, 5s). Determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the firing-rule read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. `drift.qbsPerClub53` is not in this tier. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
 
 ---
 
