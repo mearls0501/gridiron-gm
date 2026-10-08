@@ -5,6 +5,226 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-07 — Wave 4.4 Packet B (QB supply): Studio panel GATE table @ 5f64073 (report-only)
+
+Docs only. Wave 4.4 Packet B close-out. **Report-only. No re-lock.**
+
+Mac Studio `npm run gate:full:serial`, 5 seeds, 14 cores, on `5f640731fc3aa18da4cbc4436cfd338d295070a0` (#156). The log this section quotes is that finished panel. The numbers are that commit. Printed step times in the log sum to 23859 s. `docs/baselines.json` **not edited**. Engine, dials, and `scripts/` not touched. Report-never-tune.
+
+### GATE FAIL 4 — panel @ `5f64073`
+
+Packet D (#158 @ `0f4702f`) was GATE FAIL 2. This panel is GATE FAIL 4.
+
+```
+FAIL  coherence  exited 1
+FAIL  drift  exited 1
+FAIL  drift.p0Failures  0.40  expected <= 0
+FAIL  tails.milestonesOff  21.20  expected <= 16  (KNOWN-HIGH, target 0. Count of categories outside the central 95% Poisson interval (λ = NFL rate × seasons). Panel 16.0 (14/15/15/18/18) after the 2026-08-28 verdict change; the old ratio-band lock of 12 does not apply to this metric.)
+
+GATE FAIL  4 problems
+```
+
+`coherence` exited 1. Seed 1 prints `BELOW TARGET (85%)` at **84.6%** (`##M` 84.61538461538461). Seeds 2–5 print `COHERENT`. The harness prints **84.6 / 90.6 / 87.7 / 87.7 / 86.4**. The `##M` lines at two decimals are **84.62 / 90.60 / 87.67 / 87.66 / 86.36**. The panel mean **87.38** is above the floor, so the four FAIL lines do not name a coherence metric. Seed 1's `##M` is the same figure #158 recorded. Floor **85** stays. Do not soften it.
+
+`drift` exited 1. Seeds 3 and 4 print `1 P0 REGRESSIONS`. The only failing guard on those seeds is the age guard (below). `drift.p0Failures` **0.40** (0/0/1/1/0). #158 was **0** and `drift` exited 0. Max stays **0**. Not re-locked. See the age guard.
+
+`tails.milestonesOff` **21.20** (16/22/23/21/24). KNOWN-HIGH. The `tails` step itself exited 0. Same seeds as #158. Max stays **16**. Not re-locked.
+
+Other suites exited 0. `verify.checks` **1063** and `verify.failures` **0**. `determinism.failures` **0** and `determinism.bannedApiUses` **0**. `statcheck.fieldMismatches`, `statcheck.gameCounterDrift`, and `statcheck.implausibleLines` are **0** on every seed. `calibrate.scoreMismatches` **0**. `staff.problems` **0**. `conditions.problems` **0**.
+
+### Panel means (5-seed)
+
+Seeds in panel order. The mean is the gate's average of the five seed-block `##M` lines. Indented `##M` lines under a FAIL summary are one seed reprinted and are not in these figures. The coherence FAIL row reprints seed 1. The drift FAIL row reprints seed 3 (its tail includes `qbsDraftedPerClass` **14.4** and `1 P0 REGRESSIONS`). That reprint is not a sixth seed. The **vs #158** column is PR #158's published GATE table (Packet D panel @ `0f4702f`).
+
+| metric | panel | vs #158 | verdict |
+|---|---|---|---|
+| `drift.p0Failures` | **0.40** (0/0/1/1/0) | **0** (0×5) | **moved.** **FAIL** ≤0. Drift exited 1. #158's drift step exited 0. Max stays **0**. Not re-locked. See the age guard |
+| `drift.capBustSeasons` | **0** (0×5) | **0** (0×5) | unchanged. Still closed. Max already 0 |
+| `drift.ovrDrift` | **−1.96** (−1.576/−2.087/−1.589/−2.275/−2.293) | **−2.06** (−1.766/−2.159/−2.318/−2.171/−1.867) | **moved.** Inside signed **−1.70±1.5**. Band unchanged |
+| `drift.franchiseTagsPerSeason` | **16.41** (17.5/15.6/15.3/17.4/16.25) | **16.67** (16.95/16/15.85/17.45/17.1) | **moved.** Inside signed **14±4**. Report-only. Do not retune tag rules toward 14 |
+| `drift.deadMoneyPct` | **5.36** (5.268/5.163/5.258/5.715/5.401) | **5.37** (5.334/5.413/5.167/5.710/5.223) | **moved.** Additive emit, no band. Report-only. Do not add a band |
+| `drift.hcFiresPerSeason` | **0.66** (0.75/0.6/0.65/0.75/0.55) | **0.66** (0.65/0.8/0.3/1.05/0.5) | published mean unchanged. Seed series moved. Report-only. See below |
+| `drift.hcExpiriesPerSeason` | **0** (0×5) | **0** (0×5) | unchanged. Report-only. No band |
+| `drift.hcFireTenureWinAvg` | **7.78** (7.965/7.746/7.935/7.738/7.504) | **7.99** (7.638/7.837/8.425/7.751/8.296) | **moved.** Report-only. No band |
+| `drift.holdoutsPerSeason` | **10.07** (9.4/11.85/10.4/8.9/9.8) | **9.79** (9.4/11.75/10.1/8.3/9.4) | **moved.** Report-only. No band |
+| `drift.saveMbAtEnd` | **13.19** (13.075/13.173/13.205/13.197/13.303) | **13.18** (13.085/13.154/13.187/13.180/13.292) | **moved.** **PASS** vs #91 max **15.89**. See below |
+| `drift.saveGrowthMbPerSeason` | **0.494** (0.489/0.495/0.496/0.493/0.498) | **0.494** (0.490/0.494/0.495/0.493/0.497) | published 3-decimal mean unchanged. Raw mean moved. **PASS** vs #91 max **0.61**. See below |
+| `drift.cpuDraftFitMean` | **0.0580** (0.0491/0.0532/0.0713/0.0549/0.0617) | **0.0603** (0.0582/0.0621/0.0581/0.0551/0.0681) | **moved.** No band. See below |
+| `drift.qbsDraftedPerClass` | **13.41** (13.85/12.4/14.4/13.65/12.75) | not on the Packet D panel | first 5-seed read. Real **11.6**. No band. See below |
+| `drift.qbsPerClub53` | **3.908** (3.945/4.016/3.794/3.942/3.842) | not on the Packet D panel | first 5-seed read. Census comparison ~2.6. No band. See below |
+| `drift.qbsPerClubPs` | **2.123** (1.978/1.919/2.483/1.895/2.342) | not on the Packet D panel | first 5-seed read. No band. See below |
+| `statcheck.wr10RecYds` | **1105.8** (1164/1005/1090/1056/1214) | **1105.8** (1164/1005/1090/1056/1214) | unchanged. Same seeds as #158. On the signed Wave 4.1 target **1105.8±97**. Not a FAIL line |
+| `tails.milestonesOff` | **21.20** (16/22/23/21/24) | **21.20** (16/22/23/21/24) | unchanged. **FAIL** ≤16. KNOWN-HIGH. Same seeds as #158. Not re-locked |
+| `staff.problems` | **0** (0×5) | **0** (0×5) | unchanged. Max stays 0 |
+| `staff.leagueOvrDelta` | **0.708** (0.528/0.821/0.998/0.906/0.286) | **0.662** (0.924/0.165/1.000/0.261/0.958) | **moved.** Inside max **1.2**. Report-only. Max stays 1.2 |
+| `conditions.problems` | **0** (0×5) | not in #158's table | 0 on every seed. Not a FAIL line |
+| `coherence.outlierExplainedPct` | **87.38** (84.62/90.60/87.67/87.66/86.36) | **87.38** (84.6/90.6/87.7/87.7/86.4) | published mean unchanged. Seed 1 under floor **85**, same `##M` as #158. Floor stays |
+| `careers.r1QbSharePct` | **9.74** (10.938/8.594/10.677/9.115/9.375) | **10.47** (9.896/10.417/11.979/10.677/9.375) | **moved.** Under max **16**. Not a FAIL line. See below |
+| `careers.path2Top10PrPct` | mean of rates **10.96**; pooled **25 of 229 (10.9%)** | pooled **19 of 242 (7.9%)**; mean of rates **8.01** | **moved.** Both the pooled percent and the mean of the rates. See below |
+| `careers.path2BurnInTop10PrPct` | mean of rates **10.62**; pooled **13 of 121 (10.7%)** | pooled **4 of 120 (3.3%)**; mean of rates **3.64** | **moved.** Both the pooled percent and the mean of the rates. See below |
+
+### Rows that moved vs Packet D
+
+Twelve rows in this table moved against #158. Ten are the means listed below. Both path-2 rows moved as well. Eight published means did not. Two of those eight kept the published mean and changed seeds. Four rows in this table have no #158 figure.
+
+Moved:
+
+1. `drift.p0Failures` — **0** (0×5) → **0.40** (0/0/1/1/0). Drift exited 1.
+2. `drift.ovrDrift` — **−2.06** → **−1.96**.
+3. `drift.franchiseTagsPerSeason` — **16.67** → **16.41**.
+4. `drift.deadMoneyPct` — **5.37** → **5.36**.
+5. `drift.hcFireTenureWinAvg` — **7.99** → **7.78**.
+6. `drift.holdoutsPerSeason` — **9.79** → **10.07**.
+7. `drift.saveMbAtEnd` — **13.18** → **13.19**.
+8. `drift.cpuDraftFitMean` — **0.0603** → **0.0580**.
+9. `staff.leagueOvrDelta` — **0.662** → **0.708**.
+10. `careers.r1QbSharePct` — **10.47** → **9.74**.
+
+Published mean unchanged, seed series moved:
+
+- `drift.hcFiresPerSeason` stays **0.66**. Seeds **0.75 / 0.6 / 0.65 / 0.75 / 0.55** against #158's **0.65 / 0.8 / 0.3 / 1.05 / 0.5**.
+- `drift.saveGrowthMbPerSeason` stays **0.494** at three decimals. Raw mean **0.494289** against #158's **0.493739**. Seeds **0.489 / 0.495 / 0.496 / 0.493 / 0.498** against #158's **0.490 / 0.494 / 0.495 / 0.493 / 0.497**.
+
+Unchanged, same seeds where #158 published the series:
+
+- `drift.capBustSeasons` **0** (0×5)
+- `drift.hcExpiriesPerSeason` **0** (0×5)
+- `statcheck.wr10RecYds` **1105.8** (1164/1005/1090/1056/1214)
+- `tails.milestonesOff` **21.20** (16/22/23/21/24)
+- `staff.problems` **0** (0×5)
+- `coherence.outlierExplainedPct` published mean **87.38**. Harness print **84.6 / 90.6 / 87.7 / 87.7 / 86.4**, the series #158 published. Seed 1's `##M` is the same **84.61538461538461**.
+
+`drift.qbsDraftedPerClass`, `drift.qbsPerClub53`, `drift.qbsPerClubPs`, and `conditions.problems` sit in this table with the rows #158 published. #158 published none of them. The three quarterback emits landed in #156. Packet D's panel is `0f4702f`, before that emit, so none of the three is a move against Packet D. `conditions.problems` is **0**.
+
+Path 2 moved on both rows. All classes, pooled, **19 of 242 (7.9%)** → **25 of 229 (10.9%)**. Mean of the per-seed rates **8.01** → **10.96**. Burn-in, pooled, **4 of 120 (3.3%)** → **13 of 121 (10.7%)**. Mean of the per-seed rates **3.64** → **10.62**. #158's 7.9% and 3.3% are the pooled percents. 10.96 and 10.62 are the means of the rates. Both comparisons moved.
+
+### Age guard
+
+The guard is `34-year-olds rate below 27-year-olds`, and the cut is strictly above 80% of the 20 seasons (`agedWorse > 16`).
+
+| seed | seasons | result | `drift.p0Failures` |
+|---|---|---|---|
+| 1 | 18/20 | ok | 0 |
+| 2 | 18/20 | ok | 0 |
+| 3 | 16/20 | **FAIL** | 1 |
+| 4 | 15/20 | **FAIL** | 1 |
+| 5 | 19/20 | ok | 0 |
+
+On seeds 3 and 4 the age guard is the only failing P0. Every other drift guard on those seeds printed ok, including the cap, payroll, trade, and save-size guards. Seeds 3 and 4 end `1 P0 REGRESSIONS`. Seeds 1, 2, and 5 end `no P0 regressions`.
+
+#157 (Packet A @ `79eaee3`) failed this guard on seeds 3 and 5 (16/20 and 15/20). This panel fails seeds 3 and 4, at the same counts (16/20 and 15/20). #158 cleared it: 19/20, 18/20, 18/20, 17/20, 17/20, all ok. The Packet B worker's seed 12345, recorded in the 2026-10-05 section on this SHA, was 16/20 and `drift.p0Failures` **1**. That seed is not one of these five.
+
+Docs PR #159 records this guard as known-open. That PR is still open. `AGENTS.md` on this base does not list the row yet. This table follows #159. The miss is that guard. It is the same intermittent 15–16 of 20 that Packet A already printed. Max stays **0**. Not re-locked.
+
+### Quarterback supply — first 5-seed read
+
+`drift.qbsDraftedPerClass`, `drift.qbsPerClub53`, and `drift.qbsPerClubPs` are the cutdown spring: the class just drafted, then active and practice-squad quarterbacks per club. The emit landed in #156. No `baselines.json` row. Real drafted per class is **11.6** (`nfl-reference.md` §2.7a). Real on the 53 is ~2.6, the comparison the census names. No band.
+
+| seed | drafted / class | per club, 53 | per club, PS |
+|---|---|---|---|
+| 1 | 13.85 | 3.9453125 | 1.978125 |
+| 2 | 12.4 | 4.015625 | 1.91875 |
+| 3 | 14.4 | 3.79375 | 2.4828125 |
+| 4 | 13.65 | 3.9421875 | 1.8953125 |
+| 5 | 12.75 | 3.8421875 | 2.3421875 |
+| mean | **13.41** | **3.9078125** | **2.1234375** |
+
+The gate's `toFixed(2)` of those means is **13.41**, **3.91**, and **2.12**. The drift FAIL echo reprints seed 3's **14.4 / 3.79375 / 2.4828125**. That line is already in the table as seed 3.
+
+The worker's seed 12345 on this head, in the 2026-10-05 section, read drafted **12.2**, on the 53 **3.86**, on the practice squad **1.88**. The census on that seed was **12.25 / 3.72 / 1.71**. Seed 12345 is not in this panel. The 53 on this panel is **3.91**. The ≤3 cutdown on the 53 waits until this panel is reviewed. Do not open it from this table.
+
+### CPU draft fit
+
+`drift.cpuDraftFitMean` is the mean true fit of CPU picks in rounds 1–3, at the drafting club. #158's first 5-seed read was **0.0603**.
+
+The harness prints `cpu draft fit, rounds 1–3 at the drafting club` and then the `##M` line. Table seeds are the `##M` values at 4 decimals.
+
+| seed | prose | `##M` | n |
+|---|---|---|---|
+| 1 | 0.049 | 0.04905853050750054 | 2136 |
+| 2 | 0.053 | 0.05321747471137713 | 2132 |
+| 3 | 0.071 | 0.0712683245812945 | 2128 |
+| 4 | 0.055 | 0.05493463326796661 | 2145 |
+| 5 | 0.062 | 0.061742706254901386 | 2132 |
+
+Panel mean of the five `##M` lines: **0.058044**, shown as **0.0580**. #158 was **0.0603**. The row moved. The Packet B worker's seed 12345 read **0.0642**. Seed 12345 is not in this panel. No band. Do not add one.
+
+### Round-1 quarterback share
+
+`careers.r1QbSharePct` per seed, from the `##M` lines: **10.9375 / 8.59375 / 10.677083333333332 / 9.114583333333332 / 9.375**. Mean **9.739583333333332**, which the gate prints as **9.74**. Max is **16**. The row is under the max on every seed. Not a FAIL line.
+
+#158 published **10.47** (9.896/10.417/11.979/10.677/9.375). The row moved. Report-only. Do not retune the board toward 10.3.
+
+### Head-coach fires
+
+`drift.hcFiresPerSeason` **0.66** (0.75 / 0.6 / 0.65 / 0.75 / 0.55). `drift.hcExpiriesPerSeason` **0** on every seed. `drift.hcFireTenureWinAvg` mean **7.78** (7.965 / 7.746 / 7.935 / 7.738 / 7.504).
+
+#158 read fires **0.66**, expiries **0**, tenure-win avg **7.99**. The fires mean is the same published figure. The seed series moved. Tenure moved. Expiries did not. The desk estimate of ~2–2.5 fires is a desk estimate. It is not a target and it is not a band. `nfl-reference.md` §7.1 mean **7.1** stays the traced real-league figure. The counter this panel reads is `drift.hcFiresPerSeason`. No dial moves.
+
+### Holdouts vs #158
+
+This panel: `drift.holdoutsPerSeason` **10.07** (9.4 / 11.85 / 10.4 / 8.9 / 9.8). #158 published **9.79** (9.4 / 11.75 / 10.1 / 8.3 / 9.4). The row moved. No band. Do not retune holdouts.
+
+### Save size vs the #91 locks
+
+PR #91 (Wave 3.9 Packet 2, Matt SIGNED 2026-09-15) locked, from the panel at `748036a` (#88):
+
+| metric | #91 lock | this panel | #158 | verdict |
+|---|---|---|---|---|
+| `drift.saveMbAtEnd` | max **15.89** (panel 14.89 + 1.0 MB) | mean **13.19**, seeds **13.075–13.303** | mean **13.18** | **PASS**. Moved |
+| `drift.saveGrowthMbPerSeason` | max **0.61** (panel 0.56 + 0.05) | mean **0.494**, seeds **0.489 / 0.495 / 0.496 / 0.493 / 0.498** | mean **0.494** | **PASS**. Published mean unchanged |
+
+Both sit inside the locks. The raw mean of `saveGrowthMbPerSeason` is 0.49428931788394326. #158's raw mean was 0.4937389675. Shown at 3 decimals, both are **0.494**. The gate's `toFixed(2)` of this mean is 0.49. The 20 MB quota is unchanged. Not a retune.
+
+### Path 2 — pooled k of n
+
+`careers.path2Events` / `careers.path2PopN`, then the burn-in pair. Pooled counts are the sums of the five seed-block `##M` lines, not the mean of the percents. The prose lines (`events (top-10, new club)` and `population`) match these counts.
+
+| row | this panel (events / pop) | pooled | mean of rates | #158 pooled | #158 mean of rates |
+|---|---|---|---|---|---|
+| all classes | 3/44, 8/47, 4/46, 4/50, 6/42 | **25 of 229 (10.9%)** | **10.96** | **19 of 242 (7.9%)** | **8.01** |
+| burn-in only | 1/18, 4/24, 4/28, 1/28, 3/23 | **13 of 121 (10.7%)** | **10.62** | **4 of 120 (3.3%)** | **3.64** |
+
+Per-seed rates, all classes: 6.818 / 17.021 / 8.696 / 8 / 14.286 (mean of the rates **10.964**). #158: 15.217 / 10.417 / 3.846 / 3.922 / 6.667 (mean of the rates **8.01**). Burn-in: 5.556 / 16.667 / 14.286 / 3.571 / 13.043 (mean of the rates **10.625**). #158 burn-in: 8.696 / 9.524 / 0 / 0 / 0 (mean of the rates **3.64**). Both rows moved on the pooled percent and on the mean of the rates. #158's 7.9% and 3.3% are the pooled percents. The pooled percent is the row #158 said to read. No band. Do not retune `SECOND_SCENE_K` or the other scene dials from these rates.
+
+### Coherence
+
+`coherence.outlierExplainedPct` per seed, as the harness prints it: **84.6 / 90.6 / 87.7 / 87.7 / 86.4**. The `##M` lines at two decimals: **84.62 / 90.60 / 87.67 / 87.66 / 86.36**. Seed 1 is under the floor of **85**. Seed 1's `##M` **84.61538461538461** is the figure #158 recorded. Report only. Do not tune the floor and do not tune the engine against 84.6.
+
+`coherence.eliteCbShadowDrop` equals `coherence.eliteCbSidesDrop` on every seed (0.881 / −0.018 / 0.392 / 1.048 / −0.117). Same published series as #158. Each seed prints `shadowing does not distinguish itself from side coverage`. The panel mean **0.44** is above the directional floor of **0.2**, so that metric is not a FAIL line. Report only.
+
+### Regressions — reds that are not on the known-open list
+
+AGENTS.md known-open, and the gate's own KNOWN-HIGH label, cover `tails.milestonesOff`. That row is **21.20**, the same seeds as #158. It is the known-open Poisson row. It is not a new regression.
+
+One red is not on that table:
+
+1. **`coherence` exited 1.** Seed 1 `outlierExplainedPct` **84.615** is under 85. Same miss #158, #157, Wave 4.1, and #125 already recorded. The known-open table still has no coherence row, so the exit stays a regression against that list. Floor **85** stays.
+
+`drift` exited 1 because `drift.p0Failures` is **0.40**. Both failing seeds are the age guard, seeds 3 and 4 (16/20 and 15/20). Docs PR #159 records that guard as known-open. Packet A saw the same counts on seeds 3 and 5. #158 had cleared the guard, and this panel brings it back. That return is in the moved rows above. It is the known-open guard. It is not a new unlisted red. `AGENTS.md` on this base does not list the row yet, because #159 is still open. Max stays **0**. Not re-locked.
+
+`staff.problems` stays **0**. `conditions.problems` is **0**. `staff.leagueOvrDelta` moved **0.662 → 0.708** and stays inside max **1.2**. Seed 3's `##M` is 0.9981551804577293. That is under the max.
+
+No other FAIL line is in the log. Nothing else on this panel is an unlisted red.
+
+### Next
+
+Next merge is draft PR **#160**, the two-season firing rule, a solo packet. Then that packet gets its own Studio panel. The quarterback cutdown to ≤3 on the 53 waits until after this panel is reviewed.
+
+### Report-never-tune
+
+No row in `docs/baselines.json` moves. No new band for `qbsDraftedPerClass`, `qbsPerClub53`, `qbsPerClubPs`, `cpuDraftFitMean`, `hcFiresPerSeason`, `hcExpiriesPerSeason`, `hcFireTenureWinAvg`, `holdoutsPerSeason`, `deadMoneyPct`, `p0Failures`, `milestonesOff`, `staff.problems`, `conditions.problems`, `staff.leagueOvrDelta`, `outlierExplainedPct`, `r1QbSharePct`, or either path-2 rate. The signed locks this panel still sits inside (`saveMbAtEnd` max **15.89**, `saveGrowthMbPerSeason` max **0.61**, `ovrDrift` **−1.70±1.5**, `franchiseTagsPerSeason` **14±4**, `wr10RecYds` **1105.8±97**, `leagueOvrDelta` max **1.2**, `r1QbSharePct` max **16**) stay as signed.
+
+### Untouched
+
+Engine, dials, `scripts/`, `docs/baselines.json`. No re-lock.
+
+### Gate
+
+Not run in this packet. The table is the Studio log. Docs only.
+
+---
+
 ## 2026-10-06 — Two-season firing rule (Wave 4.4)
 
 Worker. Built as signed in the 2026-10-06 packet. Matt **SIGNED** 2026-10-06:
