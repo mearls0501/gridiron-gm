@@ -270,6 +270,10 @@ function once(step: Step, seed: number): Promise<{ code: number; metrics: Record
  * sampling distribution, and the standard deviation it produces is what tells
  * a human whether a tolerance is tight enough to mean anything.
  *
+ * One row is not a mean. After the average, `careers.path2BurnInTop10PrPct`
+ * is replaced with 100 * sum(events) / sum(pop) across the seeds that emitted
+ * both counts (Packet 4, Matt SIGNED 2026-10-08). No other name is read that way.
+ *
  * Seeds run sequentially inside a step so the whole panel does not land on the
  * machine at once. Steps still run in parallel with each other unless
  * `--serial` / `GATE_SERIAL=1` is set.
@@ -304,6 +308,33 @@ function run(step: Step): Promise<Result> {
       const varr = vals.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, vals.length - 1);
       metrics[n] = mean;
       spread[n] = vals.length > 1 ? Math.sqrt(varr) : 0;
+    }
+
+    // Pooled k-of-n for the one signed burn-in band. The mean of per-seed
+    // rates is a different number (a seed with a small population weighs
+    // the same as a seed with a large one). Sum the counts, then divide.
+    // The rate's own ##M line must still have been emitted; this does not
+    // invent the metric. spread[name] stays the sd of the per-seed rates
+    // and is unused: the band is min/max, not tol.
+    const pooledRate = "careers.path2BurnInTop10PrPct";
+    const pooledNum = "careers.path2BurnInEvents";
+    const pooledDen = "careers.path2BurnInPopN";
+    if (names.has(pooledRate) && names.has(pooledNum) && names.has(pooledDen)) {
+      let num = 0;
+      let den = 0;
+      for (const r of runs) {
+        const k = r[pooledNum];
+        const pop = r[pooledDen];
+        if (!Number.isFinite(k) || !Number.isFinite(pop)) continue;
+        num += k;
+        den += pop;
+      }
+      metrics[pooledRate] = den > 0 ? (100 * num) / den : 0;
+    } else if (names.has(pooledRate)) {
+      // The signed read is the pool. Do not grade the mean of the rates
+      // when the counts are absent; dropping the rate makes the gate
+      // report it missing.
+      delete metrics[pooledRate];
     }
 
     resolve({ step, code: worstCode, metrics, spread, seeds: panel.length, ms: Date.now() - started, tail });
@@ -413,6 +444,8 @@ function printStepRow(r: Result, failures: string[]): void {
   // human which baselines are not yet measurements.
   // The gate compares the MEAN of the panel, so the relevant noise is the
   // standard error of that mean (sd / sqrt(n)), not the spread of one run.
+  // careers.path2BurnInTop10PrPct is the exception: pooled k-of-n, no tol,
+  // so it is not judged here.
   // Getting this wrong over-flags: a metric with a wide per-run spread can
   // still have a perfectly stable mean once it is averaged.
   const fragile: string[] = [];

@@ -438,9 +438,21 @@ The 2026-09-14 design placeholder was ≈12–15% from a memory count of
 Josh Allen improved at the same club. Observation ends in 2024, so a 2019
 draftee's year 8 is unseen.
 
-This is the number `careers.secondSceneStarPct` will lock against. It is
-**not** in `baselines.json` in this packet — Studio `careers 24` + panel
-is the follow-up. Do not invent a band here.
+The 11.4% figure is the real path-2 event rate. `careers.secondSceneStarPct`
+is a different label (later Pro Bowl OVR) and is still not in
+`baselines.json`. Do not band that row.
+
+**Burn-in sim band, signed 2026-10-08 (Matt).** Packet 4 (second scene)
+closes. `careers.path2BurnInTop10PrPct` is in `baselines.json` at
+**7–16%**, inclusive. `nfl` on that row is this 11.4%. The band is not
+a target/tol lock of the sim onto 11.4, and it is not a band on the
+all-classes path-2 rate. The gate reads this one row pooled across the
+panel: total burn-in top-10 events over total burn-in QBs (k-of-n),
+not the mean of the per-seed rates. Counts are
+`careers.path2BurnInEvents` / `careers.path2BurnInPopN`. Reference
+readings, not new targets: Packet D panel pooled **4/120 (3.3%)**
+(pre-#156, under the floor); #156 QB startsHere panel at `5f64073`
+pooled **13/121 (10.7%)**, all-classes **25/229 (10.9%)**. No mechanism.
 
 ### 2.7a QBs drafted per class — the §2.7 population base
 
@@ -452,7 +464,8 @@ filter named in the §2.7 population: classes **2010–2019**,
 **11.6 quarterbacks drafted per class** (116 / 10). That is how many
 QBs a class adds. §2.4's round-1 figure is 3.27 per draft (10.3% of
 round 1, 2011–2025). The 11.4% figure above is the path-2 event rate
-inside this same pool of 116. No `baselines.json` row.
+inside this same pool of 116. No `baselines.json` row for the 11.6.
+The burn-in path-2 band is the §2.7 row, not this one.
 
 ### 2.8 Undrafted free agents — confidence MEDIUM
 
@@ -533,10 +546,12 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   The weekly injury draw moved off the parent onto a child stream
   keyed (seed, season, week, "medical", playerId) — panel after
   merge; do not claim byte-identical parent.
-- The *played badly → improved* development path (§2.7). Now measured:
+- The *played badly → improved* development path (§2.7). Real rate
   **11.4%** (4 of 35 QBs, nflverse 2010–2019 classes, query in §2.7).
-  Ungated until the Studio panel; do not lock `careers.secondSceneStarPct`
-  in this packet.
+  `careers.secondSceneStarPct` stays ungated. The burn-in path-2 rate
+  `careers.path2BurnInTop10PrPct` is banded **7–16%** and read pooled
+  across the panel (Matt SIGNED 2026-10-08). See §2.7. No further band
+  on this path unless a playtest finding needs one.
 - Salary dumps as a share of trades (§1.6).
 - Contract status of traded players (§1.6).
 - Lifetime UDFA start rate (§2.8).
