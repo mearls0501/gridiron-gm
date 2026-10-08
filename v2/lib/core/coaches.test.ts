@@ -183,8 +183,8 @@ function stripPeople(st: GameState): GameState {
   hc.hiredSeason = st.season - 2;
   const before = st.rngState;
   fireCpuHeadCoaches(st);
-  assert.equal(st.rngState, before, "CPU HC fire is heat, no parent draw");
-  ok("fireCpuHeadCoaches is child-stream still (heat may or may not trip on a new league)");
+  assert.equal(st.rngState, before, "CPU HC fire draws nothing on the parent");
+  ok("fireCpuHeadCoaches is child-stream still");
 }
 
 console.log("ok    coaches people layer");

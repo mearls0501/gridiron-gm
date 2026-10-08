@@ -99,6 +99,8 @@ console.log("ok    housekeeping — tradesExecuted increments and resets at roll
     hcExpiries: 5,
     hcFireTenureWins: 18,
     hcFireTenureSeasons: 6,
+    hcFiredLastSeasonWins: 31,
+    hcOneAndDone: 2,
     holdouts: 9,
     tradeRequests: 3,
     holdoutGamesMissed: 22,
@@ -114,6 +116,10 @@ console.log("ok    housekeeping — tradesExecuted increments and resets at roll
   assert.equal(st.seasonCounters.hcFireTenureWinsLast, 18);
   assert.equal(st.seasonCounters.hcFireTenureSeasons, 0);
   assert.equal(st.seasonCounters.hcFireTenureSeasonsLast, 6);
+  assert.equal(st.seasonCounters.hcFiredLastSeasonWins, 0);
+  assert.equal(st.seasonCounters.hcFiredLastSeasonWinsLast, 31);
+  assert.equal(st.seasonCounters.hcOneAndDone, 0);
+  assert.equal(st.seasonCounters.hcOneAndDoneLast, 2);
   assert.equal(st.seasonCounters.holdouts, 0);
   assert.equal(st.seasonCounters.holdoutsLast, 9);
   assert.equal(st.seasonCounters.tradeRequests, 0);

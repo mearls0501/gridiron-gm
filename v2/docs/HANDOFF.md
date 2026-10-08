@@ -5,6 +5,64 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-06 — Two-season firing rule (Wave 4.4)
+
+Worker. Built as signed in the 2026-10-06 packet. Matt **SIGNED** 2026-10-06:
+
+> Owners judge a coach on his last two seasons, weighted 60/40, against a bar of 8.5 / 7.5 / 7.0 wins by expectation, moved by patience; one-and-done only at four wins or fewer; an expiring coach near the bar is not renewed.
+
+Started from current `main` (`5f64073`, QB supply #156). The spec's base line names `0f4702f`; main has moved. The rule was not rewritten for that. Draft PR. **Do not merge.** No re-lock.
+
+Rebased onto `64e029c` (#158, Packet D Studio table). That commit does not touch the firing rule. #156's quarterback `startsHere` clamp at 0 is unchanged. No disagreement.
+
+### Rule
+
+`ownerBar(expectedWins, patience, rebuildRunway)` and `weightedWins(tenureSeasons)` replace `ownerHeatFor`, `fireHeatThreshold`, and the heat watch line. Weighted wins are 60% of the newest season under this coach and 40% of the one before. The bar is 8.5 / 7.5 / 7.0 for contend (10) / retool (8) / rebuild (6), then `− 4 × (patience − 0.55)`. A coach whose first season was a rebuild gets 1.0 off that bar at the two-year review only. Fired when weighted wins ≤ bar, from the second season on.
+
+`OWNER_MIN_SEASONS` stays 2. That branch is the one-and-done clause: a single season fires only at `OWNER_ONE_AND_DONE_WINS` (4) or fewer, with the same patience shift. `ownerJobView` returns `margin`, `bar`, `weightedWins`, and still returns `seat` and `wouldFire`. Seat is the margin: fired ≤ 0, hot ≤ 1.0, watched ≤ 2.5, safe above. The owner line names whether this season alone or the last two seasons are being counted.
+
+`fireCpuHeadCoaches` and `applyUserGmFiring` both use `wouldFire`. An expiring CPU head coach (one year left) is not renewed when the margin is ≤ 1, and that non-renewal increments `hcFires`. Clear of the bar, the deal is extended. `firingEnabled` still gates only the user GM. Zero new draws.
+
+`OWNER_PATIENCE`, `OWNER_WIN_TARGET`, and `expectedWins` on the standings row stay. A row missing `expectedWins` still falls back to the current outlook for that row only.
+
+### Reading
+
+The turnaround row (3, then 4, then 12) prints result "safe" and bar "≤ 8.5". Weighted wins are 8.8, so `wouldFire` is false against every typical bar. Against a contend bar of 8.5 the margin is 0.3, and the seat bands call that hot. The other rows that are kept but close say "safe (hot)". This row is hot at the contend bar and only "safe" as a seat when the bar sits low enough that the margin clears 2.5. Implemented the seat bands. Not a second rule.
+
+An expiring first-year coach is measured against the one-and-done line, because that is the bar for a single season. Five wins in term is not a fire. Five wins with one year left is margin 1.0, so the contract is not renewed and it counts as a fire. The signed tests lock the in-term case.
+
+### Emits
+
+Report-only. `docs/baselines.json` was not edited. No band.
+
+- `drift.hcFiresPerSeason` — same counter, now this rule
+- `drift.hcFiredLastSeasonWins` — mean of the fired coach's newer season, pooled across fires
+- `drift.hcOneAndDonePerSeason` — fires whose tenure was one season
+- `drift.clubsAtFiveWinsOrFewer` — clubs at 5 wins or fewer on the closed year
+
+`careers` and `drift` move from season 2. That is a solo packet plus a panel. Not run here. Not retuned.
+
+### Untouched
+
+`choosePass`, `passBias`, snap shares, sim dials, `docs/baselines.json`. No re-lock.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck, determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the prior read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited. `careers` and `drift` were not in this fast gate. Their movement from season 2 is for a solo packet and a panel.
+
+Re-run after the rebase onto `64e029c`. Same FAIL. Year-0 headlines are the same bytes: `calibrate.pts` `23.723333333333333`, `calibrate.passYds` `237.32833333333335`, `statcheck.wr10RecYds` **1070**. Verify 348/348.
+
+Staff, in the browser, on a fresh franchise: the owner card shows weighted wins **0.0**, bar **3.8** (patience 0.60), seat **safe**, and "No completed season is being counted yet. One-and-done is 3.8 wins or fewer." The heat stat is gone. Hub and Staff both render.
+
+---
+
 ## 2026-10-06 — Wave 4.4 Packet D: Studio panel GATE table @ 0f4702f (report-only)
 
 Docs only. Wave 4.4 Packet D close-out. **Report-only. No re-lock.**

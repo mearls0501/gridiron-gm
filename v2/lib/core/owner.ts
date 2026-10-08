@@ -6,13 +6,14 @@ import { computeRecords, startSeason } from "./select";
 
 /**
  * Club owners. Patience is generated once on a child stream keyed
- * (seed, season, week, 'owner'). Job heat is a pure function of posture,
- * recent wins, and that dial — no draws, no parent stream.
+ * (seed, season, week, 'owner'). The firing rule is a pure function of
+ * the last two seasons under this coach, the locked win target, and
+ * patience — no draws, no parent stream.
  *
- * Proposed defaults (flag for Matt): conservative NFL-shaped. A typical
- * chair gets two full seasons before a firing is even legal, contend
- * clubs are judged against ~10 wins, rebuilds against ~6, and an
- * impatient owner still needs a pair of genuinely bad years.
+ * Owners judge a coach on his last two seasons, weighted 60/40, against
+ * a bar of 8.5 / 7.5 / 7.0 wins by expectation, moved by patience.
+ * One-and-done only at four wins or fewer. An expiring coach within a
+ * win of the bar is not renewed (that clause lives on the coach tick).
  */
 
 export const OWNER_PATIENCE = { lo: 0.35, hi: 0.80, mean: 0.55, sd: 0.12 } as const;
@@ -24,24 +25,18 @@ export const OWNER_WIN_TARGET: Record<Posture, number> = {
   rebuild: 6,
 };
 
-/** Nobody is fired after a single season. */
+/**
+ * The two-season weighted rule starts at this many completed seasons.
+ * A shorter tenure is the one-and-done clause: one season fires only at
+ * four wins or fewer, with the same patience shift as the bar.
+ */
 export const OWNER_MIN_SEASONS = 2;
 
-/**
- * Heat at which `firingEnabled` would cost the chair.
- * impatient (0.35) → 72; typical (0.55) → 77; patient (0.80) → 84.
- */
-export function fireHeatThreshold(patience: number): number {
-  return 62 + clamp(patience, 0, 1) * 28;
-}
+/** One-and-done line before the patience shift. */
+export const OWNER_ONE_AND_DONE_WINS = 4;
 
-/**
- * Watched seat, and the line where an expiring CPU head coach is not
- * renewed. Same fraction the job view already uses for "on notice".
- */
-export function heatWatchLine(threshold: number): number {
-  return threshold * 0.55;
-}
+/** Typical patience. The bar moves by `4 × (patience − this)`. */
+const TYPICAL_PATIENCE = 0.55;
 
 export function ownerChildRng(state: GameState): Rng {
   let h = state.seed >>> 0;
@@ -83,18 +78,147 @@ export function isPendingForcedMove(state: GameState): boolean {
   return !!state.forcedMove && !state.forcedMove.resolved;
 }
 
+export type OwnerSeat = "safe" | "watched" | "hot" | "fired";
+
 export interface OwnerJobView {
   owner: Owner;
   posture: Posture;
   expectedWins: number;
   recentWins: number | null;
   seasonsWithGm: number;
-  heat: number;
-  threshold: number;
+  margin: number;
+  bar: number;
+  weightedWins: number;
   firingEnabled: boolean;
   wouldFire: boolean;
-  seat: "safe" | "watched" | "hot" | "fired";
+  seat: OwnerSeat;
   line: string;
+}
+
+export interface OwnerJudgment {
+  margin: number;
+  bar: number;
+  weightedWins: number;
+  wouldFire: boolean;
+  seat: OwnerSeat;
+  seasons: number;
+  rebuildRunway: boolean;
+}
+
+/**
+ * Bar in wins. Expectation picks 8.5 / 7.5 / 7.0. Patience moves it by
+ * `−4 × (patience − 0.55)`. A coach hired into a rebuild gets 1.0 off
+ * at the two-year review only (`rebuildRunway`).
+ */
+export function ownerBar(expectedWins: number, patience: number, rebuildRunway: boolean): number {
+  const base =
+    expectedWins >= OWNER_WIN_TARGET.contend ? 8.5 :
+    expectedWins >= OWNER_WIN_TARGET.retool ? 7.5 :
+    7.0;
+  const bar = base - 4 * (patience - TYPICAL_PATIENCE);
+  return rebuildRunway ? bar - 1 : bar;
+}
+
+/** 60% of the newest season, 40% of the one before. A single season is itself. */
+export function weightedWins(tenureSeasons: readonly number[]): number {
+  const n = tenureSeasons.length;
+  if (n === 0) return 0;
+  if (n === 1) return tenureSeasons[0];
+  const newer = tenureSeasons[n - 1];
+  const older = tenureSeasons[n - 2];
+  return newer * 0.6 + older * 0.4;
+}
+
+function oneAndDoneBar(patience: number): number {
+  return OWNER_ONE_AND_DONE_WINS - 4 * (patience - TYPICAL_PATIENCE);
+}
+
+function seatFor(margin: number): OwnerSeat {
+  if (margin <= 0) return "fired";
+  if (margin <= 1) return "hot";
+  if (margin <= 2.5) return "watched";
+  return "safe";
+}
+
+/**
+ * Pure firing read. `tenureSeasons` is wins (ties as half) oldest-first,
+ * only seasons under this coach or GM. `expectedWins` is parallel; the
+ * bar uses the newest. Rebuild runway applies only when the tenure is
+ * exactly two seasons and the first of them was a rebuild target.
+ */
+export function ownerJudgment(
+  patience: number,
+  tenureSeasons: readonly number[],
+  expectedWins: readonly number[],
+  firingEnabled: boolean,
+): OwnerJudgment {
+  const seasons = tenureSeasons.length;
+  if (seasons < OWNER_MIN_SEASONS) {
+    const bar = oneAndDoneBar(patience);
+    if (seasons === 0) {
+      return {
+        margin: 0,
+        bar,
+        weightedWins: 0,
+        wouldFire: false,
+        seat: "safe",
+        seasons: 0,
+        rebuildRunway: false,
+      };
+    }
+    const w = weightedWins(tenureSeasons);
+    const margin = w - bar;
+    return {
+      margin,
+      bar,
+      weightedWins: w,
+      wouldFire: firingEnabled && margin <= 0,
+      seat: seatFor(margin),
+      seasons,
+      rebuildRunway: false,
+    };
+  }
+
+  const newest = expectedWins.length
+    ? expectedWins[Math.min(expectedWins.length, seasons) - 1]
+    : OWNER_WIN_TARGET.retool;
+  const rebuildRunway = seasons === 2 && expectedWins[0] === OWNER_WIN_TARGET.rebuild;
+  const bar = ownerBar(newest, patience, rebuildRunway);
+  const w = weightedWins(tenureSeasons);
+  const margin = w - bar;
+  return {
+    margin,
+    bar,
+    weightedWins: w,
+    wouldFire: firingEnabled && margin <= 0,
+    seat: seatFor(margin),
+    seasons,
+    rebuildRunway,
+  };
+}
+
+interface TenureRow {
+  season: number;
+  wins: number;
+  expectedWins: number;
+}
+
+/** Completed seasons at or after `sinceSeason`, oldest first. */
+export function tenureRows(state: GameState, teamId: number, sinceSeason: number): TenureRow[] {
+  const fallback = OWNER_WIN_TARGET[teamOutlook(state, teamId).posture];
+  const rows: TenureRow[] = [];
+  for (const year of state.history) {
+    if (year.season < sinceSeason) continue;
+    const row = year.standings.find((r) => r.teamId === teamId);
+    if (!row) continue;
+    rows.push({
+      season: year.season,
+      wins: row.w + row.t * 0.5,
+      expectedWins: row.expectedWins ?? fallback,
+    });
+  }
+  rows.sort((a, b) => a.season - b.season);
+  return rows;
 }
 
 function lastSeasonWins(state: GameState, teamId: number): number | null {
@@ -111,57 +235,10 @@ function lastSeasonWins(state: GameState, teamId: number): number | null {
   return rec.w + rec.t * 0.5;
 }
 
-export function ownerHeatFor(
-  patience: number,
-  posture: Posture,
-  seasonWins: number[],
-  targets?: readonly number[],
-): number {
-  let heat = 0;
-  const foPatience = 1.2 - patience * 0.6;
-  const cool = 0.4 + patience * 0.4;
-  for (let i = 0; i < seasonWins.length; i++) {
-    const wins = seasonWins[i];
-    const target = targets?.[i] ?? OWNER_WIN_TARGET[posture];
-    // Tenure index, not league index: callers pass only the seasons since
-    // hire. Grace is the coach's (or GM's) first two years in a rebuild.
-    const rebuild =
-      targets != null ? target === OWNER_WIN_TARGET.rebuild : posture === "rebuild";
-    const rebuildGrace = rebuild && i <= 1;
-    if (rebuildGrace && wins < target) {
-      heat += (target - wins) * foPatience * 3;
-    } else if (wins < target) {
-      heat += (target - wins) * foPatience * 8;
-    } else {
-      heat -= (wins - target + 1) * cool * 6;
-    }
-    heat = clamp(heat, 0, 100);
-  }
-  return heat;
-}
-
-/**
- * Heat from archived seasons at or after `sinceSeason`, each graded on the
- * `expectedWins` locked before that season. A row without the field falls
- * back to today's outlook for that row only.
- */
-export function heatSinceSeason(
-  state: GameState,
-  teamId: number,
-  patience: number,
-  sinceSeason: number,
-): number {
-  const fallback = OWNER_WIN_TARGET[teamOutlook(state, teamId).posture];
-  const wins: number[] = [];
-  const targets: number[] = [];
-  for (const year of state.history) {
-    if (year.season < sinceSeason) continue;
-    const row = year.standings.find((r) => r.teamId === teamId);
-    if (!row) continue;
-    wins.push(row.w + row.t * 0.5);
-    targets.push(row.expectedWins ?? fallback);
-  }
-  return ownerHeatFor(patience, "retool", wins, targets);
+function postureOf(expected: number): Posture {
+  if (expected >= OWNER_WIN_TARGET.contend) return "contend";
+  if (expected >= OWNER_WIN_TARGET.retool) return "retool";
+  return "rebuild";
 }
 
 /**
@@ -179,36 +256,40 @@ export function stampSeasonExpectedWins(state: GameState): void {
 export function ownerJobView(state: GameState, teamId: number): OwnerJobView | null {
   const team = state.teams[teamId];
   if (!team?.owner) return null;
-  const { posture } = teamOutlook(state, teamId);
-  const expectedWins = OWNER_WIN_TARGET[posture];
-  const recentWins = lastSeasonWins(state, teamId);
-  const seasonsOnJob = seasonsWithGm(state, teamId);
-  const heat = heatSinceSeason(state, teamId, team.owner.patience, gmHiredSeasonOf(state, teamId));
-  const threshold = fireHeatThreshold(team.owner.patience);
+  const outlook = teamOutlook(state, teamId);
+  const rows = tenureRows(state, teamId, gmHiredSeasonOf(state, teamId));
   const firingEnabled = state.settings?.firingEnabled ?? true;
-  const wouldFire = firingEnabled && seasonsOnJob >= OWNER_MIN_SEASONS && heat >= threshold;
-
-  let seat: OwnerJobView["seat"] = "safe";
-  if (wouldFire) seat = "fired";
-  else if (heat >= threshold - 8) seat = "hot";
-  else if (heat >= heatWatchLine(threshold)) seat = "watched";
+  const judged = ownerJudgment(
+    team.owner.patience,
+    rows.map((r) => r.wins),
+    rows.map((r) => r.expectedWins),
+    firingEnabled,
+  );
+  const expectedWins = rows.length
+    ? rows[rows.length - 1].expectedWins
+    : OWNER_WIN_TARGET[outlook.posture];
+  const posture = rows.length ? postureOf(expectedWins) : outlook.posture;
+  const recentWins = lastSeasonWins(state, teamId);
 
   const patienceWord =
     team.owner.patience >= 0.68 ? "patient" : team.owner.patience <= 0.42 ? "impatient" : "typical";
+  const counted =
+    judged.seasons === 0
+      ? "No completed season is being counted yet."
+      : judged.seasons === 1
+        ? "He is counting this season alone."
+        : "He is counting the last two seasons, weighted 60/40.";
+  const runway = judged.rebuildRunway ? " Hired into a rebuild, so the bar is a win lower." : "";
 
   let line: string;
   if (!firingEnabled) {
-    line = "Firing is off — the chair is guaranteed, whatever the record.";
-  } else if (seasonsOnJob < OWNER_MIN_SEASONS) {
-    line = `${team.owner.name} is ${patienceWord}. The first two seasons are a look, not a verdict.`;
-  } else if (wouldFire) {
-    line = `${team.owner.name} has seen enough. The season is over — take an open chair or retire the save.`;
-  } else if (seat === "hot") {
-    line = `${team.owner.name} is ${patienceWord} and the seat is hot. Another year like the last one ends it.`;
-  } else if (seat === "watched") {
-    line = `${team.owner.name} expected about ${expectedWins} wins from a ${posture} club. You are on notice.`;
+    line = `Firing is off — the chair is guaranteed, whatever the record. ${counted}`;
+  } else if (judged.wouldFire) {
+    line = `${team.owner.name} has seen enough. ${counted}${runway} The season is over — take an open chair or retire the save.`;
+  } else if (judged.seasons < OWNER_MIN_SEASONS) {
+    line = `${team.owner.name} is ${patienceWord}. ${counted} One-and-done is ${judged.bar.toFixed(1)} wins or fewer.`;
   } else {
-    line = `${team.owner.name} is ${patienceWord}. A ${posture} club is supposed to win about ${expectedWins}.`;
+    line = `${team.owner.name} is ${patienceWord}. ${counted} The bar is ${judged.bar.toFixed(1)}.${runway}`;
   }
 
   return {
@@ -216,12 +297,13 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
     posture,
     expectedWins,
     recentWins,
-    seasonsWithGm: seasonsOnJob,
-    heat,
-    threshold,
+    seasonsWithGm: judged.seasons,
+    margin: judged.margin,
+    bar: judged.bar,
+    weightedWins: judged.weightedWins,
     firingEnabled,
-    wouldFire,
-    seat,
+    wouldFire: judged.wouldFire,
+    seat: judged.seat,
     line,
   };
 }
@@ -254,9 +336,7 @@ export function openGmChairs(state: GameState): number[] {
   for (const team of state.teams) {
     if (team.id === state.userTeamId) continue;
     const job = ownerJobView(state, team.id);
-    if (job && job.heat >= job.threshold && seasonsWithGm(state, team.id) >= OWNER_MIN_SEASONS) {
-      chairs.push(team.id);
-    }
+    if (job?.wouldFire) chairs.push(team.id);
   }
   if (chairs.length > 0) return chairs.sort((a, b) => a - b);
   return worstCpuChairs(state, 3);
@@ -265,6 +345,7 @@ export function openGmChairs(state: GameState): number[] {
 /**
  * After recap history is written: if the user's owner has had enough,
  * end the season for the user and offer open CPU chairs. Not game over.
+ * Same `wouldFire` as a CPU head coach in term.
  */
 export function applyUserGmFiring(state: GameState): ForcedMove | null {
   if (isPendingForcedMove(state)) return state.forcedMove ?? null;

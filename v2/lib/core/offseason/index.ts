@@ -84,9 +84,9 @@ export function runRecap(state: GameState): OffseasonReport {
 
   const history = recordSeasonHistory(state);
   state.history.push(history);
-  // Heat before the expiry tick. fireCpuHeadCoaches extends a cool
-  // expiring CPU HC, or counts a hot one as a fire; tick must not
-  // empty that chair first.
+  // Two-season rule before the expiry tick. fireCpuHeadCoaches extends
+  // an expiring CPU HC who is clear of the bar, or counts one within a
+  // win of it as a fire; tick must not empty that chair first.
   fireCpuHeadCoaches(state);
   tickCoachContracts(state);
   runCoachCarousel(state);

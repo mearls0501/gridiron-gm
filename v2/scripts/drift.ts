@@ -65,6 +65,9 @@ interface Snapshot {
   hcExpiries: number;
   hcFireTenureWins: number;
   hcFireTenureSeasons: number;
+  hcFiredLastSeasonWins: number;
+  hcOneAndDone: number;
+  clubsAtFiveWinsOrFewer: number;
   holdouts: number;
   tradeRequests: number;
   holdoutGamesMissed: number;
@@ -230,6 +233,18 @@ function runOne(seed: number): Snapshot[] {
       hcFireTenureSeasons: st.seasonCounters?.hcFireTenureSeasonsLast
         ?? st.seasonCounters?.hcFireTenureSeasons
         ?? 0,
+      // Report-only. Sum of the newer season's wins on coaches fired
+      // this year. The emit divides by fires for a per-coach mean.
+      hcFiredLastSeasonWins: st.seasonCounters?.hcFiredLastSeasonWinsLast
+        ?? st.seasonCounters?.hcFiredLastSeasonWins
+        ?? 0,
+      hcOneAndDone: st.seasonCounters?.hcOneAndDoneLast
+        ?? st.seasonCounters?.hcOneAndDone
+        ?? 0,
+      // Parity read. Clubs at 5 wins or fewer on the year that just
+      // closed. No band.
+      clubsAtFiveWinsOrFewer: (st.history.find((h) => h.season === season)?.standings ?? [])
+        .filter((r) => r.w + r.t * 0.5 <= 5).length,
       holdouts: st.seasonCounters?.holdoutsLast
         ?? st.seasonCounters?.holdouts
         ?? 0,
@@ -375,6 +390,8 @@ guard(mean(last.map((r) => r.saveMB)) < 20, "save stays inside a sane quota",
 
 const tenureWins = flat.reduce((n, r) => n + r.hcFireTenureWins, 0);
 const tenureSeasons = flat.reduce((n, r) => n + r.hcFireTenureSeasons, 0);
+const firedLastWins = flat.reduce((n, r) => n + r.hcFiredLastSeasonWins, 0);
+const firedN = flat.reduce((n, r) => n + r.hcFires, 0);
 const cpuDraftFitN = flat.reduce((n, r) => n + r.cpuDraftFitN, 0);
 const cpuDraftFitMean = cpuDraftFitN > 0
   ? flat.reduce((n, r) => n + r.cpuDraftFitSum, 0) / cpuDraftFitN
@@ -405,6 +422,11 @@ emitAll({
   "drift.hcFiresPerSeason": mean(flat.map((r) => r.hcFires)),
   "drift.hcExpiriesPerSeason": mean(flat.map((r) => r.hcExpiries)),
   "drift.hcFireTenureWinAvg": tenureSeasons > 0 ? tenureWins / tenureSeasons : 0,
+  // Report-only. No baselines.json row. The fired coach's last season,
+  // pooled across fires; one-and-done count per year; clubs at ≤5 wins.
+  "drift.hcFiredLastSeasonWins": firedN > 0 ? firedLastWins / firedN : 0,
+  "drift.hcOneAndDonePerSeason": mean(flat.map((r) => r.hcOneAndDone)),
+  "drift.clubsAtFiveWinsOrFewer": mean(flat.map((r) => r.clubsAtFiveWinsOrFewer)),
   "drift.holdoutsPerSeason": mean(flat.map((r) => r.holdouts)),
   "drift.tradeRequestsPerSeason": mean(flat.map((r) => r.tradeRequests)),
   "drift.holdoutGamesMissedPerSeason": mean(flat.map((r) => r.holdoutGamesMissed)),
