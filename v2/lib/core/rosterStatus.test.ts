@@ -11,13 +11,13 @@ import { newGame } from "./newGame";
 import {
   enterDraft, enterCampAfterDraft, finalizeOffseason, simEntireDraft,
 } from "./offseason";
-import { askingPrice, fillRoster, freeActiveSlot, reconcileRoster, signPlayer } from "./offseason/contracts";
+import { askingPrice, fillRoster, freeActiveSlot, QB_53_MAX, reconcileRoster, signPlayer } from "./offseason/contracts";
 import { fillCpuIrReplacements } from "./irFill";
 import { startRegularSeason, simulateWeek } from "./season/engine";
-import { resolveWaivers } from "./waivers";
+import { resolveWaivers, settleWaivers } from "./waivers";
 import { makeContract } from "./generate";
 import { Rng } from "./rng";
-import { isActiveRoster, isOnWaivers, practiceSquadCount, rosterCount, rosterIssues } from "./select";
+import { isActiveRoster, isOnWaivers, positionCount, practiceSquadCount, rosterCount, rosterIssues } from "./select";
 import {
   CAMP_ROSTER_LIMIT, IR_MIN_GAMES, IR_RETURN_DESIGNATIONS, LEAGUE_MINIMUM,
   PRACTICE_SQUAD_LIMIT, PS_ELEVATIONS_PER_PLAYER, POSITIONS, ROSTER_LIMIT, STARTERS,
@@ -245,6 +245,60 @@ function starterIds(st: ReturnType<typeof newGame>, teamId: number): number[] {
   st.rngState = rng.state;
 }
 
+// Cutdown keeps at most 3 active QBs. A 53 that is already full does not
+// trim, so the surplus sort never reaches a fourth quarterback. Camp fill
+// and an in-season reconcile do not use the cutdown flag.
+{
+  assert.equal(QB_53_MAX, 3);
+  const st = newGame({ seed: 21 });
+  st.phase = "offseason-final";
+  const cpuId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  const active = () => st.players.filter(
+    (p) => p.teamId === cpuId && !p.retired && !p.prospect && isActiveRoster(p),
+  );
+  assert.equal(positionCount(st, cpuId, "QB"), 3);
+  const donor = active().filter((p) => p.pos !== "QB").sort((a, b) => b.ovr - a.ovr)[0];
+  donor.pos = "QB";
+  donor.ovr = 90;
+  assert.equal(positionCount(st, cpuId, "QB"), 4);
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT);
+
+  const camp = newGame({ seed: 21 });
+  camp.phase = "offseason-final";
+  const campDonor = camp.players.filter(
+    (p) => p.teamId === cpuId && !p.retired && !p.prospect && isActiveRoster(p) && p.pos !== "QB",
+  ).sort((a, b) => b.ovr - a.ovr)[0];
+  campDonor.pos = "QB";
+  campDonor.ovr = 90;
+  const campRng = new Rng(camp.rngState);
+  reconcileRoster(camp, cpuId, campRng);
+  assert.ok(positionCount(camp, cpuId, "QB") >= 4, "camp reconcile is not the 53 cutdown");
+
+  const season = newGame({ seed: 21 });
+  season.phase = "regular";
+  const seasonDonor = season.players.filter(
+    (p) => p.teamId === cpuId && !p.retired && !p.prospect && isActiveRoster(p) && p.pos !== "QB",
+  ).sort((a, b) => b.ovr - a.ovr)[0];
+  seasonDonor.pos = "QB";
+  seasonDonor.ovr = 90;
+  const seasonRng = new Rng(season.rngState);
+  reconcileRoster(season, cpuId, seasonRng);
+  assert.equal(positionCount(season, cpuId, "QB"), 4, "in-season auto-fix is not the cutdown");
+  assert.equal(rosterCount(season, cpuId), ROSTER_LIMIT);
+
+  const rng = new Rng(st.rngState);
+  reconcileRoster(st, cpuId, rng, ROSTER_LIMIT, true);
+  assert.ok(positionCount(st, cpuId, "QB") <= QB_53_MAX, "fourth QB stayed on the 53");
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT);
+  settleWaivers(st);
+  assert.ok(positionCount(st, cpuId, "QB") <= QB_53_MAX, "waiver settlement put a fourth QB back");
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT);
+  for (const t of st.teams) {
+    if (t.id === cpuId) continue;
+    assert.ok(positionCount(st, t.id, "QB") <= QB_53_MAX, `${t.abbr} claimed a fourth QB`);
+  }
+}
+
 // finalizeOffseason still locks every club's ACTIVE count at 53.
 {
   const st = newGame({ seed: 1 });
@@ -263,6 +317,7 @@ function starterIds(st: ReturnType<typeof newGame>, teamId: number): number[] {
   for (const t of st.teams) {
     assert.equal(rosterCount(st, t.id), ROSTER_LIMIT, `${t.abbr} active after cutdown`);
     assert.ok(practiceSquadCount(st, t.id) <= PRACTICE_SQUAD_LIMIT, `${t.abbr} PS over 16`);
+    assert.ok(positionCount(st, t.id, "QB") <= QB_53_MAX, `${t.abbr} kept a fourth QB on the 53`);
   }
   assert.equal(st.phase, "preseason");
   const after = rosterCapView(st, st.userTeamId);

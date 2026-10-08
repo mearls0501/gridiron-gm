@@ -1123,7 +1123,7 @@ export function cpuResign(state: GameState, teamId: number, candidates: Player[]
  * star would eat the whole budget and strand the team at 40 players.
  */
 function bestAffordable(
-  state: GameState, teamId: number, pos: Position | null
+  state: GameState, teamId: number, pos: Position | null, exclude: Position | null = null,
 ): Player | null {
   const space = teamCap(state, teamId).space;
   const slotsLeft = Math.max(0, ROSTER_LIMIT - rosterCount(state, teamId));
@@ -1134,6 +1134,7 @@ function bestAffordable(
   for (const p of state.players) {
     if (p.teamId !== null || p.retired || p.prospect || isOnWaivers(state, p.id)) continue;
     if (pos !== null && p.pos !== pos) continue;
+    if (exclude !== null && p.pos === exclude) continue;
     if (best && p.ovr <= best.ovr) continue;
     if (trueAskingPrice(state, p) > budget) continue;
     best = p;
@@ -1204,6 +1205,13 @@ export function fillRoster(
     }
     if (!cutWorstSurplus(state, teamId, null)) break;
   }
+
+  // 5. Final 53 only. Matt SIGNED 2026-10-08: at most 3 active QBs.
+  // `stashPs` is the cutdown call (`reconcileRoster(..., 53, true)`).
+  // Camp fill, newGame, and in-season auto-fix do not pass it.
+  if (stashPs && limit === ROSTER_LIMIT) {
+    capQuarterbacksOn53(state, teamId, rng);
+  }
 }
 
 /**
@@ -1256,6 +1264,53 @@ export function fillCampRosters(state: GameState, rng: Rng): void {
  */
 function cutWorstSurplus(state: GameState, teamId: number, protectPos: Position | null): boolean {
   return moveWorstSurplus(state, teamId, protectPos, "cut");
+}
+
+/**
+ * Active quarterbacks kept once the 53 is formed.
+ * Matt SIGNED 2026-10-08: "CPU clubs keep at most 3 QBs on the 53."
+ * The cutdown call is shared with the user seat, so that seat is capped too.
+ * Not `POSITION_TARGET` — that target does not stop a fourth from surviving the surplus sort.
+ */
+export const QB_53_MAX = 3;
+
+const FILL_BESIDES_QB: Position[] = (Object.keys(POSITION_MIN) as Position[]).filter((pos) => pos !== "QB");
+
+/** Worth the cutdown already uses. Lowest active QB above the cap is waived. */
+function quarterbackKeepWorth(state: GameState, teamId: number, p: Player): number {
+  const { posture } = teamOutlook(state, teamId);
+  return evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season);
+}
+
+function cutWorstActiveQuarterback(state: GameState, teamId: number): boolean {
+  const qbs = state.players.filter(
+    (p) => p.teamId === teamId && p.pos === "QB" && !p.retired && !p.prospect && isActiveRoster(p),
+  );
+  if (qbs.length <= QB_53_MAX) return false;
+  const worst = qbs.slice().sort(
+    (a, b) => quarterbackKeepWorth(state, teamId, a) - quarterbackKeepWorth(state, teamId, b) || a.id - b.id,
+  )[0];
+  if (!worst) return false;
+  return cutPlayer(state, worst.id).ok;
+}
+
+/**
+ * Waive active quarterbacks past the cap, then refill the 53 with non-QBs.
+ * The fourth stays off the 53 even when the surplus sort would keep him.
+ * Waived bodies still clear through waivers; this does not park them on the PS directly.
+ */
+function capQuarterbacksOn53(state: GameState, teamId: number, rng: Rng): void {
+  let guard = 0;
+  while (positionCount(state, teamId, "QB") > QB_53_MAX && guard++ < 16) {
+    if (!cutWorstActiveQuarterback(state, teamId)) break;
+  }
+  guard = 0;
+  while (rosterCount(state, teamId) < ROSTER_LIMIT && guard++ < 16) {
+    const pos = FILL_BESIDES_QB[guard % FILL_BESIDES_QB.length];
+    const pick = bestAffordable(state, teamId, null, "QB") ?? generateReplacement(state, pos, rng);
+    if (pick.pos === "QB") break;
+    signAtMarket(state, teamId, pick, rng);
+  }
 }
 
 /** Open one active slot so a CPU return from IR can land. PS first, then cut. */

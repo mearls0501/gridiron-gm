@@ -467,6 +467,26 @@ round 1, 2011–2025). The 11.4% figure above is the path-2 event rate
 inside this same pool of 116. No `baselines.json` row for the 11.6.
 The burn-in path-2 band is the §2.7 row, not this one.
 
+### 2.7b Quarterbacks on the 53 — signed cap, not a traced mean
+
+Matt **SIGNED** 2026-10-08: "CPU clubs keep at most 3 QBs on the 53."
+
+This is a cutdown rule, not a measured NFL mean. The census comparison
+stays **~2.6** active quarterbacks per club
+(`docs/qb-supply-census-2026-10.md`). That figure is not a
+`baselines.json` band, and the cap is not a retune toward it.
+
+After the final 53 is formed — `reconcileRoster` at `ROSTER_LIMIT`
+with the cutdown stash, which is Start the Season — every club on
+that call keeps at most 3 active quarterbacks. The same call runs for
+the user seat. `POSITION_MIN.QB` stays 2. `POSITION_TARGET.QB` stays
+3 and is still only the generation and need target. Practice-squad
+quarterbacks are not capped by this sentence.
+
+The panel read is `drift.qbsPerClub53`. Expect **≤ 3.0**. No new
+baseline row. Before the rule, the firing-rule panel on `1d24605`
+read about **3.90**, and the #156 panel at `5f64073` read **3.908**.
+
 ### 2.8 Undrafted free agents — confidence MEDIUM
 
 - **369 UDFAs signed league-wide in 2025**, 6–20 per club, mean 11.5
@@ -575,6 +595,11 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   of circulation. Display state only — assignment draws from a
   child stream keyed (seed, "jersey", playerId) and must not move
   the parent RNG. Ungated published rule.
+- **Quarterbacks on the 53, cap of 3.** Added 2026-10-08. Matt SIGNED:
+  "CPU clubs keep at most 3 QBs on the 53." Cutdown rule, not a traced
+  mean. The census comparison remains ~2.6. `drift.qbsPerClub53` is the
+  panel read and is expected **≤ 3.0**. No `baselines.json` row.
+  See §2.7b.
 - **Training-camp roster cap (90).** Added 2026-09-02. Not in T/D/S/P. The
   published NFL training-camp holding limit is 90 before the single cut to 53
   (`docs/front-office-design-2026-07-28.md`). No dataset here enumerates camp
