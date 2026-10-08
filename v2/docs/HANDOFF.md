@@ -63,6 +63,29 @@ Staff, in the browser, on a fresh franchise: the owner card shows weighted wins 
 
 ---
 
+## 2026-10-06 — Age guard known-open (report-only)
+
+Docs only. No packet. No re-lock. The row is in `AGENTS.md`. `docs/baselines.json` is not edited. Engine, dials, and `scripts/` are not touched.
+
+The guard is `34-year-olds rate below 27-year-olds`, and the cut is strictly above 80% of the 20 seasons (`agedWorse > 16`). 17/20 passes. 15/20 and 16/20 fail. The miss is intermittent at 34 vs 27: it fails 2 of 5 seeds when the count lands at 15–16 of 20.
+
+#157 and #158 recorded the two panels and left the known-open table without an age-guard row. Those sections stay as the panel record. This note is the row.
+
+| panel | sha | PR | `drift.p0Failures` | seasons (seeds 1–5) | result |
+|---|---|---|---|---|---|
+| Packet A | `79eaee3` | #157 | **0.40** (0/0/1/0/1) | **17 / 18 / 16 / 17 / 15** of 20 | seeds 3 and 5 fail (16 and 15) |
+| Packet D | `0f4702f` | #158 | **0** (0×5) | **19 / 18 / 18 / 17 / 17** of 20 | all ok |
+
+Packet A's only failing P0 on those two seeds is this guard. Packet D's lowest is 17/20, one season above the cut, on seeds 4 and 5. Same guard. Different sample. Max stays **0**. Not re-locked.
+
+This row covers that intermittent miss: 2 of 5 seeds at 15–16 of 20, which is the **0.40** reading, and a clear panel at 17 or better. Another P0, or an age count under 15/20, is not this row. Do not tune the age curve. Do not open a packet.
+
+### Gate
+
+Not run. The series is the Studio panels already recorded in the Packet A and Packet D sections below.
+
+---
+
 ## 2026-10-06 — Wave 4.4 Packet D: Studio panel GATE table @ 0f4702f (report-only)
 
 Docs only. Wave 4.4 Packet D close-out. **Report-only. No re-lock.**

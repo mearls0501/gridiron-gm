@@ -1930,3 +1930,39 @@ This is the traced league-wide firing rate. The counter it names is
 `drift.hcExpiriesPerSeason`. No dial moves, and `docs/baselines.json`
 is not edited.
 
+### 7.2 Clubs with 5 or fewer wins — 2021–2024
+
+Added 2026-10-06. Not in T/D/S/P. Counted in this session from the
+NFL.com regular-season league standings, 32 clubs each year. A club
+counts when its regular-season **wins are 5 or fewer**. A tie is not a
+win. Pro-Football-Reference year pages
+(`https://www.pro-football-reference.com/years/YYYY/`) are the usual
+standings tables; this session got a bot check from that host, so the
+counted source is the league's own table:
+
+- 2021: https://www.nfl.com/standings/league/2021/REG
+- 2022: https://www.nfl.com/standings/league/2022/REG
+- 2023: https://www.nfl.com/standings/league/2023/REG
+- 2024: https://www.nfl.com/standings/league/2024/REG
+
+| season | clubs | records (W-L-T) |
+|---|---:|---|
+| 2021 | **6** | DET 3-13-1, JAX 3-14, HOU 4-13, NYG 4-13, NYJ 4-13, CAR 5-12 |
+| 2022 | **6** | CHI 3-14, HOU 3-13-1, ARI 4-13, IND 4-12-1, DEN 5-12, LAR 5-12 |
+| 2023 | **5** | CAR 2-15, ARI 4-13, NE 4-13, WAS 4-13, LAC 5-12 |
+| 2024 | **10** | CLE 3-14, NYG 3-14, TEN 3-14, JAX 4-13, LV 4-13, NE 4-13, CAR 5-12, CHI 5-12, NO 5-12, NYJ 5-12 |
+
+**6, 6, 5, 10.** Mean **6.75** clubs a season (6+6+5+10 = 27; 27/4 = 6.75).
+The next club each year has 6 wins (2021 CHI 6-11; 2022 LV 6-11; 2023
+NYG 6-11 and TEN 6-11; 2024 SF 6-11). A recalled series of 6, 6, 5, 10
+matches this count.
+
+Games check, so the tables are complete. A full slate is 272 games
+(32×17/2). 2021 is 271 wins plus one tie game (DET and PIT each 1 tie).
+2022 is 269 wins plus two tie games, and BUF (13-3) and CIN (12-4) each
+played 16 — the cancelled game. 2023 and 2024 are 272 wins and 0 ties.
+
+The sim currently averages **~4.1** clubs a year at ≤5 wins, from the
+two-season firing probe. That figure is a note against this count. No
+band. No dial moves, and `docs/baselines.json` is not edited.
+
