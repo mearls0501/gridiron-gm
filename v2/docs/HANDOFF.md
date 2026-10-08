@@ -49,7 +49,14 @@ Engine, sim, dials, `scripts/careers.ts`, every other baseline row.
 
 ### Gate
 
-Fast serial gate from `v2/`, report-never-tune. Output is appended when the run finishes.
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck is the first step and passed (`tsc --noEmit`, 5s). Determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the firing-rule read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. `careers` is not in this tier, so the new band was not evaluated. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. The floor is not widened. The engine is not touched.
 
 ---
 
