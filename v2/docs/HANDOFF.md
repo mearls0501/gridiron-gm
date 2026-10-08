@@ -50,6 +50,142 @@ Not a retune. `docs/baselines.json` was not edited.
 
 ---
 
+## 2026-10-08 — Two-season firing rule (#160): Studio panel GATE table @ 1d24605 (report-only)
+
+Docs only. PR #160 close-out panel. **Report-only. No re-lock.**
+
+Mac Studio `npm run gate:full:serial`, 5 seeds, on `1d24605e76d640267a1b15c3a513b63a700882c2` (#160, two-season firing rule). Finished 2026-10-08 ~2:36 PM ET. Worktree `~/Projects/gg-1d24605-panel`, log `gate-full-5seed.log`, pid 84331 (dead). The log this section quotes is that finished panel. The numbers are that commit. `docs/baselines.json` **not edited**. Engine, dials, and `scripts/` not touched. Report-never-tune.
+
+### GATE FAIL 4 — panel @ `1d24605`
+
+#156 (@ `5f64073`) was GATE FAIL 4. This panel is GATE FAIL 4. Same four lines.
+
+```
+FAIL  coherence  exited 1
+FAIL  drift  exited 1
+FAIL  drift.p0Failures  0.40  expected <= 0
+FAIL  tails.milestonesOff  21.20  expected <= 16  (KNOWN-HIGH, target 0. Count of categories outside the central 95% Poisson interval (λ = NFL rate × seasons). Panel 16.0 (14/15/15/18/18) after the 2026-08-28 verdict change; the old ratio-band lock of 12 does not apply to this metric.)
+
+GATE FAIL  4 problems
+```
+
+`coherence` exited 1. Seed 1 is under the floor of **85** (`##M` **84.62**). The series is the same as #156: **84.62 / 90.60 / 87.67 / 87.66 / 86.36**. The panel mean **87.38** is above the floor, so the four FAIL lines do not name a coherence metric. Floor **85** stays. Do not soften it.
+
+`drift` exited 1. `drift.p0Failures` **0.40** (0/0/1/0/1). #156 was **0.40** (0/0/1/1/0). The mean is the same. The seed pattern moved. The failing seeds are the age guard (below). Max stays **0**. Not re-locked.
+
+`tails.milestonesOff` **21.20** (16/22/23/21/24). KNOWN-HIGH. Same seeds as #156. Max stays **16**. Not re-locked.
+
+### Panel means (5-seed)
+
+Seeds in panel order. The mean is the average of the five seed-block `##M` lines. Indented `##M` lines under a FAIL summary are one seed reprinted and are not in these figures. The coherence FAIL reprint is seed 1. The drift FAIL reprint is seed 3. That reprint is not a sixth seed. The **vs #156** column is the 2026-10-07 panel table (@ `5f64073`). **moved.** marks a published mean that differs, or a pooled percent that differs on a path-2 row.
+
+| metric | panel | vs #156 | notes |
+|---|---|---|---|
+| `coherence.outlierExplainedPct` | **87.38** (84.62/90.60/87.67/87.66/86.36) | **87.38** (same series) | Seed 1 under floor **85**. Floor stays |
+| `tails.milestonesOff` | **21.20** (16/22/23/21/24) | **21.20** | **FAIL** ≤16. KNOWN-HIGH. Unchanged. Not re-locked |
+| `drift.p0Failures` | **0.40** (0/0/1/0/1) | **0.40** (0/0/1/1/0) | **FAIL** ≤0. Mean unchanged. Seed pattern **moved.** Max stays **0**. Not re-locked. See the age guard |
+| `drift.hcFiresPerSeason` | **6.55** (6.55/6.4/6.1/6.65/7.05) | **0.66** (0.75/0.6/0.65/0.75/0.55) | **MOVED.** Spec estimate ~6.2. NFL real **7.1** (§7.1). See below |
+| `drift.hcFiredLastSeasonWins` | **5.61** (5.469/5.773/5.414/5.628/5.759) | not on #156's table | First 5-seed read. Ref ~5.5. See below |
+| `drift.hcOneAndDonePerSeason` | **0.79** (0.65/0.5/0.75/1.05/1.0) | not on #156's table | First 5-seed read. Ref ~0.4. See below |
+| `drift.clubsAtFiveWinsOrFewer` | **4.25** (4.7/3.9/3.85/4.35/4.45) | not on #156's table | First 5-seed read. NFL real **6.75** (§7.2). See below |
+| `drift.holdoutsPerSeason` | **10.09** (9.2/11.35/10.9/8.85/10.15) | **10.07** (9.4/11.85/10.4/8.9/9.8) | **moved.** No band |
+| `drift.franchiseTagsPerSeason` | **16.26** (16.8/15.55/15.05/17.55/16.35) | **16.41** (17.5/15.6/15.3/17.4/16.25) | **moved.** Inside signed **14±4** |
+| `drift.deadMoneyPct` | **5.39** (5.486/5.420/5.198/5.442/5.395) | **5.36** | **moved.** No band |
+| `staff.leagueOvrDelta` | **0.506** (0.593/0.778/0.442/−0.055/0.771) | **0.708** (0.528/0.821/0.998/0.906/0.286) | **moved.** Inside max **1.2** |
+| `staff.problems` | **0** (0×5) | **0** | unchanged |
+| `drift.cpuDraftFitMean` | **0.0618** (0.0581/0.0710/0.0643/0.0465/0.0692) | **0.0580** | **moved.** No band |
+| `careers.r1QbSharePct` | **9.58** (9.635/9.115/10.677/9.635/8.854) | **9.74** | **moved.** Under max **16** |
+| `careers.path2Top10PrPct` | mean of rates **10.15**; pooled **24 of 238 (10.08%)** | mean **10.96**; pooled **25 of 229 (10.9%)** | **moved.** |
+| `careers.path2BurnInTop10PrPct` | mean of rates **9.82**; pooled **13 of 135 (9.63%)** | mean **10.62**; pooled **13 of 121 (10.7%)** | **moved.** Inside signed pooled band **7–16%**. Read pooled k-of-n |
+| `drift.qbsDraftedPerClass` | **13.36** (14/12.65/14.65/13.6/11.9) | **13.41** | **moved.** Real **11.6** |
+| `drift.qbsPerClub53` | **3.904** (4.020/3.988/3.761/3.934/3.819) | **3.908** | **moved** at full precision. Census ~2.6. Next packet is the ≤3 cutdown |
+| `drift.qbsPerClubPs` | **2.201** (2.028/2.069/2.513/2.011/2.383) | **2.123** | **moved.** |
+
+### Rows that moved vs #156
+
+Twelve rows in this table moved against #156 on the published mean, or on the pooled percent for a path-2 row. Three firing emits are first 5-seed reads and have no #156 figure. Four published means did not move. One of those four, `drift.p0Failures`, kept **0.40** and changed seeds.
+
+Moved:
+
+1. `drift.hcFiresPerSeason` — **0.66** → **6.55**.
+2. `drift.holdoutsPerSeason` — **10.07** → **10.09**.
+3. `drift.franchiseTagsPerSeason` — **16.41** → **16.26**.
+4. `drift.deadMoneyPct` — **5.36** → **5.39**.
+5. `staff.leagueOvrDelta` — **0.708** → **0.506**.
+6. `drift.cpuDraftFitMean` — **0.0580** → **0.0618**.
+7. `careers.r1QbSharePct` — **9.74** → **9.58**.
+8. `careers.path2Top10PrPct` — mean of rates **10.96** → **10.15**. Pooled **25 of 229 (10.9%)** → **24 of 238 (10.08%)**.
+9. `careers.path2BurnInTop10PrPct` — mean of rates **10.62** → **9.82**. Pooled **13 of 121 (10.7%)** → **13 of 135 (9.63%)**.
+10. `drift.qbsDraftedPerClass` — **13.41** → **13.36**.
+11. `drift.qbsPerClub53` — **3.908** → **3.904**. Moved at full precision.
+12. `drift.qbsPerClubPs` — **2.123** → **2.201**.
+
+Published mean unchanged:
+
+- `coherence.outlierExplainedPct` **87.38**. Same series as #156.
+- `tails.milestonesOff` **21.20** (16/22/23/21/24).
+- `drift.p0Failures` **0.40**. Seeds **0/0/1/1/0** → **0/0/1/0/1**.
+- `staff.problems` **0** (0×5).
+
+`drift.hcFiredLastSeasonWins`, `drift.hcOneAndDonePerSeason`, and `drift.clubsAtFiveWinsOrFewer` are the emits this rule added. #156's panel is `5f64073`, before those lines, so none of the three is a move against #156.
+
+### Age guard
+
+The guard is `34-year-olds rate below 27-year-olds`, and the cut is strictly above 80% of the 20 seasons (`agedWorse > 16`).
+
+| seed | seasons | result | `drift.p0Failures` |
+|---|---|---|---|
+| 1 | 19/20 | ok | 0 |
+| 2 | 17/20 | ok | 0 |
+| 3 | 16/20 | **FAIL** | 1 |
+| 4 | 17/20 | ok | 0 |
+| 5 | 14/20 | **FAIL** | 1 |
+
+Mean `drift.p0Failures` **0.40** (0/0/1/0/1). #156 was **0.40** (0/0/1/1/0), seeds 3 and 4 at 16/20 and 15/20. The mean is the same. The seed pattern moved. The failing P0 on seeds 3 and 5 is this guard. Max stays **0**. Not re-locked.
+
+The known-open row covers the intermittent miss at 15–16 of 20. Seed 3 is 16/20, inside that window. Seed 5 is **14/20**, under the line that row names. An age count under 15/20 is not that row. This section records the 14. It does not re-lock the max, and it does not open a mechanism. Do not tune the age curve.
+
+### Firing emits
+
+Matt requested this read. Report-only. No dial moves. No band.
+
+`drift.hcFiresPerSeason` **6.55** (6.55 / 6.4 / 6.1 / 6.65 / 7.05). #156, on the previous rule, was **0.66** (0.75 / 0.6 / 0.65 / 0.75 / 0.55). The published mean moved. The spec estimate is ~6.2. `nfl-reference.md` §7.1 mean is **7.1**. This panel sits between those two. Neither figure is a band.
+
+`drift.hcFiredLastSeasonWins` **5.61** (5.469 / 5.773 / 5.414 / 5.628 / 5.759). First 5-seed read. The reference is ~5.5.
+
+`drift.hcOneAndDonePerSeason` **0.79** (0.65 / 0.5 / 0.75 / 1.05 / 1.0). First 5-seed read. The reference is ~0.4.
+
+`drift.clubsAtFiveWinsOrFewer` **4.25** (4.7 / 3.9 / 3.85 / 4.35 / 4.45). First 5-seed read. `nfl-reference.md` §7.2 mean is **6.75**.
+
+No dial moves.
+
+### Path 2 — pooled k of n
+
+`careers.path2Events` / `careers.path2PopN`, then the burn-in pair. Pooled counts are the sums of the five seed-block lines, not the mean of the percents. The signed band on `careers.path2BurnInTop10PrPct` is **7–16%**, read pooled. That sign-off is the section below.
+
+| row | this panel (events / pop) | pooled | mean of rates | #156 pooled | #156 mean of rates |
+|---|---|---|---|---|---|
+| all classes | 7/55, 4/43, 3/54, 6/44, 4/42 | **24 of 238 (10.08%)** | **10.15** | **25 of 229 (10.9%)** | **10.96** |
+| burn-in only | 3/34, 2/20, 1/29, 4/27, 3/25 | **13 of 135 (9.63%)** | **9.82** | **13 of 121 (10.7%)** | **10.62** |
+
+Both rows moved on the pooled percent and on the mean of the rates. Burn-in pooled **13 of 135 (9.63%)** sits inside the signed **7–16%** band. Read the pooled k-of-n. Do not retune `SECOND_SCENE_K` or the other scene dials from these rates.
+
+### Report-never-tune
+
+No row in `docs/baselines.json` moves. No re-lock. No new band for `hcFiresPerSeason`, `hcFiredLastSeasonWins`, `hcOneAndDonePerSeason`, `clubsAtFiveWinsOrFewer`, `holdoutsPerSeason`, `deadMoneyPct`, `cpuDraftFitMean`, `qbsDraftedPerClass`, `qbsPerClub53`, `qbsPerClubPs`, `p0Failures`, `milestonesOff`, `staff.problems`, `staff.leagueOvrDelta`, `outlierExplainedPct`, `r1QbSharePct`, or either path-2 rate. The signed locks this panel still sits inside (`franchiseTagsPerSeason` **14±4**, `leagueOvrDelta` max **1.2**, `r1QbSharePct` max **16**, `path2BurnInTop10PrPct` pooled **7–16%**) stay as signed.
+
+`drift.qbsPerClub53` **3.904** is the reading the ≤3-on-53 cutdown starts from. This section does not open that packet.
+
+### Untouched
+
+Engine, dials, `scripts/`, `docs/baselines.json`. No re-lock.
+
+### Gate
+
+Not run in this packet. The table is the Studio log. Docs only.
+
+---
+
 ## 2026-10-08 — Packet 4 closes: second-scene success band 7–16%, pooled
 
 Docs and baselines only. Matt **SIGNED** 2026-10-08: "Second-scene success band: careers.path2BurnInTop10PrPct 7–16%, read pooled across the panel. No mechanism." Built as written. No engine, sim, dial, or mechanism change. No other metric, band, or re-lock.
