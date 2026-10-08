@@ -5,6 +5,54 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-08 — Packet 4 closes: second-scene success band 7–16%, pooled
+
+Docs and baselines only. Matt **SIGNED** 2026-10-08: "Second-scene success band: careers.path2BurnInTop10PrPct 7–16%, read pooled across the panel. No mechanism." Built as written. No engine, sim, dial, or mechanism change. No other metric, band, or re-lock.
+
+### The band
+
+`docs/baselines.json` `careers.path2BurnInTop10PrPct`: **min 7, max 16** (inclusive). `nfl` stays **11.4** (`nfl-reference.md` §2.7, 4/35). The window is the signed regression band. It is not a target/tol around 11.4.
+
+`careers.secondSceneStarPct` stays ungated. The all-classes path-2 rate stays ungated.
+
+### Pooled read
+
+The row is k-of-n across the panel: **total burn-in top-10 events / total burn-in QBs**, `100 * sum(careers.path2BurnInEvents) / sum(careers.path2BurnInPopN)`. Not the mean of the per-seed rates.
+
+`scripts/gate.ts` averaged every `##M` line. That average is the wrong read for this row. Packet D burn-in, from the 2026-10-06 section: per-seed rates 8.696 / 9.524 / 0 / 0 / 0, mean of the rates **3.64**, pooled **4/120 = 3.3%**. #156 burn-in, from the 2026-10-07 section: **1/18, 4/24, 4/28, 1/28, 3/23**, pooled **13/121 (10.7%)**, mean of the rates **10.62**. The 2026-10-07 section records that panel with no band. This section is the sign-off after that table. The gate now replaces **only** `careers.path2BurnInTop10PrPct`, after the usual mean, with that pooled ratio, and only when the step also emitted both counts. The rate's own `##M` line still has to be emitted; the pool does not invent it. If the rate is emitted and either count is not, the gate drops the rate so the missing-metric check fires, instead of grading the mean. Every other row is still the mean of its own `##M` lines. One seed is the same number either way (`pctOrZero` in `scripts/careers.ts`). `spread` for this name is still the standard deviation of the per-seed rates. The band is min/max, so the noise report does not use that spread.
+
+`npm run gate:serial` is the fast tier. `careers` is not a fast-tier step, so this band is not checked on that run. The full tier's `careers` step is where a panel is read.
+
+`scripts/careers.ts` is not edited. Its PATH 2 banner still prints `No band`. That line covers the whole block, including the all-classes rate.
+
+### Reference points
+
+| reading | pooled | against 7–16 |
+|---|---|---|
+| Packet D panel, burn-in | **4/120 (3.3%)** | under the floor. Pre-#156, at `0f4702f` |
+| #156 QB startsHere panel at `5f64073`, burn-in | **13/121 (10.7%)** | inside |
+| #156 all-classes | **25/229 (10.9%)** | reference only. Not this row |
+
+### Packet 4 closes. Calibration freeze
+
+Packet 4 (second scene) closes with this band.
+
+After the firing-rule and QB ≤3-on-53 panels, the project enters calibration freeze: no new metrics, bands, or re-locks unless a playtest finding needs one.
+
+### Disagreement
+
+None with the signed text. Packet D's pooled **3.3%** sits under the new floor. That panel is the pre-#156 reading. The band is signed against the #156 reading of **13/121 (10.7%)** and is built as written. The floor is not widened. Nothing is retuned.
+
+### Untouched
+
+Engine, sim, dials, `scripts/careers.ts`, every other baseline row.
+
+### Gate
+
+Fast serial gate from `v2/`, report-never-tune. Output is appended when the run finishes.
+
+---
+
 ## 2026-10-07 — Wave 4.4 Packet B (QB supply): Studio panel GATE table @ 5f64073 (report-only)
 
 Docs only. Wave 4.4 Packet B close-out. **Report-only. No re-lock.**

@@ -441,6 +441,12 @@
       "min": 2,
       "note": "round 1 starter seasons minus round 5-7. if this inverts, every scouting feature above it is decoration. today 3.69"
     },
+    "careers.path2BurnInTop10PrPct": {
+      "min": 7,
+      "max": 16,
+      "nfl": 11.4,
+      "note": "SIGNED 2026-10-08 Packet 4 close (Matt). Second-scene success band, inclusive 7-16. The gate reads this one row pooled across the panel: 100 * sum(careers.path2BurnInEvents) / sum(careers.path2BurnInPopN), k-of-n, not the mean of per-seed rates. nfl 11.4 is nfl-reference.md §2.7 (4/35). Reference readings, not targets: Packet D panel burn-in 4/120 (3.3%, pre-#156, under the floor); #156 QB startsHere at 5f64073 burn-in 13/121 (10.7%), all-classes 25/229 (10.9%, not this row). No mechanism. secondSceneStarPct and the all-classes path-2 rate stay ungated."
+    },
     "staff.problems": {
       "max": 0,
       "note": "the staff allocation harness's own four checks: neutrality, no inflation, concentration works, potential is a wall"
