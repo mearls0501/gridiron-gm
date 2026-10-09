@@ -5,6 +5,51 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-08 — QB cutdown: at most 3 on the 53
+
+Matt **SIGNED** 2026-10-08: "CPU clubs keep at most 3 QBs on the 53." Built as written. Solo packet.
+
+### The rule
+
+After cutdown forms the 53, no club on that call keeps a fourth active quarterback. The cut is the least valuable active quarterback by the cutdown's own worth (`evaluate` plus `draftCapitalHold`), repeated until the active count is 3. The open spots refill from non-quarterbacks so the club stays at 53. Extras still pass waivers. Unclaimed may land on the practice squad. Practice-squad quarterbacks are not capped.
+
+The call is `reconcileRoster(..., ROSTER_LIMIT, true)` inside `finalizeOffseason`. That is Start the Season. It runs for every CPU club and then for the user seat. The user seat is on that same call, so the cap lands there too. Camp fill, `newGame`, and in-season auto-fix do not pass that cutdown flag, and they do not strip a fourth quarterback.
+
+`POSITION_MIN.QB` stays 2. `POSITION_TARGET.QB` stays 3. That target is still generation and need, not this cap.
+
+### The read
+
+`drift.qbsPerClub53` is the panel read. Expect **≤ 3.0**. No `baselines.json` row. Do not retune toward the census comparison of ~2.6. That comparison stays in `nfl-reference.md` §2.7b. The firing-rule panel on `1d24605` read about **3.90**. The #156 panel at `5f64073` read **3.908**.
+
+A local seed-12345 run, four cutdowns, is not that panel. Per-club means **2.375 / 2.531 / 2.688 / 2.813**, max **3** every spring. Seeds 7 and 42, first cutdown only, **2.406** and **2.563**, max **3**.
+
+`drift.qbsDraftedPerClass` and `drift.qbsPerClubPs` are untouched emits. No band.
+
+### Disagreement
+
+None with the signed text. The census comparison of ~2.6 is not the rule this packet builds. The signed cap is 3.
+
+### Untouched
+
+`choosePass`, `passBias`, snap shares, `cpuBoardValue`, the startsHere clamp, `POSITION_VALUE`, sim dials, `docs/baselines.json`. No re-lock. Year-0 `calibrate.pts`, `calibrate.passYds`, and `statcheck.wr10RecYds` are the opening season, before this cutdown runs.
+
+### Next
+
+The Studio panel for this packet is next. Solo. Calibration freeze comes after that panel.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck is the first step and passed (`tsc --noEmit`, 5s). Determinism, verify (348/348), sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Calibrate year-0 headlines match the firing-rule read (`pts` 23.723333333333333, `passYds` 237.32833333333335). `statcheck.wr10RecYds` **1070**, inside the band, did not fire. `drift.qbsPerClub53` is not in this tier. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+---
+
 ## 2026-10-08 — Packet 4 closes: second-scene success band 7–16%, pooled
 
 Docs and baselines only. Matt **SIGNED** 2026-10-08: "Second-scene success band: careers.path2BurnInTop10PrPct 7–16%, read pooled across the panel. No mechanism." Built as written. No engine, sim, dial, or mechanism change. No other metric, band, or re-lock.
