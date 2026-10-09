@@ -7,7 +7,7 @@
  * separates "it compiles" from "a person can play it".
  *
  * Wave 3.2 also smokes the Wave 1/2 desks: /staff, /history, /play last-snap
- * + PBP, /finances Extend/Restructure, a soft holdout→finances path, and
+ * + PBP, /finances Offer/Restructure, a soft holdout→finances path, and
  * post-FA draft pick count in the mid-260s.
  *
  * Phase 1 PBP §7.1 (P4): /play opening kickoff stays row 1 across a snap
@@ -25,6 +25,9 @@ import {
   checkPhase1BoxScores,
   checkPlayLastSnap,
   checkStaffDesk,
+  hubPhase,
+  pressFaRosterAutoFix,
+  waitForHubPhaseChange,
 } from "./e2e-desks.mjs";
 
 const BASE = process.argv[2] ?? "http://127.0.0.1:3000";
@@ -192,14 +195,18 @@ async function main() {
 
   let playSmoked = await checkPlayLastSnap(page, BASE, report);
 
-  await page.goto(BASE + "/week", { waitUntil: "networkidle" });
-  await page.waitForTimeout(400);
-  const weekTxt = await page.evaluate(() => document.body.innerText);
-  if (!/Gameday Inactives/.test(weekTxt) || !/\bSit\b/.test(weekTxt)) {
-    fail("week missing gameday inactives / Sit");
-  } else {
-    console.log("  ok    /week shows gameday inactives");
-  }
+  const checkInactives = async () => {
+    await page.goto(BASE + "/week", { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    const weekTxt = await page.evaluate(() => document.body.innerText);
+    if (/Bye week/i.test(weekTxt)) return "bye";
+    if (!/Gameday Inactives/.test(weekTxt) || !/\bSit\b/.test(weekTxt)) return "missing";
+    return "ok";
+  };
+  let inactives = await checkInactives();
+  if (inactives === "ok") console.log("  ok    /week shows gameday inactives");
+  else if (inactives === "bye") console.log("  note  /week is a bye — gameday inactives deferred (not a fail)");
+  else fail("week missing gameday inactives / Sit");
 
   // Sit leftover: Hub Sim ▾ stayed open after click-away and Esc.
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -237,7 +244,16 @@ async function main() {
     await page.waitForTimeout(200);
     const btn = page.getByRole("button", { name: /^(Play Week|Advance Week)/ });
     if (!(await btn.count())) break;
-    await btn.click();
+    if (inactives !== "ok" && /Play Week/i.test((await btn.innerText()) || "")) {
+      inactives = await checkInactives();
+      if (inactives === "ok") console.log("  ok    /week shows gameday inactives");
+      else if (inactives !== "bye") fail("week missing gameday inactives / Sit");
+      await page.goto(BASE + "/", { waitUntil: "networkidle" });
+      await page.waitForTimeout(200);
+    }
+    const advanceBtn = page.getByRole("button", { name: /^(Play Week|Advance Week)/ });
+    if (!(await advanceBtn.count())) break;
+    await advanceBtn.click();
     await page.waitForTimeout(900);
     await checkPage(`[week ${i + 1}] /`);
     weeks++;
@@ -293,24 +309,37 @@ async function main() {
   // ---- Offseason ------------------------------------------------------------
   let steps = 0;
   let draftBoardChecked = false;
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 15; i++) {
     await page.goto(BASE + "/", { waitUntil: "networkidle" });
     await page.waitForTimeout(400);
+    if ((await hubPhase(page)) === "Preseason" && steps > 0) break;
     if (!draftBoardChecked && await page.getByRole("button", { name: /Finish the Draft/i }).count()) {
       await checkDraftBoard(page, BASE, report);
       draftBoardChecked = true;
       await page.goto(BASE + "/", { waitUntil: "networkidle" });
       await page.waitForTimeout(300);
     }
+    await pressFaRosterAutoFix(page);
     const btn = page
       .getByRole("button", { name: /Continue to|Finish the Draft|Start the Season|Roster Cutdown|Continue$/i })
       .first();
     if (!(await btn.count())) break;
+    if (!(await btn.isEnabled())) {
+      fail(`offseason advance stayed disabled at step ${i + 1}`);
+      break;
+    }
+    const label = ((await btn.innerText()) || "").replace(/\s+/g, " ").trim();
+    const phaseBefore = await hubPhase(page);
+    const yielded = /Finish the Draft|Continue to the Draft/i.test(label);
     await btn.click();
     await page.waitForTimeout(250);
     const confirm = page.getByRole("button", { name: /^Confirm$/ });
     if (await confirm.count()) await confirm.click();
-    await page.waitForTimeout(2500);
+    if (yielded && phaseBefore) {
+      await waitForHubPhaseChange(page, phaseBefore);
+    } else {
+      await page.waitForTimeout(2500);
+    }
     await checkPage(`[offseason step ${i + 1}] /`);
     steps++;
     await visitAll(`[offseason ${i + 1}]`);

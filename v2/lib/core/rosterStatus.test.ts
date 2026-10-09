@@ -299,6 +299,39 @@ function starterIds(st: ReturnType<typeof newGame>, teamId: number): number[] {
   }
 }
 
+// The 3-QB cutdown is CPU-only. A user club that reaches cutdown with 4
+// keeps all 4. A CPU club on the same call is still capped at 3.
+{
+  const st = newGame({ seed: 22 });
+  st.phase = "offseason-final";
+  const userId = st.userTeamId;
+  const cpuId = st.teams.find((t) => t.id !== userId)!.id;
+
+  function forceFour(teamId: number) {
+    while (positionCount(st, teamId, "QB") < 4) {
+      const donor = st.players.filter(
+        (p) => p.teamId === teamId && !p.retired && !p.prospect && isActiveRoster(p) && p.pos !== "QB",
+      ).sort((a, b) => b.ovr - a.ovr || a.id - b.id)[0];
+      assert.ok(donor, `no donor to make a fourth QB for ${teamId}`);
+      donor.pos = "QB";
+      donor.ovr = 90;
+    }
+    assert.equal(positionCount(st, teamId, "QB"), 4);
+    assert.equal(rosterCount(st, teamId), ROSTER_LIMIT);
+  }
+  forceFour(userId);
+  forceFour(cpuId);
+
+  const rng = new Rng(st.rngState);
+  reconcileRoster(st, userId, rng, ROSTER_LIMIT, true);
+  reconcileRoster(st, cpuId, rng, ROSTER_LIMIT, true);
+  assert.equal(positionCount(st, userId, "QB"), 4, "user cutdown keeps the fourth QB");
+  assert.equal(rosterCount(st, userId), ROSTER_LIMIT);
+  assert.ok(positionCount(st, cpuId, "QB") <= QB_53_MAX, "CPU cutdown still caps at 3");
+  assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT);
+  st.rngState = rng.state;
+}
+
 // finalizeOffseason still locks every club's ACTIVE count at 53.
 {
   const st = newGame({ seed: 1 });
@@ -317,6 +350,7 @@ function starterIds(st: ReturnType<typeof newGame>, teamId: number): number[] {
   for (const t of st.teams) {
     assert.equal(rosterCount(st, t.id), ROSTER_LIMIT, `${t.abbr} active after cutdown`);
     assert.ok(practiceSquadCount(st, t.id) <= PRACTICE_SQUAD_LIMIT, `${t.abbr} PS over 16`);
+    if (t.id === st.userTeamId) continue;
     assert.ok(positionCount(st, t.id, "QB") <= QB_53_MAX, `${t.abbr} kept a fourth QB on the 53`);
   }
   assert.equal(st.phase, "preseason");

@@ -12,6 +12,9 @@ import {
   checkPhase1BoxScores,
   checkPlayLastSnap,
   checkStaffDesk,
+  hubPhase,
+  pressFaRosterAutoFix,
+  waitForHubPhaseChange,
 } from "./e2e-desks.mjs";
 const BASE = process.argv[2] ?? "http://127.0.0.1:3000";
 let failures = 0;
@@ -184,14 +187,21 @@ for (let i = 0; i < 5; i++) {
 // Advance the offseason to the draft — but never past it. "Finish the Draft"
 // auto-picks the whole class, which would leave nothing here to click and
 // silently skip the manual-pick coverage this test exists to provide.
-for (let i = 0; i < 4; i++) {
+for (let i = 0; i < 15; i++) {
   await page.goto(BASE + "/", { waitUntil: "networkidle" }); await page.waitForTimeout(400);
   if (await page.getByRole("button", { name: /Finish the Draft/i }).count()) break;
+  await pressFaRosterAutoFix(page);
   const b = page.getByRole("button", { name: /Continue to/i }).first();
   if (!(await b.count())) break;
+  const label = ((await b.innerText()) || "").replace(/\s+/g, " ").trim();
+  const phaseBefore = await hubPhase(page);
   await b.click(); await page.waitForTimeout(250);
   const c = page.getByRole("button", { name: /^Confirm$/ }); if (await c.count()) await c.click();
-  await page.waitForTimeout(2200);
+  if (/Continue to the Draft/i.test(label) && phaseBefore) {
+    await waitForHubPhaseChange(page, phaseBefore);
+  } else {
+    await page.waitForTimeout(2200);
+  }
 }
 if (!(await page.getByRole("button", { name: /Finish the Draft/i }).count())) {
   fail("never reached the draft phase");

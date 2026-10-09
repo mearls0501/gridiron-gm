@@ -477,9 +477,10 @@ stays **~2.6** active quarterbacks per club
 `baselines.json` band, and the cap is not a retune toward it.
 
 After the final 53 is formed — `reconcileRoster` at `ROSTER_LIMIT`
-with the cutdown stash, which is Start the Season — every club on
-that call keeps at most 3 active quarterbacks. The same call runs for
-the user seat. `POSITION_MIN.QB` stays 2. `POSITION_TARGET.QB` stays
+with the cutdown stash, which is Start the Season — every CPU club on
+that call keeps at most 3 active quarterbacks. `capQuarterbacksOn53`
+skips `state.userTeamId` (Matt SIGNED 2026-10-09), so the user's
+fourth stays. `POSITION_MIN.QB` stays 2. `POSITION_TARGET.QB` stays
 3 and is still only the generation and need target. Practice-squad
 quarterbacks are not capped by this sentence.
 
@@ -596,7 +597,8 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   child stream keyed (seed, "jersey", playerId) and must not move
   the parent RNG. Ungated published rule.
 - **Quarterbacks on the 53, cap of 3.** Added 2026-10-08. Matt SIGNED:
-  "CPU clubs keep at most 3 QBs on the 53." Cutdown rule, not a traced
+  "CPU clubs keep at most 3 QBs on the 53." The user seat is not capped
+  (Matt SIGNED 2026-10-09). Cutdown rule, not a traced
   mean. The census comparison remains ~2.6. `drift.qbsPerClub53` is the
   panel read and is expected **≤ 3.0**. No `baselines.json` row.
   See §2.7b.
