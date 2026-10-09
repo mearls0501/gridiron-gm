@@ -195,14 +195,18 @@ async function main() {
 
   let playSmoked = await checkPlayLastSnap(page, BASE, report);
 
-  await page.goto(BASE + "/week", { waitUntil: "networkidle" });
-  await page.waitForTimeout(400);
-  const weekTxt = await page.evaluate(() => document.body.innerText);
-  if (!/Gameday Inactives/.test(weekTxt) || !/\bSit\b/.test(weekTxt)) {
-    fail("week missing gameday inactives / Sit");
-  } else {
-    console.log("  ok    /week shows gameday inactives");
-  }
+  const checkInactives = async () => {
+    await page.goto(BASE + "/week", { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    const weekTxt = await page.evaluate(() => document.body.innerText);
+    if (/Bye week/i.test(weekTxt)) return "bye";
+    if (!/Gameday Inactives/.test(weekTxt) || !/\bSit\b/.test(weekTxt)) return "missing";
+    return "ok";
+  };
+  let inactives = await checkInactives();
+  if (inactives === "ok") console.log("  ok    /week shows gameday inactives");
+  else if (inactives === "bye") console.log("  note  /week is a bye — gameday inactives deferred (not a fail)");
+  else fail("week missing gameday inactives / Sit");
 
   // Sit leftover: Hub Sim ▾ stayed open after click-away and Esc.
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -240,7 +244,16 @@ async function main() {
     await page.waitForTimeout(200);
     const btn = page.getByRole("button", { name: /^(Play Week|Advance Week)/ });
     if (!(await btn.count())) break;
-    await btn.click();
+    if (inactives !== "ok" && /Play Week/i.test((await btn.innerText()) || "")) {
+      inactives = await checkInactives();
+      if (inactives === "ok") console.log("  ok    /week shows gameday inactives");
+      else if (inactives !== "bye") fail("week missing gameday inactives / Sit");
+      await page.goto(BASE + "/", { waitUntil: "networkidle" });
+      await page.waitForTimeout(200);
+    }
+    const advanceBtn = page.getByRole("button", { name: /^(Play Week|Advance Week)/ });
+    if (!(await advanceBtn.count())) break;
+    await advanceBtn.click();
     await page.waitForTimeout(900);
     await checkPage(`[week ${i + 1}] /`);
     weeks++;
