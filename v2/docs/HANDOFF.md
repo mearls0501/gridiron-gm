@@ -19,7 +19,7 @@ Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.js
 
 ### E2E harness
 
-The offseason loop runs up to 15 steps. Free agency presses Auto-fix when the hub shows a roster-count issue. After Finish the Draft, then Confirm — and after Continue to the Draft, which is the same yielded sim — the runner waits for the phase to change before navigating. `/finances` looks for Offer, not Extend.
+The offseason loop runs up to 15 steps. Free agency presses Auto-fix when the hub shows a roster-count issue. After Finish the Draft, then Confirm — and after Continue to the Draft, which is the same yielded sim — the runner waits for the phase to change before navigating. That wait also holds until the save's phase matches the hub, because a navigation in the same beat reloads the pre-sim franchise. The loop stops once the hub is the next preseason, so it does not press Start the Season again. `/finances` looks for Offer, not Extend.
 
 ---
 

@@ -299,6 +299,7 @@ async function main() {
   for (let i = 0; i < 15; i++) {
     await page.goto(BASE + "/", { waitUntil: "networkidle" });
     await page.waitForTimeout(400);
+    if ((await hubPhase(page)) === "Preseason" && steps > 0) break;
     if (!draftBoardChecked && await page.getByRole("button", { name: /Finish the Draft/i }).count()) {
       await checkDraftBoard(page, BASE, report);
       draftBoardChecked = true;

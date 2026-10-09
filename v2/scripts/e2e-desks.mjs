@@ -124,7 +124,12 @@ export async function pressFaRosterAutoFix(page) {
   return true;
 }
 
-/** Yielded offseason (FA continue, Finish the Draft) must land before the next navigation. */
+/**
+ * Yielded offseason (FA continue, Finish the Draft) must land before the next
+ * navigation. The hub paints the new phase, then the save commits. A goto in
+ * between reloads the pre-sim franchise, so this also waits until IndexedDB
+ * has that same phase.
+ */
 export async function waitForHubPhaseChange(page, before) {
   await page.waitForFunction((prev) => {
     const re = /\b20\d{2}\s+(Preseason|Regular Season|Playoffs|Season Review|Franchise Tag|Free Agency|Draft|Roster Cutdown)\b/;
@@ -133,6 +138,53 @@ export async function waitForHubPhaseChange(page, before) {
     const m = block.match(re);
     const phase = m ? m[1] : "";
     return phase !== "" && phase !== prev;
+  }, before, { timeout: 180000 });
+  await page.waitForFunction((prev) => {
+    const re = /\b20\d{2}\s+(Preseason|Regular Season|Playoffs|Season Review|Franchise Tag|Free Agency|Draft|Roster Cutdown)\b/;
+    const labels = {
+      preseason: "Preseason",
+      regular: "Regular Season",
+      playoffs: "Playoffs",
+      "offseason-recap": "Season Review",
+      "offseason-tag": "Franchise Tag",
+      "offseason-fa": "Free Agency",
+      "offseason-draft": "Draft",
+      "offseason-final": "Roster Cutdown",
+    };
+    const h1 = document.querySelector("h1");
+    const block = h1?.parentElement?.innerText ?? document.body.innerText;
+    const m = block.match(re);
+    const visible = m ? m[1] : "";
+    if (!visible || visible === prev) return false;
+    return new Promise((resolve) => {
+      const req = indexedDB.open("gridiron-gm", 1);
+      req.onerror = () => resolve(false);
+      req.onsuccess = () => {
+        const db = req.result;
+        const meta = db.transaction("meta", "readonly").objectStore("meta").get("lastSaveId");
+        meta.onerror = () => {
+          db.close();
+          resolve(false);
+        };
+        meta.onsuccess = () => {
+          const id = meta.result;
+          if (!id) {
+            db.close();
+            resolve(false);
+            return;
+          }
+          const row = db.transaction("saves", "readonly").objectStore("saves").get(id);
+          row.onerror = () => {
+            db.close();
+            resolve(false);
+          };
+          row.onsuccess = () => {
+            db.close();
+            resolve((labels[row.result?.phase] ?? "") === visible);
+          };
+        };
+      };
+    });
   }, before, { timeout: 180000 });
 }
 
