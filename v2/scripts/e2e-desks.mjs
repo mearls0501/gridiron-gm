@@ -365,7 +365,9 @@ export async function checkPlayLastSnap(page, base, { fail, ok }) {
   const done = await readLiveDesk(page);
   if (done.rowLines[0] !== OPENING_KICKOFF) {
     fail(`/play continue rewrote the opening kickoff row (${JSON.stringify(done.rowLines[0])})`);
-  } else if (!/(\brun\b|\bpass\b|\bsacked\b)/i.test(done.lastSnap)) {
+  } else if (!done.lastSnap) {
+    // Coach-finish often ends on a kneel, kick, or score. §7.1 asks that
+    // Last snap still be on the page, not that the final play be a run.
     fail("/play continue dropped Last snap");
   } else if (!done.hasDrive || !done.hasPbp) {
     fail("/play continue missing Drive Log or Play by Play");
