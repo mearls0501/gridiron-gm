@@ -5,6 +5,114 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-09 — Studio panel GATE table: QB ≤3-on-53 cutdown (#164 @ 977d578) (report-only)
+
+Docs only. PR #164 close-out panel. **Report-only. No re-lock.**
+
+Mac Studio `npm run gate:full:serial`, 5 seeds, on `977d5786dc5dd0d581f637097023b01dabe983e4` (#164, at most 3 quarterbacks on the 53). Started 9:36 PM ET 2026-10-08, finished about 4:09 AM ET 2026-10-09. Worktree `~/Projects/gg-977d578-panel`. The numbers are that commit. `docs/baselines.json` **not edited**. Engine, dials, and `scripts/` not touched. Report-never-tune.
+
+### GATE FAIL 4 — panel @ `977d578`
+
+The firing-rule panel (@ `1d24605`) was GATE FAIL 4. This panel is GATE FAIL 4. Drift cleared. Staff is the new line.
+
+```
+FAIL  coherence  exited 1
+FAIL  staff  exited 1
+FAIL  tails.milestonesOff  21.20  expected <= 16  (KNOWN-HIGH, target 0. Count of categories outside the central 95% Poisson interval (λ = NFL rate × seasons). Panel 16.0 (14/15/15/18/18) after the 2026-08-28 verdict change; the old ratio-band lock of 12 does not apply to this metric.)
+FAIL  staff.problems  0.20  expected <= 0  (the staff allocation harness's own four checks: neutrality, no inflation, concentration works, potential is a wall)
+
+GATE FAIL  4 problems
+```
+
+`coherence` exited 1. Seed 1 is under the floor of **85** (`##M` **84.62**). The series is the same as the firing panel: **84.62 / 90.60 / 87.67 / 87.66 / 86.36**. The panel mean **87.38** is above the floor, so the four FAIL lines do not name a coherence metric. Floor **85** stays. Do not soften it.
+
+`tails.milestonesOff` **21.20** (16/22/23/21/24). KNOWN-HIGH. Same seeds as the firing panel. Max stays **16**. Not re-locked.
+
+`staff` exited 1. `staff.problems` **0.20**. Seed 1 `staff.leagueOvrDelta` was **1.32**, against the **1.2** per-seed limit. That is the one problem. The panel mean of `staff.leagueOvrDelta` is **0.829** (1.32/0.78/0.79/0.35/0.91), inside max **1.2**, so that metric is not a FAIL line. The firing panel was `staff.problems` **0**. Max stays **0**. Not re-locked.
+
+Drift exited 0. `drift.p0Failures` **0.00**, down from **0.40** on the firing panel. The age guard is still open. These seeds did not hit it. Max stays **0**. Not re-locked.
+
+### Panel means (5-seed)
+
+Seeds in panel order, where this section has them. The mean is the average of the five seed-block `##M` lines. The **firing** column is the 2026-10-08 panel table (@ `1d24605`).
+
+| metric | this panel | firing @ `1d24605` | notes |
+|---|---|---|---|
+| `coherence.outlierExplainedPct` | **87.38** (84.62/90.60/87.67/87.66/86.36) | **87.38** (same series) | Seed 1 under floor **85**. Floor stays |
+| `tails.milestonesOff` | **21.20** (16/22/23/21/24) | **21.20** (16/22/23/21/24) | **FAIL** ≤16. KNOWN-HIGH. Unchanged. Not re-locked |
+| `staff.problems` | **0.20** | **0** | **FAIL** ≤0. New. Seed 1 only. Not re-locked |
+| `drift.p0Failures` | **0.00** | **0.40** (0/0/1/0/1) | Drift exit cleared. Age guard still open. These seeds did not hit it. Max stays **0** |
+| `drift.qbsPerClub53` | **2.825** (2.84/2.85/2.79/2.84/2.80) | **3.904** | **The real move.** ≤ **3.0**, as expected |
+| `drift.qbsPerClubPs` | **2.284** | **2.201** | Within seed noise |
+| `drift.qbsDraftedPerClass` | **13.26** | **13.36** | Within seed noise. Real **11.6** |
+| `careers.r1QbSharePct` | **10.57** | **9.58** | Within seed noise. Under max **16** |
+| `careers.path2BurnInTop10PrPct` | pooled **12 of 124 (9.68%)** | pooled **13 of 135 (9.63%)** | Within seed noise. Inside signed pooled band **7–16%** |
+| `careers.path2Top10PrPct` | pooled **27 of 228 (11.84%)** | pooled **24 of 238 (10.08%)** | Within seed noise. No band |
+| `drift.hcFiresPerSeason` | **6.76** | **6.55** | Within seed noise. NFL real **7.1** (§7.1) |
+| `drift.hcFiredLastSeasonWins` | **5.68** | **5.61** | Within seed noise. Ref ~5.5 |
+| `drift.hcOneAndDonePerSeason` | **1.02** | **0.79** | Within seed noise. Watch. Ref ~0.4. No band |
+| `drift.clubsAtFiveWinsOrFewer` | **4.56** | **4.25** | Within seed noise. NFL real **6.75** (§7.2) |
+| `staff.leagueOvrDelta` | **0.829** (1.32/0.78/0.79/0.35/0.91) | **0.506** | Mean inside max **1.2**. Seed 1 is the `staff.problems` miss |
+| `drift.franchiseTagsPerSeason` | **16.13** | **16.26** | Within seed noise. Inside signed **14±4** |
+| `drift.deadMoneyPct` | **5.54** | **5.39** | Within seed noise. No band |
+| `drift.holdoutsPerSeason` | **10.42** | **10.09** | Within seed noise. No band |
+| `drift.cpuDraftFitMean` | **0.0603** | **0.0618** | Within seed noise. No band |
+
+### Quarterback supply
+
+`drift.qbsPerClub53` is the read this packet signed. Expect **≤ 3.0**. This panel is **2.825** (2.84 / 2.85 / 2.79 / 2.84 / 2.80). The firing panel was **3.904**. That drop is the real move. Every seed is under 3.
+
+The census comparison of ~2.6 stays in `nfl-reference.md` §2.7b. It is not a target. Do not retune toward it. No `baselines.json` row.
+
+`drift.qbsPerClubPs` **2.284**, firing panel **2.201**. `drift.qbsDraftedPerClass` **13.26**, firing panel **13.36**. Real drafted per class is **11.6**. Both sit inside seed noise. No band.
+
+### Staff
+
+`staff.problems` **0.20** is new against the firing panel's **0**. Seed 1's league-mean move was **1.32**, over the harness's per-seed limit of **1.2**. Seeds 2–5 are **0.78 / 0.79 / 0.35 / 0.91**, all inside that limit. The panel mean **0.829** is inside the signed max **1.2**, so `staff.leagueOvrDelta` is not a FAIL line. Max on `staff.problems` stays **0**. Not re-locked. Do not widen **1.2**.
+
+### Path 2 — pooled k of n
+
+Pooled counts, not the mean of the percents. The signed band on `careers.path2BurnInTop10PrPct` is **7–16%**, read pooled.
+
+| row | this panel | firing panel |
+|---|---|---|
+| burn-in only | **12 of 124 (9.68%)** | **13 of 135 (9.63%)** |
+| all classes | **27 of 228 (11.84%)** | **24 of 238 (10.08%)** |
+
+Burn-in pooled **12 of 124 (9.68%)** sits inside the signed **7–16%** band. All-classes has no band. Do not retune `SECOND_SCENE_K` or the other scene dials from these rates.
+
+### Firing emits
+
+Report-only. No dial moves. No band.
+
+`drift.hcFiresPerSeason` **6.76**, firing panel **6.55**. `drift.hcFiredLastSeasonWins` **5.68**, firing panel **5.61**. The reference is ~5.5. `drift.hcOneAndDonePerSeason` **1.02**, firing panel **0.79**. The reference is ~0.4. Watch it. Do not add a band. `drift.clubsAtFiveWinsOrFewer` **4.56**, firing panel **4.25**. `nfl-reference.md` §7.2 mean is **6.75**.
+
+### Age guard
+
+The guard is still the known-open row: `34-year-olds rate below 27-year-olds`, cut strictly above 80% of the 20 seasons. `drift.p0Failures` on this panel is **0.00**. The firing panel was **0.40**. These seeds did not hit the guard. The row stays open. Max stays **0**. Not re-locked. Do not tune the age curve.
+
+### Verdict
+
+Only `drift.qbsPerClub53` moved for real, **3.904** to **2.825**, under the signed cap of **3**. Everything else in the table is within seed noise. Reported, not tuned.
+
+### Calibration freeze
+
+**CALIBRATION FREEZE** in effect (Matt **SIGNED** 2026-10-08). No new metrics, bands, or re-locks unless a playtest finding needs one.
+
+### Report-never-tune
+
+No row in `docs/baselines.json` moves. No re-lock. No new band for `qbsPerClub53`, `qbsPerClubPs`, `qbsDraftedPerClass`, `hcFiresPerSeason`, `hcFiredLastSeasonWins`, `hcOneAndDonePerSeason`, `clubsAtFiveWinsOrFewer`, `holdoutsPerSeason`, `deadMoneyPct`, `cpuDraftFitMean`, `p0Failures`, `milestonesOff`, `staff.problems`, `staff.leagueOvrDelta`, `outlierExplainedPct`, `r1QbSharePct`, `franchiseTagsPerSeason`, or either path-2 rate. The signed locks this panel still sits inside (`franchiseTagsPerSeason` **14±4**, `leagueOvrDelta` max **1.2**, `r1QbSharePct` max **16**, `path2BurnInTop10PrPct` pooled **7–16%**) stay as signed. `qbsPerClub53` stays an expectation of **≤ 3.0**, with no `baselines.json` row.
+
+### Untouched
+
+Engine, dials, `scripts/`, `docs/baselines.json`. No re-lock.
+
+### Gate
+
+Not run in this packet. The table is the Studio log. Docs only.
+
+---
+
 ## 2026-10-08 — QB cutdown: at most 3 on the 53
 
 Matt **SIGNED** 2026-10-08: "CPU clubs keep at most 3 QBs on the 53." Built as written. Solo packet.
