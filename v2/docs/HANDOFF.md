@@ -5,6 +5,24 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-09 — User QB seat, rebuild one-and-done, e2e harness
+
+Matt **SIGNED** 2026-10-09. Built as written. No disagreement with the spec.
+
+`capQuarterbacksOn53` skips `state.userTeamId`. CPU clubs still keep at most 3 QBs on the 53. A user club that reaches cutdown with 4 keeps all 4. The 2026-10-08 sentence that the shared call capped the user seat is superseded for that seat only.
+
+`ownerJudgment`'s single-season clause does not fire when that season's `expectedWins` is the rebuild target (6). CPU head coaches and the user GM both use that read. A retool club (expected 8) with 3 wins in year 1 still fires.
+
+The firing-rule panel isn't required for the rebuild one-and-done (#2, about −0.3 fires/yr), so the next panel should report `hcFiresPerSeason`.
+
+Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json`, dials, and calibration constants were not touched.
+
+### E2E harness
+
+The offseason loop runs up to 15 steps. Free agency presses Auto-fix when the hub shows a roster-count issue. After Finish the Draft, then Confirm — and after Continue to the Draft, which is the same yielded sim — the runner waits for the phase to change before navigating. `/finances` looks for Offer, not Extend.
+
+---
+
 ## 2026-10-09 — Studio panel GATE table: QB ≤3-on-53 cutdown (#164 @ 977d578) (report-only)
 
 Docs only. PR #164 close-out panel. **Report-only. No re-lock.**

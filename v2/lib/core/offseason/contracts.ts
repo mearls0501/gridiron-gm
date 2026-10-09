@@ -1206,9 +1206,10 @@ export function fillRoster(
     if (!cutWorstSurplus(state, teamId, null)) break;
   }
 
-  // 5. Final 53 only. Matt SIGNED 2026-10-08: at most 3 active QBs.
+  // 5. Final 53 only. Matt SIGNED 2026-10-08: CPU clubs, at most 3 active QBs.
   // `stashPs` is the cutdown call (`reconcileRoster(..., 53, true)`).
   // Camp fill, newGame, and in-season auto-fix do not pass it.
+  // The user seat is skipped inside `capQuarterbacksOn53`.
   if (stashPs && limit === ROSTER_LIMIT) {
     capQuarterbacksOn53(state, teamId, rng);
   }
@@ -1269,7 +1270,9 @@ function cutWorstSurplus(state: GameState, teamId: number, protectPos: Position 
 /**
  * Active quarterbacks kept once the 53 is formed.
  * Matt SIGNED 2026-10-08: "CPU clubs keep at most 3 QBs on the 53."
- * The cutdown call is shared with the user seat, so that seat is capped too.
+ * The cutdown call is shared with the user seat. `capQuarterbacksOn53`
+ * skips `state.userTeamId` (Matt SIGNED 2026-10-09), so that seat can
+ * keep a fourth.
  * Not `POSITION_TARGET` — that target does not stop a fourth from surviving the surplus sort.
  */
 export const QB_53_MAX = 3;
@@ -1298,8 +1301,10 @@ function cutWorstActiveQuarterback(state: GameState, teamId: number): boolean {
  * Waive active quarterbacks past the cap, then refill the 53 with non-QBs.
  * The fourth stays off the 53 even when the surplus sort would keep him.
  * Waived bodies still clear through waivers; this does not park them on the PS directly.
+ * The user seat is not this cap.
  */
 function capQuarterbacksOn53(state: GameState, teamId: number, rng: Rng): void {
+  if (teamId === state.userTeamId) return;
   let guard = 0;
   while (positionCount(state, teamId, "QB") > QB_53_MAX && guard++ < 16) {
     if (!cutWorstActiveQuarterback(state, teamId)) break;

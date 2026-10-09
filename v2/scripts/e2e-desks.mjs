@@ -55,15 +55,15 @@ export async function checkHistoryDesk(page, base, { fail, ok }, { expectArchive
 export async function checkFinancesDesk(page, base, { fail, ok }, { click = false } = {}) {
   await page.goto(base + "/finances", { waitUntil: "networkidle" });
   await page.waitForTimeout(500);
-  const extend = page.getByRole("button", { name: /^Extend$/ });
+  const offer = page.getByRole("button", { name: /^Offer$/ });
   const rest = page.getByRole("button", { name: /^Restructure$/ });
-  const extendN = await extend.count();
+  const offerN = await offer.count();
   const restN = await rest.count();
-  if (!extendN || !restN) {
-    fail(`/finances missing contract-office controls (Extend=${extendN} Restructure=${restN})`);
+  if (!offerN || !restN) {
+    fail(`/finances missing contract-office controls (Offer=${offerN} Restructure=${restN})`);
     return;
   }
-  ok(`/finances Extend (${extendN}) and Restructure (${restN}) present`);
+  ok(`/finances Offer (${offerN}) and Restructure (${restN}) present`);
 
   if (!click) return;
 
@@ -76,27 +76,64 @@ export async function checkFinancesDesk(page, base, { fail, ok }, { click = fals
     }
   }
   if (!clicked) {
-    for (let i = 0; i < extendN; i++) {
-      if (await extend.nth(i).isEnabled()) {
-        await extend.nth(i).click();
-        clicked = "Extend";
+    for (let i = 0; i < offerN; i++) {
+      if (await offer.nth(i).isEnabled()) {
+        await offer.nth(i).click();
+        clicked = "Offer";
         break;
       }
     }
   }
   if (!clicked) {
-    console.log("  note  no enabled Extend/Restructure this roster — presence only");
+    console.log("  note  no enabled Offer/Restructure this roster — presence only");
     return;
   }
   await page.waitForTimeout(700);
   const after = await pageText(page);
   if (/Application error|Unhandled Runtime Error|client-side exception/i.test(after)) {
     fail(`${clicked} on /finances hit the error boundary`);
-  } else if (!/Cap Space|Extend|Restructure/i.test(after)) {
+  } else if (!/Cap Space|Offer|Restructure/i.test(after)) {
     fail(`${clicked} on /finances left the desk empty`);
   } else {
     ok(`/finances ${clicked} smoke did not blow up the desk`);
   }
+}
+
+const HUB_PHASE_RE = /\b20\d{2}\s+(Preseason|Regular Season|Playoffs|Season Review|Franchise Tag|Free Agency|Draft|Roster Cutdown)\b/;
+
+export function hubPhase(page) {
+  return page.evaluate((source) => {
+    const re = new RegExp(source);
+    const h1 = document.querySelector("h1");
+    const block = h1?.parentElement?.innerText ?? document.body.innerText;
+    const m = block.match(re);
+    return m ? m[1] : "";
+  }, HUB_PHASE_RE.source);
+}
+
+/** FA hub shows a roster-count issue and Auto-fix. Press it so Continue can proceed. */
+export async function pressFaRosterAutoFix(page) {
+  const phase = await hubPhase(page);
+  if (phase !== "Free Agency") return false;
+  const body = await pageText(page);
+  if (!/Roster (under|over) the limit/i.test(body)) return false;
+  const fix = page.getByRole("button", { name: /^Auto-fix$/ }).first();
+  if (!(await fix.count())) return false;
+  await fix.click();
+  await page.waitForTimeout(800);
+  return true;
+}
+
+/** Yielded offseason (FA continue, Finish the Draft) must land before the next navigation. */
+export async function waitForHubPhaseChange(page, before) {
+  await page.waitForFunction((prev) => {
+    const re = /\b20\d{2}\s+(Preseason|Regular Season|Playoffs|Season Review|Franchise Tag|Free Agency|Draft|Roster Cutdown)\b/;
+    const h1 = document.querySelector("h1");
+    const block = h1?.parentElement?.innerText ?? document.body.innerText;
+    const m = block.match(re);
+    const phase = m ? m[1] : "";
+    return phase !== "" && phase !== prev;
+  }, before, { timeout: 180000 });
 }
 
 /**

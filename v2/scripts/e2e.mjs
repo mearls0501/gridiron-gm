@@ -7,7 +7,7 @@
  * separates "it compiles" from "a person can play it".
  *
  * Wave 3.2 also smokes the Wave 1/2 desks: /staff, /history, /play last-snap
- * + PBP, /finances Extend/Restructure, a soft holdout→finances path, and
+ * + PBP, /finances Offer/Restructure, a soft holdout→finances path, and
  * post-FA draft pick count in the mid-260s.
  *
  * Phase 1 PBP §7.1 (P4): /play opening kickoff stays row 1 across a snap
@@ -25,6 +25,9 @@ import {
   checkPhase1BoxScores,
   checkPlayLastSnap,
   checkStaffDesk,
+  hubPhase,
+  pressFaRosterAutoFix,
+  waitForHubPhaseChange,
 } from "./e2e-desks.mjs";
 
 const BASE = process.argv[2] ?? "http://127.0.0.1:3000";
@@ -293,7 +296,7 @@ async function main() {
   // ---- Offseason ------------------------------------------------------------
   let steps = 0;
   let draftBoardChecked = false;
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 15; i++) {
     await page.goto(BASE + "/", { waitUntil: "networkidle" });
     await page.waitForTimeout(400);
     if (!draftBoardChecked && await page.getByRole("button", { name: /Finish the Draft/i }).count()) {
@@ -302,15 +305,27 @@ async function main() {
       await page.goto(BASE + "/", { waitUntil: "networkidle" });
       await page.waitForTimeout(300);
     }
+    await pressFaRosterAutoFix(page);
     const btn = page
       .getByRole("button", { name: /Continue to|Finish the Draft|Start the Season|Roster Cutdown|Continue$/i })
       .first();
     if (!(await btn.count())) break;
+    if (!(await btn.isEnabled())) {
+      fail(`offseason advance stayed disabled at step ${i + 1}`);
+      break;
+    }
+    const label = ((await btn.innerText()) || "").replace(/\s+/g, " ").trim();
+    const phaseBefore = await hubPhase(page);
+    const yielded = /Finish the Draft|Continue to the Draft/i.test(label);
     await btn.click();
     await page.waitForTimeout(250);
     const confirm = page.getByRole("button", { name: /^Confirm$/ });
     if (await confirm.count()) await confirm.click();
-    await page.waitForTimeout(2500);
+    if (yielded && phaseBefore) {
+      await waitForHubPhaseChange(page, phaseBefore);
+    } else {
+      await page.waitForTimeout(2500);
+    }
     await checkPage(`[offseason step ${i + 1}] /`);
     steps++;
     await visitAll(`[offseason ${i + 1}]`);

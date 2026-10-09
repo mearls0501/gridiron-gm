@@ -15,6 +15,7 @@ import { COACH_CONTRACT, fireCpuHeadCoaches, tickCoachContracts } from "./coache
 import {
   OWNER_MIN_SEASONS,
   OWNER_ONE_AND_DONE_WINS,
+  OWNER_WIN_TARGET,
   acceptGmChair,
   applyUserGmFiring,
   ensureOwners,
@@ -400,6 +401,65 @@ function holdOtherContracts(st: GameState, keepId: number) {
   assert.equal(ownerJobView(user, user.userTeamId)!.wouldFire, false);
   assert.equal(applyUserGmFiring(user), null);
   ok("5-win first season is not fired");
+}
+
+{
+  const rebuild = ownerJudgment(0.55, [3], [OWNER_WIN_TARGET.rebuild], true);
+  assert.equal(rebuild.wouldFire, false, "rebuild target skips the one-and-done clause");
+  const retool = ownerJudgment(0.55, [3], [OWNER_WIN_TARGET.retool], true);
+  assert.equal(retool.wouldFire, true, "retool 3-win year 1 still fires");
+  assert.equal(OWNER_WIN_TARGET.rebuild, 6);
+  assert.equal(OWNER_WIN_TARGET.retool, 8);
+
+  const user = newGame({ seed: 107 });
+  ensureOwners(user);
+  user.settings = { ...(user.settings!), firingEnabled: true };
+  user.teams[user.userTeamId].owner!.patience = 0.55;
+  user.teams[user.userTeamId].gmHiredSeason = user.season - 1;
+  plantGradedYear(
+    user,
+    user.season - 1,
+    (id) => (id === user.userTeamId ? 3 : 14),
+    (id) => (id === user.userTeamId ? OWNER_WIN_TARGET.rebuild : OWNER_WIN_TARGET.retool),
+  );
+  assert.equal(ownerJobView(user, user.userTeamId)!.wouldFire, false, "user hired into a rebuild with 3 wins is not fired");
+  assert.equal(applyUserGmFiring(user), null);
+
+  const retoolUser = newGame({ seed: 109 });
+  ensureOwners(retoolUser);
+  retoolUser.settings = { ...(retoolUser.settings!), firingEnabled: true };
+  retoolUser.teams[retoolUser.userTeamId].owner!.patience = 0.55;
+  retoolUser.teams[retoolUser.userTeamId].gmHiredSeason = retoolUser.season - 1;
+  plantGradedYear(
+    retoolUser,
+    retoolUser.season - 1,
+    (id) => (id === retoolUser.userTeamId ? 3 : 14),
+    (id) => (id === retoolUser.userTeamId ? OWNER_WIN_TARGET.retool : OWNER_WIN_TARGET.contend),
+  );
+  assert.equal(ownerJobView(retoolUser, retoolUser.userTeamId)!.wouldFire, true, "retool club, 3 wins in year 1, fires the user GM");
+  assert.ok(applyUserGmFiring(retoolUser), "retool year 1 still fires the user GM");
+
+  const st = newGame({ seed: 108 });
+  ensureOwners(st);
+  st.settings = { ...(st.settings!), firingEnabled: true };
+  const cpu = cpuClub(st);
+  cpu.owner!.patience = 0.55;
+  const hc = cpu.coaches!.hc!;
+  hc.hiredSeason = st.season - 1;
+  hc.yearsRemaining = 4;
+  holdOtherContracts(st, cpu.id);
+  plantGradedYear(
+    st,
+    st.season - 1,
+    (id) => (id === cpu.id ? 3 : 14),
+    (id) => (id === cpu.id ? OWNER_WIN_TARGET.rebuild : OWNER_WIN_TARGET.retool),
+  );
+  const id = hc.id;
+  fireCpuHeadCoaches(st);
+  assert.equal(cpu.coaches?.hc?.id, id, "rebuild target year 1 keeps the CPU HC");
+  assert.equal(st.seasonCounters?.hcFires ?? 0, 0);
+  assert.equal(st.seasonCounters?.hcOneAndDone ?? 0, 0);
+  ok("rebuild year 1 is not one-and-done; a retool club still fires");
 }
 
 {

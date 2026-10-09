@@ -12,7 +12,8 @@ import { computeRecords, startSeason } from "./select";
  *
  * Owners judge a coach on his last two seasons, weighted 60/40, against
  * a bar of 8.5 / 7.5 / 7.0 wins by expectation, moved by patience.
- * One-and-done only at four wins or fewer. An expiring coach within a
+ * One-and-done only at four wins or fewer, and not when that season's
+ * expected wins are the rebuild target. An expiring coach within a
  * win of the bar is not renewed (that clause lives on the coach tick).
  */
 
@@ -145,6 +146,8 @@ function seatFor(margin: number): OwnerSeat {
  * only seasons under this coach or GM. `expectedWins` is parallel; the
  * bar uses the newest. Rebuild runway applies only when the tenure is
  * exactly two seasons and the first of them was a rebuild target.
+ * A single season whose expected wins are the rebuild target does not
+ * fire (Matt SIGNED 2026-10-09).
  */
 export function ownerJudgment(
   patience: number,
@@ -168,11 +171,16 @@ export function ownerJudgment(
     }
     const w = weightedWins(tenureSeasons);
     const margin = w - bar;
+    const seasonExpected = expectedWins.length
+      ? expectedWins[Math.min(expectedWins.length, seasons) - 1]
+      : undefined;
+    // Rebuild target (6): the one-and-done clause does not fire.
+    const rebuildSeason = seasonExpected === OWNER_WIN_TARGET.rebuild;
     return {
       margin,
       bar,
       weightedWins: w,
-      wouldFire: firingEnabled && margin <= 0,
+      wouldFire: firingEnabled && margin <= 0 && !rebuildSeason,
       seat: seatFor(margin),
       seasons,
       rebuildRunway: false,
