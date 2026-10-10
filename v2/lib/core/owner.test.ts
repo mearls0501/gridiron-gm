@@ -463,6 +463,156 @@ function holdOtherContracts(st: GameState, keepId: number) {
 }
 
 {
+  // Matt SIGNED 2026-10-09. Winning season, or +3 wins on the year before.
+  const win = ownerJudgment(0.55, [0, 9], [OWNER_WIN_TARGET.contend, OWNER_WIN_TARGET.contend], true);
+  close(win.weightedWins, 5.4, "0 then 9 weighted");
+  close(win.bar, 8.5, "0 then 9 contend bar is unchanged");
+  assert.equal(win.recordKeep, true);
+  assert.equal(win.wouldFire, false, "0 wins, then 9 wins: safe");
+  assert.equal(win.seat, "fired", "seat stays the margin; the keep is wouldFire");
+
+  const jump = ownerJudgment(0.55, [3, 7], [OWNER_WIN_TARGET.contend, OWNER_WIN_TARGET.contend], true);
+  close(jump.weightedWins, 5.4, "3 then 7 weighted");
+  assert.equal(jump.recordKeep, true, "7 − 3 is a gain of 4");
+  assert.equal(jump.wouldFire, false, "3 wins, then 7 wins: safe");
+
+  const retool = ownerJudgment(
+    0.55,
+    [5, 4],
+    [OWNER_WIN_TARGET.retool, OWNER_WIN_TARGET.retool],
+    true,
+  );
+  close(retool.weightedWins, 4.4, "5 then 4 weighted");
+  close(retool.bar, 7.5, "5 then 4 retool bar");
+  assert.equal(retool.recordKeep, false);
+  assert.equal(retool.wouldFire, true, "5 wins, then 4 wins at a retool club: fired");
+  assert.equal(retool.seat, "fired");
+
+  const nine = ownerJudgment(0.55, [7, 9], [10, 10], true);
+  close(nine.weightedWins, 8.2, "7 then 9 is still under the contend bar");
+  assert.equal(nine.wouldFire, false, "a winning season keeps the chair when the jump is only two");
+  const eight = ownerJudgment(0.55, [6, 8], [10, 10], true);
+  assert.equal(eight.recordKeep, false, "8-9 is not a winning season");
+  assert.equal(eight.wouldFire, true, "6 then 8 is not +3 and not a winning season");
+  const exact = ownerJudgment(0.55, [2, 5], [10, 10], true);
+  assert.equal(exact.wouldFire, false, "a gain of exactly 3 wins keeps the chair");
+  const earlier = ownerJudgment(0.55, [0, 9, 6], [10, 10, 10], true);
+  assert.equal(earlier.recordKeep, false, "the year before is the previous season");
+  assert.equal(earlier.wouldFire, true, "a winning season two years ago does not keep the chair");
+
+  const impatient = ownerJudgment(0.35, [0, 9], [10, 10], true);
+  assert.equal(impatient.wouldFire, false, "patience does not override a winning season");
+
+  const stillRebuild = ownerJudgment(0.55, [3], [OWNER_WIN_TARGET.rebuild], true);
+  assert.equal(stillRebuild.recordKeep, false);
+  assert.equal(stillRebuild.wouldFire, false, "rebuild year 1 is still not one-and-done");
+  const stillRetool = ownerJudgment(0.55, [3], [OWNER_WIN_TARGET.retool], true);
+  assert.equal(stillRetool.wouldFire, true, "retool 3-win year 1 still fires");
+
+  const card = viewOf([0, 9], [10, 10]);
+  assert.equal(card.wouldFire, false);
+  assert.ok(card.line.includes("last two seasons"), card.line);
+  assert.ok(card.line.includes("keeps the chair"), card.line);
+  ok("winning season or +3 wins is not a fire; retool 5 then 4 still is");
+}
+
+function plantTenure(
+  st: GameState,
+  teamId: number,
+  wins: number[],
+  expected: number[],
+): void {
+  const start = st.season - wins.length;
+  wins.forEach((w, i) => {
+    plantGradedYear(
+      st,
+      start + i,
+      (id) => (id === teamId ? w : 14),
+      (id) => (id === teamId ? expected[i] : 10),
+    );
+  });
+}
+
+{
+  const cases: { wins: number[]; expected: number[]; fire: boolean; label: string }[] = [
+    { wins: [0, 9], expected: [10, 10], fire: false, label: "0 then 9" },
+    { wins: [3, 7], expected: [10, 10], fire: false, label: "3 then 7" },
+    { wins: [5, 4], expected: [8, 8], fire: true, label: "retool 5 then 4" },
+  ];
+  let seed = 120;
+  for (const row of cases) {
+    const st = newGame({ seed: seed++ });
+    ensureOwners(st);
+    st.settings = { ...(st.settings!), firingEnabled: true };
+    const cpu = cpuClub(st);
+    cpu.owner!.patience = 0.55;
+    const hc = cpu.coaches!.hc!;
+    hc.hiredSeason = st.season - row.wins.length;
+    hc.yearsRemaining = 4;
+    holdOtherContracts(st, cpu.id);
+    plantTenure(st, cpu.id, row.wins, row.expected);
+    const id = hc.id;
+    fireCpuHeadCoaches(st);
+    if (row.fire) {
+      assert.equal(cpu.coaches?.hc, undefined, `${row.label} fires the CPU HC`);
+      assert.equal(st.seasonCounters?.hcFires, 1);
+    } else {
+      assert.equal(cpu.coaches?.hc?.id, id, `${row.label} keeps the CPU HC`);
+      assert.equal(st.seasonCounters?.hcFires ?? 0, 0);
+    }
+
+    const user = newGame({ seed: seed++ });
+    ensureOwners(user);
+    user.settings = { ...(user.settings!), firingEnabled: true };
+    const team = user.teams[user.userTeamId];
+    team.owner!.patience = 0.55;
+    team.gmHiredSeason = user.season - row.wins.length;
+    plantTenure(user, user.userTeamId, row.wins, row.expected);
+    assert.equal(ownerJobView(user, user.userTeamId)!.wouldFire, row.fire, `${row.label} user GM`);
+    if (row.fire) assert.ok(applyUserGmFiring(user), `${row.label} fires the user GM`);
+    else assert.equal(applyUserGmFiring(user), null, `${row.label} does not fire the user GM`);
+  }
+  ok("CPU HC and user GM share the winning-season keep");
+}
+
+{
+  const expiring: { wins: number[]; expected: number[]; fire: boolean; label: string }[] = [
+    { wins: [0, 9], expected: [10, 10], fire: false, label: "expiring 0 then 9" },
+    { wins: [3, 7], expected: [10, 10], fire: false, label: "expiring 3 then 7" },
+    { wins: [9, 9], expected: [10, 10], fire: false, label: "expiring 9 then 9" },
+    { wins: [5, 4], expected: [8, 8], fire: true, label: "expiring retool 5 then 4" },
+  ];
+  let seed = 140;
+  for (const row of expiring) {
+    const judged = ownerJudgment(0.55, row.wins, row.expected, true);
+    const st = newGame({ seed: seed++ });
+    ensureOwners(st);
+    const cpu = cpuClub(st);
+    cpu.owner!.patience = 0.55;
+    const hc = cpu.coaches!.hc!;
+    hc.hiredSeason = st.season - row.wins.length;
+    hc.yearsRemaining = 1;
+    holdOtherContracts(st, cpu.id);
+    plantTenure(st, cpu.id, row.wins, row.expected);
+    const id = hc.id;
+    fireCpuHeadCoaches(st);
+    if (row.fire) {
+      assert.equal(cpu.coaches?.hc, undefined, `${row.label} is not renewed`);
+      assert.equal(st.seasonCounters?.hcFires, 1);
+    } else {
+      assert.equal(judged.recordKeep, true, row.label);
+      assert.equal(cpu.coaches?.hc?.id, id, `${row.label} is kept`);
+      assert.equal(st.seasonCounters?.hcFires ?? 0, 0);
+      assert.ok((cpu.coaches!.hc!.yearsRemaining) > 1, `${row.label} is extended`);
+    }
+  }
+  const within = ownerJudgment(0.55, [9, 9], [10, 10], true);
+  close(within.margin, 0.5, "9 and 9 sits half a win over the contend bar");
+  assert.equal(within.wouldFire, false);
+  ok("an expiring HC is kept after a winning season or a three-win jump");
+}
+
+{
   const st = newGame({ seed: 105 });
   ensureOwners(st);
   const cpu = cpuClub(st);
