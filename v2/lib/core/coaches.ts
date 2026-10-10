@@ -368,10 +368,13 @@ export function fireCpuHeadCoaches(state: GameState): number {
     );
     const expiring = hc.yearsRemaining <= 1;
     // In term, `wouldFire` is weighted wins ≤ bar (one-and-done at four
-    // or fewer, except a rebuild-target first season). An expiring coach
-    // is also not renewed within a win of that same bar. A coach clear
-    // of the bar is extended.
-    const wouldFire = expiring ? rows.length > 0 && judged.margin <= 1 : judged.wouldFire;
+    // or fewer, except a rebuild-target first season, and except a
+    // winning season or a gain of three wins on the year before). An
+    // expiring coach is also not renewed within a win of that same bar,
+    // unless that same keep applies. A coach who is kept is extended.
+    const wouldFire = expiring
+      ? rows.length > 0 && judged.margin <= 1 && !judged.recordKeep
+      : judged.wouldFire;
 
     const dismiss = (): boolean => {
       const hiredSeason = hc.hiredSeason;

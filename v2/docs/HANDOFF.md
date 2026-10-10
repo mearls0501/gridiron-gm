@@ -5,6 +5,34 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-10 — No fire after a winning season or a three-win jump
+
+Matt **SIGNED** 2026-10-09: "No firing after a winning season, or after improving by 3+ wins on the year before." Built as written. The keep lives on `ownerJudgment`, so an in-term CPU head coach and the user GM both read it.
+
+### The rule
+
+`recordKeep` is true when the newest season under this coach is a winning season, or when it gained 3 or more wins on the season before it. `wouldFire` is then false. The weighted bar, the patience shift, one-and-done, the rebuild runway, and the rebuild-year no-one-and-done from #166 are unchanged.
+
+A winning season is more wins than losses in a 17-game year. Ties count half a win, the same figure the bar already uses, so 9-8 keeps the chair and 8-8-1 does not. "3+" is a gain of 3 or more, so 2 then 5 is a keep and 6 then 8 is not. The year before is the previous season under this coach, not an earlier one and not a season before he was hired.
+
+Signed checks: 0 then 9 is a keep, 3 then 7 is a keep, and 5 then 4 at a retool club still fires.
+
+### Reading
+
+"Safe" in those checks is the keep (`wouldFire` false). The seat is still the margin band. 0 then 9 and 3 then 7 sit under the contend bar, so the Staff pill still reads fired while Would fire reads no. Same shape as a rebuild one-and-done and as firing-off. The owner line says the chair is kept. The margin is still weighted wins minus the bar.
+
+An expiring CPU head coach is still not renewed within a win of the bar when `recordKeep` is false. The 8-and-8 retool case still fires. When `recordKeep` is true, that non-renewal does not fire him and the deal is extended, including 9-and-9 at a contend club (margin 0.5). That non-renewal counts as a fire, so leaving it in place would still fire a CPU head coach after a winning season. The signed sentence said the rule applies to CPU head coaches.
+
+### Firing rate
+
+This changes the firing rate. The next Studio panel should report `hcFiresPerSeason`. No band. Do not retune.
+
+### Calibration freeze
+
+Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json`, dials, and calibration constants were not touched.
+
+---
+
 ## 2026-10-09 — User QB seat, rebuild one-and-done, e2e harness
 
 Matt **SIGNED** 2026-10-09. Built as written. No disagreement with the spec.

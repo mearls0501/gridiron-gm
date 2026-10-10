@@ -1,7 +1,7 @@
 import { teamOutlook, type Posture } from "./frontOffice";
 import { makeCoachName } from "./names";
 import { Rng, clamp } from "./rng";
-import { ForcedMove, GameState, Owner } from "./types";
+import { ForcedMove, GameState, GAMES_PER_TEAM, Owner } from "./types";
 import { computeRecords, startSeason } from "./select";
 
 /**
@@ -13,8 +13,10 @@ import { computeRecords, startSeason } from "./select";
  * Owners judge a coach on his last two seasons, weighted 60/40, against
  * a bar of 8.5 / 7.5 / 7.0 wins by expectation, moved by patience.
  * One-and-done only at four wins or fewer, and not when that season's
- * expected wins are the rebuild target. An expiring coach within a
- * win of the bar is not renewed (that clause lives on the coach tick).
+ * expected wins are the rebuild target. A winning season, or a gain of
+ * three or more wins on the year before, is not a fire. An expiring
+ * coach within a win of the bar is not renewed when that keep does not
+ * apply (that clause lives on the coach tick).
  */
 
 export const OWNER_PATIENCE = { lo: 0.35, hi: 0.80, mean: 0.55, sd: 0.12 } as const;
@@ -104,6 +106,11 @@ export interface OwnerJudgment {
   seat: OwnerSeat;
   seasons: number;
   rebuildRunway: boolean;
+  /**
+   * Newest season is a winning season, or it gained 3 or more wins on
+   * the season before it. Either one blocks a fire.
+   */
+  recordKeep: boolean;
 }
 
 /**
@@ -134,6 +141,29 @@ function oneAndDoneBar(patience: number): number {
   return OWNER_ONE_AND_DONE_WINS - 4 * (patience - TYPICAL_PATIENCE);
 }
 
+/**
+ * More wins than losses in a 17-game year. Ties count half a win, the
+ * same figure the bar uses, so 9-8 keeps the chair and 8-8-1 (8.5) does not.
+ */
+function isWinningSeason(wins: number): boolean {
+  return wins > GAMES_PER_TEAM / 2;
+}
+
+/**
+ * Matt SIGNED 2026-10-09. No fire after a winning season, or after the
+ * newest season gained 3 or more wins on the year before. That year is
+ * the prior season under this coach. A single season has no year before,
+ * so only the winning-season clause can apply.
+ */
+function recordKeepsJob(tenureSeasons: readonly number[]): boolean {
+  const n = tenureSeasons.length;
+  if (n === 0) return false;
+  const newest = tenureSeasons[n - 1];
+  if (isWinningSeason(newest)) return true;
+  if (n < 2) return false;
+  return newest - tenureSeasons[n - 2] >= 3;
+}
+
 function seatFor(margin: number): OwnerSeat {
   if (margin <= 0) return "fired";
   if (margin <= 1) return "hot";
@@ -147,7 +177,9 @@ function seatFor(margin: number): OwnerSeat {
  * bar uses the newest. Rebuild runway applies only when the tenure is
  * exactly two seasons and the first of them was a rebuild target.
  * A single season whose expected wins are the rebuild target does not
- * fire (Matt SIGNED 2026-10-09).
+ * fire (Matt SIGNED 2026-10-09). A winning season, or a gain of 3 or
+ * more wins on the year before, does not fire either (Matt SIGNED
+ * 2026-10-09).
  */
 export function ownerJudgment(
   patience: number,
@@ -167,6 +199,7 @@ export function ownerJudgment(
         seat: "safe",
         seasons: 0,
         rebuildRunway: false,
+        recordKeep: false,
       };
     }
     const w = weightedWins(tenureSeasons);
@@ -176,14 +209,16 @@ export function ownerJudgment(
       : undefined;
     // Rebuild target (6): the one-and-done clause does not fire.
     const rebuildSeason = seasonExpected === OWNER_WIN_TARGET.rebuild;
+    const recordKeep = recordKeepsJob(tenureSeasons);
     return {
       margin,
       bar,
       weightedWins: w,
-      wouldFire: firingEnabled && margin <= 0 && !rebuildSeason,
+      wouldFire: firingEnabled && margin <= 0 && !rebuildSeason && !recordKeep,
       seat: seatFor(margin),
       seasons,
       rebuildRunway: false,
+      recordKeep,
     };
   }
 
@@ -194,14 +229,16 @@ export function ownerJudgment(
   const bar = ownerBar(newest, patience, rebuildRunway);
   const w = weightedWins(tenureSeasons);
   const margin = w - bar;
+  const recordKeep = recordKeepsJob(tenureSeasons);
   return {
     margin,
     bar,
     weightedWins: w,
-    wouldFire: firingEnabled && margin <= 0,
+    wouldFire: firingEnabled && margin <= 0 && !recordKeep,
     seat: seatFor(margin),
     seasons,
     rebuildRunway,
+    recordKeep,
   };
 }
 
@@ -288,6 +325,10 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
         ? "He is counting this season alone."
         : "He is counting the last two seasons, weighted 60/40.";
   const runway = judged.rebuildRunway ? " Hired into a rebuild, so the bar is a win lower." : "";
+  const keep =
+    firingEnabled && judged.recordKeep && judged.margin <= 0
+      ? " A winning season, or three more wins than the year before, keeps the chair."
+      : "";
 
   let line: string;
   if (!firingEnabled) {
@@ -295,9 +336,9 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
   } else if (judged.wouldFire) {
     line = `${team.owner.name} has seen enough. ${counted}${runway} The season is over — take an open chair or retire the save.`;
   } else if (judged.seasons < OWNER_MIN_SEASONS) {
-    line = `${team.owner.name} is ${patienceWord}. ${counted} One-and-done is ${judged.bar.toFixed(1)} wins or fewer.`;
+    line = `${team.owner.name} is ${patienceWord}. ${counted} One-and-done is ${judged.bar.toFixed(1)} wins or fewer.${keep}`;
   } else {
-    line = `${team.owner.name} is ${patienceWord}. ${counted} The bar is ${judged.bar.toFixed(1)}.${runway}`;
+    line = `${team.owner.name} is ${patienceWord}. ${counted} The bar is ${judged.bar.toFixed(1)}.${runway}${keep}`;
   }
 
   return {
