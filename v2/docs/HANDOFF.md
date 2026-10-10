@@ -5,6 +5,34 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-10 — Owner card counts the live season
+
+Playtest finding. Built as written. The card is a view. `ownerJudgment` is unchanged, and so is who actually gets fired.
+
+### The card
+
+During the regular season, the playoffs, and Season Review, `ownerJobView` counts the current season off the live standings (`computeRecords`, regular-season games only, the same table Continue archives). The win target is `seasonExpectedWins`, the number `recordSeasonHistory` stamps. Once that year is on `state.history`, the view does not count it again. Continue writes the year and then calls `ownerJobView`, still in Season Review, so a second copy would have changed the verdict.
+
+`tenureRows` is still history only. `fireCpuHeadCoaches` reads that. A mid-season call does not see the live year and does not draw.
+
+### The seat
+
+The Staff pill prints `ownerJobView.seat`. After #167 that field was the margin band, so a 0-then-9 or 3-then-7 coach read fired while Would fire read no. When firing is on, the view seat is fired only when `wouldFire` is true. A keep that leaves the margin at or under the bar (winning season, three-win jump, rebuild one-and-done) shows **hot**, the next band. 5-then-4 at a retool club is still fired on both.
+
+Firing off still leaves the margin band. The pill prints "firing off", and the existing check locks that seat at fired.
+
+### Disagreement
+
+A literal reading of "during the regular season" would count a 0-0 before this club has a result. I did not. That table is not a season yet (`seasonHasResults` already refuses it), and a retool or contend chair would read as fired before kickoff, which is not the verdict Continue will apply. The card starts counting once this club has a result. Playoffs and Season Review always count the live table, including a club with no result.
+
+The spec said the seat is not fired. It did not name the replacement band. I used hot. `ownerJudgment.seat` is still the margin band, so a direct read of the judgment on 0-then-9 still says fired. The card and the pill do not.
+
+### Calibration freeze
+
+Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json`, dials, and calibration constants were not touched.
+
+---
+
 ## 2026-10-10 — No fire after a winning season or a three-win jump
 
 Matt **SIGNED** 2026-10-09: "No firing after a winning season, or after improving by 3+ wins on the year before." Built as written. The keep lives on `ownerJudgment`, so an in-term CPU head coach and the user GM both read it.
