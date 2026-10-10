@@ -31,6 +31,19 @@ This changes the firing rate. The next Studio panel should report `hcFiresPerSea
 
 Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json`, dials, and calibration constants were not touched.
 
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck passed. Owner checks passed. Verify **348/348**. Sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Year-0 headlines are the same bytes: `calibrate.pts` `23.723333333333333`, `calibrate.passYds` `237.32833333333335`, `statcheck.wr10RecYds` **1070**. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+`node scripts/e2e.mjs` printed **E2E PASSED**. `node scripts/e2e-interact.mjs` printed **INTERACTION TEST PASSED**.
+
 ---
 
 ## 2026-10-09 — User QB seat, rebuild one-and-done, e2e harness
