@@ -15,13 +15,19 @@ import { COACH_CONTRACT, fireCpuHeadCoaches, tickCoachContracts } from "./coache
 import {
   OWNER_MIN_SEASONS,
   OWNER_ONE_AND_DONE_WINS,
+  OWNER_PATIENCE,
   OWNER_WIN_TARGET,
+  PATIENCE_IMPATIENT_AT,
+  PATIENCE_PATIENT_AT,
+  TYPICAL_PATIENCE,
   acceptGmChair,
   applyUserGmFiring,
   ensureOwners,
   ownerBar,
   ownerJobView,
   ownerJudgment,
+  patienceScaleLabel,
+  patienceWord,
   retireFromLeague,
   stampSeasonExpectedWins,
   weightedWins,
@@ -898,6 +904,87 @@ function plantTenure(
     assert.equal(st.rngState, parent, `${row.label} Continue does not draw`);
   }
   ok("the view and the Continue judgment match");
+}
+
+{
+  assert.equal(OWNER_WIN_TARGET.rebuild, 6);
+  assert.equal(TYPICAL_PATIENCE, OWNER_PATIENCE.mean);
+  assert.equal(PATIENCE_PATIENT_AT, Math.round((OWNER_PATIENCE.mean + OWNER_PATIENCE.sd) * 100) / 100);
+  assert.equal(PATIENCE_IMPATIENT_AT, Math.round((OWNER_PATIENCE.mean - OWNER_PATIENCE.sd) * 100) / 100);
+  assert.equal(PATIENCE_PATIENT_AT, 0.67);
+  assert.equal(PATIENCE_IMPATIENT_AT, 0.43);
+
+  assert.equal(patienceWord(PATIENCE_PATIENT_AT), "patient");
+  assert.equal(patienceWord(PATIENCE_PATIENT_AT - 0.01), "typical");
+  assert.equal(patienceWord(PATIENCE_IMPATIENT_AT), "impatient");
+  assert.equal(patienceWord(PATIENCE_IMPATIENT_AT + 0.01), "typical");
+  assert.equal(patienceWord(TYPICAL_PATIENCE), "typical");
+
+  const patient = viewOf([5], [OWNER_WIN_TARGET.retool], PATIENCE_PATIENT_AT);
+  assert.match(patient.line, / is patient\./);
+  const justUnder = viewOf([5], [OWNER_WIN_TARGET.retool], PATIENCE_PATIENT_AT - 0.01);
+  assert.match(justUnder.line, / is typical\./);
+  const impatient = viewOf([5], [OWNER_WIN_TARGET.retool], PATIENCE_IMPATIENT_AT);
+  assert.match(impatient.line, / is impatient\./);
+  const justOver = viewOf([5], [OWNER_WIN_TARGET.retool], PATIENCE_IMPATIENT_AT + 0.01);
+  assert.match(justOver.line, / is typical\./);
+
+  const scale = patienceScaleLabel();
+  assert.equal(scale, "≤0.43 impatient · ≥0.67 patient");
+  const staff = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../app/staff/page.tsx"), "utf8");
+  assert.match(staff, /patienceScaleLabel/);
+  assert.equal(staff.includes("0 impatient · 1 patient"), false);
+  ok("patience words use the same cuts as the bar's centre");
+}
+
+{
+  const rebuild = viewOf([3], [OWNER_WIN_TARGET.rebuild]);
+  assert.equal(rebuild.expectedWins, OWNER_WIN_TARGET.rebuild);
+  assert.equal(rebuild.wouldFire, false, "rebuild year 1 is not one-and-done");
+  assert.match(rebuild.line, /There is no one-and-done\./);
+  assert.equal(rebuild.line.includes("One-and-done is"), false);
+
+  const held = viewOf([5], [OWNER_WIN_TARGET.rebuild]);
+  assert.match(held.line, /There is no one-and-done\./);
+  assert.equal(held.wouldFire, false);
+
+  const retool = viewOf([5], [OWNER_WIN_TARGET.retool]);
+  assert.match(retool.line, /One-and-done is \d+\.\d wins or fewer\./);
+  assert.equal(retool.line.includes("no one-and-done"), false);
+
+  const twoYear = viewOf([5, 7], [OWNER_WIN_TARGET.rebuild, OWNER_WIN_TARGET.rebuild]);
+  assert.equal(twoYear.wouldFire, false);
+  assert.match(twoYear.line, /The bar is /);
+  assert.equal(twoYear.line.includes("no one-and-done"), false, "year 2 uses the bar, not the one-and-done sentence");
+
+  const st = newGame({ seed: 301 });
+  ensureOwners(st);
+  st.settings = { ...(st.settings!), firingEnabled: true };
+  const team = st.teams[st.userTeamId];
+  team.owner!.patience = 0.55;
+  team.gmHiredSeason = st.season;
+  team.seasonExpectedWins = OWNER_WIN_TARGET.rebuild;
+  st.phase = "regular";
+  plantLiveRecord(st, st.userTeamId, 2, 4);
+  const live = ownerJobView(st, st.userTeamId)!;
+  assert.equal(live.seasonsWithGm, 1);
+  assert.equal(live.expectedWins, OWNER_WIN_TARGET.rebuild);
+  assert.equal(live.wouldFire, false);
+  assert.match(live.line, /There is no one-and-done\./);
+
+  const outlook = newGame({ seed: 302 });
+  ensureOwners(outlook);
+  outlook.settings = { ...(outlook.settings!), firingEnabled: true };
+  const club = outlook.teams[outlook.userTeamId];
+  club.owner!.patience = 0.55;
+  club.gmHiredSeason = outlook.season;
+  club.forcedRebuildUntil = outlook.season;
+  const fresh = ownerJobView(outlook, outlook.userTeamId)!;
+  assert.equal(fresh.seasonsWithGm, 0);
+  assert.equal(fresh.expectedWins, OWNER_WIN_TARGET.rebuild);
+  assert.match(fresh.line, /No completed season is being counted yet/);
+  assert.match(fresh.line, /There is no one-and-done\./);
+  ok("a rebuild year says there is no one-and-done");
 }
 
 console.log("ok    owner two-season firing rule");
