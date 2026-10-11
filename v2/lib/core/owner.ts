@@ -266,18 +266,56 @@ export function tenureRows(state: GameState, teamId: number, sinceSeason: number
   return rows;
 }
 
-function lastSeasonWins(state: GameState, teamId: number): number | null {
-  const hist = state.history[state.history.length - 1];
-  if (hist) {
-    const row = hist.standings.find((r) => r.teamId === teamId);
-    if (row) return row.w + row.t * 0.5;
+/**
+ * The card counts the season on the standings right now: regular season,
+ * playoffs, and Season Review. Continue archives that table and then
+ * judges it. `tenureRows` stays history-only — the sim fires from the
+ * archive, and a second copy of the year would change the verdict.
+ *
+ * A regular-season 0-0, before this club has a result, is not that
+ * table. Playoffs and Season Review are the finished year, so they
+ * count even a club with no result.
+ */
+function liveSeasonRow(state: GameState, teamId: number): TenureRow | null {
+  if (
+    state.phase !== "regular" &&
+    state.phase !== "playoffs" &&
+    state.phase !== "offseason-recap"
+  ) {
+    return null;
   }
-  const recs = computeRecords(state);
-  const rec = recs.get(teamId);
+  const rec = computeRecords(state, state.season).get(teamId);
   if (!rec) return null;
   const played = rec.w + rec.l + rec.t;
-  if (played === 0) return null;
-  return rec.w + rec.t * 0.5;
+  if (state.phase === "regular" && played === 0) return null;
+  const fallback = OWNER_WIN_TARGET[teamOutlook(state, teamId).posture];
+  return {
+    season: state.season,
+    wins: rec.w + rec.t * 0.5,
+    expectedWins: state.teams[teamId]?.seasonExpectedWins ?? fallback,
+  };
+}
+
+function viewRows(state: GameState, teamId: number, sinceSeason: number): TenureRow[] {
+  const rows = tenureRows(state, teamId, sinceSeason);
+  if (state.season < sinceSeason) return rows;
+  if (rows.some((r) => r.season === state.season)) return rows;
+  const live = liveSeasonRow(state, teamId);
+  if (!live) return rows;
+  rows.push(live);
+  return rows;
+}
+
+/**
+ * The margin band still says fired when a keep blocks the fire. The
+ * pill follows the verdict. Firing off keeps the margin band — the
+ * pill does not print it.
+ */
+function viewSeat(judged: OwnerJudgment, firingEnabled: boolean): OwnerSeat {
+  if (!firingEnabled) return judged.seat;
+  if (judged.wouldFire) return "fired";
+  if (judged.seat === "fired") return "hot";
+  return judged.seat;
 }
 
 function postureOf(expected: number): Posture {
@@ -302,7 +340,7 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
   const team = state.teams[teamId];
   if (!team?.owner) return null;
   const outlook = teamOutlook(state, teamId);
-  const rows = tenureRows(state, teamId, gmHiredSeasonOf(state, teamId));
+  const rows = viewRows(state, teamId, gmHiredSeasonOf(state, teamId));
   const firingEnabled = state.settings?.firingEnabled ?? true;
   const judged = ownerJudgment(
     team.owner.patience,
@@ -314,7 +352,7 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
     ? rows[rows.length - 1].expectedWins
     : OWNER_WIN_TARGET[outlook.posture];
   const posture = rows.length ? postureOf(expectedWins) : outlook.posture;
-  const recentWins = lastSeasonWins(state, teamId);
+  const recentWins = rows.length ? rows[rows.length - 1].wins : null;
 
   const patienceWord =
     team.owner.patience >= 0.68 ? "patient" : team.owner.patience <= 0.42 ? "impatient" : "typical";
@@ -352,7 +390,7 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
     weightedWins: judged.weightedWins,
     firingEnabled,
     wouldFire: judged.wouldFire,
-    seat: judged.seat,
+    seat: viewSeat(judged, firingEnabled),
     line,
   };
 }

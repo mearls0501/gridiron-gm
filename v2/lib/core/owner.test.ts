@@ -156,6 +156,28 @@ const WORKED: {
   ok("worked examples: weighted, bar, seat, wouldFire");
 }
 
+function plantLiveRecord(st: GameState, teamId: number, wins: number, losses: number): void {
+  const opp = st.teams.find((t) => t.id !== teamId)!;
+  let id = st.games.reduce((m, g) => Math.max(m, g.id), 0);
+  const push = (homeId: number, awayId: number, homeScore: number, awayScore: number, week: number) => {
+    id += 1;
+    st.games.push({
+      id,
+      season: st.season,
+      week,
+      homeId,
+      awayId,
+      played: true,
+      homeScore,
+      awayScore,
+      playoffRound: null,
+      boxScore: null,
+    });
+  };
+  for (let i = 0; i < wins; i++) push(teamId, opp.id, 24, 10, i + 1);
+  for (let i = 0; i < losses; i++) push(opp.id, teamId, 24, 10, wins + i + 1);
+}
+
 function plantGradedYear(
   st: GameState,
   season: number,
@@ -743,6 +765,139 @@ function plantTenure(
   assert.equal(job.wouldFire, false, "3/4/12 turnaround does not fire the user GM");
   assert.equal(applyUserGmFiring(st), null);
   ok("3/4/12 turnaround does not fire");
+}
+
+{
+  const kept = viewOf([0, 9], [10, 10]);
+  assert.equal(kept.wouldFire, false, "0 then 9 wouldFire");
+  assert.notEqual(kept.seat, "fired", "0 then 9 seat is not fired");
+  assert.equal(kept.seat === "fired", kept.wouldFire, "0 then 9 seat and wouldFire agree");
+
+  const jump = viewOf([3, 7], [10, 10]);
+  assert.equal(jump.wouldFire, false, "3 then 7 wouldFire");
+  assert.notEqual(jump.seat, "fired", "3 then 7 seat is not fired");
+  assert.equal(jump.seat === "fired", jump.wouldFire);
+
+  const fired = viewOf([5, 4], [OWNER_WIN_TARGET.retool, OWNER_WIN_TARGET.retool]);
+  assert.equal(fired.wouldFire, true, "retool 5 then 4 wouldFire");
+  assert.equal(fired.seat, "fired", "retool 5 then 4 seat");
+  assert.equal(fired.seat === "fired", fired.wouldFire, "retool 5 then 4 seat and wouldFire agree on fired");
+  ok("seat follows the verdict: 0 then 9 is kept, retool 5 then 4 is fired");
+}
+
+{
+  const st = newGame({ seed: 201 });
+  ensureOwners(st);
+  st.settings = { ...(st.settings!), firingEnabled: true };
+  const team = st.teams[st.userTeamId];
+  team.owner!.patience = 0.55;
+  team.gmHiredSeason = st.season - 1;
+  team.seasonExpectedWins = 10;
+  plantGradedYear(st, st.season - 1, (id) => (id === st.userTeamId ? 0 : 12), () => 10);
+  st.phase = "regular";
+  const beforeKickoff = ownerJobView(st, st.userTeamId)!;
+  assert.equal(beforeKickoff.seasonsWithGm, 1, "a 0-0 regular season is not counted yet");
+  assert.equal(beforeKickoff.recentWins, 0);
+
+  plantLiveRecord(st, st.userTeamId, 6, 2);
+  const job = ownerJobView(st, st.userTeamId)!;
+  assert.equal(job.seasonsWithGm, 2, "mid-season counts the live year");
+  assert.equal(job.recentWins, 6, "the view counts the current wins");
+  close(job.weightedWins, 6 * 0.6 + 0 * 0.4, "60/40 uses the current wins");
+
+  st.phase = "playoffs";
+  const post = ownerJobView(st, st.userTeamId)!;
+  assert.equal(post.recentWins, 6, "playoffs still count the current wins");
+  assert.equal(post.seasonsWithGm, 2);
+
+  st.phase = "preseason";
+  const pre = ownerJobView(st, st.userTeamId)!;
+  assert.equal(pre.seasonsWithGm, 1, "preseason does not count the live table");
+  assert.equal(pre.recentWins, 0);
+  ok("mid-season, the view counts the current wins");
+}
+
+{
+  const st = newGame({ seed: 202 });
+  ensureOwners(st);
+  st.settings = { ...(st.settings!), firingEnabled: true };
+  const cpu = cpuClub(st);
+  cpu.owner!.patience = 0.55;
+  cpu.gmHiredSeason = st.season - 1;
+  cpu.seasonExpectedWins = OWNER_WIN_TARGET.retool;
+  const hc = cpu.coaches!.hc!;
+  hc.hiredSeason = st.season - 1;
+  hc.yearsRemaining = 4;
+  holdOtherContracts(st, cpu.id);
+  plantGradedYear(st, st.season - 1, (id) => (id === cpu.id ? 8 : 14), (id) => (id === cpu.id ? 8 : 10));
+  st.phase = "regular";
+  plantLiveRecord(st, cpu.id, 2, 5);
+  const id = hc.id;
+  const parent = st.rngState;
+  const view = ownerJobView(st, cpu.id)!;
+  assert.equal(view.recentWins, 2, "the card is on the live losses");
+  assert.equal(view.wouldFire, true, "8 then 2 at a retool club is a fire on the card");
+  const fired = fireCpuHeadCoaches(st);
+  assert.equal(st.rngState, parent, "a mid-season read does not draw");
+  assert.equal(fired, 0, "the sim does not fire off the live table");
+  assert.equal(cpu.coaches?.hc?.id, id);
+  assert.equal(st.seasonCounters?.hcFires ?? 0, 0);
+  ok("the live season is view-only; the sim still reads the archive");
+}
+
+{
+  const cases: { prior: number; liveW: number; liveL: number; expected: number; fire: boolean; label: string }[] = [
+    { prior: 0, liveW: 9, liveL: 8, expected: 10, fire: false, label: "0 then 9 at Season Review" },
+    { prior: 5, liveW: 4, liveL: 13, expected: OWNER_WIN_TARGET.retool, fire: true, label: "retool 5 then 4 at Season Review" },
+  ];
+  let seed = 210;
+  for (const row of cases) {
+    const st = newGame({ seed: seed++ });
+    ensureOwners(st);
+    st.settings = { ...(st.settings!), firingEnabled: true };
+    const team = st.teams[st.userTeamId];
+    team.owner!.patience = 0.55;
+    team.gmHiredSeason = st.season - 1;
+    team.seasonExpectedWins = row.expected;
+    plantGradedYear(
+      st,
+      st.season - 1,
+      (id) => (id === st.userTeamId ? row.prior : 12),
+      (id) => (id === st.userTeamId ? row.expected : 10),
+    );
+    st.phase = "offseason-recap";
+    plantLiveRecord(st, st.userTeamId, row.liveW, row.liveL);
+    const before = ownerJobView(st, st.userTeamId)!;
+    assert.equal(before.recentWins, row.liveW, `${row.label} counts the live wins`);
+    assert.equal(before.wouldFire, row.fire, `${row.label} view wouldFire`);
+    assert.equal(before.seat === "fired", before.wouldFire, `${row.label} seat and wouldFire agree`);
+    const judged = ownerJudgment(
+      0.55,
+      [row.prior, row.liveW],
+      [row.expected, row.expected],
+      true,
+    );
+    assert.equal(before.wouldFire, judged.wouldFire, `${row.label} view matches ownerJudgment`);
+    close(before.weightedWins, judged.weightedWins, `${row.label} weighted`);
+    close(before.margin, judged.margin, `${row.label} margin`);
+
+    const parent = st.rngState;
+    const history = recordSeasonHistory(st);
+    st.history.push(history);
+    const archived = history.standings.find((r) => r.teamId === st.userTeamId)!;
+    assert.equal(archived.w, row.liveW, `${row.label} archive wins`);
+    assert.equal(archived.expectedWins, row.expected, `${row.label} archive target`);
+    const after = ownerJobView(st, st.userTeamId)!;
+    assert.equal(st.rngState, parent, `${row.label} does not draw`);
+    assert.equal(after.wouldFire, before.wouldFire, `${row.label} Continue view wouldFire`);
+    assert.equal(after.seat, before.seat, `${row.label} Continue view seat`);
+    close(after.weightedWins, before.weightedWins, `${row.label} Continue weighted`);
+    assert.equal(after.seasonsWithGm, before.seasonsWithGm, `${row.label} does not count the year twice`);
+    if (row.fire) assert.ok(applyUserGmFiring(st), `${row.label} Continue fires`);
+    else assert.equal(applyUserGmFiring(st), null, `${row.label} Continue does not fire`);
+    assert.equal(st.rngState, parent, `${row.label} Continue does not draw`);
+  }
+  ok("the view and the Continue judgment match");
 }
 
 console.log("ok    owner two-season firing rule");
