@@ -43,7 +43,27 @@ Calibration freeze stays, except that this packet is allowed to move year-0 numb
 
 ### Gate
 
-Gate and year-0 numbers are recorded after `npm run gate:serial`.
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck passed. Coordinator checks passed: every club rated at league start; an empty OC, DC, or STC applies the cost and a filled chair does not; the Hub flag appears when a chair is empty. Verify **348/348**. Sweep 5 leagues × 2 seasons clean. Calibrate 28 metrics, score mismatches 0. Statcheck 23 metrics. Scout passed. No FAIL rows.
+
+Year-0 moved, which this packet allows. `##M` strings:
+
+| metric | before | after |
+| --- | --- | --- |
+| `calibrate.pts` | `23.723333333333333` | `23.19` |
+| `calibrate.passYds` | `237.32833333333335` | `241.14166666666668` |
+| `statcheck.wr10RecYds` | `1070` | `1050` |
+
+Deltas: pts −0.533333333333333, pass yards +3.81333333333333, WR10 receiving yards −20. The move is the coordinators' own pass bias and shadow tendency. Vacancy yards are 0 at league start because every chair is filled. All three stay inside the existing bands.
+
+`leverage.wrongSign` is **0** on this seed. The inherited single-seed red (`EDGE.prs` points +0.6) did not appear: this seed's swing is −1.6, verdict ok. That is a single-seed flip, not a fix, and it is not re-locked. `leverage.noEffect` is 1 (`OT.sta` sacksTaken), the existing no-effect row, inside the band.
+
+```
+GATE PASS  (68 metrics within baseline)
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+`PW_CHROMIUM=/usr/bin/google-chrome node scripts/e2e.mjs` printed **E2E PASSED**. `PW_CHROMIUM=/usr/bin/google-chrome node scripts/e2e-interact.mjs` printed **INTERACTION TEST PASSED**. Both ran against `next start` on port 3000. The staff desk still loads. A browser pass fired only the special teams coordinator: the Hub then showed "Special teams coordinator chair is empty", and the Staff link opened the vacant chair. Filled chairs did not flag.
 
 ---
 
