@@ -5,6 +5,28 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-11 — User re-sign step before the tag window closes
+
+Matt **SIGNED** 2026-10-09: "Before the tag window closes, the user gets a re-sign step: every expiring player with asking price and Offer / Meet asking, and the Hub warns how many walk on Continue." Built as written.
+
+### The rule
+
+The step is on the Hub during `offseason-tag`, before Continue closes the window. It lists every expiring player on the user's club, with his asking price and Offer / Meet asking. Those actions are the `/finances` contract office: `submitOfficeOffer` calls `applyOfficeExtension` with the club number or with `extensionAskingApy`. There is no second acceptance rule. A Meet asking that the office accepts replaces the expiring year, so he is no longer in `expiringPlayers` and does not walk. Offer still refuses when it is under the ask.
+
+The Hub line is how many of those players Continue will put on the street. A franchise tag is not a re-sign. `expireContracts` already skips him, so he is not in the walk count. He still appears on the re-sign list with an asking price. Offer and Meet asking stay disabled, because the office will not extend a tagged tender.
+
+Headless Continue does not re-sign anyone. `cpuResign` is the same function, still skipped for `userTeamId`, still on the parent stream. A user Meet asking uses the contract-office child stream and does not move `rngState`.
+
+### Disagreement
+
+None with the signed text. The walk count excludes a tagged player because Continue does not walk him. That is the warning the sentence asked for.
+
+### Calibration freeze
+
+Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json`, dials, and calibration constants were not touched.
+
+---
+
 ## 2026-10-10 — Owner card counts the live season
 
 Playtest finding. Built as written. The card is a view. `ownerJudgment` is unchanged, and so is who actually gets fired.

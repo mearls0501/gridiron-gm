@@ -17,8 +17,8 @@ import { divisionStandings, seasonHasResults } from "@/lib/core/season/standings
 import {
   applyFifthYearOption, applyFranchiseTag, applyTagExtension, clubFranchiseTaggedPlayer,
   declineFifthYearOption, expiringPlayers, fifthYearOptionPlayers, fifthYearOptionSalary,
-  franchiseTagSalary, OFFSEASON_STEPS, reconcileRoster,
-  skipTagExtension, tagExtensionPlayers, tagExtensionTerms,
+  franchiseTagSalary, officeExtensionTerms, OFFSEASON_STEPS, reconcileRoster,
+  skipTagExtension, submitOfficeOffer, tagExtensionPlayers, tagExtensionTerms,
 } from "@/lib/core/offseason";
 import { Rng } from "@/lib/core/rng";
 import { tradeBoardAssetLabel } from "@/lib/view/tradeBoard";
@@ -26,6 +26,7 @@ import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weath
 import { SeasonReviewPanels, SeasonReviewSummary } from "@/components/SeasonReview";
 import { presentSeasonReview } from "@/lib/view/seasonReview";
 import { hubCampCutdownCopy, hubCampFloorCopy, rosterCapView } from "@/lib/view/rosterCap";
+import { hubResignWalkWarning, resignStepRows } from "@/lib/view/resignStep";
 import { teamLeaders } from "@/lib/view/teamLeaders";
 import { presentedOvr } from "@/lib/core/ratings";
 import { PRIVATE_VISIT_CAP, calendarView } from "@/lib/core/scouting";
@@ -151,6 +152,7 @@ export default function Hub() {
 
   const blocking = issues.filter((i) => i.kind !== "underLimit" || state.phase === "preseason");
   const canAdvance = !(state.phase === "preseason" && blocking.length > 0);
+  const resignWalk = hubResignWalkWarning(state);
 
   const doAdvance = () => {
     setConfirming(false);
@@ -246,6 +248,11 @@ export default function Hub() {
               <div className="text-xs text-[var(--color-muted)] mt-0.5">
                 {hubCampFloorCopy(clip) ?? hubCampCutdownCopy(clip) ?? step.description}
               </div>
+              {resignWalk && (
+                <div className="text-xs text-[var(--color-warn)] mt-1">
+                  {resignWalk}
+                </div>
+              )}
               {isRecap && recap && (
                 <SeasonReviewSummary state={state} view={recap} />
               )}
@@ -328,6 +335,69 @@ export default function Hub() {
                         >
                           Tag
                         </Button>
+                      </Cell>
+                    </Row>
+                  );
+                })}
+              </Table>
+            )}
+          </Card>
+        );
+      })()}
+
+      {state.phase === "offseason-tag" && (() => {
+        const rows = resignStepRows(state, team.id);
+        return (
+          <Card
+            title="Re-sign"
+            subtitle="Every expiring player. Offer or Meet asking before Continue, or he walks."
+          >
+            {rows.length === 0 ? (
+              <p className="text-sm text-[var(--color-muted)]">
+                Nobody on this club is expiring. Continue will not walk anyone.
+              </p>
+            ) : (
+              <Table head={["Player", "Pos", "Age", "Asking", ""]}>
+                {rows.map((row) => {
+                  const p = row.player;
+                  const terms = row.offerable ? officeExtensionTerms(state, team.id, p) : null;
+                  return (
+                    <Row key={p.id}>
+                      <Cell align="left"><PlayerLink p={p} /></Cell>
+                      <Cell><PosBadge pos={p.pos} /></Cell>
+                      <Cell>{p.age}</Cell>
+                      <Cell>{formatMoney(row.asking)}</Cell>
+                      <Cell>
+                        <div className="flex gap-1 justify-end">
+                          <Button
+                            size="sm"
+                            disabled={!row.offerable}
+                            title={
+                              terms
+                                ? `Club offer ${terms.years}yr / ${formatMoney(terms.apy)} — they want ${formatMoney(row.asking)}`
+                                : "A tagged tender is extended on the Hub."
+                            }
+                            onClick={() =>
+                              apply((s) => submitOfficeOffer(s, s.userTeamId, p.id, false).message)
+                            }
+                          >
+                            Offer
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={!row.offerable}
+                            title={
+                              row.offerable
+                                ? `Meet the ${formatMoney(row.asking)} ask`
+                                : "A tagged tender is extended on the Hub."
+                            }
+                            onClick={() =>
+                              apply((s) => submitOfficeOffer(s, s.userTeamId, p.id, true).message)
+                            }
+                          >
+                            Meet asking
+                          </Button>
+                        </div>
                       </Cell>
                     </Row>
                   );

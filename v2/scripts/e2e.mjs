@@ -26,6 +26,7 @@ import {
   checkPlayLastSnap,
   checkStaffDesk,
   hubPhase,
+  noteTagResignStep,
   pressFaRosterAutoFix,
   waitForHubPhaseChange,
 } from "./e2e-desks.mjs";
@@ -309,6 +310,7 @@ async function main() {
   // ---- Offseason ------------------------------------------------------------
   let steps = 0;
   let draftBoardChecked = false;
+  let resignNoted = false;
   for (let i = 0; i < 15; i++) {
     await page.goto(BASE + "/", { waitUntil: "networkidle" });
     await page.waitForTimeout(400);
@@ -329,6 +331,10 @@ async function main() {
       break;
     }
     const label = ((await btn.innerText()) || "").replace(/\s+/g, " ").trim();
+    if (/Continue to Free Agency/i.test(label) && !resignNoted) {
+      resignNoted = true;
+      await noteTagResignStep(page, report);
+    }
     const phaseBefore = await hubPhase(page);
     const yielded = /Finish the Draft|Continue to the Draft/i.test(label);
     await btn.click();

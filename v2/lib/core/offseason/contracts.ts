@@ -866,6 +866,27 @@ export function applyOfficeExtension(
 }
 
 /**
+ * /finances Offer and Meet asking. Offer sends the club number.
+ * Meet asking sends `extensionAskingApy`. Same acceptance as
+ * `applyOfficeExtension` — under the ask is a refusal. Not a second desk.
+ */
+export function submitOfficeOffer(
+  state: GameState, teamId: number, playerId: number, meetAsk: boolean,
+): { ok: boolean; message: string } {
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p) return { ok: false, message: "No such player" };
+  const terms = officeExtensionTerms(state, teamId, p);
+  const ask = extensionAskingApy(state, teamId, p);
+  const apy = meetAsk ? ask : terms.apy;
+  const r = applyOfficeExtension(state, teamId, p.id, apy);
+  if (!r.ok) return { ok: false, message: r.reason ?? "That extension was turned down." };
+  return {
+    ok: true,
+    message: `Extended ${p.firstName} ${p.lastName} — ${terms.years}yr / ${formatMoney(apy)} per year`,
+  };
+}
+
+/**
  * Convert this year's base (down to the league minimum) into signing bonus
  * and re-prorate remaining bonus over the remaining term (max 5). Existing
  * `capHit` / `deadMoney` math — no new Contract fields. Needs 2+ years left

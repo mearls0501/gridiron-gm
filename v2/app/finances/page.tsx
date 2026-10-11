@@ -12,13 +12,13 @@ import {
 } from "@/lib/core/select";
 import {
   addVoidYearsPreview,
-  applyOfficeExtension,
   applyRestructure,
   applyVoidYears,
   extensionAskingApy,
   isOfficeExtensionEligible,
   officeExtensionTerms,
   restructurePreview,
+  submitOfficeOffer,
 } from "@/lib/core/offseason/contracts";
 import { POSITION_GROUP, POSITIONS, Player } from "@/lib/core/types";
 import { presentedOvr } from "@/lib/core/ratings";
@@ -100,13 +100,7 @@ export default function FinancesPage() {
   const voidTargets = contracts.filter((p) => addVoidYearsPreview(state, teamId, p).ok);
 
   function extend(p: Player, meetAsk: boolean) {
-    apply((s) => {
-      const terms = officeExtensionTerms(s, s.userTeamId, p);
-      const ask = extensionAskingApy(s, s.userTeamId, p);
-      const r = applyOfficeExtension(s, s.userTeamId, p.id, meetAsk ? ask : terms.apy);
-      if (!r.ok) return r.reason ?? "That extension was turned down.";
-      return `Extended ${p.firstName} ${p.lastName} — ${terms.years}yr / ${formatMoney(meetAsk ? ask : terms.apy)} per year`;
-    });
+    apply((s) => submitOfficeOffer(s, s.userTeamId, p.id, meetAsk).message);
   }
 
   function restructure(p: Player) {

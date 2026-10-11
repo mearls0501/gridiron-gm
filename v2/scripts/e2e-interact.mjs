@@ -13,6 +13,7 @@ import {
   checkPlayLastSnap,
   checkStaffDesk,
   hubPhase,
+  noteTagResignStep,
   pressFaRosterAutoFix,
   waitForHubPhaseChange,
 } from "./e2e-desks.mjs";
@@ -187,6 +188,7 @@ for (let i = 0; i < 5; i++) {
 // Advance the offseason to the draft — but never past it. "Finish the Draft"
 // auto-picks the whole class, which would leave nothing here to click and
 // silently skip the manual-pick coverage this test exists to provide.
+let resignNoted = false;
 for (let i = 0; i < 15; i++) {
   await page.goto(BASE + "/", { waitUntil: "networkidle" }); await page.waitForTimeout(400);
   if (await page.getByRole("button", { name: /Finish the Draft/i }).count()) break;
@@ -194,6 +196,10 @@ for (let i = 0; i < 15; i++) {
   const b = page.getByRole("button", { name: /Continue to/i }).first();
   if (!(await b.count())) break;
   const label = ((await b.innerText()) || "").replace(/\s+/g, " ").trim();
+  if (/Continue to Free Agency/i.test(label) && !resignNoted) {
+    resignNoted = true;
+    await noteTagResignStep(page, report);
+  }
   const phaseBefore = await hubPhase(page);
   await b.click(); await page.waitForTimeout(250);
   const c = page.getByRole("button", { name: /^Confirm$/ }); if (await c.count()) await c.click();
