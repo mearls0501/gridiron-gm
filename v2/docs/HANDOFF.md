@@ -25,6 +25,8 @@ The Hub flags an empty coordinator chair on the user's club, in Needs attention,
 
 An existing staff that never had an STC is given one on load, once (`stcSeeded`). A chair emptied after that stays empty. Coordinators already on an old save keep the ratings they had. Own ratings are the league-start draw.
 
+Two locks moved because the season's plays moved, not because a claim was dropped. Seed 42's tag-window parent stream is `865642336` and free agency is `2177187567` (was `4285417656` and `485912630`). The inquiry still does not add a parent draw beyond that offseason trade step. The live-game replay sits the same gameday inactives the kickoff clone sits, which is what made a 23–7 match a 23–10 when the week actually had sits.
+
 ### Disagreement
 
 A filled coordinator's own offense and defense grades are not a second yard dial. Those two numbers were blended onto the coach and the play engine never read them. Pass bias and shadow tendency are the path a filled chair already had, and those are now his own, which is why year 0 can move with every chair filled. Charging `(rating − 60)` on every filled chair would have been a new league-wide dial under the freeze. The 8-point vacancy gap is the cost.
