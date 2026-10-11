@@ -25,6 +25,19 @@ None with the signed text. The walk count excludes a tagged player because Conti
 
 Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json`, dials, and calibration constants were not touched.
 
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck passed. Re-sign checks passed. Verify **348/348**. Sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Year-0 headlines are the same bytes: `calibrate.pts` `23.723333333333333`, `calibrate.passYds` `237.32833333333335`, `statcheck.wr10RecYds` **1070**. One FAIL, the inherited single-seed red (`EDGE.prs` points +0.6):
+
+```
+FAIL  leverage.wrongSign  1  expected <= 0  (no attribute may move its metric the wrong way)
+GATE FAIL  1 problem
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+`node scripts/e2e.mjs` printed **E2E PASSED**. `node scripts/e2e-interact.mjs` printed **INTERACTION TEST PASSED**. Both saw the tag-window re-sign step (Offer / Meet asking and the walk warning) and Continued without re-signing.
+
 ---
 
 ## 2026-10-10 — Owner card counts the live season
