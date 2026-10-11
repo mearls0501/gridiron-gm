@@ -57,7 +57,9 @@ function playUser(st: ReturnType<typeof newGame>) {
   assert.equal(auto.teams[auto.userTeamId].callSheet, undefined);
   const raw = JSON.parse(JSON.stringify(auto)) as typeof auto;
   assert.equal(raw.teams[auto.userTeamId].callSheet, undefined);
-  assert.equal(effectiveCoach(raw.teams[raw.userTeamId]), raw.teams[raw.userTeamId].coach);
+  const rawTeam = raw.teams[raw.userTeamId];
+  assert.equal(rawTeam.callSheet, undefined);
+  assert.equal(effectiveCoach(rawTeam).passBias, rawTeam.coaches!.oc!.passBias);
 
   const sheet = cloneState(auto);
   const rAuto = playUser(auto);

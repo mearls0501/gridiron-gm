@@ -31,6 +31,7 @@ import { teamLeaders } from "@/lib/view/teamLeaders";
 import { presentedOvr } from "@/lib/core/ratings";
 import { PRIVATE_VISIT_CAP, calendarView } from "@/lib/core/scouting";
 import { focusFilmLines } from "@/lib/core/scoutStaff";
+import { emptyCoordinatorFlags } from "@/lib/core/coaches";
 
 /** Live label while Hub simTo yields between weeks. */
 function hubSimLabel(state: GameState): string {
@@ -114,6 +115,7 @@ export default function Hub() {
     const injured = injuredPlayers(state, team.id);
     const onIr = irCount(state, team.id);
     const issues = rosterIssues(state, team.id);
+    const chairFlags = emptyCoordinatorFlags(team);
     const clip = rosterCapView(state, team.id);
     const div = divisionStandings(state, team.division);
     const divRank = seasonHasResults(state)
@@ -124,11 +126,11 @@ export default function Hub() {
     );
     const topPerformers = teamLeaders(state, team.id);
     const lastResults = weekGames(state, Math.max(1, state.week - 1)).filter((g) => g.played);
-    return { team, rec, cap, next, bye, injured, onIr, issues, clip, div, divRank, roster, topPerformers, lastResults };
+    return { team, rec, cap, next, bye, injured, onIr, issues, chairFlags, clip, div, divRank, roster, topPerformers, lastResults };
   }, [state]);
 
   if (!state || !derived) return null;
-  const { team, rec, cap, next, bye, injured, onIr, issues, clip, divRank, roster, topPerformers } = derived;
+  const { team, rec, cap, next, bye, injured, onIr, issues, chairFlags, clip, divRank, roster, topPerformers } = derived;
   const cal = calendarView(state);
   const offers = state.tradeOffers ?? [];
   const filmNews = focusFilmLines(state);
@@ -560,28 +562,30 @@ export default function Hub() {
       })()}
 
       {/* ---- Alerts -------------------------------------------------------- */}
-      {issues.length > 0 && (
+      {(issues.length > 0 || chairFlags.length > 0) && (
         <Card
           title="Needs attention"
           actions={
-            <Button
-              size="sm"
-              onClick={() =>
-                apply((s) => {
-                  const rng = new Rng(s.rngState);
-                  reconcileRoster(s, s.userTeamId, rng);
-                  s.rngState = rng.state;
-                  return "Roster and cap brought back into compliance";
-                })
-              }
-              title={
-                clip.camp
-                  ? `Signs, releases and renegotiates until you are at ${ROSTER_LIMIT}–${clip.cap} players and under the cap`
-                  : "Signs, releases and renegotiates until you are at 53 players and under the cap"
-              }
-            >
-              Auto-fix
-            </Button>
+            issues.length > 0 ? (
+              <Button
+                size="sm"
+                onClick={() =>
+                  apply((s) => {
+                    const rng = new Rng(s.rngState);
+                    reconcileRoster(s, s.userTeamId, rng);
+                    s.rngState = rng.state;
+                    return "Roster and cap brought back into compliance";
+                  })
+                }
+                title={
+                  clip.camp
+                    ? `Signs, releases and renegotiates until you are at ${ROSTER_LIMIT}–${clip.cap} players and under the cap`
+                    : "Signs, releases and renegotiates until you are at 53 players and under the cap"
+                }
+              >
+                Auto-fix
+              </Button>
+            ) : undefined
           }
         >
           <div className="space-y-2">
@@ -596,6 +600,20 @@ export default function Hub() {
                 </div>
                 <Link href={i.kind === "overCap" ? "/finances" : "/roster"} className="ml-auto shrink-0">
                   <Button size="sm" variant="ghost">Fix</Button>
+                </Link>
+              </div>
+            ))}
+            {chairFlags.map((f) => (
+              <div key={f.role} className="flex items-start gap-2.5 text-sm">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-warn)] shrink-0" />
+                <div>
+                  <div>{f.message}</div>
+                  <div className="text-xs text-[var(--color-muted)]">
+                    {f.detail}
+                  </div>
+                </div>
+                <Link href={f.href} className="ml-auto shrink-0">
+                  <Button size="sm" variant="ghost">Staff</Button>
                 </Link>
               </div>
             ))}

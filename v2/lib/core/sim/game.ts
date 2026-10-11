@@ -9,6 +9,7 @@ import { CLEAR, HOME_FIELD, restEffect, weatherEffects } from "../weather";
 import { blankPlayerGameStat, blankTeamGameStats } from "../season/stats";
 import { isSat } from "../inactives";
 import { effectiveCoach, type SimOpts, type SnapInfo } from "../callSheet";
+import { coordinatorPlayYards, vacantStcFgDelta, vacantStcPuntDelta } from "../coaches";
 
 /**
  * Drive-and-play simulation.
@@ -915,7 +916,8 @@ function* runGameSim(
     const p = clamp(
       (1.03 - Math.pow(Math.max(0, distance - 17) / 42, 2.15) * 0.70 +
         (att(k, "kpw") - 50) * 0.0016 + (att(k, "kac") - 50) * 0.0030)
-        * wx.kickAccuracy * visitorKick,
+        * wx.kickAccuracy * visitorKick
+        + vacantStcFgDelta(ctx.team),
       0.01, 0.99
     );
 
@@ -948,7 +950,11 @@ function* runGameSim(
     const receiving = offenseIsHome ? ctxAway : ctxHome;
     const p = ctx.starters.P[0];
 
-    const gross = Math.round(clamp((45 + (p ? (att(p, "kpw") - 50) * 0.16 : 0) + rng.normal(0, 7)) * wx.puntDistance, 22, 70));
+    const gross = Math.round(clamp(
+      (45 + (p ? (att(p, "kpw") - 50) * 0.16 : 0) + rng.normal(0, 7)) * wx.puntDistance
+        + vacantStcPuntDelta(ctx.team),
+      22, 70,
+    ));
     const landing = yardLine + gross;
     burn(rng.int(9, 14));
 
@@ -1141,6 +1147,7 @@ function* runGameSim(
     if (rng.chance((0.0113 + (skillCentre - 60) * 0.00054 + (skill - skillCentre) * bo2Slope) * breakout)) {
       yards += Math.abs(rng.normal(23, 13.5));          // gone
     }
+    yards += coordinatorPlayYards(o.team, d.team);
     yards = Math.round(clamp(yards, -6, 100 - yardLine));
 
     const cs = statFor(carrier, o);
@@ -1420,7 +1427,10 @@ function* runGameSim(
         };
       }
       // Won the ball in the air — a catch, but no room to run afterwards.
-      const gained = Math.round(clamp(Math.abs(rng.normal(14, 8)), 1, 100 - yardLine));
+      const gained = Math.round(clamp(
+        Math.abs(rng.normal(14, 8)) + coordinatorPlayYards(o.team, d.team),
+        1, 100 - yardLine,
+      ));
       qbStat.passCmp++;
       qbStat.passYds += gained;
       qbStat.passLong = Math.max(qbStat.passLong, gained);
@@ -1534,7 +1544,7 @@ function* runGameSim(
     if (rng.chance(0.012 + (att(target, "elu") - 60) * 0.0004)) {
       yac += Math.abs(rng.normal(16, 9.5));
     }
-    const yards = Math.round(clamp(air + yac, -3, 100 - yardLine));
+    const yards = Math.round(clamp(air + yac + coordinatorPlayYards(o.team, d.team), -3, 100 - yardLine));
 
     qbStat.passCmp++;
     qbStat.passYds += yards;

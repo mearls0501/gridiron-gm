@@ -193,8 +193,9 @@ export function migrate(state: GameState): GameState {
   for (const p of state.players) {
     if (p.contract && typeof p.contract.voidYears !== "number") p.contract.voidYears = 0;
   }
-  // HC / OC / DC + owner: child-stream backfill. Copies Team.coach dials
-  // onto the people so play-calling does not move on an old save.
+  // HC / OC / DC / STC + owner. Child stream. A club with no people layer
+  // is filled here; coordinators draw their own ratings. An existing staff
+  // is left alone, except a one-time STC when that chair was never introduced.
   ensureCoaches(state);
   ensureOwners(state);
   // Holdouts / trade requests: child-stream evaluation. Missing psychology

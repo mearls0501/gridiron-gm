@@ -32,7 +32,7 @@ import {
 } from "@/components/ui";
 
 /**
- * The people desk: HC / OC / DC and the owner.
+ * The people desk: HC / OC / DC / STC and the owner.
  *
  * Staff budget / schemes still live on /front-office. This page is the
  * named coaches and the owner whose patience makes `firingEnabled` real.
@@ -42,6 +42,7 @@ const ROLE_TITLE: Record<CoachRole, string> = {
   hc: "Head Coach",
   oc: "Offensive Coordinator",
   dc: "Defensive Coordinator",
+  stc: "Special Teams Coordinator",
 };
 
 function schemeName(id: string | undefined): string {
@@ -142,7 +143,7 @@ export default function StaffPage() {
         <div>
           <h1 className="text-lg font-semibold">Staff</h1>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">
-            Head coach, coordinators, and the owner. Budget still lives on Front Office.
+            Head coach, coordinators, and the owner. An empty coordinator chair costs the club. Budget still lives on Front Office.
           </p>
         </div>
         <label className="text-xs text-[var(--color-muted)] flex items-center gap-2">
@@ -207,7 +208,7 @@ export default function StaffPage() {
         </Card>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         {COACH_ROLES.map((role) => (
           <CoachCard
             key={role}
