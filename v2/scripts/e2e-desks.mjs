@@ -25,6 +25,24 @@ export function parseDraftPickCount(text) {
 export const DRAFT_PICK_MIN = 248;
 export const DRAFT_PICK_MAX = 290;
 
+/** Tag window: re-sign rows plus the Hub walk warning. Continue still closes it. */
+export async function noteTagResignStep(page, { fail, ok }) {
+  const t = await pageText(page);
+  if (!/will walk if you Continue now/.test(t)) {
+    fail("hub missing the walk warning before the tag window closes");
+    return;
+  }
+  if (/No expiring players will walk/.test(t)) {
+    ok("tag window walk warning is zero — no re-sign rows");
+    return;
+  }
+  if (!/Meet asking/.test(t) || !/\bOffer\b/.test(t)) {
+    fail("tag window re-sign step missing Offer / Meet asking");
+    return;
+  }
+  ok("tag window re-sign step lists Offer / Meet asking and warns who walks");
+}
+
 export async function checkStaffDesk(page, base, { fail, ok }) {
   await page.goto(base + "/staff", { waitUntil: "networkidle" });
   await page.waitForTimeout(500);
