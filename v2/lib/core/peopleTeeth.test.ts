@@ -110,7 +110,7 @@ function plantStandings(st: GameState, season: number, winsFor: (teamId: number)
   for (const t of st.teams) {
     assert.ok(t.owner?.name, `${t.abbr} missing owner after newGame`);
     assert.ok(t.owner!.patience >= 0.35 && t.owner!.patience <= 0.80, `${t.abbr} owner patience out of band`);
-    assert.ok(t.coaches?.hc && t.coaches.oc && t.coaches.dc, `${t.abbr} missing a chair after newGame`);
+    assert.ok(t.coaches?.hc && t.coaches.oc && t.coaches.dc && t.coaches.stc, `${t.abbr} missing a chair after newGame`);
   }
   ensureCoaches(st);
   ensureOwners(st);

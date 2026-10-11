@@ -436,9 +436,9 @@ export interface Team {
    */
   callSheet?: CallSheet;
   /**
-   * Named HC / OC / DC. Missing = older save; `ensureLeaguePeople` fills it
-   * from `coach` so the existing dial object stays the sim source until a
-   * hire actually replaces a coordinator.
+   * Named HC / OC / DC / STC. Missing = older save; `ensureCoaches` fills it.
+   * The head coach copies `coach`. Coordinators draw their own ratings.
+   * A vacant coordinator is an on-field cost, not a silent fallback.
    */
   coaches?: CoachingStaff;
   /** Club owner. Missing = older save; backfilled on load. */
@@ -509,7 +509,7 @@ export interface Coach {
   shadowTendency: number;
 }
 
-export type CoachRole = "hc" | "oc" | "dc";
+export type CoachRole = "hc" | "oc" | "dc" | "stc";
 
 /**
  * A coach as a person — contract, scheme, and the same dials `Coach` already
@@ -540,6 +540,7 @@ export interface CoachingStaff {
   hc?: CoachPerson;
   oc?: CoachPerson;
   dc?: CoachPerson;
+  stc?: CoachPerson;
 }
 
 /**
@@ -1408,6 +1409,11 @@ export interface GameState {
   coachMarket?: CoachPerson[];
   /** Next `CoachPerson.id`. Missing = start at 1000 on backfill. */
   nextCoachId?: number;
+  /**
+   * STC chairs have been introduced. Missing = backfill once on load.
+   * A vacancy after that stays empty.
+   */
+  stcSeeded?: boolean;
   /**
    * Last psychology evaluation. Missing = never run, so older saves
    * evaluate once on migrate. Idempotent per (season, week).

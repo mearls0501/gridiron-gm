@@ -5,6 +5,68 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-11 — Empty coordinator chair
+
+Matt **SIGNED** 2026-10-09: "An empty coordinator chair costs the club, the Hub flags it, and coordinators get their own ratings at league start." Built as written. CPU clubs and the user club use the same path.
+
+### The rule
+
+League start gives every club a head coach, an offensive coordinator, a defensive coordinator, and a special teams coordinator. The head coach still copies `Team.coach`. The three coordinators draw their own ratings. They are not copies of the head coach, and the chairs are not empty.
+
+A vacant OC, DC, or STC is an on-field cost on the coaching-effect path (`peopleCoachDials` → `effectiveCoach`, and the kick formulas beside it). A filled chair does not pay it.
+
+`EMPTY_COORDINATOR_COST` is **8** rating points under the fallback.
+
+- **OC.** Fallback is the head coach's offense (else `Team.coach`). The gap is **−0.096 yards** on each run and each completion (`COORD_YARDS_PER_POINT` 0.012 × 8). Pass bias falls back to `Team.coach` with no extra shift.
+- **DC.** Fallback is the head coach's defense. The gap is **+0.096 yards allowed** on each of those plays.
+- **STC.** `Coach` has no special-teams dial. The grade on the person is his `offense` rating. The fallback is 60, the centre of that draw. A vacancy is **−0.012** field-goal make probability and **−0.8** punt yards. Kickoffs are not adjusted.
+
+The Hub flags an empty coordinator chair on the user's club, in Needs attention, linked to Staff. It does not block Continue. CPU vacancies are not flagged. They still pay the cost.
+
+An existing staff that never had an STC is given one on load, once (`stcSeeded`). A chair emptied after that stays empty. Coordinators already on an old save keep the ratings they had. Own ratings are the league-start draw.
+
+Two locks moved because the season's plays moved, not because a claim was dropped. Seed 42's tag-window parent stream is `865642336` and free agency is `2177187567` (was `4285417656` and `485912630`). The inquiry still does not add a parent draw beyond that offseason trade step. The live-game replay sits the same gameday inactives the kickoff clone sits, which is what made a 23–7 match a 23–10 when the week actually had sits.
+
+### Disagreement
+
+A filled coordinator's own offense and defense grades are not a second yard dial. Those two numbers were blended onto the coach and the play engine never read them. Pass bias and shadow tendency are the path a filled chair already had, and those are now his own, which is why year 0 can move with every chair filled. Charging `(rating − 60)` on every filled chair would have been a new league-wide dial under the freeze. The 8-point vacancy gap is the cost.
+
+The STC cash band (2–3 years, $1–3M) is a proposed default in the same sense as the other coach contracts. It is not an NFL figure and it is not a cap charge.
+
+### Studio panel
+
+This packet needs its own 5-seed Studio panel after merge. That panel should also report `hcFiresPerSeason`. No band. Do not retune.
+
+### Calibration freeze
+
+Calibration freeze stays, except that this packet is allowed to move year-0 numbers. No new metrics, bands, or re-locks. `docs/baselines.json` was not edited. Dials were not retuned. The vacancy constants above are the cost, not a calibration pass.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck passed. Coordinator checks passed: every club rated at league start; an empty OC, DC, or STC applies the cost and a filled chair does not; the Hub flag appears when a chair is empty. Verify **348/348**. Sweep 5 leagues × 2 seasons clean. Calibrate 28 metrics, score mismatches 0. Statcheck 23 metrics. Scout passed. No FAIL rows.
+
+Year-0 moved, which this packet allows. `##M` strings:
+
+| metric | before | after |
+| --- | --- | --- |
+| `calibrate.pts` | `23.723333333333333` | `23.19` |
+| `calibrate.passYds` | `237.32833333333335` | `241.14166666666668` |
+| `statcheck.wr10RecYds` | `1070` | `1050` |
+
+Deltas: pts −0.533333333333333, pass yards +3.81333333333333, WR10 receiving yards −20. The move is the coordinators' own pass bias and shadow tendency. Vacancy yards are 0 at league start because every chair is filled. All three stay inside the existing bands.
+
+`leverage.wrongSign` is **0** on this seed. The inherited single-seed red (`EDGE.prs` points +0.6) did not appear: this seed's swing is −1.6, verdict ok. That is a single-seed flip, not a fix, and it is not re-locked. `leverage.noEffect` is 1 (`OT.sta` sacksTaken), the existing no-effect row, inside the band.
+
+```
+GATE PASS  (68 metrics within baseline)
+```
+
+Not a retune. `docs/baselines.json` was not edited.
+
+`PW_CHROMIUM=/usr/bin/google-chrome node scripts/e2e.mjs` printed **E2E PASSED**. `PW_CHROMIUM=/usr/bin/google-chrome node scripts/e2e-interact.mjs` printed **INTERACTION TEST PASSED**. Both ran against `next start` on port 3000. The staff desk still loads. A browser pass fired only the special teams coordinator: the Hub then showed "Special teams coordinator chair is empty", and the Staff link opened the vacant chair. Filled chairs did not flag.
+
+---
+
 ## 2026-10-11 — User re-sign step before the tag window closes
 
 Matt **SIGNED** 2026-10-09: "Before the tag window closes, the user gets a re-sign step: every expiring player with asking price and Offer / Meet asking, and the Hub warns how many walk on Continue." Built as written.

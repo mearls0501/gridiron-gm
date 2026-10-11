@@ -13,6 +13,7 @@ import { simulateGame } from "../core/sim/game";
 import { buildDrives, lastCalledSnap } from "../core/sim/events";
 import { createLiveGame } from "../core/liveGame";
 import { setCallSheet, userSimOpts, boxAttempts } from "../core/callSheet";
+import { declareGamedayInactives } from "../core/inactives";
 import { startRegularSeason, advance } from "../core/season/engine";
 import { DriveSummary, PlayEvent } from "../core/types";
 import { encodeSave, decodeSave } from "../store/codec";
@@ -141,12 +142,16 @@ function names(): (id: number) => string {
     assert.ok(view.plays.length > 20);
     assert.ok(view.drives.length >= 8);
     const replay = cloneState(st);
+    const replayGame = replay.games.find((x) => x.id === g.id)!;
+    // Live sits the gameday list on its kickoff clone. The replay has to sit
+    // the same list or a week with inactives cannot match.
+    declareGamedayInactives(replay, [replayGame.homeId, replayGame.awayId]);
     setCallSheet(replay, { snaps: view.calls });
     const fromSim = simulateGame(
       replay,
-      replay.games.find((x) => x.id === g.id)!,
+      replayGame,
       new Rng(replay.rngState),
-      userSimOpts(replay, replay.games.find((x) => x.id === g.id)!),
+      userSimOpts(replay, replayGame),
     );
     assert.equal(view.result.homeScore, fromSim.homeScore, "live finish matches sheet replay");
     assert.equal(view.result.awayScore, fromSim.awayScore);

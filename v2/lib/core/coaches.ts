@@ -11,23 +11,53 @@ import {
 } from "./types";
 
 /**
- * People-layer coaches: HC / OC / DC with contracts and schemes.
+ * People-layer coaches: HC / OC / DC / STC with contracts and schemes.
  *
  * `Team.coach` is the existing seven-number dial object and is never rewritten
- * here. New people copy those dials on first fill so `effectiveCoach` matches
- * the generated club until a hire or a poach actually replaces someone.
+ * here. The head coach copies those dials. Coordinators draw their own on
+ * first fill. A vacant OC, DC, or STC is priced on this same path: the
+ * fallback rating minus `EMPTY_COORDINATOR_COST`.
  *
  * All draws come from a child stream keyed (seed, season, week, 'coaches').
  * `state.rngState` is not read or written.
  */
 
-export const COACH_ROLES: CoachRole[] = ["hc", "oc", "dc"];
+export const COACH_ROLES: CoachRole[] = ["hc", "oc", "dc", "stc"];
+
+/** OC, DC, and STC. The head coach is not a coordinator chair. */
+export const COORDINATOR_ROLES: readonly ("oc" | "dc" | "stc")[] = ["oc", "dc", "stc"];
+
+/**
+ * Rating points removed from the fallback when that coordinator chair is empty.
+ *
+ * OC and DC fall back to the head coach's rating for that side (else
+ * `Team.coach`). STC has no special-teams dial on `Coach`; the fallback is
+ * `COORD_RATING_CENTRE` (60), and the grade stored on the person is his
+ * `offense` number.
+ *
+ * The play engine turns the gap into yards and kicks. It does not add a
+ * second dial for a filled chair's own offense or defense grade — those
+ * already move the field through pass bias (OC) and shadow tendency (DC).
+ * A filled chair pays none of this cost.
+ *
+ *   OC vacant: −0.096 yards on each run and each completion
+ *     (`COORD_YARDS_PER_POINT` 0.012 × 8)
+ *   DC vacant: +0.096 yards allowed on each of those plays
+ *   STC vacant: −0.012 field-goal make probability, −0.8 punt yards
+ *     Kickoffs are not adjusted.
+ */
+export const EMPTY_COORDINATOR_COST = 8;
+export const COORD_RATING_CENTRE = 60;
+export const COORD_YARDS_PER_POINT = 0.012;
+export const STC_FG_PER_POINT = 0.0015;
+export const STC_PUNT_YARDS_PER_POINT = 0.1;
 
 /** Proposed defaults — flag for Matt. Cash only; not a cap charge. */
 export const COACH_CONTRACT = {
   hc: { yearsLo: 4, yearsHi: 6, salaryLo: 8_000_000, salaryHi: 16_000_000 },
   oc: { yearsLo: 3, yearsHi: 4, salaryLo: 2_500_000, salaryHi: 7_000_000 },
   dc: { yearsLo: 3, yearsHi: 4, salaryLo: 2_500_000, salaryHi: 6_500_000 },
+  stc: { yearsLo: 2, yearsHi: 3, salaryLo: 1_000_000, salaryHi: 3_000_000 },
 } as const;
 
 const MARKET_SIZE = 8;
@@ -90,12 +120,13 @@ function makeStaffCoach(
   rng: Rng,
 ): CoachPerson {
   const name = role === "hc" ? team.coach.name : makeCoachName(rng);
+  const dials = role === "hc" ? copyDials(team.coach) : randomDials(rng);
   return {
     id: nextId(state),
     name,
     role,
     teamId: team.id,
-    ...copyDials(team.coach),
+    ...dials,
     scheme: schemeFor(team, role),
     ...contractFor(role, rng, state.season),
   };
@@ -137,19 +168,99 @@ export function staffSlot(team: Team, role: CoachRole): CoachPerson | undefined 
   return team.coaches?.[role];
 }
 
-/** Dials the people layer would feed `effectiveCoach`, or null if nobody is named. */
+function vacantSide(filled: number | undefined, fallback: number): number {
+  if (filled != null) return filled;
+  return clamp(fallback - EMPTY_COORDINATOR_COST, 0, 100);
+}
+
+/** Dials the people layer feeds `effectiveCoach`, or null if nobody is named. */
 export function peopleCoachDials(team: Team): Coach | null {
   const c = team.coaches;
-  if (!c?.hc && !c?.oc && !c?.dc) return null;
+  if (!c?.hc && !c?.oc && !c?.dc && !c?.stc) return null;
   return {
     name: c.hc?.name ?? team.coach.name,
-    offense: c.oc?.offense ?? c.hc?.offense ?? team.coach.offense,
-    defense: c.dc?.defense ?? c.hc?.defense ?? team.coach.defense,
+    offense: vacantSide(c.oc?.offense, c.hc?.offense ?? team.coach.offense),
+    defense: vacantSide(c.dc?.defense, c.hc?.defense ?? team.coach.defense),
     development: c.hc?.development ?? team.coach.development,
     aggression: c.hc?.aggression ?? team.coach.aggression,
     passBias: c.oc?.passBias ?? team.coach.passBias,
     shadowTendency: c.dc?.shadowTendency ?? team.coach.shadowTendency,
   };
+}
+
+/**
+ * Yards added on a run or a completion from vacant coordinators.
+ * Negative when the offense has no OC. Positive when the defense has no DC.
+ * A filled chair, or a club with no people layer, contributes 0.
+ */
+export function coordinatorPlayYards(offense: Team, defense: Team): number {
+  return vacantOcYards(offense) + vacantDcYards(defense);
+}
+
+export function vacantOcYards(team: Team): number {
+  if (!team.coaches || team.coaches.oc) return 0;
+  const fallback = team.coaches.hc?.offense ?? team.coach.offense;
+  const rated = peopleCoachDials(team)?.offense ?? fallback;
+  return (rated - fallback) * COORD_YARDS_PER_POINT;
+}
+
+export function vacantDcYards(team: Team): number {
+  if (!team.coaches || team.coaches.dc) return 0;
+  const fallback = team.coaches.hc?.defense ?? team.coach.defense;
+  const rated = peopleCoachDials(team)?.defense ?? fallback;
+  return (fallback - rated) * COORD_YARDS_PER_POINT;
+}
+
+/**
+ * Special-teams grade. A filled STC keeps his own `offense` rating.
+ * A vacant chair is the centre minus `EMPTY_COORDINATOR_COST`.
+ * No people layer is the centre, so an old save before backfill is not taxed.
+ */
+export function specialTeamsRating(team: Team): number {
+  if (!team.coaches) return COORD_RATING_CENTRE;
+  if (team.coaches.stc) return team.coaches.stc.offense;
+  return clamp(COORD_RATING_CENTRE - EMPTY_COORDINATOR_COST, 0, 100);
+}
+
+/** Field-goal make-probability added for a vacant STC. Filled is 0. */
+export function vacantStcFgDelta(team: Team): number {
+  if (!team.coaches || team.coaches.stc) return 0;
+  return (specialTeamsRating(team) - COORD_RATING_CENTRE) * STC_FG_PER_POINT;
+}
+
+/** Punt yards added for a vacant STC. Filled is 0. */
+export function vacantStcPuntDelta(team: Team): number {
+  if (!team.coaches || team.coaches.stc) return 0;
+  return (specialTeamsRating(team) - COORD_RATING_CENTRE) * STC_PUNT_YARDS_PER_POINT;
+}
+
+const CHAIR_NAME = {
+  oc: "Offensive coordinator",
+  dc: "Defensive coordinator",
+  stc: "Special teams coordinator",
+} as const;
+
+export interface CoordinatorChairFlag {
+  role: "oc" | "dc" | "stc";
+  message: string;
+  detail: string;
+  href: "/staff";
+}
+
+/** Hub flags for empty coordinator chairs. No people layer means nothing to flag. */
+export function emptyCoordinatorFlags(team: Team): CoordinatorChairFlag[] {
+  if (!team.coaches) return [];
+  const flags: CoordinatorChairFlag[] = [];
+  for (const role of COORDINATOR_ROLES) {
+    if (team.coaches[role]) continue;
+    flags.push({
+      role,
+      message: `${CHAIR_NAME[role]} chair is empty`,
+      detail: "That vacancy costs the club on the field until the chair is filled.",
+      href: "/staff",
+    });
+  }
+  return flags;
 }
 
 export function sameCoachDials(a: Coach, b: Coach): boolean {
@@ -181,6 +292,17 @@ export function ensureCoaches(state: GameState): void {
     for (const role of COACH_ROLES) {
       team.coaches[role] = makeStaffCoach(state, team, role, rng);
     }
+  }
+
+  // Staff that predates the STC chair. A vacancy after this stays empty.
+  if (!state.stcSeeded) {
+    for (const team of state.teams) {
+      if (!team.coaches) team.coaches = {};
+      if (!team.coaches.stc) {
+        team.coaches.stc = makeStaffCoach(state, team, "stc", rng);
+      }
+    }
+    state.stcSeeded = true;
   }
 
   if (state.coachMarket == null) restockMarket(state, rng);
@@ -273,7 +395,8 @@ export function hireCoach(
 export function roleLabel(role: CoachRole): string {
   if (role === "hc") return "head coach";
   if (role === "oc") return "offensive coordinator";
-  return "defensive coordinator";
+  if (role === "dc") return "defensive coordinator";
+  return "special teams coordinator";
 }
 
 export interface CarouselEvent {
@@ -416,7 +539,7 @@ export function runCoachCarousel(state: GameState): CarouselEvent[] {
 
   for (const team of state.teams) {
     if (team.id === state.userTeamId) continue;
-    for (const role of ["oc", "dc"] as CoachRole[]) {
+    for (const role of COORDINATOR_ROLES) {
       if (team.coaches?.[role]) continue;
       const hired = fillCpuChair(state, team, role, rng);
       if (hired) events.push(hired);
