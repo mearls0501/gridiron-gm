@@ -5,6 +5,115 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-12 — Sides trial zeroes the DC shadow the game plays
+
+Matt **SIGNED**: the `coherence.eliteCbSidesDrop` sides trial should zero the shadow the game actually plays, the DC's `shadowTendency`, not the head coach's. Built as written. No sim behavior change. No dial, band, or `baselines.json` change.
+
+### The trial
+
+`zeroPlayedShadow` sets `coaches.dc.shadowTendency` to **0** and leaves `Team.coach.shadowTendency` alone. The weak sides trial and the elite sides trial both call it. A club with no DC still plays `Team.coach`, and that dial is zeroed instead. The shadow trial is unchanged. It still writes `Team.coach.shadowTendency = 1`.
+
+The check is in `coaches.test.ts`. On a DC whose shadow is **0.95**, writing the head coach to **0** leaves `effectiveCoach` at **0.95**. `zeroPlayedShadow` then leaves the head coach at **0.4** and the played shadow at **0**.
+
+### Five seeds
+
+Same seeds as the diagnostic below. `GG_SEED` 1–5, `npx tsx scripts/coherence.ts 5`. The elite-CB block uses `seedFor(8899)`. The mean is the average of the five `##M` lines. Not a re-lock.
+
+| seed | `coherence.eliteCbSidesDrop` |
+|---|---|
+| 1 | −0.032 |
+| 2 | 0.201 |
+| 3 | −0.559 |
+| 4 | 0.354 |
+| 5 | 0.320 |
+| mean | **0.057** |
+
+The mean sits inside **0 ±1.2**. Seed 3 is **−0.559**. This is not the pre-#170 series **0.437**. The OC's own pass bias is still in the games. That draw was not put back.
+
+### Disagreement
+
+The diagnostic below also described setting the shadow trial's DC to **1**. Matt signed the sides trial only, so that was not built. `eliteCbShadowDrop` on these seeds is **0.728** (0.224 / 0.362 / 1.362 / 1.014 / 0.678). The baseline is now true sides, and the shadow trial still plays the DC's own draw, so the two metrics are no longer the same number. Each seed prints that shadowing is worse than side coverage. That line is this comparison, not a DC pinned at 1. No band was added.
+
+### Calibration freeze
+
+Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json` was not edited. Dials were not retuned.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck passed. The sides-shadow check passed. Verify **348/348**. Sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Year-0 headlines are the same bytes as `3f4e7a6`: `calibrate.pts` `23.19`, `calibrate.passYds` `241.14166666666668`, `statcheck.wr10RecYds` **1050**. `leverage.wrongSign` is **0** on this seed. The inherited single-seed red did not appear. `leverage.noEffect` is 1, the existing row.
+
+```
+GATE PASS  (68 metrics within baseline)
+```
+
+`PW_CHROMIUM=/usr/bin/google-chrome node scripts/e2e.mjs` printed **E2E PASSED**. `node scripts/e2e-interact.mjs` printed **INTERACTION TEST PASSED** on a second run. The first run failed before the draft (`never reached the draft phase`, then the front-office checks behind it) with 0 console errors. The retry walked the tag window, a draft pick, and the staff budget. That first miss is the continue loop's timeout, not this trial.
+
+---
+
+## 2026-10-12 — eliteCbSidesDrop after #170: shadowTendency ruled out as the sole cause
+
+Docs only. Local diagnostic. No sim, dial, band, or `baselines.json` change. Calibration freeze stays.
+
+### The question
+
+#172's panel at `3f4e7a6` reads `coherence.eliteCbSidesDrop` **1.21** (0.19/1.08/2.43/1.13/1.22), over **0 ±1.2**. Seed 3 is **2.43**. The question was whether the DC's own `shadowTendency`, which #170 draws on its own, is the cause.
+
+The comparison is `dec89e8` (the commit before `3f4e7a6`) against `3f4e7a6`. `0f6039e` is #171, which landed after #170 and does not touch this path.
+
+### How the number is drawn and read
+
+`eliteCbSidesDrop` is weak yards per target minus elite-sides yards per target. The sides trial writes `teams[1].coach.shadowTendency = 0`. The shadow trial writes `1`. Coverage uses `effectiveCoach`, and `peopleCoachDials` takes shadow from the DC (`c.dc.shadowTendency`, else `Team.coach`). `assignCoverage` rolls `rng.chance` on that value. Pass calls read `off().coach.passBias`, which the people layer takes from the OC.
+
+Before #170, `makeStaffCoach` copied `Team.coach` onto the OC and the DC. The trial's write made the people layer disagree with `Team.coach`, so `effectiveCoach` used the copy: the head coach's generated shadow. The written 0 and the written 1 never reached the play. That is why `eliteCbShadowDrop` equals `eliteCbSidesDrop` on every published seed.
+
+#170 still copies the head coach. The OC, the DC, and the STC call `randomDials` on the coaches child stream. DC shadow is `clamp(normal(0.42, 0.26), 0, 0.95)`, the same distribution as `makeCoach`, as a second draw. The trial still writes `Team.coach`. The sim still reads the DC. Sides and shadow are still one trial. The tendency in it is the DC's draw. The OC's pass bias is his own draw too.
+
+The empty-chair yard hooks add 0 at league start. Every chair is filled. Copying the coordinators' offense and defense grades back onto the head coach's grades leaves this series on the same digits. Those grades are outside this measurement.
+
+### The runs
+
+The diagnostic replays the elite-CB block in `scripts/coherence.ts`: 120 games, offences 0/2/3/4, defence team 1, `seedFor(8899)`, `GG_SEED` 1–5. It skips the outlier seasons. It was not committed. The post row matches the #172 panel to the hundredth. The pre row is the series already printed on the Packet A and Packet D panels (mean **0.44**).
+
+| run | seed 1 | seed 2 | seed 3 | seed 4 | seed 5 | mean |
+|---|---|---|---|---|---|---|
+| pre, `dec89e8` | 0.881 | −0.018 | 0.392 | 1.048 | −0.117 | **0.437** |
+| post, as #170 shipped | 0.186 | 1.081 | 2.430 | 1.133 | 1.218 | **1.210** |
+| DC shadow put back to the HC, every club | 0.192 | 0.255 | 1.408 | 2.287 | 0.007 | **0.830** |
+| OC pass bias put back to the HC, every club | 0.768 | 0.486 | 2.096 | 0.563 | 0.696 | **0.922** |
+| both put back | 0.881 | −0.018 | 0.392 | 1.048 | −0.117 | **0.437** |
+
+Both-put-back matches `dec89e8` on the raw yards per target, weak and sides, on every seed. Same digits.
+
+Team 1 is the defence. The sides trial and the shadow trial both play his DC:
+
+| seed | HC shadow | DC shadow | effective shadow |
+|---|---|---|---|
+| 1 | 0.224 | 0.518 | 0.518 |
+| 2 | 0.000 | 0.702 | 0.702 |
+| 3 | 0.614 | 0.731 | 0.731 |
+| 4 | 0.628 | 0.524 | 0.524 |
+| 5 | 0.285 | 0.337 | 0.337 |
+
+### Verdict
+
+Shadow alone is ruled out. The **1.21** is the DC's own shadow and the OC's own pass bias together.
+
+Shadow put back, pass bias left as #170 draws it: panel **0.830**, inside **0 ±1.2**, seed 3 **1.408**. That is short of the pre-#170 seed 3, **0.392**. Pass bias put back, shadow left as #170 draws it: panel **0.922**, seed 3 **2.096**. Both put back: the pre-#170 series on every seed, including seed 3 at **0.392**.
+
+Seed 2 is the shadow-heavy club. The head coach is clamped at **0.000**, the DC drew **0.702**, and the drop moves **1.081 → 0.255** when shadow is put back (pre is **−0.018**). Seed 4 moves the other way on a shadow-only restore (**1.133 → 2.287**), because that DC drew under his head coach (**0.524** vs **0.628**). Seed 3's DC (**0.731**) is close to his head coach (**0.614**). The jump to **2.430** needs the pass-bias draw as well.
+
+### If Matt wants a fix
+
+Leave the coordinator draws. Own pass bias and own shadow are the signed #170 behavior, and the #170 note already says year 0 moves because of them. Copying the head coach back onto the chairs reverses that. Widening **0 ±1.2** would hide the reading. The freeze stays. No re-lock.
+
+The trial writes the head coach. The sim plays the DC. A measurement fix sets `teams[1].coaches.dc.shadowTendency` to **0** in the sides trial and to **1** in the shadow trial, in `scripts/coherence.ts`. On the code #170 shipped, sides then reads **0.057** (−0.032 / 0.201 / −0.559 / 0.354 / 0.320), inside the band, and shadow reads **1.621** (1.095 / 1.886 / 1.621 / 2.244 / 1.260). The two trials separate. Seed 3 sides is **−0.559**. That is a different claim from the old **0.437** series, which is the head coach's generated shadow rate with the written 0 and 1 ignored. Setting the DC to 0 does not return **0.437**. Matt signed the sides half. That is the section above. The shadow trial was not set to 1.
+
+### Calibration freeze
+
+That diagnostic did not touch `docs/baselines.json`, dials, or `scripts/`. The signed sides fix is the section above.
+
+---
+
 ## 2026-10-12 — Owner card mid-season pace
 
 Playtest polish. Built as written. The card is a view. `ownerJudgment` is unchanged, and so is every sim and judgment function. Calibration freeze stays.
