@@ -5,6 +5,41 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-12 — Sides trial zeroes the DC shadow the game plays
+
+Matt **SIGNED**: the `coherence.eliteCbSidesDrop` sides trial should zero the shadow the game actually plays, the DC's `shadowTendency`, not the head coach's. Built as written. No sim behavior change. No dial, band, or `baselines.json` change.
+
+### The trial
+
+`zeroPlayedShadow` sets `coaches.dc.shadowTendency` to **0** and leaves `Team.coach.shadowTendency` alone. The weak sides trial and the elite sides trial both call it. A club with no DC still plays `Team.coach`, and that dial is zeroed instead. The shadow trial is unchanged. It still writes `Team.coach.shadowTendency = 1`.
+
+The check is in `coaches.test.ts`. On a DC whose shadow is **0.95**, writing the head coach to **0** leaves `effectiveCoach` at **0.95**. `zeroPlayedShadow` then leaves the head coach at **0.4** and the played shadow at **0**.
+
+### Five seeds
+
+Same seeds as the diagnostic below. `GG_SEED` 1–5, `npx tsx scripts/coherence.ts 5`. The elite-CB block uses `seedFor(8899)`. The mean is the average of the five `##M` lines. Not a re-lock.
+
+| seed | `coherence.eliteCbSidesDrop` |
+|---|---|
+| 1 | −0.032 |
+| 2 | 0.201 |
+| 3 | −0.559 |
+| 4 | 0.354 |
+| 5 | 0.320 |
+| mean | **0.057** |
+
+The mean sits inside **0 ±1.2**. Seed 3 is **−0.559**. This is not the pre-#170 series **0.437**. The OC's own pass bias is still in the games. That draw was not put back.
+
+### Disagreement
+
+The diagnostic below also described setting the shadow trial's DC to **1**. Matt signed the sides trial only, so that was not built. `eliteCbShadowDrop` on these seeds is **0.728** (0.224 / 0.362 / 1.362 / 1.014 / 0.678). The baseline is now true sides, and the shadow trial still plays the DC's own draw, so the two metrics are no longer the same number. Each seed prints that shadowing is worse than side coverage. That line is this comparison, not a DC pinned at 1. No band was added.
+
+### Calibration freeze
+
+Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json` was not edited. Dials were not retuned.
+
+---
+
 ## 2026-10-12 — eliteCbSidesDrop after #170: shadowTendency ruled out as the sole cause
 
 Docs only. Local diagnostic. No sim, dial, band, or `baselines.json` change. Calibration freeze stays.
@@ -61,11 +96,11 @@ Seed 2 is the shadow-heavy club. The head coach is clamped at **0.000**, the DC 
 
 Leave the coordinator draws. Own pass bias and own shadow are the signed #170 behavior, and the #170 note already says year 0 moves because of them. Copying the head coach back onto the chairs reverses that. Widening **0 ±1.2** would hide the reading. The freeze stays. No re-lock.
 
-The trial writes the head coach. The sim plays the DC. A measurement fix sets `teams[1].coaches.dc.shadowTendency` to **0** in the sides trial and to **1** in the shadow trial, in `scripts/coherence.ts`. On the code #170 shipped, sides then reads **0.057** (−0.032 / 0.201 / −0.559 / 0.354 / 0.320), inside the band, and shadow reads **1.621** (1.095 / 1.886 / 1.621 / 2.244 / 1.260). The two trials separate. Seed 3 sides is **−0.559**. That is a different claim from the old **0.437** series, which is the head coach's generated shadow rate with the written 0 and 1 ignored. Setting the DC to 0 does not return **0.437**. `scripts/coherence.ts` was not edited.
+The trial writes the head coach. The sim plays the DC. A measurement fix sets `teams[1].coaches.dc.shadowTendency` to **0** in the sides trial and to **1** in the shadow trial, in `scripts/coherence.ts`. On the code #170 shipped, sides then reads **0.057** (−0.032 / 0.201 / −0.559 / 0.354 / 0.320), inside the band, and shadow reads **1.621** (1.095 / 1.886 / 1.621 / 2.244 / 1.260). The two trials separate. Seed 3 sides is **−0.559**. That is a different claim from the old **0.437** series, which is the head coach's generated shadow rate with the written 0 and 1 ignored. Setting the DC to 0 does not return **0.437**. Matt signed the sides half. That is the section above. The shadow trial was not set to 1.
 
 ### Calibration freeze
 
-Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json`, dials, and `scripts/` were not touched.
+That diagnostic did not touch `docs/baselines.json`, dials, or `scripts/`. The signed sides fix is the section above.
 
 ---
 

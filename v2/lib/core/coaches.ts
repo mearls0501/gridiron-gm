@@ -189,6 +189,20 @@ export function peopleCoachDials(team: Team): Coach | null {
 }
 
 /**
+ * Sides trial in `scripts/coherence.ts`. Zero the shadow the play engine
+ * reads. With a DC named, that is his `shadowTendency`. The head coach's
+ * dial is left alone. A club with no DC still plays `Team.coach`.
+ */
+export function zeroPlayedShadow(team: Team): void {
+  const dc = team.coaches?.dc;
+  if (dc) {
+    dc.shadowTendency = 0;
+    return;
+  }
+  team.coach.shadowTendency = 0;
+}
+
+/**
  * Yards added on a run or a completion from vacant coordinators.
  * Negative when the offense has no OC. Positive when the defense has no DC.
  * A filled chair, or a club with no people layer, contributes 0.

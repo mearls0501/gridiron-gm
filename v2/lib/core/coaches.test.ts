@@ -19,6 +19,7 @@ import {
   coordinatorPlayYards,
   emptyCoordinatorFlags,
   ensureCoaches,
+  zeroPlayedShadow,
   fireCoach,
   fireCpuHeadCoaches,
   hireCoach,
@@ -322,6 +323,28 @@ function stripPeople(st: GameState): GameState {
   ensureCoaches(st);
   assert.equal(st.teams[st.userTeamId].coaches!.stc, undefined, "after introduction a vacancy stays empty");
   ok("an old staff gets one STC; a later vacancy stays empty");
+}
+
+{
+  const st = newGame({ seed: 3 });
+  const team = st.teams[1];
+  const dc = team.coaches!.dc!;
+  dc.shadowTendency = 0.95;
+  team.coach.shadowTendency = 0;
+  assert.equal(effectiveCoach(team).shadowTendency, 0.95, "zeroing the head coach leaves the DC in the game");
+  team.coach.shadowTendency = 0.4;
+  zeroPlayedShadow(team);
+  assert.equal(dc.shadowTendency, 0, "sides trial zeroes the DC");
+  assert.equal(team.coach.shadowTendency, 0.4, "sides trial does not zero the head coach");
+  assert.equal(effectiveCoach(team).shadowTendency, 0, "the shadow the game plays is 0");
+
+  const bare = stripPeople(newGame({ seed: 3 }));
+  const old = bare.teams[1];
+  old.coach.shadowTendency = 0.4;
+  zeroPlayedShadow(old);
+  assert.equal(old.coach.shadowTendency, 0, "no DC: the played dial is Team.coach");
+  assert.equal(effectiveCoach(old).shadowTendency, 0);
+  ok("sides trial zeroes the shadow the game plays");
 }
 
 console.log("ok    coaches people layer");

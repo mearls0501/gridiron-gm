@@ -20,6 +20,7 @@ import { Rng } from "../lib/core/rng";
 import { simulateGame } from "../lib/core/sim/game";
 import { autoSortDepthChart } from "../lib/core/generate";
 import { refreshOvr } from "../lib/core/ratings";
+import { zeroPlayedShadow } from "../lib/core/coaches";
 import { emitAll, progress, seedFor } from "./metrics";
 
 const SEASONS = Number(process.argv[2] ?? 5);
@@ -242,7 +243,10 @@ const weighted =
       // sort, which is what decides who CB1 is and therefore who does the
       // shadowing. Both trials read ovr 71 with cov set to 45 and 95.
       for (const c of cbs) refreshOvr(c);
-      st.teams[1].coach.shadowTendency = shadow;
+      // Sides must zero the dial assignCoverage reads. With a DC named, that
+      // is his shadowTendency. Writing Team.coach leaves that draw in the game.
+      if (shadow === 0) zeroPlayedShadow(st.teams[1]);
+      else st.teams[1].coach.shadowTendency = shadow;
 
       // The offence: a fixed number one and a fixed number two, so the thing
       // being measured is the coverage and not the receiver.
