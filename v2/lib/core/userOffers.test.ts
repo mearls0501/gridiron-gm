@@ -4,8 +4,9 @@
  * nothing. The inquiry walks the league on a child stream.
  *
  * Seed 42, tag → FA. The FA rng lock is the proof the inquiry did not add a
- * parent draw beyond the offseason trade step. Coordinator ratings moved the
- * season's plays, so the absolute moved: tag 865642336, FA 2177187567.
+ * parent draw beyond the offseason trade step. The specialist ask cap moved
+ * opening contracts, so the absolute moved: tag 823515333, FA 1063212815.
+ * Coordinator ratings had left it at tag 865642336, FA 2177187567.
  * Before that, tag was 4285417656 and FA was 485912630.
  *
  * Run: npx tsx lib/core/userOffers.test.ts
@@ -73,11 +74,11 @@ function assertLivePicks(st: ReturnType<typeof newGame>, offer: TradeOffer): voi
     }
   }
   assert.equal(st.phase, "offseason-tag");
-  assert.equal(st.rngState, 865642336);
+  assert.equal(st.rngState, 823515333);
 
   advanceOffseason(st);
   assert.equal(st.phase, "offseason-fa");
-  assert.equal(st.rngState, 2177187567, "inquiry must not move the parent stream");
+  assert.equal(st.rngState, 1063212815, "inquiry must not move the parent stream");
 
   const offers = st.tradeOffers ?? [];
   assert.ok(offers.length >= 1, `free agency opened with no calls (${offers.length})`);

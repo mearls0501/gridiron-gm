@@ -130,9 +130,28 @@ When this is built, two other reads of `marketApy` move for specialists over the
 
 Signed 2026-10-12, exactly these two shares: `7_000_000 / 301_200_000` for kickers and `4_100_000 / 301_200_000` for punters, hard-capped inside `marketApy` only. Built that way. `contractCeiling` locks the re-sign list on the $270.3M window: stored-87 punter, age 27, asks **$4.00M** (`3_996_000`); a stored-99 kicker, age 27, asks **$6.80M** (`6_804_000`); stored 76 and 78 at age 27 stay on the pre-cap dollars.
 
+The formula matches the signed block. Two effects showed up around it.
+
+Opening contracts are `marketApy` times the payroll scale, so seed 42's season is a different series of draws. The tag-window parent stream is **823515333** and free agency is **1063212815** (was **865642336** and **2177187567**). The inquiry still does not add a parent draw beyond that offseason trade step. `userOffers` was re-locked to those two numbers, the same way the coordinator-chair packet re-locked them when the plays moved. The claim is unchanged.
+
 ### Gate
 
-Pending the fast serial run on this build. `docs/baselines.json` is not edited.
+`npm run gate:serial` from `v2/` on `e380710` (fast, serial, 1 seed, 4 cores). Typecheck passed. Verify **348/348**. Sweep clean. Calibrate 28 metrics, statcheck 23, scout passed. Year-0 headlines: `calibrate.pts` **23.19**, `calibrate.passYds` **241.14166666666668**, `calibrate.rushYds` **118.28166666666667**, `calibrate.fgPct` **85.96**, `statcheck.wr10RecYds` **1136**, `statcheck.qb20PassYds` **3050**. `leverage.wrongSign` was **0** on this run. `leverage.noEffect` was **1** (the `OT.sta` probe). Not a retune. `docs/baselines.json` was not edited.
+
+Two FAIL lines on that commit:
+
+```
+FAIL  useroffers  exited 1
+FAIL  statcheck.rb5RushYds  1288  expected 1191 +/-95  (NFL ~1191)
+
+GATE FAIL  2 problems
+```
+
+`useroffers` was the stale fingerprint above. After the re-lock, `npx tsx lib/core/userOffers.test.ts` passed. The sim code did not change between the gate and that re-check.
+
+`statcheck.rb5RushYds` **1288** is 2 yards over the fast-tier ceiling (1191 + 95 = 1286). The band was locked on the 5-seed panel, where the same row was retired green at 1254, and the fast single-seed read was already called stream noise at 1327. This seed is reported. The baseline was not moved.
+
+`node scripts/e2e.mjs` printed **E2E PASSED**. `node scripts/e2e-interact.mjs` printed **INTERACTION TEST PASSED**. Both reached the tag window. Chromium was `/opt/google/chrome/chrome`.
 
 ---
 
