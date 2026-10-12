@@ -5,6 +5,133 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-12 — Studio panel GATE table: coordinator chairs (#170 @ 3f4e7a6) (report-only)
+
+Docs only. PR #170 close-out panel. **Report-only. No re-lock.**
+
+Mac Studio `npm run gate:full:serial`, 5 seeds, on `3f4e7a67630c1984e9f8c104c25eae6ca6c09f90` (#170, empty coordinator chair). Started ~6:49 PM ET 2026-10-11, finished ~1:28 AM ET 2026-10-12 (log mtime). Worktree `~/Projects/gg-3f4e7a6-panel`. Log `gate-full-5seed.log`. The numbers are that commit. `docs/baselines.json` **not edited**. Engine, dials, and `scripts/` not touched. Report-never-tune.
+
+### GATE FAIL 8 — panel @ `3f4e7a6`
+
+The QB ≤3 panel (@ `977d578`, #165) was GATE FAIL 4. This panel is GATE FAIL 8. Staff cleared. Leverage, conditions, elite-CB sides, and the age guard are the new lines. Milestones stay KNOWN-HIGH.
+
+```
+FAIL  conditions  exited 1
+FAIL  coherence  exited 1
+FAIL  drift  exited 1
+FAIL  leverage.wrongSign  0.20  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  drift.p0Failures  0.60  expected <= 0
+FAIL  conditions.problems  0.20  expected <= 0
+FAIL  tails.milestonesOff  22.20  expected <= 16  (KNOWN-HIGH, target 0. Count of categories outside the central 95% Poisson interval (λ = NFL rate × seasons). Panel 16.0 (14/15/15/18/18) after the 2026-08-28 verdict change; the old ratio-band lock of 12 does not apply to this metric.)
+FAIL  coherence.eliteCbSidesDrop  1.21  expected 0 +/-1.2
+
+GATE FAIL  8 problems
+Fix the cause. Do not edit docs/baselines.json or anything in scripts/.
+```
+
+`leverage.wrongSign` **0.20**. Seed 1 only. `EDGE.prs` points swing **+0.3** WRONG SIGN. Seeds 2–5 are **0**. The QB ≤3 panel's gate was **0**. Max stays **0**. Not re-locked.
+
+`conditions` exited 1. `conditions.problems` **0.20**. Seed 1 only: home win rate **51.9%** outside **52–58%**. The QB ≤3 panel was **0** (not listed as a fail). Max stays **0**. Not re-locked.
+
+`coherence` exited 1. `coherence.eliteCbSidesDrop` panel mean **1.21** (0.19/1.08/2.43/1.13/1.22), over **0 ±1.2**. Seed 3 is the big miss (**2.43**). That metric was not a FAIL line on the QB ≤3 panel. Not re-locked. `coherence.outlierExplainedPct` mean **86.67** (87.42/83.23/83.97/88.68/90.07). Seed 1 cleared the floor of **85** (**87.42**, COHERENT). Seeds 2 and 3 are under the floor (**83.23**, **83.97**). The QB ≤3 panel mean was **87.38**. Floor **85** stays. Do not soften it.
+
+`drift` exited 1. `drift.p0Failures` **0.60** (1/0/1/0/1). The age guard `34-year-olds rate below 27-year-olds` failed on seeds 1 (**16/20**), 3 (**15/20**), and 5 (**15/20**). Known-open. The QB ≤3 panel was **0.00**. Max stays **0**. Not re-locked.
+
+`tails.milestonesOff` **22.20** (22/21/22/23/23). KNOWN-HIGH. The QB ≤3 panel was **21.20**. Max stays **16**. Not re-locked.
+
+`staff` exited 0. `staff.problems` **0**, cleared from **0.20** on the QB ≤3 panel.
+
+### Panel means (5-seed)
+
+Seeds in panel order, where this section has them. The mean is the average of the five seed-block `##M` lines. Path-2 burn-in is pooled k-of-n: sum(events)/sum(popN). The **`977d578`** column is the 2026-10-09 QB ≤3 panel (#165).
+
+| metric | this panel @ `3f4e7a6` | `977d578` (#165) | notes |
+|---|---|---|---|
+| `coherence.outlierExplainedPct` | **86.67** (87.42/83.23/83.97/88.68/90.07) | **87.38** (84.62/90.60/87.67/87.66/86.36) | Seed 1 cleared floor **85**; seeds 2 and 3 under. Floor stays |
+| `coherence.eliteCbSidesDrop` | **1.21** (0.19/1.08/2.43/1.13/1.22) | (not a FAIL line on that panel) | **FAIL** 0±1.2. New |
+| `tails.milestonesOff` | **22.20** (22/21/22/23/23) | **21.20** (16/22/23/21/24) | **FAIL** ≤16. KNOWN-HIGH. Within seed noise |
+| `staff.problems` | **0** | **0.20** | Cleared |
+| `drift.p0Failures` | **0.60** (1/0/1/0/1) | **0.00** | **FAIL**. Age guard hit again. Max stays **0** |
+| `conditions.problems` | **0.20** | **0** (not listed as fail) | **FAIL**. Seed 1 home win rate **51.9%** |
+| `leverage.wrongSign` | **0.20** | **0** on that panel's gate | **FAIL**. Seed 1 `EDGE.prs` |
+| `drift.qbsPerClub53` | **2.859** (2.85/2.88/2.80/2.93/2.84) | **2.825** | Within seed noise. Still ≤**3.0** |
+| `drift.qbsPerClubPs` | **2.259** | **2.284** | Within seed noise |
+| `drift.qbsDraftedPerClass` | **13.41** | **13.26** | Within seed noise. Real **11.6** |
+| `careers.r1QbSharePct` | **10.26** | **10.57** | Within seed noise. Under max **16** |
+| `careers.path2BurnInTop10PrPct` | pooled **12 of 133 (9.02%)** | pooled **12 of 124 (9.68%)** | Within seed noise. Inside signed **7–16%** |
+| `careers.path2Top10PrPct` | pooled **30 of 250 (12.00%)** | pooled **27 of 228 (11.84%)** | Within seed noise. No band |
+| `drift.hcFiresPerSeason` | **6.25** (6.2/5.5/6.3/6.6/6.65) | **6.76** | Report. #166 and #167 also changed firing after `977d578`. No band |
+| `drift.hcFiredLastSeasonWins` | **5.52** | **5.68** | Within seed noise. Ref ~5.5 |
+| `drift.hcOneAndDonePerSeason` | **0.55** (0.5/0.45/0.5/0.45/0.85) | **1.02** | Moved down vs `977d578`. #167 no-fire after a winning or +3-win season is in the stack. Watch. Ref ~0.4. No band |
+| `drift.clubsAtFiveWinsOrFewer` | **4.45** | **4.56** | Within seed noise. NFL **6.75** |
+| `staff.leagueOvrDelta` | **0.686** (1.02/0.77/0.55/0.33/0.77) | **0.829** (1.32/0.78/0.79/0.35/0.91) | Mean inside max **1.2**. Seed 1 now under **1.2** |
+| `drift.franchiseTagsPerSeason` | **16.23** | **16.13** | Within seed noise. Inside **14±4** |
+| `drift.deadMoneyPct` | **5.58** | **5.54** | Within seed noise. No band |
+| `drift.holdoutsPerSeason` | **10.14** | **10.42** | Within seed noise. No band |
+| `drift.cpuDraftFitMean` | **0.0557** | **0.0603** | Within seed noise. No band |
+
+### Quarterback supply
+
+`drift.qbsPerClub53` is still the read the QB ≤3 packet signed. Expect **≤ 3.0**. This panel is **2.859** (2.85 / 2.88 / 2.80 / 2.93 / 2.84). The QB ≤3 panel was **2.825**. Within seed noise. Every seed is under 3.
+
+The census comparison of ~2.6 stays in `nfl-reference.md` §2.7b. It is not a target. Do not retune toward it. No `baselines.json` row.
+
+`drift.qbsPerClubPs` **2.259**, QB ≤3 panel **2.284**. `drift.qbsDraftedPerClass` **13.41**, QB ≤3 panel **13.26**. Real drafted per class is **11.6**. Both sit inside seed noise. No band.
+
+### Staff
+
+`staff` exited 0. `staff.problems` **0**, cleared from **0.20** on the QB ≤3 panel. That earlier miss was seed 1 `staff.leagueOvrDelta` **1.32** against the **1.2** per-seed limit. This panel's seed 1 is **1.02**, under **1.2**. Seeds 2–5 are **0.77 / 0.55 / 0.33 / 0.77**. The panel mean **0.686** is inside the signed max **1.2**. Max on `staff.problems` stays **0**. Not re-locked. Do not widen **1.2**.
+
+### Path 2 — pooled k of n
+
+Pooled counts, not the mean of the percents. The signed band on `careers.path2BurnInTop10PrPct` is **7–16%**, read pooled.
+
+| row | this panel | QB ≤3 panel |
+|---|---|---|
+| burn-in only | **12 of 133 (9.02%)** | **12 of 124 (9.68%)** |
+| all classes | **30 of 250 (12.00%)** | **27 of 228 (11.84%)** |
+
+Burn-in pooled **12 of 133 (9.02%)** sits inside the signed **7–16%** band. All-classes has no band. Do not retune `SECOND_SCENE_K` or the other scene dials from these rates.
+
+### Firing emits
+
+Report-only. No dial moves. No band.
+
+The stack after `977d578` includes #166 and #167 (and the related playtest PRs). Report the move. Do not retune.
+
+`drift.hcFiresPerSeason` **6.25** (6.2 / 5.5 / 6.3 / 6.6 / 6.65), QB ≤3 panel **6.76**. `drift.hcFiredLastSeasonWins` **5.52**, QB ≤3 panel **5.68**. The reference is ~5.5. `drift.hcOneAndDonePerSeason` **0.55** (0.5 / 0.45 / 0.5 / 0.45 / 0.85), QB ≤3 panel **1.02**. The reference is ~0.4. #167 (no fire after a winning season or a three-win jump) is in the stack. Watch it. Do not add a band. `drift.clubsAtFiveWinsOrFewer` **4.45**, QB ≤3 panel **4.56**. `nfl-reference.md` §7.2 mean is **6.75**.
+
+### Age guard
+
+The guard is still the known-open row: `34-year-olds rate below 27-year-olds`, cut strictly above 80% of the 20 seasons. `drift.p0Failures` on this panel is **0.60** (1/0/1/0/1). Seeds 1, 3, and 5 failed: **16/20**, **15/20**, **15/20**. The QB ≤3 panel was **0.00**. The row stays open. Max stays **0**. Not re-locked. Do not tune the age curve.
+
+### Verdict
+
+1. New FAIL lines against the QB ≤3 panel (@ `977d578`): `leverage.wrongSign` **0.20** (seed 1 `EDGE.prs` points **+0.3**), `conditions.problems` **0.20** (seed 1 home win rate **51.9%**), `coherence.eliteCbSidesDrop` **1.21** (seed 3 is **2.43**), and `drift.p0Failures` back to **0.60** (age guard).
+2. Firing after `977d578` includes #166 and #167 (and the related playtest PRs). `hcFiresPerSeason` **6.76 → 6.25**. `hcOneAndDonePerSeason` **1.02 → 0.55**. Report those. Do not retune.
+3. `staff.problems` cleared, **0.20 → 0**.
+4. `drift.qbsPerClub53` is still **≤ 3.0** (**2.859**). Burn-in pooled is still inside **7–16%** (**12 of 133, 9.02%**).
+5. `tails.milestonesOff` is still KNOWN-HIGH at **22.20**. Max stays **16**.
+6. Everything else in the comparison table is within seed noise. Reported, not tuned.
+
+### Calibration freeze
+
+**CALIBRATION FREEZE** in effect (Matt **SIGNED** 2026-10-08). No new metrics, bands, or re-locks unless a playtest finding needs one.
+
+### Report-never-tune
+
+No row in `docs/baselines.json` moves. No re-lock. No new band for `qbsPerClub53`, `qbsPerClubPs`, `qbsDraftedPerClass`, `hcFiresPerSeason`, `hcFiredLastSeasonWins`, `hcOneAndDonePerSeason`, `clubsAtFiveWinsOrFewer`, `holdoutsPerSeason`, `deadMoneyPct`, `cpuDraftFitMean`, `p0Failures`, `milestonesOff`, `staff.problems`, `staff.leagueOvrDelta`, `outlierExplainedPct`, `eliteCbSidesDrop`, `conditions.problems`, `leverage.wrongSign`, `r1QbSharePct`, `franchiseTagsPerSeason`, or either path-2 rate. The signed locks this panel still sits inside (`franchiseTagsPerSeason` **14±4**, `leagueOvrDelta` max **1.2**, `r1QbSharePct` max **16**, `path2BurnInTop10PrPct` pooled **7–16%**) stay as signed. `qbsPerClub53` stays an expectation of **≤ 3.0**, with no `baselines.json` row. Floor **85** on `outlierExplainedPct` stays. `eliteCbSidesDrop` stays **0 ±1.2**. `milestonesOff` max stays **16**. `p0Failures` max stays **0**.
+
+### Untouched
+
+Engine, dials, `scripts/`, `docs/baselines.json`. No re-lock.
+
+### Gate
+
+Not run in this packet. The table is the Studio log. Docs only.
+
+---
+
 ## 2026-10-11 — Coaching carousel on the tag hub, owner-card copy
 
 Display-only playtest finding. Built as written. Calibration freeze stays. No sim, RNG, dial, metric, or `baselines.json` change.
