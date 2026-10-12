@@ -1010,20 +1010,21 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   | typical K + typical P | $8,928,958.50 | 2.964% |
   | top K + top P | $11,100,000 | 3.685% |
 
-  **Unsigned ceiling.** Same method as the QB block above: the top of
-  the book as a share of that year's cap. A later packet would apply
-  the fraction to whatever cap the save is on.
+  **Signed ceiling.** Same method as the QB block above: the top of
+  the book as a share of that year's cap, applied to whatever cap the
+  save is on. **Matt SIGNED 2026-10-12**, built inside `marketApy`
+  for K and P only. Under the line the raw curve is unchanged.
+  `POSITION_VALUE` is unchanged.
 
   - K: `7_000_000 / 301_200_000` = **0.02324037** (2.324%)
   - P: `4_100_000 / 301_200_000` = **0.01361222** (1.361%)
 
-  The specialist asymptote `marketApy` uses today is the quarterback
-  formula `0.21 * (POSITION_VALUE / 3.4)^0.7`: **4.276%** for a
-  kicker and **3.839%** for a punter. On the 2026 cap that is about
-  $12.88M and $11.56M. Both sit above every deal on these pages.
-  HANDOFF, 2026-10-12, records the path that prints a $6.91M punter
-  ask and the hard cap at these two shares. Matt signs before that
-  cap is built. No baseline in this note.
+  The specialist asymptote `marketApy` used before this sign was the
+  quarterback formula `0.21 * (POSITION_VALUE / 3.4)^0.7`: **4.276%**
+  for a kicker and **3.839%** for a punter. On the 2026 cap that is
+  about $12.88M and $11.56M. Both sit above every deal on these
+  pages. HANDOFF, 2026-10-12, records the path that printed a $6.91M
+  punter ask. No baseline in this note.
 
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 

@@ -13,9 +13,10 @@ import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { makeContract, marketApy } from "./generate";
 import { Rng } from "./rng";
-import { capHit, isActiveRoster, startSeason, teamCap } from "./select";
+import { blankRecord, capHit, formatMoney, isActiveRoster, startSeason, teamCap } from "./select";
 import { GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player, salaryCap } from "./types";
-import { applyFranchiseTag, franchiseTagSalary, negotiatedApy } from "./offseason/contracts";
+import { applyFranchiseTag, extensionAskingApy, franchiseTagSalary, negotiatedApy } from "./offseason/contracts";
+import { POSITION_VALUE } from "./ratings";
 import { advance } from "./season/engine";
 import { advanceOffseason, isOffseason } from "./offseason";
 
@@ -166,4 +167,65 @@ function peakTopCap(seed: number, seasons: number): { peak: number; busts: numbe
   assert.equal(busts, 0, `seed 12345: ${busts} seasons over 28%, peak ${peak.toFixed(1)}%`);
   assert.ok(peak < 28, `seed 12345 peak ${peak.toFixed(1)}%`);
   ok(`12-season seed 12345: peak topCap ${peak.toFixed(1)}%, busts 0`);
+}
+
+// (6) Specialist hard cap. Matt SIGNED 2026-10-12. First re-sign window
+//     is history.length 1, so the cap is $270.3M. The re-sign list is
+//     extensionAskingApy (market × 1.08). See HANDOFF 2026-10-12.
+{
+  assert.equal(POSITION_VALUE.K, 0.35);
+  assert.equal(POSITION_VALUE.P, 0.3);
+
+  const st = newGame({ seed: 87 });
+  st.history.push({
+    season: st.season,
+    championId: 0,
+    runnerUpId: 1,
+    standings: st.teams.map((t) => blankRecord(t.id)),
+    awards: { mvp: null, opoy: null, dpoy: null, roy: null },
+    leaders: { passYds: null, rushYds: null, recYds: null, sacks: null },
+  });
+  const cap = salaryCap(st.season, startSeason(st));
+  assert.equal(cap, 270_300_000, `first re-sign cap ${cap}`);
+
+  const plant = (pos: "K" | "P", ovr: number, age: number): Player => {
+    const p = st.players.find((x) => x.pos === pos && x.teamId === st.userTeamId && !x.retired && !x.prospect);
+    assert.ok(p, pos);
+    p.ovr = ovr;
+    p.age = age;
+    p.prospect = false;
+    p.retired = false;
+    return p;
+  };
+
+  const ask = (pos: "K" | "P", ovr: number, age: number) =>
+    extensionAskingApy(st, st.userTeamId, plant(pos, ovr, age));
+  const market = (pos: "K" | "P", ovr: number, age: number) =>
+    marketApy(ovr, pos, age, st.season, startSeason(st));
+
+  const punter = ask("P", 87, 27);
+  assert.equal(market("P", 87, 27), 3_700_000);
+  assert.equal(punter, 3_996_000);
+  assert.equal(formatMoney(punter), "$4.00M");
+
+  const kicker = ask("K", 99, 27);
+  assert.equal(market("K", 99, 27), 6_300_000);
+  assert.equal(kicker, 6_804_000);
+  assert.equal(formatMoney(kicker), "$6.80M");
+
+  // Under the line: the signed before-and-after dollars, unchanged.
+  assert.equal(market("P", 76, 27), 2_350_000);
+  assert.equal(ask("P", 76, 27), 2_538_000);
+  assert.equal(formatMoney(ask("P", 76, 27)), "$2.54M");
+  assert.equal(market("P", 78, 27), 2_900_000);
+  assert.equal(ask("P", 78, 27), 3_132_000);
+  assert.equal(formatMoney(ask("P", 78, 27)), "$3.13M");
+  assert.equal(market("K", 76, 27), 2_700_000);
+  assert.equal(ask("K", 76, 27), 2_916_000);
+  assert.equal(formatMoney(ask("K", 76, 27)), "$2.92M");
+  assert.equal(market("K", 78, 27), 3_400_000);
+  assert.equal(ask("K", 78, 27), 3_672_000);
+  assert.equal(formatMoney(ask("K", 78, 27)), "$3.67M");
+
+  ok("specialist cap: P87 asks $4.00M, max K asks $6.80M, 76/78 unchanged");
 }

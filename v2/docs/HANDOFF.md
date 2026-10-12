@@ -5,9 +5,9 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
-## 2026-10-12 — K/P asking prices (report only)
+## 2026-10-12 — K/P asking prices
 
-Docs only. No packet. Matt has not signed a fix. Calibration freeze stays. `marketApy`, `POSITION_VALUE`, `EXTENSION_ASK_PREMIUM`, `docs/baselines.json`, and every dial stay as they are. The real-market book this note uses is `docs/nfl-reference.md` §4, "Kicker and punter APY," added in the same change.
+Matt **SIGNED** the hard cap exactly as written below. Built inside `marketApy` only. `POSITION_VALUE` stays K 0.35 / P 0.30. The raw curve under the cap is unchanged. `EXTENSION_ASK_PREMIUM` stays 1.08. `docs/baselines.json` was not edited. The real-market book is `docs/nfl-reference.md` §4, "Kicker and punter APY."
 
 ### Root cause
 
@@ -54,9 +54,9 @@ The arithmetic for stored 87, age 27:
 
 A stored-85 kicker at the same age prints the same $6.91M (unrounded $6,403,168). That ask sits on the real kicker top. The punter ask sits $2.8M above the real punter top of $4.1M.
 
-### Proposed fix (unsigned)
+### Signed fix, built
 
-Cut K and P inside `marketApy` only, with a hard cap at the traced top of each book. Leave the curve alone under that cap, so a league-average specialist does not move. Leave `POSITION_VALUE` alone, so draft boards, waivers, and `evaluate` do not move. Leave the 8% extension premium alone. It is the same wedge every position pays.
+Cut K and P inside `marketApy` only, with a hard cap at the traced top of each book. The curve under that cap is the same raw share as before, so a league-average specialist does not move. `POSITION_VALUE` is unchanged, so draft boards, waivers, and `evaluate` do not move from this packet. The 8% extension premium is unchanged. It is the same wedge every position pays.
 
 ```ts
 const SPECIALIST_CAP_SHARE = {
@@ -128,11 +128,11 @@ When this is built, two other reads of `marketApy` move for specialists over the
 
 ### Matt
 
-Nothing in this section is built. The constants to sign are the two shares, `7_000_000 / 301_200_000` for kickers and `4_100_000 / 301_200_000` for punters, applied as a hard cap inside `marketApy` only.
+Signed 2026-10-12, exactly these two shares: `7_000_000 / 301_200_000` for kickers and `4_100_000 / 301_200_000` for punters, hard-capped inside `marketApy` only. Built that way. `contractCeiling` locks the re-sign list on the $270.3M window: stored-87 punter, age 27, asks **$4.00M** (`3_996_000`); a stored-99 kicker, age 27, asks **$6.80M** (`6_804_000`); stored 76 and 78 at age 27 stay on the pre-cap dollars.
 
 ### Gate
 
-Not run. Docs only. No engine, dial, metric, or `baselines.json` change.
+Pending the fast serial run on this build. `docs/baselines.json` is not edited.
 
 ---
 
