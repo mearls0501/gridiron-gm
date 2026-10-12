@@ -5,6 +5,137 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-12 — K/P asking prices (report only)
+
+Docs only. No packet. Matt has not signed a fix. Calibration freeze stays. `marketApy`, `POSITION_VALUE`, `EXTENSION_ASK_PREMIUM`, `docs/baselines.json`, and every dial stay as they are. The real-market book this note uses is `docs/nfl-reference.md` §4, "Kicker and punter APY," added in the same change.
+
+### Root cause
+
+A punter's re-sign ask is `extensionAskingApy`. The Hub re-sign table reads it through `resignStepRows`. `extensionAskingApy` takes `askingPrice(state, p, teamId)`, multiplies by `EXTENSION_ASK_PREMIUM` (**1.08**), and clamps only at `MAX_CONTRACT_SHARE` (22% of the cap). A specialist ask is a few percent of the cap, so the clamp leaves it as the rounded product.
+
+On the user's own roster, `askingPrice` prices the stored overall. `believedOvr` returns `p.ovr` when the player is already on that club. The 12-point roster shift (`presentedOvr`, `SPECIALIST_ROSTER_SHIFT`) is the number on the card. The 2026-10-02 scale left contracts on the stored grade. A punter who prints 75 is stored 87, and the ask uses 87.
+
+`askingPrice` calls `marketApy` (`generate.ts`). The curve is the same one a quarterback uses:
+
+- `quality = max(0, (ovr − 55) / 40)`
+- `curve = quality ^ 2.4`
+- `raw = 0.135 × curve × POSITION_VALUE[pos] × ageMult`
+- `POSITION_VALUE` is **K 0.35**, **P 0.30** (QB is 3.4)
+- `ageMult` is 0.88 at 23 and under, **1 from 24 through 29**, 0.88 at 30–31, 0.7 at 32–33, and 0.5 at 34 and older
+- Above a knee at 62% of a positional ceiling, the price softens toward `0.21 × (POSITION_VALUE / 3.4) ^ 0.7 × ageMult`
+
+That ceiling was fit to quarterbacks, edge rushers, and receivers. For a punter it is **3.839%** of the cap. For a kicker it is **4.276%**. On the first re-sign window's cap ($270.3M) those asymptotes are about **$10.38M** and **$11.56M** before the 8% premium. The real tops are $4.1M for a punter and $7.0M for a kicker (`nfl-reference.md` §4).
+
+The punter below is in the 24–29 band, where `ageMult` is 1. His raw share (**0.023707**) sits under the soft knee (**0.023799**), so the price is the raw curve: a stored grade in the high 80s, times a 0.30 positional multiplier, on the same convex a skill player uses.
+
+Stored specialist grades sit in the same band as everyone else. Generated starters draw from `76.2 + teamStrength × 3.15`, standard deviation 6.6. A stored 87 is a good punter on that scale, and the card prints him as 75.
+
+### The $6.91M punter
+
+The first re-sign list is `offseason-tag`, still on the season just played. `runRecap` has already pushed that season onto `history`, and `finalizeOffseason` has not yet done `season += 1`. `startSeason` is `season − history.length`, so after the opening season the cap exponent is 1. `salaryCap` is `round(255_000_000 × 1.06)` = **$270,300,000**. The following regular season uses the same cap.
+
+On that cap, three punter profiles round to a market ask of **$6,400,000**. `formatMoney` prints `round(6_400_000 × 1.08)` = **$6,912,000** as **$6.91M**, because amounts under $10M use two decimals.
+
+| stored OVR | card | age | ageMult | unrounded market | market ask | re-sign ask |
+|---|---:|---|---:|---:|---:|---:|
+| 87 | 75 | 24–29 | 1.00 | $6,407,919 | $6,400,000 | **$6.91M** |
+| 89 | 77 | 21–23 or 30–31 | 0.88 | $6,423,571 | $6,400,000 | **$6.91M** |
+| 95 | 83 | 32–33 | 0.70 | $6,384,634 | $6,400,000 | **$6.91M** |
+
+The first row is the ordinary one. Age 24–29 is the generated starter's prime (the draw is centered on 27, and progression has already added a year by this window). Stored 87 is about one and a half standard deviations above the starter base. The other two rows are the same rounded dollars at a higher grade and an age discount.
+
+The arithmetic for stored 87, age 27:
+
+- `quality = (87 − 55) / 40 = 0.8`
+- `curve = 0.8 ^ 2.4 = 0.585350`
+- `raw = 0.135 × 0.585350 × 0.30 × 1 = 0.023707`
+- `0.023707 × $270,300,000 = $6,407,919`, which rounds to the nearest $50,000 as **$6,400,000**
+- `extensionAskingApy` = `round(6,400,000 × 1.08)` = **$6,912,000**
+
+A stored-85 kicker at the same age prints the same $6.91M (unrounded $6,403,168). That ask sits on the real kicker top. The punter ask sits $2.8M above the real punter top of $4.1M.
+
+### Proposed fix (unsigned)
+
+Cut K and P inside `marketApy` only, with a hard cap at the traced top of each book. Leave the curve alone under that cap, so a league-average specialist does not move. Leave `POSITION_VALUE` alone, so draft boards, waivers, and `evaluate` do not move. Leave the 8% extension premium alone. It is the same wedge every position pays.
+
+```ts
+const SPECIALIST_CAP_SHARE = {
+  K: 7_000_000 / 301_200_000, // 0.02324037 — Boswell and Aubrey, 2026 cap
+  P: 4_100_000 / 301_200_000, // 0.01361222 — Stout, 2026 cap
+};
+
+// in marketApy, once `raw` and `ageMult` exist, for K and P only:
+const frac = Math.min(raw, SPECIALIST_CAP_SHARE[pos] * ageMult);
+const apy = cap * frac;
+return Math.max(LEAGUE_MINIMUM, Math.round(apy / 50_000) * 50_000);
+```
+
+K and P skip the soft knee. Every other position keeps the current ceiling, knee, and exponential saturation.
+
+On the first re-sign cap, peak age, the caps land at:
+
+- Punter market **$3,700,000** (unrounded $3,679,382), re-sign ask **$4.00M**
+- Kicker market **$6,300,000** (unrounded $6,281,873), re-sign ask **$6.80M**
+
+The punter re-sign ask lands on $4.00M because the year-1 sim cap ($270.3M) is smaller than the 2026 cap ($301.2M), and the existing 8% premium then lifts $3.70M to $4.00M. The fraction being signed is 1.361% of the cap, which is Stout's $4.1M on the $301.2M book. The kicker fraction is 2.324%, Boswell and Aubrey's $7.0M.
+
+### Before and after
+
+First re-sign window, cap $270.3M. "Ask" is `extensionAskingApy`, the number on the re-sign list. "Market" is `marketApy`, the free-agent ask. Card overall is stored minus 12.
+
+| profile | card | market now | ask now | market after | ask after |
+|---|---:|---:|---:|---:|---:|
+| P 70, age 25 | 58 | $1.05M | $1.13M | $1.05M | $1.13M |
+| P 76, age 27 | 64 | $2.35M | $2.54M | $2.35M | $2.54M |
+| P 78, age 27 | 66 | $2.90M | $3.13M | $2.90M | $3.13M |
+| P 82, age 27 | 70 | $4.25M | $4.59M | $3.70M | $4.00M |
+| P 87, age 27 | 75 | $6.40M | **$6.91M** | $3.70M | $4.00M |
+| P 89, age 31 | 77 | $6.40M | **$6.91M** | $3.25M | $3.51M |
+| P 90, age 27 | 78 | $7.70M | $8.32M | $3.70M | $4.00M |
+| P 95, age 33 | 83 | $6.40M | **$6.91M** | $2.60M | $2.81M |
+| P 99, age 27 | 87 | $9.75M | $10.53M | $3.70M | $4.00M |
+| K 76, age 27 | 64 | $2.70M | $2.92M | $2.70M | $2.92M |
+| K 78, age 27 | 66 | $3.40M | $3.67M | $3.40M | $3.67M |
+| K 85, age 27 | 73 | $6.40M | $6.91M | $6.30M | $6.80M |
+| K 87, age 27 | 75 | $7.45M | $8.05M | $6.30M | $6.80M |
+| K 91, age 27 | 79 | $9.20M | $9.94M | $6.30M | $6.80M |
+| K 99, age 27 | 87 | $11.00M | $11.88M | $6.30M | $6.80M |
+
+A stored 76–78 specialist is unchanged. That is the generated starter mean (punters were 76.6, kickers 76.3, on the 2026-10-02 census). The cut starts where the raw curve clears the real top: stored 82 for a peak-age punter, stored 85 for a peak-age kicker.
+
+### Specialist cap share
+
+This is the formula on the generation distribution, 10,000 clubs, at the $270.3M cap. It is not a gate run. Starters draw overall from `76.2 + teamStrength × 3.15` with sd 6.6 and age around 27. The second punter draws from 5.1 points lower, sd 5.5, age around 25.5. Figures are unscaled `marketApy`. Opening payroll then multiplies the whole roster by one scale so the club lands at 80–94% of the cap, so these are asks, not the year-0 cap hits.
+
+| book | now | after |
+|---|---:|---:|
+| mean kicker | $3.16M | $2.97M |
+| mean two punters | $4.33M | $3.78M |
+| kicker + two punters | $7.49M (**2.770%**) | $6.75M (**2.497%**) |
+| starter kicker + starter punter | $5.85M (**2.166%**) | $5.19M (**1.921%**) |
+
+The generated club spends about **$0.74M** less on specialist asks, **0.27 points** of the cap. The starter pair drops about **$0.66M**, from 2.17% to 1.92%.
+
+Against the 2026 book (`nfl-reference.md` §4): a median kicker plus a median punter is **1.221%** of the cap, a typical veteran pair is **2.964%**, and the two tops together are **3.685%**. The post-cap starter pair at 1.92% sits between the median pair and the veteran pair. The median pair is pulled down by rookie-scale deals. Generated starters are veterans, and a stored-76 punter ($2.35M on this cap) is still under the $3.50M veteran-punter median, which is why 1.92% does not reach 2.96%.
+
+Opening payroll will not drop by $0.74M. `makeRosterForTeam` rescales every contract onto the same 80–94% target, so the dollars a specialist gives up are spread across the rest of the roster. The scale bump is a fraction of a percent. The re-sign list is unscaled and falls by the full amount in the table.
+
+When this is built, two other reads of `marketApy` move for specialists over the cap. Trade surplus (`playerTradeValue`) prices the deal against `askingPrice`. Holdout `payRatio` prices it against `marketValue`. Draft order and waiver order stay on `POSITION_VALUE`.
+
+### Left unsigned
+
+`ageMult` of 0.5 from age 34 on stays in the formula. Chris Boswell is 35 and is tied for the kicker top at $7.0M. A stored-85 kicker at 35 already asks $3.46M on this window, under the new ceiling, so the cap does not put him back at the top of the market. That is a separate decision. This proposal does not change the age curve.
+
+### Matt
+
+Nothing in this section is built. The constants to sign are the two shares, `7_000_000 / 301_200_000` for kickers and `4_100_000 / 301_200_000` for punters, applied as a hard cap inside `marketApy` only.
+
+### Gate
+
+Not run. Docs only. No engine, dial, metric, or `baselines.json` change.
+
+---
+
 ## 2026-10-12 — Sides trial zeroes the DC shadow the game plays
 
 Matt **SIGNED**: the `coherence.eliteCbSidesDrop` sides trial should zero the shadow the game actually plays, the DC's `shadowTendency`, not the head coach's. Built as written. No sim behavior change. No dial, band, or `baselines.json` change.
