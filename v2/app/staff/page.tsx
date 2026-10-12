@@ -17,6 +17,7 @@ import {
   staffSlot,
 } from "@/lib/core/coaches";
 import { ensureOwners, isPendingForcedMove, ownerJobView, patienceScaleLabel } from "@/lib/core/owner";
+import { ownerCardPace, ownerMarginSub } from "@/lib/view/ownerPace";
 import { schemeById } from "@/lib/core/staff";
 import {
   leanWord,
@@ -123,6 +124,7 @@ export default function StaffPage() {
   const team: Team | undefined = state?.teams[teamId];
   const mine = teamId === state?.userTeamId;
   const job = state ? ownerJobView(state, teamId) : null;
+  const pace = state && job ? ownerCardPace(state, teamId, job) : null;
 
   const market = useMemo(() => {
     if (!state || !hiring) return [];
@@ -175,7 +177,7 @@ export default function StaffPage() {
         </div>
       </div>
 
-      {job && (
+      {job && pace && (
         <Card
           title={`Owner · ${job.owner.name}`}
           subtitle={`${job.posture} club · expects about ${job.expectedWins} wins`}
@@ -185,8 +187,8 @@ export default function StaffPage() {
             <Stat label="Patience" value={job.owner.patience.toFixed(2)} sub={patienceScaleLabel()} />
             <Stat
               label="Weighted wins"
-              value={job.weightedWins.toFixed(1)}
-              sub={`bar ${job.bar.toFixed(1)} · margin ${job.margin.toFixed(1)}`}
+              value={pace.weightedWins.toFixed(1)}
+              sub={ownerMarginSub(job, pace)}
             />
             <Stat
               label="Last season"

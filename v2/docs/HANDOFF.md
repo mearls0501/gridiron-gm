@@ -5,6 +5,38 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-12 — Owner card mid-season pace
+
+Playtest polish. Built as written. The card is a view. `ownerJudgment` is unchanged, and so is every sim and judgment function. Calibration freeze stays.
+
+### The card
+
+During the regular season, once this club has played a game, the margin no longer scores the raw win total against the full-season bar. The live season's wins in that margin are `wins × 17 / games played`. Wins are the figure the bar already uses, a tie counting half. Games played are wins, losses, and ties. The line is labelled `on pace for N`. N is that pace rounded to the nearest tenth, and a whole number is printed without a decimal, so 8.5 stays 8.5 and 4 wins in 6 games reads "on pace for 11.3". The margin itself uses the unrounded pace.
+
+A second season still weights 60/40. The live year is the pace. The year before stays the actual total. One season is the pace alone. The bar is the bar `ownerJobView` already computed.
+
+Zero games played does not divide. A 0-0 keeps the margin the card had, with no pace label.
+
+Playoffs and Season Review keep the actual record. The margin line drops the pace label and prints the judgment margin. The wins on the card are the wins on the standings.
+
+The Staff pill, the seat, and Would fire still read `ownerJobView`. That view still passes the raw wins into `ownerJudgment`. Who gets fired is unchanged. A mid-season read still does not draw, and `fireCpuHeadCoaches` still reads the archive.
+
+### Disagreement
+
+The seat can still say fired while the pace margin is above the bar. A 3-1 contend club is on pace for 12.8, and that paced weight clears a typical contend bar, and Would fire is still yes because the judgment is scoring 3 raw wins. The signed text names the margin and the label. It does not retune the verdict, so the pill was left on the raw record.
+
+The prior season stays in the 60/40. The margin is not the pace alone minus the bar when a year before is being counted. Dropping that year would make the printed margin ignore the sentence the card already prints.
+
+### Calibration freeze
+
+Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json`, dials, and calibration constants were not touched.
+
+### Gate
+
+`npm run gate:serial` from `v2/` is the measurement for this packet. Results land in this section after that run. `leverage.wrongSign` is the known inherited red. Not a retune.
+
+---
+
 ## 2026-10-12 — Studio panel GATE table: coordinator chairs (#170 @ 3f4e7a6) (report-only)
 
 Docs only. PR #170 close-out panel. **Report-only. No re-lock.**
