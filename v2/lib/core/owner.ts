@@ -39,7 +39,26 @@ export const OWNER_MIN_SEASONS = 2;
 export const OWNER_ONE_AND_DONE_WINS = 4;
 
 /** Typical patience. The bar moves by `4 × (patience − this)`. */
-const TYPICAL_PATIENCE = 0.55;
+export const TYPICAL_PATIENCE = OWNER_PATIENCE.mean;
+
+/**
+ * Card words, one standard deviation off {@link TYPICAL_PATIENCE}.
+ * The bar uses that same centre. Rounded to the hundredth the card
+ * prints, so the word and the Patience stat share one cut.
+ */
+export const PATIENCE_PATIENT_AT = Math.round((TYPICAL_PATIENCE + OWNER_PATIENCE.sd) * 100) / 100;
+export const PATIENCE_IMPATIENT_AT = Math.round((TYPICAL_PATIENCE - OWNER_PATIENCE.sd) * 100) / 100;
+
+export function patienceWord(patience: number): "patient" | "typical" | "impatient" {
+  if (patience >= PATIENCE_PATIENT_AT) return "patient";
+  if (patience <= PATIENCE_IMPATIENT_AT) return "impatient";
+  return "typical";
+}
+
+/** Ends of the Patience stat. Same cuts as {@link patienceWord}. */
+export function patienceScaleLabel(): string {
+  return `≤${PATIENCE_IMPATIENT_AT.toFixed(2)} impatient · ≥${PATIENCE_PATIENT_AT.toFixed(2)} patient`;
+}
 
 export function ownerChildRng(state: GameState): Rng {
   let h = state.seed >>> 0;
@@ -354,8 +373,7 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
   const posture = rows.length ? postureOf(expectedWins) : outlook.posture;
   const recentWins = rows.length ? rows[rows.length - 1].wins : null;
 
-  const patienceWord =
-    team.owner.patience >= 0.68 ? "patient" : team.owner.patience <= 0.42 ? "impatient" : "typical";
+  const word = patienceWord(team.owner.patience);
   const counted =
     judged.seasons === 0
       ? "No completed season is being counted yet."
@@ -374,9 +392,13 @@ export function ownerJobView(state: GameState, teamId: number): OwnerJobView | n
   } else if (judged.wouldFire) {
     line = `${team.owner.name} has seen enough. ${counted}${runway} The season is over — take an open chair or retire the save.`;
   } else if (judged.seasons < OWNER_MIN_SEASONS) {
-    line = `${team.owner.name} is ${patienceWord}. ${counted} One-and-done is ${judged.bar.toFixed(1)} wins or fewer.${keep}`;
+    // Rebuild target: ownerJudgment does not apply the one-and-done clause.
+    const oneAndDone = expectedWins === OWNER_WIN_TARGET.rebuild
+      ? "There is no one-and-done."
+      : `One-and-done is ${judged.bar.toFixed(1)} wins or fewer.`;
+    line = `${team.owner.name} is ${word}. ${counted} ${oneAndDone}${keep}`;
   } else {
-    line = `${team.owner.name} is ${patienceWord}. ${counted} The bar is ${judged.bar.toFixed(1)}.${runway}${keep}`;
+    line = `${team.owner.name} is ${word}. ${counted} The bar is ${judged.bar.toFixed(1)}.${runway}${keep}`;
   }
 
   return {

@@ -5,6 +5,46 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-11 — Coaching carousel on the tag hub, owner-card copy
+
+Display-only playtest finding. Built as written. Calibration freeze stays. No sim, RNG, dial, metric, or `baselines.json` change.
+
+### The carousel
+
+The Franchise Tag hub has a Coaching Carousel block. It lists this offseason's head-coach and coordinator firings and hires across the league. The rows are the transaction lines the carousel already wrote, at the season and week the tag hub is still on. Reading them does not hire, fire, or draw.
+
+A contract expiry is not in the block. `tickCoachContracts` lets a deal expire. That sentence stays on the log. A hire that fills the chair is on the block, including a poach. Special teams is a coordinator chair, so those hires are included.
+
+### Owner card
+
+In a rebuild year — `expectedWins` equal to the rebuild target, 6 — the one-and-done sentence says there is no one-and-done. That is the same read `ownerJudgment` has used since #166, including the live season from #168 and the keep from #167. A retool or contend year still quotes the numeric line. A second season still quotes the bar.
+
+The patience word and the Patience stat share one cut. It is one standard deviation off `OWNER_PATIENCE.mean`, the same centre the bar uses, rounded to the hundredth the stat already prints: ≤0.43 impatient, ≥0.67 patient. The old sentence used 0.68 and 0.42. The stat said "0 impatient · 1 patient". Neither pair is a constant `ownerJudgment` reads. The bar formula is unchanged, so who gets fired is unchanged.
+
+### Disagreement
+
+CPU coordinators are not fired. They leave when the contract expires. The signed sentence asked for firings and hires. The block does not relabel an expiry as a firing, so the departure that opened a coordinator chair is not on it. The hire is.
+
+`ownerJudgment` has no three-way patience word. The bar moves continuously by `4 × (patience − 0.55)`. If 0.68 and 0.42 were the signed words, the move to 0.43 and 0.67 is the leftover. Firing was not retuned.
+
+### Calibration freeze
+
+Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json`, dials, and calibration constants were not touched.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck passed. Carousel checks passed. Owner checks passed, including the rebuild-year sentence and the patience-word boundaries. Verify **348/348**. Sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Year-0 headlines are the same bytes as main at `3f4e7a6`: `calibrate.pts` `23.19`, `calibrate.passYds` `241.14166666666668`, `statcheck.wr10RecYds` **1050**. No FAIL row:
+
+```
+GATE PASS  (68 metrics within baseline)
+```
+
+`leverage.wrongSign` was 0 on this run. Not a retune. `docs/baselines.json` was not edited.
+
+`node scripts/e2e.mjs` printed **E2E PASSED**. `node scripts/e2e-interact.mjs` printed **INTERACTION TEST PASSED**. Both reached the tag window.
+
+---
+
 ## 2026-10-11 — Empty coordinator chair
 
 Matt **SIGNED** 2026-10-09: "An empty coordinator chair costs the club, the Hub flags it, and coordinators get their own ratings at league start." Built as written. CPU clubs and the user club use the same path.

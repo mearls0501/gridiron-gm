@@ -16,7 +16,7 @@ import {
   roleLabel,
   staffSlot,
 } from "@/lib/core/coaches";
-import { ensureOwners, isPendingForcedMove, ownerJobView } from "@/lib/core/owner";
+import { ensureOwners, isPendingForcedMove, ownerJobView, patienceScaleLabel } from "@/lib/core/owner";
 import { schemeById } from "@/lib/core/staff";
 import {
   leanWord,
@@ -182,7 +182,7 @@ export default function StaffPage() {
           actions={<Pill tone={seatTone}>{job.firingEnabled ? job.seat : "firing off"}</Pill>}
         >
           <div className="grid gap-2 sm:grid-cols-4 mb-3">
-            <Stat label="Patience" value={job.owner.patience.toFixed(2)} sub="0 impatient · 1 patient" />
+            <Stat label="Patience" value={job.owner.patience.toFixed(2)} sub={patienceScaleLabel()} />
             <Stat
               label="Weighted wins"
               value={job.weightedWins.toFixed(1)}
