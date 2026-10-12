@@ -33,7 +33,17 @@ Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.js
 
 ### Gate
 
-`npm run gate:serial` from `v2/` is the measurement for this packet. Results land in this section after that run. `leverage.wrongSign` is the known inherited red. Not a retune.
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck passed. Owner-pace checks passed, including the pace math, the zero-games guard, and the label switch. Owner checks passed. Verify **348/348**. Sweep 5 leagues × 2 seasons clean. Calibrate 28 metrics, score mismatches 0. Statcheck 23 metrics. Scout passed. Year-0 headlines are the same bytes as the coordinator-chair run at `3f4e7a6`: `calibrate.pts` `23.19`, `calibrate.passYds` `241.14166666666668`, `statcheck.wr10RecYds` **1050**. No FAIL row:
+
+```
+GATE PASS  (68 metrics within baseline)
+```
+
+`leverage.wrongSign` was **0** on this seed. `EDGE.prs` points swing **−1.6**, verdict ok. The inherited single-seed red did not appear. That is a single-seed flip, not a fix, and it is not re-locked. `leverage.noEffect` is 1 (`OT.sta` sacksTaken), the existing no-effect row.
+
+Not a retune. `docs/baselines.json` was not edited.
+
+`PW_CHROMIUM=/usr/bin/google-chrome node scripts/e2e.mjs` printed **E2E PASSED**. `PW_CHROMIUM=/usr/bin/google-chrome node scripts/e2e-interact.mjs` printed **INTERACTION TEST PASSED**. Both ran against `next start` on port 3000. A browser pass on Staff showed a 1-0 club labelled "on pace for 17" (bar 4.1 · margin 12.9) in week 2, and a 9-7-1 club in the playoffs and in Season Review with weighted wins 9.5, margin 5.5, and no pace label.
 
 ---
 
