@@ -94,6 +94,18 @@ export function marketApy(ovr: number, pos: Position, age: number, season: numbe
   // The raw convex curve, as a share of the cap.
   const raw = 0.135 * curve * posMult * ageMult;
 
+  // Specialist hard cap. Matt SIGNED 2026-10-12. OTC 2026 tops — Boswell
+  // and Aubrey $7.0M, Stout $4.1M — as a share of the $301.2M cap
+  // (`docs/nfl-reference.md` §4). K and P skip the soft knee. Under the
+  // line the raw curve is the same one every other position uses.
+  // `POSITION_VALUE` is unchanged.
+  if (pos === "K" || pos === "P") {
+    const share = pos === "K" ? 7_000_000 / 301_200_000 : 4_100_000 / 301_200_000;
+    const frac = Math.min(raw, share * ageMult);
+    const apy = cap * frac;
+    return Math.max(LEAGUE_MINIMUM, Math.round(apy / 50_000) * 50_000);
+  }
+
   // Soft ceiling.
   //
   // The comment this replaces claimed 0.135 was "tuned so an elite QB lands

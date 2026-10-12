@@ -909,6 +909,123 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   year, capped at 8, so `careers.hofInducteesPerClass` is the modern
   5–8 band. Ungated; no baseline in this packet.
 
+- **Kicker and punter APY.** Added 2026-10-12. Not in T/D/S/P.
+  Written here before any specialist constant moves. `marketApy` still
+  prices K and P on the shared curve. The shares at the bottom of this
+  note are the trace for a cap that is unsigned. Over The Cap's
+  position books, read 2026-10-12, and the 2026 salary cap:
+
+  - Cap: the NFL announced **$301.2M** for 2026 on 2026-02-27, up from
+    2025 **$279.2M** and 2024 **$255.4M**
+    (https://www.nfl.com/news/nfl-announces-2026-salary-cap-set-at-301-2-million-per-team).
+    Over The Cap restates the same figure
+    (https://overthecap.com/nfl-salary-cap-set-at-301-2-million).
+  - Kickers: https://overthecap.com/position/kicker
+  - Punters: https://overthecap.com/position/punter and the history
+    page https://overthecap.com/contract-history/punter
+
+  The books are the 2026 league year. Deals on the pages run out to
+  2027–2031 free agency. Every share below divides by **$301.2M**.
+
+  **Top.** Highest average-per-year on each page.
+
+  | player | pos | APY | / $301.2M |
+  |---|---|---:|---:|
+  | Chris Boswell | K | $7,000,000 | 2.324% |
+  | Brandon Aubrey | K | $7,000,000 | 2.324% |
+  | Ka'imi Fairbairn | K | $6,640,000 | 2.204% |
+  | Harrison Butker | K | $6,400,000 | 2.125% |
+  | Jake Elliott | K | $5,666,667 | 1.881% |
+  | Jordan Stout | P | $4,100,000 | 1.361% |
+  | Michael Dickson | P | $4,050,000 | 1.345% |
+  | Logan Cooke | P | $4,000,000 | 1.328% |
+  | A.J. Cole | P | $3,950,000 | 1.311% |
+  | Braden Mann | P | $3,500,000 | 1.162% |
+
+  Kicker top is **$7.0M (2.324%)**. Punter top is **$4.1M (1.361%)**.
+  The history page dates Dickson $4.05M, Cooke $4.00M, and Cole $3.95M
+  to 2025, and Stout $4.1M to 2026. The punter top moved about $50k
+  between those two books. A "$3–4M top for K/P" describes the punter
+  book and the lower veteran kickers. The kicker book tops at $7.0M.
+
+  **Median.** Average of the 16th and 17th APY among the 32 highest
+  figures on each OTC page. This is a snapshot of that page. It is a
+  ranked list of contracts, and a club can have two of the position
+  on it, so the 32nd name is not a confirmed starter census. The
+  bottom half of each page is rookie-scale and prove-it money near
+  $1.0–1.2M, plus a few practice-squad rows under $0.5M that the top
+  32 already exclude.
+
+  Spotrac's 2026 kicker ranking
+  (https://www.spotrac.com/nfl/rankings/player/_/year/2026/position/k/sort/contract_average)
+  agrees on Aubrey and Boswell at $7.0M and on the order through
+  Cairo Santos. Below that tier the two sites list different players
+  at different APYs. The median is the OTC snapshot only.
+
+  | | 16th | 17th | median | / $301.2M |
+  |---|---|---|---:|---:|
+  | K | Chad Ryland $1,850,000 | Matt Gay $1,600,000 | **$1,725,000** | 0.573% |
+  | P | Corey Bojorquez $2,000,000 | Blake Gillikin $1,905,000 | **$1,952,500** | 0.648% |
+
+  Ordered APY, highest first, the 32 that enter the median and the
+  mean. Kickers: 7000000, 7000000, 6640000, 6400000, 5666667,
+  5501000, 5500000, 5366667, 5275000, 4500000, 4250000, 4100000,
+  3900000, 3375000, 2000000, 1850000, 1600000, 1487500, 1402500,
+  1300000, 1255000, 1146633, 1114121, 1111193, 1075000, 1047655,
+  1041667, 1039597, 1034167, 1005000, 1005000, 993333. Sum
+  $96,982,700. Mean **$3,030,709** (1.006%). Punters: 4100000,
+  4050000, 4000000, 3950000, 3500000, 3500000, 3500000, 3491250,
+  3200000, 3100000, 3037500, 3000000, 3000000, 2500000, 2350000,
+  2000000, 1905000, 1875000, 1487500, 1300000, 1300000, 1215000,
+  1191975, 1155712, 1128043, 1093570, 1075000, 1062500, 1038333,
+  1017500, 1004614, 987000. Sum $72,115,497. Mean **$2,253,609**
+  (0.748%). The mean sits above the median because the top of each
+  book is a veteran extension and the bottom half is near the rookie
+  scale.
+
+  **Typical** means the veteran-extension cluster: the deals above the
+  cliff where the page drops from multi-year starter money into the
+  rookie and prove-it band. The cliff is a judgment about that gap.
+  The names on either side of it are listed so the cut can be redone.
+
+  Kickers: 14 deals at or above Tyler Bass **$3,375,000**. The next
+  name is Joey Slye at $2,000,000. Median of those 14 is the average
+  of Evan McPherson $5,500,000 and Wil Lutz $5,366,667:
+  **$5,433,333.50** (1.804%). Mean of the 14 is **$5,319,595**.
+
+  Punters: 14 deals at or above Tommy Townsend **$2,500,000**. The
+  next names are J.K. Scott at $2,350,000 and Corey Bojorquez at
+  $2,000,000. Median of those 14 is the average of Ryan Wright
+  $3,500,000 and Jack Fox $3,491,250: **$3,495,625** (1.161%). Mean
+  of the 14 is **$3,423,482**. Widening the cut to every punter at or
+  above $2,000,000 (16 deals) moves the median to **$3,345,625**.
+  That wider cut is a sensitivity. The ceiling below uses the
+  14-deal median as "typical" and the single top deal as the cap.
+
+  One starter of each, same definitions, against $301.2M:
+
+  | pair | APY | share |
+  |---|---:|---:|
+  | median K + median P | $3,677,500 | 1.221% |
+  | typical K + typical P | $8,928,958.50 | 2.964% |
+  | top K + top P | $11,100,000 | 3.685% |
+
+  **Signed ceiling.** Same method as the QB block above: the top of
+  the book as a share of that year's cap, applied to whatever cap the
+  save is on. **Matt SIGNED 2026-10-12**, built inside `marketApy`
+  for K and P only. Under the line the raw curve is unchanged.
+  `POSITION_VALUE` is unchanged.
+
+  - K: `7_000_000 / 301_200_000` = **0.02324037** (2.324%)
+  - P: `4_100_000 / 301_200_000` = **0.01361222** (1.361%)
+
+  The specialist asymptote `marketApy` used before this sign was the
+  quarterback formula `0.21 * (POSITION_VALUE / 3.4)^0.7`: **4.276%**
+  for a kicker and **3.839%** for a punter. On the 2026 cap that is
+  about $12.88M and $11.56M. Both sit above every deal on these
+  pages. HANDOFF, 2026-10-12, records the path that printed a $6.91M
+  punter ask. No baseline in this note.
+
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 
 ---
