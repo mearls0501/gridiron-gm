@@ -38,6 +38,16 @@ The diagnostic below also described setting the shadow trial's DC to **1**. Matt
 
 Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json` was not edited. Dials were not retuned.
 
+### Gate
+
+`npm run gate:serial` from `v2/` (fast, serial, 1 seed, 4 cores). Typecheck passed. The sides-shadow check passed. Verify **348/348**. Sweep, calibrate (28 metrics), statcheck (23 metrics), and scout passed. Year-0 headlines are the same bytes as `3f4e7a6`: `calibrate.pts` `23.19`, `calibrate.passYds` `241.14166666666668`, `statcheck.wr10RecYds` **1050**. `leverage.wrongSign` is **0** on this seed. The inherited single-seed red did not appear. `leverage.noEffect` is 1, the existing row.
+
+```
+GATE PASS  (68 metrics within baseline)
+```
+
+`PW_CHROMIUM=/usr/bin/google-chrome node scripts/e2e.mjs` printed **E2E PASSED**. `node scripts/e2e-interact.mjs` printed **INTERACTION TEST PASSED** on a second run. The first run failed before the draft (`never reached the draft phase`, then the front-office checks behind it) with 0 console errors. The retry walked the tag window, a draft pick, and the staff budget. That first miss is the continue loop's timeout, not this trial.
+
 ---
 
 ## 2026-10-12 — eliteCbSidesDrop after #170: shadowTendency ruled out as the sole cause
