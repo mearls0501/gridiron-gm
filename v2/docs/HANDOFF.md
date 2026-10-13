@@ -5,6 +5,159 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-13 — Studio panel GATE table @ 594bf84 (after #173/#175/#174/#176) (report-only)
+
+Docs only. Close-out panel for main after the owner-card pace (#173), the sides trial (#175), the kicker and punter cap (#174), and the shadow trial (#176). **Report-only. No re-lock.**
+
+Mac Studio `npm run gate:full:serial`, 5 seeds, on `594bf84e5cfaf14c0d7f29393b404d776a273b7b`. The numbers are that commit. `docs/baselines.json` **not edited**. Engine, dials, and `scripts/` not touched. Report-never-tune.
+
+### GATE FAIL 5 — panel @ `594bf84`
+
+The coordinator-chair panel (@ `3f4e7a6`, #172) was GATE FAIL 8. This panel is GATE FAIL 5. `coherence.eliteCbSidesDrop` and `conditions.problems` cleared. The coherence exit is the floor on seed 2. Drift, the age guard, leverage, and milestones stay.
+
+```
+FAIL  coherence  exited 1
+FAIL  drift  exited 1
+FAIL  leverage.wrongSign  0.20  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  drift.p0Failures  0.60  expected <= 0
+FAIL  tails.milestonesOff  22.40  expected <= 16  (KNOWN-HIGH, target 0. Count of categories outside the central 95% Poisson interval (λ = NFL rate × seasons). Panel 16.0 (14/15/15/18/18) after the 2026-08-28 verdict change; the old ratio-band lock of 12 does not apply to this metric.)
+
+GATE FAIL  5 problems
+Fix the cause. Do not edit docs/baselines.json or anything in scripts/.
+```
+
+`coherence` exited 1. The floor is per seed. Seed 2 is **84.9%** (`coherence.outlierExplainedPct` **84.91**, BELOW TARGET 85). Seeds 1, 3, 4, and 5 are COHERENT (**88.24 / 86.27 / 90.38 / 90.91**). The panel mean is **88.14**, above the floor of **85**. The averaged metric is not a FAIL line. Floor **85** stays. Do not soften it. #172's mean was **86.67**, with seeds 2 and 3 under the floor.
+
+`drift` exited 1. The P0 on the failing seeds is the age guard `34-year-olds rate below 27-year-olds`. Seeds 1, 3, and 4 failed at **16/20**. Seed 2 passed at **18/20**. Seed 5 passed at **17/20**. Each failing seed prints `1 P0 REGRESSIONS`. The gate also prints the mean as its own line.
+
+`drift.p0Failures` **0.60** (1/0/1/1/0). Known-open. #172 was **0.60** (1/0/1/0/1), on seeds 1, 3, and 5. Same mean, different seeds. Max stays **0**. Not re-locked. Do not tune the age curve.
+
+`leverage.wrongSign` **0.20**. Seed 1 only. `EDGE.prs` points swing **+0.3** WRONG SIGN. Seeds 2–5 are **0**. #172 was the same probe at **0.20**. Max stays **0**. Not re-locked.
+
+`tails.milestonesOff` **22.40** (23/20/22/22/25). KNOWN-HIGH. #172 was **22.20** (22/21/22/23/23). Max stays **16**. Not re-locked.
+
+`conditions` exited 0. `conditions.problems` **0**, cleared from **0.20** on #172.
+
+`staff` exited 0. `staff.problems` **0**, the same clear as #172.
+
+### Panel means (5-seed)
+
+Seeds in panel order. The mean is the average of the five seed-block `##M` lines. Indented `##M` lines under a FAIL summary are one seed reprinted and are not in these figures. The coherence FAIL row reprints seed 2. The drift FAIL row reprints seed 1. Path-2 burn-in is pooled k-of-n: sum(events)/sum(popN). The **#172** column is the 2026-10-12 coordinator-chair panel (@ `3f4e7a6`).
+
+| metric | this panel @ `594bf84` | #172 @ `3f4e7a6` | notes |
+|---|---|---|---|
+| `statcheck.rb5RushYds` | **1271.4** (1365/1216/1291/1280/1205) | not in #172's table | Inside **1191 ±95** (ceiling 1286). The retired panel mean was **1254**. Fast single-seed **1288** is stream noise, 2 yards over that ceiling. The baseline stays |
+| `drift.holdoutsPerSeason` | **10.18** (9.95/11.35/11.2/8.7/9.7) | **10.14** | Within seed noise. No band |
+| `drift.tradesPerSeason` | **79.57** (78/79.2/80.75/80.75/79.15) | not in #172's table | Above min **30**. Inside the open target **60–120** (nfl ~90). Do not retune volume |
+| `drift.deadMoneyPct` | **5.46** (5.264/5.679/5.220/5.580/5.573) | **5.58** | Within seed noise. No band |
+| `coherence.eliteCbShadowDrop` | **1.621** (1.095/1.886/1.621/2.244/1.260) | not a row in #172's table | Above the directional floor of **0.2**. See the pair below. No finding |
+| `coherence.eliteCbSidesDrop` | **0.057** (−0.032/0.201/−0.559/0.354/0.320) | **1.21** (0.19/1.08/2.43/1.13/1.22) | Inside **0 ±1.2**. Cleared. #172's seed 3 was **2.43**; this seed 3 is **−0.559** |
+| `coherence.outlierExplainedPct` | **88.14** (88.24/84.91/86.27/90.38/90.91) | **86.67** (87.42/83.23/83.97/88.68/90.07) | Mean above floor **85**. Seed 2 at **84.9** is the coherence exit. Floor stays |
+| `drift` exit | age guard, seeds 1, 3, 4 at **16/20** | age guard, seeds 1, 3, 5 | Step exit 1. Same known-open row |
+| `drift.p0Failures` | **0.60** (1/0/1/1/0) | **0.60** (1/0/1/0/1) | **FAIL**. Age guard. Max stays **0** |
+| `leverage.wrongSign` | **0.20** | **0.20** | **FAIL**. Seed 1 `EDGE.prs` points **+0.3** |
+| `tails.milestonesOff` | **22.40** (23/20/22/22/25) | **22.20** (22/21/22/23/23) | **FAIL** ≤16. KNOWN-HIGH. Within seed noise |
+| `conditions.problems` | **0** | **0.20** | Cleared |
+| `staff.problems` | **0** | **0** | Stays clear. Report-only |
+| `staff.leagueOvrDelta` | **0.422** (0.12/0.65/0.36/1.19/−0.21) | **0.686** (1.02/0.77/0.55/0.33/0.77) | Mean inside max **1.2**. Seed 4 is **1.189**, under **1.2**. Report-only |
+| `drift.franchiseTagsPerSeason` | **16.75** (17.1/16.05/16.25/17.8/16.55) | **16.23** | Inside **14±4**. Report-only |
+| `drift.qbsPerClub53` | **2.836** (2.850/2.875/2.811/2.819/2.823) | **2.859** (2.85/2.88/2.80/2.93/2.84) | Still ≤**3.0**. Report-only |
+| `drift.qbsPerClubPs` | **2.262** (2.145/2.150/2.613/2.114/2.289) | **2.259** | Within seed noise. Report-only |
+| `drift.qbsDraftedPerClass` | **13.37** (14.1/12/14.65/13.45/12.65) | **13.41** | Within seed noise. Real **11.6**. Report-only |
+| `careers.r1QbSharePct` | **9.69** (9.90/7.29/10.68/10.16/10.42) | **10.26** | Under max **16**. Report-only |
+| `careers.path2BurnInTop10PrPct` | pooled **10 of 123 (8.13%)** | pooled **12 of 133 (9.02%)** | Inside signed **7–16%**. Report-only |
+| `careers.path2Top10PrPct` | pooled **22 of 233 (9.44%)** | pooled **30 of 250 (12.00%)** | Within seed noise. No band. Report-only |
+
+### Elite CB: shadow against sides
+
+Both trials now write the shadow the game plays, the DC's `shadowTendency`. Sides is **0** (`zeroPlayedShadow`). Shadow is **1** (`setPlayedShadow`). The drop is weak yards per target minus that trial's yards per target. A larger number is a harder hit on WR1.
+
+| seed | `eliteCbShadowDrop` | `eliteCbSidesDrop` | shadow − sides |
+|---|---:|---:|---:|
+| 1 | 1.095 | −0.032 | 1.127 |
+| 2 | 1.886 | 0.201 | 1.685 |
+| 3 | 1.621 | −0.559 | 2.180 |
+| 4 | 2.244 | 0.354 | 1.890 |
+| 5 | 1.260 | 0.320 | 0.940 |
+| mean | **1.621** | **0.057** | |
+
+Shadow is higher than sides on all five seeds. Each seed prints `shadowing is worse for the receiver than side coverage`. The shadow mean **1.621** is above the directional floor of **0.2**. The sides mean **0.057** is inside **0 ±1.2**. There is no finding. No band was added.
+
+### Staff, tags, quarterbacks
+
+Report-only. `staff.problems` stays **0**. `staff.leagueOvrDelta` mean **0.422** is inside the signed max **1.2**. The high seed is seed 4 at **1.189**, under **1.2**. Seed 5 is **−0.21**. Do not widen **1.2**.
+
+`drift.franchiseTagsPerSeason` **16.75** (17.1 / 16.05 / 16.25 / 17.8 / 16.55) sits inside **14±4**. #172 was **16.23**. Do not retune tags.
+
+`drift.qbsPerClub53` **2.836** (2.850 / 2.875 / 2.811 / 2.819 / 2.823). Every seed is under **3.0**. #172 was **2.859**. The expectation stays **≤ 3.0**, with no `baselines.json` row. `drift.qbsPerClubPs` **2.262**, #172 **2.259**. `drift.qbsDraftedPerClass` **13.37**, #172 **13.41**. Real drafted per class is **11.6**. `careers.r1QbSharePct` **9.69**, #172 **10.26**, under max **16**.
+
+Path 2 is pooled k of n. Burn-in **10 of 123 (8.13%)** is inside the signed **7–16%** band. #172 was **12 of 133 (9.02%)**. All-classes **22 of 233 (9.44%)** has no band. #172 was **30 of 250 (12.00%)**. Do not retune `SECOND_SCENE_K`.
+
+### Rushing, holdouts, trades, dead money
+
+`statcheck.rb5RushYds` panel mean **1271.4** (1365 / 1216 / 1291 / 1280 / 1205) is inside **1191 ±95**. The fast single-seed read is **1288**, two yards over the fast ceiling (1191 + 95 = 1286). That seed is stream noise. The baseline stays. #172's table does not record this row. The retired green panel mean remains **1254**.
+
+`drift.holdoutsPerSeason` **10.18** (9.95 / 11.35 / 11.2 / 8.7 / 9.7). #172 was **10.14**. Within seed noise. No band. Do not retune holdouts.
+
+`drift.tradesPerSeason` **79.57** (78 / 79.2 / 80.75 / 80.75 / 79.15). #172's table does not record this row. The floor is min **30**. The open target is **60–120**, nfl ~90. This mean sits in that range. Do not retune volume.
+
+`drift.deadMoneyPct` **5.46** (5.264 / 5.679 / 5.220 / 5.580 / 5.573). #172 was **5.58**. Within seed noise. No band.
+
+### Verdict
+
+1. GATE FAIL 5. The five lines are the coherence exit (seed 2 at **84.9**), the drift exit, `drift.p0Failures` **0.60** (age guard), `leverage.wrongSign` **0.20** (seed 1 `EDGE.prs` **+0.3**), and `tails.milestonesOff` **22.40**.
+2. Against #172: `eliteCbSidesDrop` **1.21 → 0.057** (inside **0 ±1.2**) and `conditions.problems` **0.20 → 0**. Those two #172 FAIL lines are clear.
+3. `p0Failures` stays **0.60**. The age-guard seeds are 1, 3, and 4, all **16/20**. `wrongSign` stays **0.20** on the same seed-1 probe. `milestonesOff` stays KNOWN-HIGH at **22.40**.
+4. Shadow **1.621** against sides **0.057**. Shadow hits WR1 harder on every seed. No finding.
+5. Staff, tags, and the QB reads stay inside the locks they already sit in. Holdouts, trades, and dead money are report-only.
+6. `rb5RushYds` **1271.4** is inside the band. The fast **1288** is stream noise. The baseline stays.
+
+### Calibration freeze
+
+**CALIBRATION FREEZE** in effect (Matt **SIGNED** 2026-10-08). No new metrics, bands, or re-locks unless a playtest finding needs one. This panel is not that finding.
+
+### Report-never-tune
+
+No row in `docs/baselines.json` moves. No re-lock. No new band for `rb5RushYds`, `holdoutsPerSeason`, `tradesPerSeason`, `deadMoneyPct`, `eliteCbShadowDrop`, `eliteCbSidesDrop`, `outlierExplainedPct`, `p0Failures`, `milestonesOff`, `leverage.wrongSign`, `conditions.problems`, `staff.problems`, `staff.leagueOvrDelta`, `franchiseTagsPerSeason`, `qbsPerClub53`, `qbsPerClubPs`, `qbsDraftedPerClass`, `r1QbSharePct`, or either path-2 rate. The signed locks this panel still sits inside (`franchiseTagsPerSeason` **14±4**, `leagueOvrDelta` max **1.2**, `r1QbSharePct` max **16**, `path2BurnInTop10PrPct` pooled **7–16%**, `rb5RushYds` **1191 ±95**) stay as signed. `qbsPerClub53` stays an expectation of **≤ 3.0**, with no `baselines.json` row. Floor **85** on `outlierExplainedPct` stays. `eliteCbSidesDrop` stays **0 ±1.2**. `eliteCbShadowDrop` stays a directional floor of **0.2**. `milestonesOff` max stays **16**. `p0Failures` max stays **0**. `wrongSign` max stays **0**.
+
+### Untouched
+
+Engine, dials, `scripts/`, `docs/baselines.json`. No re-lock.
+
+### Gate
+
+Not run in this packet. The table is the Studio log. Docs only.
+
+---
+
+## 2026-10-12 — Shadow trial sets the DC's played shadow to 1 (#176)
+
+The sides section below records the half Matt signed first: zero the shadow the game plays. This is the other half. The shadow trial sets the defensive coordinator's played shadow to **1**, matching that sides trial. Harness only. `scripts/coherence.ts` calls `setPlayedShadow`. No sim behavior change. No dial, band, or `baselines.json` change.
+
+### The trial
+
+`setPlayedShadow` lives next to `zeroPlayedShadow` in `lib/core/coaches.ts`. It sets `coaches.dc.shadowTendency` to **1** and leaves `Team.coach.shadowTendency` alone. `scripts/coherence.ts` calls it for the shadow trial (`shadows WR1`, argument **1**), the same way that harness calls `zeroPlayedShadow` for the sides trials. A club with no DC still plays `Team.coach`, and that dial is set to **1** instead.
+
+The check is in `coaches.test.ts`. On a DC whose shadow is **0.2**, with the head coach at **1**, `effectiveCoach` stays **0.2**. The head coach is then set to **0.4**. `setPlayedShadow` leaves that head coach at **0.4** and the played shadow at **1**.
+
+### Gate
+
+Fast `npm run gate:serial` from `v2/` (1 seed). The only FAIL line was:
+
+```
+FAIL  statcheck.rb5RushYds  1288  expected 1191 +/-95  (NFL ~1191)
+```
+
+**1288** is 2 yards over the fast-tier ceiling (1191 + 95 = 1286). Single-seed stream noise. The baseline stays.
+
+The 5-seed coherence pair is the Studio panel above, on `594bf84`. `coherence.eliteCbShadowDrop` mean **1.621** (1.095 / 1.886 / 1.621 / 2.244 / 1.260). `coherence.eliteCbSidesDrop` mean **0.057** (−0.032 / 0.201 / −0.559 / 0.354 / 0.320). Shadow is higher on every seed. The full panel is GATE FAIL 5, recorded above. These two means are not that fail.
+
+### Calibration freeze
+
+Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json` was not edited. Dials were not retuned.
+
+---
+
 ## 2026-10-12 — K/P asking prices
 
 Matt **SIGNED** the hard cap exactly as written below. Built inside `marketApy` only. `POSITION_VALUE` stays K 0.35 / P 0.30. The raw curve under the cap is unchanged. `EXTENSION_ASK_PREMIUM` stays 1.08. `docs/baselines.json` was not edited. The real-market book is `docs/nfl-reference.md` §4, "Kicker and punter APY."
