@@ -64,7 +64,7 @@ import { capHit, formatMoney, playerMap } from "@/lib/core/select";
 import { DRAFT_PACE_OPTIONS, tickerPickText, type DraftPace } from "@/lib/view/draftNight";
 import { POSITIONS, Player, Position, ScoutingMethod } from "@/lib/core/types";
 import { rosterCapView } from "@/lib/view/rosterCap";
-import { recentPickSlots } from "@/lib/view/scoutFog";
+import { liveDraftGradePool, recentPickSlots } from "@/lib/view/scoutFog";
 import {
   Bar,
   Button,
@@ -175,9 +175,15 @@ export default function DraftPage() {
     // rev changes on every mutation; the state object itself is mutated in place.
   }, [state, rev]);
 
-  // Grade context ranks every estimate against the whole class's consensus —
-  // built from the unfiltered pool so filters never move anyone's grade.
-  const ctx = useMemo(() => gradeContext(state!, pool), [state, pool, rev]);
+  // Grade context ranks every estimate against the whole class. A live
+  // draft includes classmates already picked — draftBoard() is only who
+  // is still available, and ranking that list would reprint the best
+  // one left as #1. Filters never move a slot.
+  const gradePool = useMemo(() => {
+    if (!state) return pool;
+    return liveDraftGradePool(state) ?? pool;
+  }, [state, pool, rev]);
+  const ctx = useMemo(() => gradeContext(state!, gradePool), [state, gradePool, rev]);
 
   const horizon = state ? futureSeasons(state) : [];
   const shownFuture = futureSeason != null && horizon.includes(futureSeason)
@@ -290,7 +296,8 @@ export default function DraftPage() {
       s.rngState = rng.state;
       if (!ok) return `Could not run ${METHOD_LABEL[method].toLowerCase()}.`;
       const updated = s.players.find((x) => x.id === p.id);
-      const grade = updated ? boardGrade(s, updated, gradeContext(s, pool)).label : "?";
+      const ranked = liveDraftGradePool(s) ?? pool;
+      const grade = updated ? boardGrade(s, updated, gradeContext(s, ranked)).label : "?";
       const cal = ensureScouting(s);
       return `${METHOD_LABEL[method]}: ${name} — board grade ${grade} · ${WINDOW_LABEL[cal.window]}`;
     });

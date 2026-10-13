@@ -168,6 +168,12 @@ async function main() {
     if (problemsAt.length) fail(`nav @${width}: ${problemsAt.join(", ")}`);
     else console.log(`  ok    nav fully visible at ${width}px`);
   }
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto(BASE + "/stats", { waitUntil: "networkidle" });
+  await page.waitForTimeout(300);
+  const statsWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  if (statsWidth !== 390) fail(`/stats @390 scrollWidth ${statsWidth}`);
+  else console.log("  ok    /stats scrollWidth is 390 at 390px");
   await page.setViewportSize({ width: 1440, height: 900 });
 
   await visitAll("[preseason]");
@@ -194,7 +200,9 @@ async function main() {
   await checkPage("[start season] /");
   console.log("  ok    season started");
 
+  let weeks = 0;
   let playSmoked = await checkPlayLastSnap(page, BASE, report);
+  if (playSmoked === "committed") weeks = 1;
 
   const checkInactives = async () => {
     await page.goto(BASE + "/week", { waitUntil: "networkidle" });
@@ -238,9 +246,12 @@ async function main() {
   }
 
   // ---- Play the regular season ---------------------------------------------
-  let weeks = 0;
   for (let i = 0; i < 25; i++) {
-    if (!playSmoked) playSmoked = await checkPlayLastSnap(page, BASE, report);
+    if (!playSmoked) {
+      const again = await checkPlayLastSnap(page, BASE, report);
+      if (again === "committed") weeks += 1;
+      playSmoked = again;
+    }
     await page.goto(BASE + "/", { waitUntil: "networkidle" });
     await page.waitForTimeout(200);
     const btn = page.getByRole("button", { name: /^(Play Week|Advance Week)/ });
@@ -388,6 +399,75 @@ async function main() {
   const afterReload = await page.evaluate(() => document.body.innerText);
   if (/Start Franchise/i.test(afterReload)) fail("franchise did not persist across a reload");
   else console.log("  ok    save persisted across reload");
+
+  // Retired (and pending) GMs used to bounce off /new back to the desk.
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const retirePage = await ctx.newPage();
+    retirePage.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+    await retirePage.goto(BASE + "/", { waitUntil: "networkidle" });
+    await retirePage.waitForTimeout(400);
+    await retirePage.getByRole("button", { name: /Start Franchise/i }).click();
+    await retirePage.waitForTimeout(3000);
+    await retirePage.evaluate(async () => {
+      const db = await new Promise((resolve, reject) => {
+        const req = indexedDB.open("gridiron-gm", 1);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      const id = await new Promise((resolve, reject) => {
+        const tx = db.transaction("meta", "readonly");
+        const req = tx.objectStore("meta").get("lastSaveId");
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      const save = await new Promise((resolve, reject) => {
+        const tx = db.transaction("saves", "readonly");
+        const req = tx.objectStore("saves").get(id);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      save.forcedMove = { fromTeamId: save.userTeamId, season: save.season, openChairs: [] };
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction("saves", "readwrite");
+        tx.objectStore("saves").put(save);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    });
+    await retirePage.goto(BASE + "/forced-move", { waitUntil: "networkidle" });
+    await retirePage.waitForTimeout(600);
+    const retireBtn = retirePage.getByRole("button", { name: /^Retire$/ });
+    if (!(await retireBtn.count())) fail("retire flow never reached the Retire button");
+    else {
+      await retireBtn.click();
+      await retirePage.waitForTimeout(400);
+      const saves = retirePage.getByRole("button", { name: /^Saves$/ });
+      if (await saves.count()) await saves.click();
+      else await retirePage.goto(BASE + "/saves", { waitUntil: "networkidle" });
+      await retirePage.waitForTimeout(400);
+      const newFran = retirePage.getByRole("link", { name: /^New Franchise$/ });
+      const newFranBtn = retirePage.getByRole("button", { name: /^New Franchise$/ });
+      const ctl = (await newFran.count()) ? newFran : newFranBtn;
+      if (!(await ctl.count())) fail("retire flow has no New Franchise control");
+      else {
+        await ctl.click();
+        await retirePage.waitForTimeout(500);
+        const landed = await retirePage.evaluate(() => ({
+          path: location.pathname,
+          text: document.body.innerText,
+        }));
+        if (landed.path !== "/new") fail(`retire → /new stayed on ${landed.path}`);
+        else if (!/Start Franchise/i.test(landed.text) || !/Pick the team/i.test(landed.text)) {
+          fail("retire → /new did not render NewGameScreen");
+        } else if (/You've been fired|forced move/i.test(landed.text)) {
+          fail("retire → /new still showed the forced-move desk");
+        } else console.log("  ok    retire → /new renders NewGameScreen");
+      }
+    }
+    await ctx.close();
+  }
 
   await browser.close();
 

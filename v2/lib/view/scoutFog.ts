@@ -60,6 +60,16 @@ function classPool(state: GameState, season: number): Player[] {
   return state.players.filter((q) => !q.retired && q.draftClassSeason === season);
 }
 
+/**
+ * Live-draft grades rank the whole class. draftBoard() is who is still
+ * available; a late best-available keeps the slot he had on draft night.
+ */
+export function liveDraftGradePool(state: GameState): Player[] | null {
+  const season = state.draft?.season;
+  if (season == null) return null;
+  return classPool(state, season);
+}
+
 /** Slot on the user's board and on consensus. Not an overall, a potential, or a band. */
 export function recentPickSlots(state: GameState, p: Player): { board: string; consensus: string } {
   const season = p.draftClassSeason ?? state.season;

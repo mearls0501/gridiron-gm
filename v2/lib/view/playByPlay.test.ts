@@ -17,7 +17,7 @@ import { declareGamedayInactives } from "../core/inactives";
 import { startRegularSeason, advance } from "../core/season/engine";
 import { DriveSummary, PlayEvent } from "../core/types";
 import { encodeSave, decodeSave } from "../store/codec";
-import { drivePlays, formatPlay, spotLabel } from "./playByPlay";
+import { drivePlays, formatPlay, playedResultLine, spotLabel, wentToOvertime } from "./playByPlay";
 
 function userGame(st: ReturnType<typeof newGame>) {
   return st.games.find(
@@ -197,3 +197,24 @@ function names(): (id: number) => string {
 }
 
 console.log("ok    playByPlay — capture / drives / live peek; outcomes unchanged");
+
+assert.equal(
+  playedResultLine({
+    homeAbbr: "NYS",
+    awayAbbr: "SD",
+    homeScore: 29,
+    awayScore: 32,
+    userIsHome: true,
+    ot: true,
+  }),
+  "SD 32, NYS 29 · Loss (OT)",
+);
+assert.equal(
+  wentToOvertime({ quarters: { home: [7, 7, 7, 8, 0], away: [7, 7, 7, 7, 4] } }),
+  true,
+);
+assert.equal(
+  wentToOvertime({ quarters: { home: [7, 7, 7, 3, 0], away: [0, 7, 0, 7, 0] } }),
+  false,
+);
+console.log("ok    playByPlay — SD 32, NYS 29 · Loss (OT)");

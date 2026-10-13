@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect } from "react";
 import { useGame } from "@/lib/store/game";
 import { toastDismissApplies } from "@/lib/store/simToast";
-import { showNewGameScreen } from "@/lib/view/newGameRoute";
+import { forcedMoveKeepsRoute, showNewGameScreen } from "@/lib/view/newGameRoute";
 import { computeRecords, recordString, teamCap, formatMoney } from "@/lib/core/select";
 import { isPendingForcedMove } from "@/lib/core/owner";
 import { cx, TeamMark } from "./ui";
@@ -63,7 +63,7 @@ export function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!state) return;
     if (!isPendingForcedMove(state) && !state.forcedMove?.retired) return;
-    if (pathname === "/forced-move" || pathname === "/saves" || pathname === "/settings") return;
+    if (forcedMoveKeepsRoute(pathname)) return;
     router.replace("/forced-move");
   }, [state, pathname, router]);
 

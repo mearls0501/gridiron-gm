@@ -198,3 +198,34 @@ console.log("ok    userOffers — incoming calls are not one late-pick template"
 }
 
 console.log("ok    userOffers — a used or moved pick is not left on the table");
+
+{
+  const st = newGame({ seed: 11 });
+  st.phase = "regular";
+  st.week = 4;
+  generateUserOffers(st, new Rng(99), 2);
+  const first = (st.tradeOffers ?? []).slice();
+  assert.ok(first.length >= 1, "week 4 put a call on the table");
+  for (const o of first) assert.equal(o.week, 4);
+  st.week = 6;
+  generateUserOffers(st, new Rng(100), 2);
+  const atSix = (st.tradeOffers ?? []).map((o) => o.id);
+  for (const o of first) {
+    assert.equal(atSix.includes(o.id), true, `week-4 offer ${o.id} still lives two weeks later`);
+  }
+  st.week = 7;
+  const parent = st.rngState;
+  generateUserOffers(st, new Rng(101), 2);
+  const atSeven = st.tradeOffers ?? [];
+  for (const o of first) {
+    assert.equal(
+      atSeven.some((x) => x.id === o.id),
+      false,
+      `offer from week ${o.week} expired at week 7`,
+    );
+  }
+  assert.ok(atSeven.length >= 1, "an expired inbox fills again");
+  assert.equal(st.rngState, parent, "topping up uses the rng it was given");
+}
+
+console.log("ok    userOffers — an offer expires after two weeks and the inbox fills");

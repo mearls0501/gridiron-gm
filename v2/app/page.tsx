@@ -282,7 +282,7 @@ export default function Hub() {
                 {(state.waivers?.length ?? 0) > 0 && (
                   <Link href="/roster">
                     <Button size="sm" variant="ghost">
-                      {state.waivers!.length} on waivers — claim on /roster
+                      {state.waivers!.length} on waivers — Claim players
                     </Button>
                   </Link>
                 )}
@@ -660,7 +660,7 @@ export default function Hub() {
           subtitle={`${state.waivers!.length} player${state.waivers!.length === 1 ? "" : "s"} on the wire`}
           actions={
             <Link href="/roster">
-              <Button size="sm">Claim on /roster</Button>
+              <Button size="sm">Claim players</Button>
             </Link>
           }
         >

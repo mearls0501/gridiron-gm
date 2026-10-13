@@ -23,6 +23,7 @@ import {
   PRACTICE_SQUAD_LIMIT, PS_ELEVATIONS_PER_PLAYER, POSITIONS, ROSTER_LIMIT, STARTERS,
 } from "./types";
 import { rosterCapView } from "../view/rosterCap";
+import { injuredStarterDetail } from "./season/briefing";
 import {
   activateFromIr, autoActivateFromIr, autoDesignateIr, canDesignateIr, designateIr,
   elevateFromPs, foldPracticeSquad, placeOnPs, resetSeasonRosterFlags, tickIrGames,
@@ -502,3 +503,17 @@ function starterIds(st: ReturnType<typeof newGame>, teamId: number): number[] {
 }
 
 console.log("irps: ok");
+
+{
+  const st = newGame({ seed: 3 });
+  const starters = clubPlayers(st, st.userTeamId).slice(0, 2);
+  starters[0].injuryWeeks = IR_MIN_GAMES - 1;
+  starters[1].injuryWeeks = IR_MIN_GAMES;
+  const short = injuredStarterDetail([starters[0]]);
+  assert.match(short, /promote the backup or eat the snaps/);
+  assert.doesNotMatch(short, /IR/);
+  const long = injuredStarterDetail([starters[1]]);
+  assert.match(long, /Designate IR/);
+  assert.match(long, new RegExp(`${IR_MIN_GAMES}`));
+  console.log("ok    injured starter — IR when the absence is long enough");
+}

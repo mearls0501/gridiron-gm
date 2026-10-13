@@ -14,6 +14,38 @@ export function quarterLabel(q: number): string {
   return q === 5 ? "OT" : `OT${q - 4}`;
 }
 
+/** True when the box or the play log left regulation. */
+export function wentToOvertime(
+  box: { quarters: { home: number[]; away: number[] }; plays?: { q: number }[] },
+  plays?: { q: number }[],
+): boolean {
+  const otPoints = (box.quarters.home[4] ?? 0) + (box.quarters.away[4] ?? 0);
+  if (otPoints > 0) return true;
+  return (plays ?? box.plays ?? []).some((e) => e.q >= 5);
+}
+
+/**
+ * Finished-game line on /play. Higher score first.
+ * "SD 32, NYS 29 · Loss (OT)" — Loss is the user club.
+ */
+export function playedResultLine(args: {
+  homeAbbr: string;
+  awayAbbr: string;
+  homeScore: number;
+  awayScore: number;
+  userIsHome: boolean;
+  ot: boolean;
+}): string {
+  const home = { abbr: args.homeAbbr, score: args.homeScore };
+  const away = { abbr: args.awayAbbr, score: args.awayScore };
+  const hi = away.score > home.score ? away : home;
+  const lo = hi === home ? away : home;
+  const userScore = args.userIsHome ? args.homeScore : args.awayScore;
+  const oppScore = args.userIsHome ? args.awayScore : args.homeScore;
+  const outcome = userScore > oppScore ? "Win" : userScore < oppScore ? "Loss" : "Tie";
+  return `${hi.abbr} ${hi.score}, ${lo.abbr} ${lo.score} · ${outcome}${args.ot ? " (OT)" : ""}`;
+}
+
 /** Field position from the offense's 0–100 spot. */
 export function spotLabel(yl: number): string {
   const n = Math.max(1, Math.min(99, Math.round(yl)));

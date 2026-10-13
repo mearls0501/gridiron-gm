@@ -392,7 +392,34 @@ export async function checkPlayLastSnap(page, base, { fail, ok }) {
   } else {
     ok("/play continue kept the opening kickoff as row 1; Last snap, Drive Log, and PBP still up");
   }
-  return true;
+
+  const playWeek = page.getByRole("button", { name: /Play Week with these calls/i });
+  if (!(await playWeek.count())) {
+    fail("/play missing Play Week after the called game");
+    return true;
+  }
+  await playWeek.click();
+  try {
+    await page.getByRole("heading", { name: "Week played" }).waitFor({ timeout: 30000 });
+  } catch {
+    fail("/play Play Week did not leave the Week played card up");
+    return true;
+  }
+  await page.waitForTimeout(600);
+  if (!(await page.getByRole("heading", { name: "Week played" }).count())) {
+    fail("/play Week played card disappeared after the week advanced");
+    return true;
+  }
+  const afterWeek = await page.evaluate(() => document.body.innerText);
+  const line = /[A-Z]{2,4} \d+, [A-Z]{2,4} \d+ · (Win|Loss|Tie)( \(OT\))?/;
+  if (!line.test(afterWeek)) {
+    fail("/play result line missing after playWeek");
+  } else if (!(await page.getByRole("button", { name: /Box score/i }).count())) {
+    fail("/play Box score missing after playWeek");
+  } else {
+    ok("/play Play Week kept the Week played card, the result line, and Box score");
+  }
+  return "committed";
 }
 
 /**

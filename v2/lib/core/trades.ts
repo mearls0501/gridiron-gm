@@ -1455,9 +1455,10 @@ export function generateUserOffers(state: GameState, rng: Rng, max = 2): TradeOf
   ensurePickInventory(state);
   if (!state.tradeOffers) state.tradeOffers = [];
 
-  // Drop anything stale before topping up.
+  // Drop anything stale before topping up. An offer lives the week it
+  // arrives and two more, then the inbox can fill again.
   state.tradeOffers = state.tradeOffers.filter(
-    (o) => o.season === state.season && checkTrade(state, o).ok
+    (o) => o.season === state.season && !(o.week < state.week - 2) && checkTrade(state, o).ok
   );
 
   const ids = state.teams.map((t) => t.id).filter((id) => id !== state.userTeamId);

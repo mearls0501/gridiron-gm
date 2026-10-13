@@ -265,17 +265,19 @@ export default function FreeAgencyPage() {
           value={pool.length}
           sub={best ? `Best available: ${playerName(best)} (${best.pos})` : "Market is empty"}
         />
-        <Stat
-          label="Market Wave"
-          value={marketDone ? `${marketMax} / ${marketMax}` : `${Math.min(marketRound, marketMax)} / ${marketMax}`}
-          sub={
-            marketDone
-              ? "Bargain bin — prices at their floor"
-              : cpuBids.length > 0
-                ? `${cpuBids.length} CPU bid${cpuBids.length === 1 ? "" : "s"} on the board`
-                : "Prices soften each wave"
-          }
-        />
+        {faPhase && (
+          <Stat
+            label="Market Wave"
+            value={marketDone ? `${marketMax} / ${marketMax}` : `${Math.min(marketRound, marketMax)} / ${marketMax}`}
+            sub={
+              marketDone
+                ? "Bargain bin — prices at their floor"
+                : cpuBids.length > 0
+                  ? `${cpuBids.length} CPU bid${cpuBids.length === 1 ? "" : "s"} on the board`
+                  : "Prices soften each wave"
+            }
+          />
+        )}
       </div>
 
       {!faPhase && (
@@ -456,21 +458,23 @@ export default function FreeAgencyPage() {
         title={`Free agents — ${team.abbr}`}
         subtitle={`${rows.length} of ${pool.length} available${offer ? " · finish or cancel your offer to sign someone else" : ""}`}
         actions={
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={advanceMarket}
-            disabled={pool.length === 0 || marketDone}
-            title={
-              pool.length === 0
-                ? "There is nobody left to sign"
-                : marketDone
-                  ? "CPU bidding is over — remaining players are yours to sign"
-                  : "Resolve the bids on the board — players you want may come off it"
-            }
-          >
-            Advance free agency
-          </Button>
+          faPhase ? (
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={advanceMarket}
+              disabled={pool.length === 0 || marketDone}
+              title={
+                pool.length === 0
+                  ? "There is nobody left to sign"
+                  : marketDone
+                    ? "CPU bidding is over — remaining players are yours to sign"
+                    : "Resolve the bids on the board — players you want may come off it"
+              }
+            >
+              Advance free agency
+            </Button>
+          ) : undefined
         }
         padded={false}
       >

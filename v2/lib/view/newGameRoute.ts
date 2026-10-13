@@ -6,3 +6,10 @@
 export function showNewGameScreen(pathname: string, hasFranchise: boolean): boolean {
   return !hasFranchise || pathname === "/new";
 }
+
+/** Routes a fired or retired GM may open without being sent back to the desk. */
+const FORCED_MOVE_OPEN = new Set(["/forced-move", "/saves", "/settings", "/new"]);
+
+export function forcedMoveKeepsRoute(pathname: string): boolean {
+  return FORCED_MOVE_OPEN.has(pathname);
+}
