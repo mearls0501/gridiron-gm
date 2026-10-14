@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import { Button, Card, Empty, Pill, TeamMark } from "@/components/ui";
 import { isOnBye, userNextGame } from "@/lib/core/season/engine";
@@ -17,7 +17,7 @@ import { SnapCall } from "@/lib/core/types";
 import { playerMap } from "@/lib/core/select";
 import {
   clockLabel, downDistance, driveBar, driveResultLabel, driveResultTone,
-  formatPlay, quarterLabel, spotLabel,
+  formatPlay, playedResultLine, quarterLabel, spotLabel, wentToOvertime,
 } from "@/lib/view/playByPlay";
 
 /**
@@ -38,7 +38,10 @@ export default function PlayPage() {
   const [view, setView] = useState<LiveView | null>(null);
   const [session, setSession] = useState<ReturnType<typeof resumeLiveGame> | null>(null);
   const [committed, setCommitted] = useState(false);
+  const [boundGameId, setBoundGameId] = useState<number | null>(null);
   const [lastSend, setLastSend] = useState<string | null>(null);
+  const committedRef = useRef(false);
+  const heldFranchise = useRef<string | null>(null);
 
   const game = state ? userNextGame(state) : undefined;
   const onBye = state ? isOnBye(state, state.userTeamId) : false;
@@ -52,11 +55,16 @@ export default function PlayPage() {
   useEffect(() => {
     const s = useGame.getState().state;
     if (!s) return;
+    // Play Week advances state.week. Keep the finished game up; the next
+    // kickoff is a new visit to this page.
+    if (committedRef.current && heldFranchise.current === s.id) return;
+    committedRef.current = false;
     if (s.phase !== "regular" && s.phase !== "playoffs") return;
     if (isOnBye(s, s.userTeamId)) return;
     const g = userNextGame(s);
     if (!g || g.played) return;
     const live = resumeLiveGame(s, g.id);
+    setBoundGameId(g.id);
     setSession(live);
     setView(live.peek());
     setCommitted(false);
@@ -65,7 +73,9 @@ export default function PlayPage() {
 
   if (!state) return null;
 
-  if (onBye) {
+  const keepResult = committed && !!view?.done;
+
+  if (onBye && !keepResult) {
     return (
       <div className="space-y-4 max-w-3xl">
         <Card title="Play the Game">
@@ -91,7 +101,8 @@ export default function PlayPage() {
     );
   }
 
-  const liveGame = game ?? (view?.done ? state.games.find((g) => g.played && (g.homeId === state.userTeamId || g.awayId === state.userTeamId) && g.week === state.week - 1) : undefined);
+  const bound = boundGameId != null ? state.games.find((g) => g.id === boundGameId) : undefined;
+  const liveGame = view?.done && bound ? bound : game;
   const oppId = liveGame
     ? (liveGame.homeId === state.userTeamId ? liveGame.awayId : liveGame.homeId)
     : state.userTeamId;
@@ -139,9 +150,22 @@ export default function PlayPage() {
       if (sealed && !s.sealedLive) writeSealedLive(s, sealed);
       return "Play-the-Game calls set";
     });
-    advance();
+    committedRef.current = true;
+    heldFranchise.current = state.id;
     setCommitted(true);
+    advance();
   };
+
+  const resultLine = view?.done && liveGame
+    ? playedResultLine({
+        homeAbbr: state.teams[liveGame.homeId].abbr,
+        awayAbbr: state.teams[liveGame.awayId].abbr,
+        homeScore: view.result.homeScore,
+        awayScore: view.result.awayScore,
+        userIsHome,
+        ot: wentToOvertime(view.result.box, view.result.plays),
+      })
+    : null;
 
   return (
     <div className="space-y-4 max-w-3xl">
@@ -213,13 +237,6 @@ export default function PlayPage() {
               );
             })}
           </div>
-          <ul className="mt-3 space-y-1.5 text-[11px] text-[var(--color-muted)]">
-            {SNAP_INTENT_CHOICES.map((choice) => (
-              <li key={choice.id}>
-                <span className="text-[var(--color-text)]">{choice.label}.</span> {choice.rule}
-              </li>
-            ))}
-          </ul>
           <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mt-4 mb-1.5">
             This snap
           </div>
@@ -232,6 +249,13 @@ export default function PlayPage() {
           {lastSend && (
             <p className="text-xs mt-3">Last call: {lastSend}</p>
           )}
+          <ul className="mt-3 space-y-1.5 text-[11px] text-[var(--color-muted)]">
+            {SNAP_INTENT_CHOICES.map((choice) => (
+              <li key={choice.id}>
+                <span className="text-[var(--color-text)]">{choice.label}.</span> {choice.rule}
+              </li>
+            ))}
+          </ul>
           <p className="text-xs text-[var(--color-muted)] mt-2">
             {snapMix(view.calls)}.
             {" "}Run forces a run. Pass forces a pass. Coach this snap is the staff mix for the down, the distance, the score, and the clock.
@@ -242,11 +266,9 @@ export default function PlayPage() {
         </Card>
       )}
 
-      {view && view.done && (
-        <Card
-          title={committed ? "Week played" : "Game called"}
-          subtitle={`${view.result.homeScore}–${view.result.awayScore}`}
-        >
+      {view && view.done && resultLine && (
+        <Card title={committed ? "Week played" : "Game called"}>
+          <p className="text-sm font-medium mb-3">{resultLine}</p>
           {(() => {
             const a = boxAttempts(view.result.box, state.userTeamId);
             return (

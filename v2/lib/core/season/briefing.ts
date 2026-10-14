@@ -1,5 +1,5 @@
 import {
-  Game, GameState, Player, Position, STARTERS, Team, TRADE_DEADLINE_WEEK,
+  Game, GameState, IR_MIN_GAMES, Player, Position, STARTERS, Team, TRADE_DEADLINE_WEEK,
   weatherLabel, isHarsh,
 } from "../types";
 import { computeRecords, recordString, rosterIssues, teamCap, formatMoney, ordinal } from "../select";
@@ -182,6 +182,18 @@ function buildHeadlines(state: GameState, week: number): string[] {
   return out.slice(0, 8);
 }
 
+/** Injured starters. IR is the suggestion once the absence is long enough to designate. */
+export function injuredStarterDetail(hurt: Player[]): string {
+  const names = hurt.map((p) => `${playerName(p)} (${p.pos})`).slice(0, 3).join(", ");
+  const ir = hurt.filter((p) => p.injuryWeeks >= IR_MIN_GAMES);
+  if (ir.length === 0) return `${names} — promote the backup or eat the snaps.`;
+  if (ir.length === hurt.length) {
+    return `${names} — out at least ${IR_MIN_GAMES} weeks. Designate IR, or promote the backup.`;
+  }
+  const who = ir.map((p) => playerName(p)).slice(0, 3).join(", ");
+  return `${names} — ${who} can go on IR (${IR_MIN_GAMES}+ weeks). Promote the backup or eat the snaps.`;
+}
+
 function buildActionItems(state: GameState): { action: ActionItem[]; review: string[] } {
   const action: ActionItem[] = [];
   const review: string[] = [];
@@ -236,7 +248,7 @@ function buildActionItems(state: GameState): { action: ActionItem[]; review: str
   if (hurtStarters.length > 0) {
     action.push({
       label: `${hurtStarters.length} injured starter${hurtStarters.length > 1 ? "s" : ""} in the lineup`,
-      detail: `${hurtStarters.map((p) => `${playerName(p)} (${p.pos})`).slice(0, 3).join(", ")} — promote the backup or eat the snaps.`,
+      detail: injuredStarterDetail(hurtStarters),
       href: "/depth-chart",
       urgent: true,
     });

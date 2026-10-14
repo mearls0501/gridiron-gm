@@ -21,6 +21,7 @@ import { Player } from "../core/types";
 import { athleticClass, athleticSheet, boardTesting } from "./athleticSheet";
 import {
   combineSheetPublic,
+  liveDraftGradePool,
   prospectTesting,
   prospectTestingText,
   recentPickSlots,
@@ -308,3 +309,32 @@ function leaksRating(text: string, p: Player): string | null {
 }
 
 console.log("ok    scout fog — recent picks, campus forty, combine window");
+
+{
+  const st = newGame({ seed: 42 });
+  const season = st.season;
+  const classmates = st.players.filter((p) => !p.retired && p.draftClassSeason === season);
+  const full = gradeContext(st, classmates);
+  const bySlot = classmates
+    .slice()
+    .sort((a, b) => boardGrade(st, a, full).slot - boardGrade(st, b, full).slot);
+  const taken = 100;
+  for (const p of bySlot.slice(0, taken)) {
+    p.prospect = false;
+    p.teamId = (st.userTeamId + 1) % st.teams.length;
+  }
+  st.phase = "offseason-draft";
+  st.draft = { season, onClock: taken, complete: false, picks: [] };
+  const still = bySlot.slice(taken).filter((p) => p.prospect && p.teamId === null);
+  const availableOnly = gradeContext(st, still);
+  const best = still
+    .slice()
+    .sort((a, b) => boardGrade(st, a, availableOnly).slot - boardGrade(st, b, availableOnly).slot)[0];
+  assert.equal(boardGrade(st, best, availableOnly).slot, 1, "the available list reprints him as #1");
+  const pool = liveDraftGradePool(st);
+  assert.ok(pool && pool.length === classmates.length, "the grade pool keeps drafted classmates");
+  const kept = boardGrade(st, best, gradeContext(st, pool!)).slot;
+  assert.ok(kept > 1, `late best-available showed #${kept}, expected his original slot`);
+  assert.equal(kept, boardGrade(st, best, full).slot, "original class slot, not the available-list #1");
+  console.log(`ok    scout fog — late best-available keeps slot #${kept}`);
+}

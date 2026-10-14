@@ -5,6 +5,59 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-13 — Active GM pass (signed packet, UI/flow)
+
+Matt signed the Active GM pass (Claude, Oct 12, checklist rows against main `594bf84`). Built from `5c09b82`. UI and flow only. No dials, no bands, no calibration, no `docs/baselines.json` edit, no re-lock. The CPU free-agency bid premium (30–40% over the shown asking) was not touched. It still waits on Claude.
+
+No disagreement with the packet. The stats toolbar carries extra width constraints under item 5 so the specified `flex-wrap` actually holds `scrollWidth` at 390. Those classes do not change the behavior the row asked for.
+
+### Landed
+
+1. **Retire dead end.** `/new` is on the forced-move allowlist (`forcedMoveKeepsRoute` in `lib/view/newGameRoute.ts`, used by `Shell`). A retired or pending GM can open NewGameScreen. `e2e.mjs` retires a planted pending save and asserts `/new` renders Start Franchise and "Pick the team".
+2. **`/play` keeps the finished game.** Play Week sets a ref before `advance()`. A `state.week` change does not rebuild the session while that franchise is `committed`. The card title is "Week played". The line is higher score first, then Win/Loss/Tie, with ` (OT)` when quarter-5 points or a play with `q >= 5` exist. Box score links the game that was just played. Unit lock is `SD 32, NYS 29 · Loss (OT)`. The browser seed showed `CLE 17, BOS 16 · Loss`.
+3. **Draft board ranks.** During a live draft, `gradeContext` uses `liveDraftGradePool`: every prospect in `d.season`, drafted included. The visible board stays `draftBoard()` (available only). A late best-available keeps its original slot (unit lock: slot **#101**, not #1).
+4. **Trade inbox.** `generateUserOffers` drops `o.week < state.week - 2` (same season, still `checkTrade` legal). An offer from week 4 is still there at week 6 and gone at week 7, and the inbox refills. The parent stream did not move: tag `823515333`, FA `1063212815`. No re-lock.
+5. **`/stats` at 390px.** The toolbar at `app/stats/page.tsx` has `flex-wrap`, plus `w-full min-w-0 max-w-full` and the same min/max on the children. The category tabs are `whitespace-nowrap` inside `overflow-x-auto`; without the min-width reset that strip widens the document. `document.documentElement.scrollWidth === 390` in `e2e.mjs` and in the screenshot pass.
+
+### Polish (same PR)
+
+- Injured-starter briefing: `injuredStarterDetail` suggests IR when `injuryWeeks >= IR_MIN_GAMES` (4). A shorter absence still says promote the backup. A mix names who can go on IR.
+- Free agency: "Advance free agency" and the Market Wave stat render only in `offseason-fa`. In-season Sign stays.
+- Waiver copy: the hub button and the offseason line both say "Claim players".
+- `/play`: the Run / Pass / Coach / Finish row sits above the intent-rule list.
+
+### Gate (`npm run gate:serial`, fast, 1 seed, 4 cores)
+
+`GATE FAIL  1 problem`. The only FAIL line is the known single-seed noise. Not retuned. Baseline stays.
+
+```
+FAIL  statcheck.rb5RushYds  1288  expected 1191 +/-95  (NFL ~1191)
+```
+
+`leverage.wrongSign` was **0** on this run (the inherited red did not fire). `leverage.noEffect` is **1** (existing). `verify` **348/348**, `verify.failures` **0**. Score mismatches **0**.
+
+| metric | this run |
+|---|---|
+| `calibrate.pts` | **23.19** |
+| `calibrate.passYds` | **241.14** |
+| `calibrate.rushYds` | **118.28** |
+| `calibrate.fgPct` | **86.0** |
+| `statcheck.qb5PassYds` | **4103** |
+| `statcheck.qb10PassYds` | **3581** |
+| `statcheck.qb20PassYds` | **3050** |
+| `statcheck.wr10RecYds` | **1136** |
+| `statcheck.rb5RushYds` | **1288** FAIL (known single-seed noise) |
+| `leverage.wrongSign` | **0** |
+| `leverage.noEffect` | **1** |
+
+### Browser
+
+`node scripts/e2e.mjs` **PASSED**. Includes `/stats` `scrollWidth` 390, the Week played card after Play Week, 18 weeks (a smoke-committed week counts toward that floor), and retire → `/new` renders NewGameScreen.
+
+`node scripts/e2e-interact.mjs` **PASSED**. Console errors **0**. The Week played card stayed up after Play Week.
+
+---
+
 ## 2026-10-13 — Studio panel GATE table @ 594bf84 (after #173/#175/#174/#176) (report-only)
 
 Docs only. Close-out panel for main after the owner-card pace (#173), the sides trial (#175), the kicker and punter cap (#174), and the shadow trial (#176). **Report-only. No re-lock.**

@@ -466,7 +466,7 @@ export default function StatsPage() {
                 : "· league leaders"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full min-w-0 max-w-full [&>*]:min-w-0 [&>*]:max-w-full">
           <Tabs<Tab>
             value={tab}
             onChange={(t) => {
