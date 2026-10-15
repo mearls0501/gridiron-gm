@@ -5,6 +5,81 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-15 — Strategy pass, Packets A+B
+
+Matt **SIGNED** this. Built from the signed task text (Packets A and B). View and copy only. No engine draft-order or pick RNG change. No dial, band, re-lock, or `docs/baselines.json` edit. The CPU three-7ths trade filler was left alone.
+
+### What changed
+
+**Packet A.** Your Board and Consensus now rank on a neutral form of the positional score CPU clubs draft with. Perceived ability is the intel-band midpoint. Headroom is priced with risk at 0.5, so the risk term is zero and upside is room × 0.33. That surplus over replacement (58) is multiplied by the square root of positional value. Club need, scheme, and whether he would start here stay on the pick. Department intel and public intel are still separate, so the two boards are not clones. `cpuPick`, draft order, and `consensusScore` (the CPU shortlist prefilter) are unchanged.
+
+"He will not last" already reads `consensusGrade` → `gradeContext.market`. It follows the corrected consensus. There is no second formula.
+
+**Packet B.**
+
+1. An outbid toast names the winner and the terms. One loss is `Finn Baker signed with CIN — 5yr / $26.5M`. Several losses lead with the count and then the first deal. The free-agency column is **Leading bid**, with the hint "Rivals may counter when you bid." The hint is on the column and, while the market is open, in the filter bar.
+2. The tag-hub re-sign table shows OVR, and POT for players 25 and under (an em dash after that). The OVR header sorts the table.
+3. Season Review on the hub shows Awards, Champion, and Waivers once each. The compact summary that repeated awards and the champion, and the phase-card waiver button, are gone. The Waivers card remains the one waiver surface.
+4. Gameday Inactives opens on injured players, players already sat, and the scratches Play Week would take. **Show all** lists the rest of the active roster. **Suggested only** returns. The sit order Play Week uses is the same list, first name unchanged.
+5. News lines that were stored as `YYYY R#` or `YYYY #n` read as `N+1 Draft` on the hub, the week headlines, and the league log. Offer lines on the trade desk, the hub offer card, and the draft-night clock already used that label. `describeAsset` and the stored season are unchanged, so the trade log still records the class year.
+6. An unsigned free agent's player page does not show a jersey number. The number is still assigned. Prospects and retirees still show one.
+
+### Packet A — three seeds, draft night
+
+Same path both times: `newGame` → play to `offseason-draft` → sim the draft. Consensus and Your Board are `gradeContext` on the drafted class. Round 1 is `round === 1`. Picks 1–64 are `pick ≤ 64`. Round 4 starts at slot 97. Highest K/P is the best slot on that board.
+
+| Seed | | R1 median consensus | Mean \|consensus − pick\|, picks 1–64 | Consensus top 15 in R1 | Highest K/P, Your Board | Highest K/P, Consensus |
+| --- | --- | --- | --- | --- | --- | --- |
+| 42 | before | 20.5 | 26.13 | 12/15 | K #9 Jordan Hernandez | K #12 Jordan Hernandez |
+| 42 | after | 19.5 | 15 | 13/15 | K #60 Jordan Hernandez | K #71 Jordan Hernandez |
+| 12345 | before | 18.5 | 26 | 14/15 | P #5 Tate Jennings | P #20 Tate Jennings |
+| 12345 | after | 20.5 | 17.36 | 13/15 | P #69 Tate Jennings | P #85 Tate Jennings |
+| 7 | before | 22 | 23.52 | 14/15 | P #25 Owen Hernandez | P #23 Chris Montoya |
+| 7 | after | 18.5 | 13.5 | 14/15 | P #88 Chris Montoya | P #87 Chris Montoya |
+
+Top-15 consensus mostly lands in round 1 on all three seeds (13, 13, and 14 of 15).
+
+### RNG
+
+The parent stream did not move. Same seeds, same pick-id sequences, same RNG fingerprints before and after the view change.
+
+| Seed | Picks | rng at new game | rng at the clock | rng after the draft |
+| --- | --- | --- | --- | --- |
+| 42 | 272 | 2291626074 | 1843830367 | 1372598382 |
+| 12345 | 263 | 2291638377 | 4048407220 | 2249562698 |
+| 7 | 267 | 2291626039 | 1371355614 | 3795960891 |
+
+### Gate and browser
+
+`npm run gate:serial` from `v2/` (1 seed). The only FAIL line was:
+
+```
+FAIL  statcheck.rb5RushYds  1288  expected 1191 +/-95  (NFL ~1191)
+```
+
+**1288** is 2 yards over the fast-tier ceiling (1191 + 95 = 1286). Single-seed stream noise. The baseline stays.
+
+`leverage.wrongSign` was **0**. `leverage.noEffect` stayed **1** (`OT.sta`). Not re-locked.
+
+`npx next build`, then `next start -p 3000`. `PW_CHROMIUM=/usr/bin/google-chrome`.
+
+`node scripts/e2e.mjs` — **E2E PASSED**. Includes Leading bid, an unsigned free agent with no jersey (Bryson Kirkland), suggested scratches plus Show all, Season Review once (awards, champion, and waivers), the re-sign OVR sort, and the outbid toast `Finn Baker signed with CIN — 5yr / $26.5M`.
+
+`node scripts/e2e-interact.mjs` — **INTERACTION TEST PASSED**. Console errors 0. The same desks passed again, and a manual draft pick still lands.
+
+This seed's hub and league log had no stored pick line to read in the browser. `presentNewsText(describeAsset(pick))` is locked to the trade-desk label in `tradeBoard.test.ts`.
+
+### Disagreements with the signed text
+
+Reported. Not tuned.
+
+1. **No K/P above round 4 is not met.** The honest neutral score still ranks a specialist in rounds 2–3 (slots 60–88 on Your Board, 71–87 on Consensus). A steeper exponent would push them past slot 96 and would also pile quarterbacks into the top 15. That exponent is not the CPU's square-root term. A specialist penalty was not added. Full per-club `cpuBoardValue` was not used for these ranks: it includes need, scheme, and whether he starts here, and averaging it would collapse Your Board and Consensus into one club's board.
+2. **Seed 12345 round-1 median consensus is 20.5**, half a slot over the ≤ 20 target. Seeds 42 and 7 are 19.5 and 18.5. Not retuned.
+3. **Offer text was already `N+1 Draft`** on the trade desk, the hub offer card, and the draft clock (`tradeBoardAssetLabel`). This packet makes news match that label at display time. `describeAsset` stays on the stored year.
+4. **Jersey numbers are still assigned** to unsigned free agents. The jersey gate requires a preferred number on an unrostered player. The player page hides it. Prospects and retired numbers still show.
+
+---
+
 ## 2026-10-15 — Active GM polish
 
 Matt **SIGNED** this. Built as written. UI and copy only. No engine, dial, band, re-lock, or `docs/baselines.json` edit.

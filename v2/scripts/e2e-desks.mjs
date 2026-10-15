@@ -40,7 +40,213 @@ export async function noteTagResignStep(page, { fail, ok }) {
     fail("tag window re-sign step missing Offer / Meet asking");
     return;
   }
-  ok("tag window re-sign step lists Offer / Meet asking and warns who walks");
+  const cols = await page.evaluate(() =>
+    [...document.querySelectorAll("th")].map((th) => (th.textContent || "").replace(/\s+/g, " ").trim())
+  );
+  if (!cols.some((c) => c.startsWith("OVR"))) {
+    fail(`tag window re-sign table has no OVR column (${cols.join(" | ")})`);
+    return;
+  }
+  if (!cols.includes("POT")) {
+    fail(`tag window re-sign table has no POT column (${cols.join(" | ")})`);
+    return;
+  }
+  const section = page.locator("section").filter({
+    has: page.getByRole("heading", { name: "Re-sign" }),
+  });
+  const ovr = section.getByRole("button", { name: /^OVR/ });
+  if (!(await ovr.count())) {
+    fail("tag window OVR header is not a sort control");
+    return;
+  }
+  const rowText = () => section.locator("tbody tr").evaluateAll((trs) =>
+    trs.slice(0, 3).map((tr) => (tr.innerText || "").replace(/\s+/g, " ").trim())
+  );
+  const before = await rowText();
+  await ovr.click();
+  await page.waitForTimeout(200);
+  const after = await rowText();
+  if (before.join("\n") === after.join("\n") && before.length > 1) {
+    fail("sorting the re-sign table by OVR did not change row order");
+    return;
+  }
+  await page.screenshot({ path: "/tmp/strategy-shots/resign-ovr.png" });
+  ok("tag window re-sign step lists OVR and POT, sorts by OVR, and warns who walks");
+}
+
+/** Season Review hub: awards, champion, and waivers each appear at most once. */
+export async function checkSeasonReviewOnce(page, { fail, ok }) {
+  const titles = await page.evaluate(() =>
+    [...document.querySelectorAll("h2")].map((h) => (h.textContent || "").trim())
+  );
+  const n = (name) => titles.filter((t) => t === name).length;
+  const problems = [];
+  if (n("Awards") !== 1) problems.push(`Awards ×${n("Awards")}`);
+  if (n("Champion") !== 1) problems.push(`Champion ×${n("Champion")}`);
+  if (n("Waivers") > 1) problems.push(`Waivers ×${n("Waivers")}`);
+  const body = await page.evaluate(() => document.body.innerText);
+  if (/on waivers — Claim players/i.test(body)) problems.push("phase-card waiver button still present");
+  if (problems.length) fail(`season review duplicated: ${problems.join(", ")}`);
+  else {
+    await page.screenshot({ path: "/tmp/strategy-shots/season-review.png", fullPage: true });
+    ok(`season review shows awards and champion once${n("Waivers") ? ", waivers once" : " (no waiver wire this week)"}`);
+  }
+}
+
+/**
+ * /week Gameday Inactives opens on the suggested scratches. Show all lists
+ * the rest of the 53, and Suggested only returns.
+ * Returns "ok", "bye", or a short failure code.
+ */
+export async function checkGamedayInactives(page, base) {
+  await page.goto(base + "/week", { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  const weekTxt = await page.evaluate(() => document.body.innerText);
+  if (/Bye week/i.test(weekTxt)) return "bye";
+  if (!/Gameday Inactives/.test(weekTxt) || !/\bSit\b/.test(weekTxt)) return "missing";
+  const section = page.locator("section").filter({
+    has: page.getByRole("heading", { name: "Gameday Inactives" }),
+  });
+  const rows = () => section.locator(".divide-y > div");
+  const showAll = section.getByRole("button", { name: /^Show all$/ });
+  if (!(await showAll.count())) return "no-show-all";
+  const shortN = await rows().count();
+  await showAll.click();
+  await page.waitForTimeout(200);
+  if (!(await section.getByRole("button", { name: /^Suggested only$/ }).count())) return "show-all-stuck";
+  const fullN = await rows().count();
+  if (fullN <= shortN) return `show-all-short ${shortN}->${fullN}`;
+  await section.getByRole("button", { name: /^Suggested only$/ }).click();
+  await page.waitForTimeout(150);
+  if (!(await section.getByRole("button", { name: /^Show all$/ }).count())) return "suggested-stuck";
+  const backN = await rows().count();
+  if (backN !== shortN) return `suggested-count ${shortN}->${backN}`;
+  await showAll.click();
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: "/tmp/strategy-shots/inactives-all.png" });
+  await section.getByRole("button", { name: /^Suggested only$/ }).click();
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: "/tmp/strategy-shots/inactives-suggested.png" });
+  return "ok";
+}
+
+/** Free-agency column renamed, with the rival-counter hint on the header. */
+export async function checkLeadingBid(page, base, { fail, ok }) {
+  await page.goto(base + "/free-agency", { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  const found = await page.evaluate(() => {
+    const th = [...document.querySelectorAll("th")].find((el) =>
+      /Leading bid/i.test(el.textContent || "")
+    );
+    const titled = th?.querySelector("[title]")?.getAttribute("title") || th?.getAttribute("title") || "";
+    return {
+      column: !!th,
+      hint: /rivals may counter when you bid/i.test(titled),
+      visible: /Leading bid — rivals may counter when you bid/i.test(document.body.innerText),
+      cpuBid: /CPU BID/i.test(document.body.innerText),
+    };
+  });
+  if (!found.column) fail("free agency table has no Leading bid column");
+  else if (!found.hint) fail("Leading bid column is missing the rival-counter hint");
+  else if (found.cpuBid) fail("free agency still says CPU BID");
+  else {
+    await page.screenshot({ path: "/tmp/strategy-shots/leading-bid.png" });
+    ok(`Leading bid column${found.visible ? " and the visible rival-counter line" : ""}`);
+  }
+}
+
+/**
+ * Place one asking-price bid on a player a CPU club is already leading,
+ * advance one wave, and read the outbid toast. A win or a quiet wave is a
+ * note. A toast that names a signing must include the years and money.
+ */
+export async function tryFaOutbidToast(page, base, { fail, ok }) {
+  await page.goto(base + "/free-agency", { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+  const hint = await page.evaluate(() =>
+    /Leading bid — rivals may counter when you bid/i.test(document.body.innerText)
+  );
+  if (!hint) {
+    fail("free-agency market is missing the Leading bid rival-counter line");
+    return;
+  }
+  const target = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll("tbody tr")];
+    for (let i = 0; i < rows.length; i++) {
+      const cells = [...rows[i].querySelectorAll("td")].map((td) => (td.innerText || "").trim());
+      const bid = cells[5] || "";
+      if (bid !== "—" && /\$/.test(bid) && /Bid/.test(cells[cells.length - 1] || "")) return i;
+    }
+    return -1;
+  });
+  if (target < 0) {
+    console.log("  note  no CPU leading bid to lose — outbid toast not exercised");
+    return;
+  }
+  const row = page.locator("tbody tr").nth(target);
+  await row.getByRole("button", { name: /^Bid$/ }).click();
+  await page.waitForTimeout(200);
+  const offer = row.getByRole("button", { name: /^Offer$/ });
+  if (!(await offer.count())) {
+    console.log("  note  bid editor did not open — outbid toast not exercised");
+    return;
+  }
+  await offer.click();
+  await page.waitForTimeout(400);
+  const advance = page.getByRole("button", { name: /Advance free agency/i });
+  if (!(await advance.count())) {
+    console.log("  note  market has no Advance control — outbid toast not exercised");
+    return;
+  }
+  const pending = ((await page.locator("div.fixed.bottom-5").innerText().catch(() => "")) || "").trim();
+  await advance.click();
+  try {
+    await page.waitForFunction((prev) => {
+      const t = document.querySelector("div.fixed.bottom-5")?.textContent || "";
+      return t.trim() !== "" && t.trim() !== prev && /signed with|You won|outbid|Wave /.test(t);
+    }, pending, { timeout: 8000 });
+  } catch {
+    console.log("  note  advancing the market produced no bid toast");
+    return;
+  }
+  const line = ((await page.locator("div.fixed.bottom-5").innerText()) || "").replace(/\s+/g, " ").trim();
+  if (/You won/.test(line)) {
+    console.log(`  note  the asking bid won (${line})`);
+    return;
+  }
+  if (!/signed with [A-Z0-9]+ — \d+yr \/ \$[\d.]+[MK]/.test(line)) {
+    fail(`outbid toast missing winning terms (${line})`);
+    return;
+  }
+  await page.screenshot({ path: "/tmp/strategy-shots/outbid-toast.png" });
+  ok(`outbid toast names the winning terms (${line})`);
+}
+
+/** Unsigned free agents do not wear a jersey number on the player page. */
+export async function checkUnsignedFaNumber(page, base, { fail, ok }) {
+  await page.goto(base + "/free-agency", { waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  const link = page.locator('a[href^="/player/"]').first();
+  if (!(await link.count())) {
+    fail("free agency has no player link to check the jersey");
+    return;
+  }
+  await link.click();
+  await page.waitForTimeout(500);
+  const shown = await page.evaluate(() => {
+    const h1 = (document.querySelector("h1")?.textContent || "").trim();
+    const badge = [...document.querySelectorAll("span")].some((el) =>
+      /^#\d+$/.test((el.textContent || "").trim())
+    );
+    const unsigned = /Unsigned free agent/i.test(document.body.innerText);
+    return { h1, badge, unsigned };
+  });
+  if (!shown.unsigned) fail(`player page was not an unsigned free agent (${shown.h1})`);
+  else if (/^#\d+/.test(shown.h1) || shown.badge) fail(`unsigned free agent shows a jersey (${shown.h1})`);
+  else {
+    await page.screenshot({ path: "/tmp/strategy-shots/unsigned-fa.png" });
+    ok(`unsigned free agent has no jersey (${shown.h1})`);
+  }
 }
 
 export async function checkStaffDesk(page, base, { fail, ok }) {

@@ -14,7 +14,7 @@ import { presentedOvr } from "../core/ratings";
 import { knowsTrueRatings, userVeteranView, visibleOvr } from "../core/scouting";
 import { describeAsset } from "../core/trades";
 import { Player, TradeAsset } from "../core/types";
-import { draftYearLabel } from "./draftYear";
+import { draftYearLabel, presentNewsText } from "./draftYear";
 import { OVERPAYING_LINE, readOfMargin } from "./tradeRead";
 import {
   draftPickDeskLabel,
@@ -99,6 +99,7 @@ assert.ok(own.length > 10 && rivals.length > 10, "need both rosters");
   assert.equal(desk, draftPickDeskLabel(st, asset));
   assert.equal(desk.replace(draftYearLabel(pick.season), String(pick.season)), truth);
   assert.notEqual(desk, truth);
+  assert.equal(presentNewsText(truth), desk, "news uses the same draft-year label as the offer");
 }
 
 assert.equal(st.rngState, rngBefore, "display fog must not draw on the save RNG");

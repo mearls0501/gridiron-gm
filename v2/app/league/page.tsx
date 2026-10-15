@@ -6,6 +6,7 @@ import { GameState, LogEntry } from "@/lib/core/types";
 import { computeRecords, recordString } from "@/lib/core/select";
 import { DIVISIONS } from "@/lib/core/names";
 import { teamOutlook } from "@/lib/core/frontOffice";
+import { presentNewsText } from "@/lib/view/draftYear";
 import {
   Card, Cell, Empty, Pill, PlayerLink, Row, Table, TeamMark, cx,
 } from "@/components/ui";
@@ -129,7 +130,7 @@ export default function LeaguePage() {
               {feed.map((e, i) => (
                 <li key={`${e.season}-${e.week}-${i}`} className="flex items-start gap-3 px-4 py-2.5">
                   <Pill tone={LOG_TONE[e.kind]}>{e.kind}</Pill>
-                  <span className={cx("text-xs flex-1 min-w-0", LOG_TEXT[e.kind])}>{e.text}</span>
+                  <span className={cx("text-xs flex-1 min-w-0", LOG_TEXT[e.kind])}>{presentNewsText(e.text)}</span>
                   <span className="text-[10px] text-[var(--color-faint)] tnum shrink-0">
                     {e.season} W{e.week}
                   </span>

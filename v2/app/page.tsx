@@ -23,13 +23,14 @@ import {
 import { Rng } from "@/lib/core/rng";
 import { tradeBoardAssetLabel } from "@/lib/view/tradeBoard";
 import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weatherLabel, type GameState } from "@/lib/core/types";
-import { SeasonReviewPanels, SeasonReviewSummary } from "@/components/SeasonReview";
+import { SeasonReviewPanels } from "@/components/SeasonReview";
 import { presentSeasonReview } from "@/lib/view/seasonReview";
 import { hubCampCutdownCopy, hubCampFloorCopy, rosterCapView } from "@/lib/view/rosterCap";
-import { hubResignWalkWarning, resignStepRows } from "@/lib/view/resignStep";
+import { hubResignWalkWarning, resignPot, resignStepRows } from "@/lib/view/resignStep";
 import { coachingCarouselMoves, splitCoachingCarousel } from "@/lib/view/coachingCarousel";
 import { teamLeaders } from "@/lib/view/teamLeaders";
 import { presentedOvr } from "@/lib/core/ratings";
+import { presentNewsText } from "@/lib/view/draftYear";
 import { PRIVATE_VISIT_CAP, calendarView } from "@/lib/core/scouting";
 import { focusFilmLines } from "@/lib/core/scoutStaff";
 import { emptyCoordinatorFlags } from "@/lib/core/coaches";
@@ -76,6 +77,7 @@ export default function Hub() {
   const [confirming, setConfirming] = useState(false);
   const [simMenu, setSimMenu] = useState(false);
   const [carouselAll, setCarouselAll] = useState(false);
+  const [resignOvrDesc, setResignOvrDesc] = useState(true);
   const simMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -257,9 +259,6 @@ export default function Hub() {
                   {resignWalk}
                 </div>
               )}
-              {isRecap && recap && (
-                <SeasonReviewSummary state={state} view={recap} />
-              )}
               <div className="flex gap-2 mt-2">
                 {state.phase === "offseason-tag" && (
                   <span className="text-xs text-[var(--color-muted)]">
@@ -279,13 +278,6 @@ export default function Hub() {
                 )}
                 {state.phase === "offseason-final" && (
                   <Link href="/roster"><Button size="sm">Review the Roster</Button></Link>
-                )}
-                {(state.waivers?.length ?? 0) > 0 && (
-                  <Link href="/roster">
-                    <Button size="sm" variant="ghost">
-                      {state.waivers!.length} on waivers — Claim players
-                    </Button>
-                  </Link>
                 )}
               </div>
             </div>
@@ -410,15 +402,39 @@ export default function Hub() {
                 Nobody on this club is expiring. Continue will not walk anyone.
               </p>
             ) : (
-              <Table head={["Player", "Pos", "Age", "Asking", ""]}>
-                {rows.map((row) => {
+              <Table head={[
+                "Player",
+                "Pos",
+                "Age",
+                <button
+                  key="ovr"
+                  type="button"
+                  title="Sort by overall"
+                  onClick={() => setResignOvrDesc((d) => !d)}
+                  className="cursor-pointer hover:text-[var(--color-text)]"
+                >
+                  OVR{resignOvrDesc ? " ▼" : " ▲"}
+                </button>,
+                "POT",
+                "Asking",
+                "",
+              ]}>
+                {rows.slice().sort((a, b) => {
+                  const av = presentedOvr(a.player.pos, a.player.ovr);
+                  const bv = presentedOvr(b.player.pos, b.player.ovr);
+                  const c = resignOvrDesc ? bv - av : av - bv;
+                  return c || a.player.id - b.player.id;
+                }).map((row) => {
                   const p = row.player;
                   const terms = row.offerable ? officeExtensionTerms(state, team.id, p) : null;
+                  const pot = resignPot(p);
                   return (
                     <Row key={p.id}>
                       <Cell align="left"><PlayerLink p={p} /></Cell>
                       <Cell><PosBadge pos={p.pos} /></Cell>
                       <Cell>{p.age}</Cell>
+                      <Cell><OvrBadge ovr={presentedOvr(p.pos, p.ovr)} size="sm" /></Cell>
+                      <Cell>{pot == null ? "—" : pot}</Cell>
                       <Cell>{formatMoney(row.asking)}</Cell>
                       <Cell>
                         <div className="flex gap-1 justify-end">
@@ -949,7 +965,7 @@ export default function Hub() {
                       : "bg-[var(--color-faint)]"
                     )}
                   />
-                  <span className="text-xs leading-relaxed">{e.text}</span>
+                  <span className="text-xs leading-relaxed">{presentNewsText(e.text)}</span>
                 </div>
               ))}
             </div>
