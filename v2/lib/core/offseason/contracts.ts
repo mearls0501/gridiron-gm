@@ -1,5 +1,5 @@
 import { Rng, clamp } from "../rng";
-import { defaultGuaranteedYears, makeContract, makePlayer, marketApy } from "../generate";
+import { defaultGuaranteedYears, makeContract, makePlayer, marketApy, positionalCeiling } from "../generate";
 import {
   CAMP_ROSTER_LIMIT, FranchiseTagSnapshot, GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player,
   PRACTICE_SQUAD_LIMIT, ROSTER_LIMIT, Position, POSITION_MIN, POSITIONS, rosterLimit,
@@ -724,11 +724,19 @@ export { MAX_CONTRACT_SHARE } from "../types";
  * belongs in the salary profile, not in this constant.
  */
 
-function apyFromAsk(state: GameState, teamId: number, ask: number, premium: number): number {
-  const ceiling = teamCap(state, teamId).cap * MAX_CONTRACT_SHARE;
+/**
+ * Premium over a price that has already saturated. Matt SIGNED 2026-10-14.
+ * 1.10× the positional ceiling, then MAX_CONTRACT_SHARE (0.22) outside that.
+ */
+const PREMIUM_OVER_CEILING = 1.10;
+
+function apyFromAsk(state: GameState, teamId: number, p: Player, ask: number, premium: number): number {
+  const cap = teamCap(state, teamId).cap;
+  const outer = Math.round(cap * MAX_CONTRACT_SHARE);
+  const premiumCeiling = Math.round(positionalCeiling(p.pos, p.age, cap) * PREMIUM_OVER_CEILING);
   return Math.max(
     LEAGUE_MINIMUM,
-    Math.min(Math.round(ask * premium), Math.round(ceiling))
+    Math.min(Math.round(ask * premium), premiumCeiling, outer)
   );
 }
 
@@ -742,14 +750,14 @@ function apyFromAsk(state: GameState, teamId: number, ask: number, premium: numb
 export function negotiatedApy(
   state: GameState, teamId: number, p: Player, premium: number
 ): number {
-  return apyFromAsk(state, teamId, trueAskingPrice(state, p), premium);
+  return apyFromAsk(state, teamId, p, trueAskingPrice(state, p), premium);
 }
 
 /** Same ceiling as `negotiatedApy`, priced on this club's veteran belief. */
 export function beliefNegotiatedApy(
   state: GameState, teamId: number, p: Player, premium: number
 ): number {
-  return apyFromAsk(state, teamId, askingPrice(state, p, teamId), premium);
+  return apyFromAsk(state, teamId, p, askingPrice(state, p, teamId), premium);
 }
 
 function yearsForAgeAndOvr(age: number, ovr: number): number {

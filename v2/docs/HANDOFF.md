@@ -5,6 +5,79 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-14 — FA bid premium ceiling
+
+Matt **SIGNED** this. Built as written. No disagreement.
+
+CPU free-agent deals were paying a premium on top of a price `marketApy` had already saturated. Top deals cleared the positional ceiling. Quarterbacks pinned on the 0.22 backstop. `apyFromAsk` now stops the premium result at **1.10×** that player's positional ceiling, then `MAX_CONTRACT_SHARE` **0.22** outside that. Every caller of `negotiatedApy` and `beliefNegotiatedApy` goes through `apyFromAsk` (CPU bids, CPU re-signs, user asks on those two functions).
+
+`positionalCeiling` in `lib/core/generate.ts` is the one source. Skill positions are `0.21 × (POSITION_VALUE / 3.4)^0.7 × ageMult × cap`. K and P use the signed specialist shares from #174, `7.0M/301.2M` and `4.1M/301.2M`, times `ageMult` times cap. `marketApy` reads the same helper (pass cap `1` for the share). No other dial. `docs/baselines.json` was not edited. No re-lock.
+
+The finding's **12.9%** EDGE ceiling is that formula at one decimal: `0.21 × (1.7 / 3.4)^0.7` is **12.927%**. 1.10× that share is **14.22%** of the cap. A literal `1.10 × 0.129` is about $76k tighter on the year-0 cap. The cap uses the formula.
+
+### Test
+
+`contractCeiling.test.ts`. A 93 EDGE, age 25, premium 1.44 lands at **14.22%** of the cap, which is `Math.round(1.10 × the ceiling)`. The uncapped premium was **18.0%**. `beliefNegotiatedApy` returns the same dollars. An EDGE 74, age 27, is under the knee. Premium 1.44 stays `Math.round(ask × 1.44)` (**$14.1M**).
+
+### Stream
+
+`userOffers` did not move. Seed 42 is still tag **823515333**, FA **1063212815**. Not re-locked. The fingerprint is the parent RNG at the opening of free agency, before the waves resolve. Bid dollars changed. That draw count did not.
+
+### Gate
+
+Fast `npm run gate:serial` from `v2/` (1 seed). The only FAIL line was:
+
+```
+FAIL  statcheck.rb5RushYds  1288  expected 1191 +/-95  (NFL ~1191)
+```
+
+**1288** is 2 yards over the fast-tier ceiling (1191 + 95 = 1286). Single-seed stream noise. The baseline stays.
+
+`leverage.wrongSign` was **0** on this seed. The inherited red (seed 1 `EDGE.prs` points the wrong way, panel mean 0.20) did not fire. `leverage.noEffect` stayed **1** (`OT.sta`). Max on `wrongSign` stays **0**. Not re-locked.
+
+Every other step exited 0, including `useroffers`, `contractceiling`, `verify`, `sweep`, `calibrate`, `statcheck` (aside from that one metric), `leverage`, and `scout`.
+
+### Browser
+
+`npx next build`, then `next start -p 3000`. `PW_CHROMIUM=/usr/bin/google-chrome`.
+
+`node scripts/e2e.mjs` — **E2E PASSED**.
+
+`node scripts/e2e-interact.mjs` — **INTERACTION TEST PASSED**. Console errors 0.
+
+### Top-5 FA APY, percent of that season's cap
+
+Seed **12345**, **10** seasons. Same local run on `e3f6f4c` (before) and this head (after). A signing is a player who was a street free agent when the FA phase opened and held a contract after the FA waves. APY is `(sum of base salaries + signing bonus) / years`. The ceiling column is the age-25–29 share (`ageMult` 1). An older player caps lower. Report only. No band.
+
+| pos | ceiling | 1.10× | before (top 5) | after (top 5) |
+|---|---:|---:|---|---|
+| QB | 21.00 | 23.10, binds at 22 | 22.00, 22.00, 22.00, 22.00, 22.00 | 22.00, 22.00, 22.00, 22.00, 22.00 |
+| EDGE | 12.93 | 14.22 | 17.65, 15.04, 14.93, 14.71, 14.50 | 14.22, 14.22, 14.22, 12.76, 12.51 |
+| OT | 12.39 | 13.63 | 16.95, 16.73, 16.47, 15.49, 15.42 | 13.63, 13.63, 13.63, 13.63, 13.63 |
+| WR | 11.28 | 12.41 | 15.77, 15.72, 13.48, 13.38, 13.00 | 12.41, 12.41, 12.41, 12.41, 12.41 |
+| CB | 11.28 | 12.41 | 16.21, 16.20, 16.10, 15.01, 14.88 | 12.41, 12.41, 12.41, 12.41, 12.41 |
+| DT | 9.83 | 10.82 | 14.12, 12.50, 12.14, 12.13, 11.65 | 10.82, 10.06, 9.52, 8.84, 8.78 |
+| S | 8.92 | 9.81 | 10.68, 9.38, 8.38, 6.29, 6.28 | 9.81, 9.81, 9.81, 9.81, 9.81 |
+| TE | 8.60 | 9.46 | 11.89, 11.26, 9.66, 9.56, 9.17 | 9.46, 9.46, 9.46, 9.46, 9.46 |
+| LB | 8.28 | 9.11 | 10.90, 9.22, 9.01, 8.40, 7.94 | 9.11, 9.11, 9.11, 8.02, 8.02 |
+| OG | 8.28 | 9.11 | 10.87, 10.86, 9.93, 7.63, 6.34 | 9.11, 9.11, 9.11, 8.68, 8.52 |
+| C | 7.96 | 8.75 | 9.65, 9.53, 9.49, 9.43, 8.48 | 8.75, 8.75, 8.75, 8.75, 8.75 |
+| RB | 6.95 | 7.64 | 9.88, 5.72, 5.45, 4.47, 2.86 | 7.39, 6.80, 6.68, 6.29, 5.78 |
+| K | 2.32 | 2.56 | 2.29, 1.74, 0.82, 0.19, — | 2.23, 1.79, 1.54, —, — |
+| P | 1.36 | 1.50 | 1.07, 0.94, 0.60, 0.60, 0.57 | 0.76, 0.47, 0.31, 0.30, 0.28 |
+
+QB still pins at **22%**. 1.10× the quarterback ceiling is 23.10%, which the outer backstop cuts. EDGE, OT, WR, CB, DT, S, TE, LB, OG, and C pin on 1.10× the prime-age ceiling. The top RB in this run is **7.39**, under the **7.64** cap (before **9.88**). K and P stayed under the specialist line. This run had three kicker signings and five punter signings after the change.
+
+### Calibration freeze
+
+Calibration freeze stays. No new metrics, bands, or re-locks. `docs/baselines.json` was not edited.
+
+### Untouched
+
+`POSITION_VALUE`, `EXTENSION_ASK_PREMIUM`, `MAX_CONTRACT_SHARE`, tag rules, the salary profile, `scripts/`, `docs/baselines.json`.
+
+---
+
 ## 2026-10-13 — Active GM pass (signed packet, UI/flow)
 
 Matt signed the Active GM pass (Claude, Oct 12, checklist rows against main `594bf84`). Built from `5c09b82`. UI and flow only. No dials, no bands, no calibration, no `docs/baselines.json` edit, no re-lock. The CPU free-agency bid premium (30–40% over the shown asking) was not touched. It still waits on Claude.

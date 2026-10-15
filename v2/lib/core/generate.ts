@@ -70,6 +70,31 @@ export function generateAttrs(rng: Rng, pos: Position, target: number, spread = 
 // Contracts
 // ---------------------------------------------------------------------------
 
+/** Peak earning 25–29, steep falloff after 31. Shared by the ceiling and the raw curve. */
+function contractAgeMult(age: number): number {
+  if (age <= 23) return 0.88;
+  if (age <= 29) return 1;
+  if (age <= 31) return 0.88;
+  if (age <= 33) return 0.7;
+  return 0.5;
+}
+
+/**
+ * Unrounded positional APY ceiling, in dollars.
+ *
+ * Skill positions: `0.21 × (POSITION_VALUE / 3.4)^0.7 × ageMult × cap`.
+ * K and P: the signed specialist shares, 7.0M/301.2M and 4.1M/301.2M,
+ * times ageMult times cap (Matt SIGNED 2026-10-12, #174). Pass `cap` of 1
+ * for the share `marketApy` saturates toward. One source for that knee and
+ * for the free-agency premium cap.
+ */
+export function positionalCeiling(pos: Position, age: number, cap: number): number {
+  const ageMult = contractAgeMult(age);
+  if (pos === "K") return cap * (7_000_000 / 301_200_000) * ageMult;
+  if (pos === "P") return cap * (4_100_000 / 301_200_000) * ageMult;
+  return cap * 0.21 * Math.pow(POSITION_VALUE[pos] / 3.4, 0.7) * ageMult;
+}
+
 /**
  * Market value in dollars per year for a player of this ability, position and
  * age. Convex in OVR — stars cost disproportionately more, which is what makes
@@ -83,13 +108,7 @@ export function marketApy(ovr: number, pos: Position, age: number, season: numbe
   const quality = Math.max(0, (ovr - 55) / 40);
   const curve = Math.pow(quality, 2.4);
 
-  // Age discount: peak earning 25-29, steep falloff after 31.
-  let ageMult = 1;
-  if (age <= 23) ageMult = 0.88;
-  else if (age <= 29) ageMult = 1;
-  else if (age <= 31) ageMult = 0.88;
-  else if (age <= 33) ageMult = 0.7;
-  else ageMult = 0.5;
+  const ageMult = contractAgeMult(age);
 
   // The raw convex curve, as a share of the cap.
   const raw = 0.135 * curve * posMult * ageMult;
@@ -98,10 +117,9 @@ export function marketApy(ovr: number, pos: Position, age: number, season: numbe
   // and Aubrey $7.0M, Stout $4.1M — as a share of the $301.2M cap
   // (`docs/nfl-reference.md` §4). K and P skip the soft knee. Under the
   // line the raw curve is the same one every other position uses.
-  // `POSITION_VALUE` is unchanged.
+  // `POSITION_VALUE` is unchanged. The share lives in `positionalCeiling`.
   if (pos === "K" || pos === "P") {
-    const share = pos === "K" ? 7_000_000 / 301_200_000 : 4_100_000 / 301_200_000;
-    const frac = Math.min(raw, share * ageMult);
+    const frac = Math.min(raw, positionalCeiling(pos, age, 1));
     const apy = cap * frac;
     return Math.max(LEAGUE_MINIMUM, Math.round(apy / 50_000) * 50_000);
   }
@@ -122,7 +140,7 @@ export function marketApy(ovr: number, pos: Position, age: number, season: numbe
   // (`docs/nfl-reference.md` §4). The 0.26 / ~16 / ~14 asymptote was above
   // every real book and is what fed Claude Finding 2 (tag escalator on an
   // inflated APY).
-  const ceiling = 0.21 * Math.pow(posMult / 3.4, 0.7) * ageMult;
+  const ceiling = positionalCeiling(pos, age, 1);
   const knee = ceiling * 0.62;
   const frac =
     raw <= knee

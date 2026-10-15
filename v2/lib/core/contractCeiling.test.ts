@@ -11,11 +11,11 @@
  */
 import assert from "node:assert/strict";
 import { newGame } from "./newGame";
-import { makeContract, marketApy } from "./generate";
+import { makeContract, marketApy, positionalCeiling } from "./generate";
 import { Rng } from "./rng";
 import { blankRecord, capHit, formatMoney, isActiveRoster, startSeason, teamCap } from "./select";
 import { GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player, salaryCap } from "./types";
-import { applyFranchiseTag, extensionAskingApy, franchiseTagSalary, negotiatedApy } from "./offseason/contracts";
+import { applyFranchiseTag, beliefNegotiatedApy, extensionAskingApy, franchiseTagSalary, negotiatedApy } from "./offseason/contracts";
 import { POSITION_VALUE } from "./ratings";
 import { advance } from "./season/engine";
 import { advanceOffseason, isOffseason } from "./offseason";
@@ -228,4 +228,55 @@ function peakTopCap(seed: number, seasons: number): { peak: number; busts: numbe
   assert.equal(formatMoney(ask("K", 78, 27)), "$3.67M");
 
   ok("specialist cap: P87 asks $4.00M, max K asks $6.80M, 76/78 unchanged");
+}
+
+// (7) FA premium stops at 1.10× the positional ceiling. Matt SIGNED
+//     2026-10-14. 12.9% is that EDGE ceiling at one decimal
+//     (0.21 × (1.7/3.4)^0.7). A mid-tier body under the knee is the
+//     old premium, still only the 0.22 backstop.
+{
+  const st = newGame({ seed: 91 });
+  const cap = teamCap(st, st.userTeamId).cap;
+
+  const edge = st.players.find((p) => p.pos === "EDGE" && !p.retired && !p.prospect);
+  assert.ok(edge);
+  edge.teamId = st.userTeamId;
+  edge.ovr = 93;
+  edge.age = 25;
+  edge.retired = false;
+  edge.prospect = false;
+
+  const share = positionalCeiling("EDGE", 25, cap) / cap;
+  assert.equal((share * 100).toFixed(1), "12.9");
+  const limit = 1.10 * share * cap;
+  const apy = negotiatedApy(st, st.userTeamId, edge, 1.44);
+  const belief = beliefNegotiatedApy(st, st.userTeamId, edge, 1.44);
+  assert.ok(apy <= Math.round(limit), `93 EDGE premium ${apy} exceeds 1.10 × 12.9% (${Math.round(limit)})`);
+  assert.equal(belief, apy, "belief path uses the same premium ceiling");
+  const ask = marketApy(93, "EDGE", 25, st.season, startSeason(st));
+  const uncapped = Math.min(Math.round(ask * 1.44), Math.round(cap * MAX_CONTRACT_SHARE));
+  assert.ok(uncapped > limit, `uncapped ${uncapped} should clear 1.10 × the ceiling`);
+  assert.ok(apy < uncapped, "the 1.44 premium was actually cut");
+  assert.ok(apy <= Math.round(cap * MAX_CONTRACT_SHARE));
+
+  const mid = st.players.find((p) => p.pos === "EDGE" && p.id !== edge.id && !p.retired && !p.prospect);
+  assert.ok(mid);
+  mid.ovr = 74;
+  mid.age = 27;
+  mid.teamId = st.userTeamId;
+  mid.retired = false;
+  mid.prospect = false;
+  const midAsk = marketApy(74, "EDGE", 27, st.season, startSeason(st));
+  const knee = positionalCeiling("EDGE", 27, cap) * 0.62;
+  assert.ok(midAsk <= knee, `mid EDGE ask ${midAsk} is not below the knee ${knee}`);
+  const old = Math.max(
+    LEAGUE_MINIMUM,
+    Math.min(Math.round(midAsk * 1.44), Math.round(cap * MAX_CONTRACT_SHARE)),
+  );
+  const midApy = negotiatedApy(st, st.userTeamId, mid, 1.44);
+  assert.equal(midApy, old);
+  assert.equal(midApy, Math.round(midAsk * 1.44));
+  assert.equal(beliefNegotiatedApy(st, st.userTeamId, mid, 1.44), midApy);
+
+  ok(`93 EDGE age 25 premium 1.44 is ${(apy / cap * 100).toFixed(2)}% (<= 1.10 × 12.9%); mid EDGE unchanged at ${formatMoney(midApy)}`);
 }
