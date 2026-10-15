@@ -14,7 +14,10 @@ import { presentedOvr } from "../core/ratings";
 import { knowsTrueRatings, userVeteranView, visibleOvr } from "../core/scouting";
 import { describeAsset } from "../core/trades";
 import { Player, TradeAsset } from "../core/types";
+import { draftYearLabel } from "./draftYear";
+import { OVERPAYING_LINE, readOfMargin } from "./tradeRead";
 import {
+  draftPickDeskLabel,
   tradeBoardAssetLabel,
   tradeBoardOvr,
   tradeBoardOvrSort,
@@ -89,12 +92,32 @@ assert.ok(own.length > 10 && rivals.length > 10, "need both rosters");
     round: pick.round,
     originalTeamId: pick.originalTeamId,
   };
-  assert.equal(tradeBoardAssetLabel(st, asset), describeAsset(st, asset));
+  const truth = describeAsset(st, asset);
+  const desk = tradeBoardAssetLabel(st, asset);
+  assert.ok(truth.startsWith(String(pick.season)), `log stays on the stored year, got ${truth}`);
+  assert.ok(desk.startsWith(draftYearLabel(pick.season)), `desk shows the draft after that season, got ${desk}`);
+  assert.equal(desk, draftPickDeskLabel(st, asset));
+  assert.equal(desk.replace(draftYearLabel(pick.season), String(pick.season)), truth);
+  assert.notEqual(desk, truth);
 }
 
 assert.equal(st.rngState, rngBefore, "display fog must not draw on the save RNG");
 
 const missing: TradeAsset = { kind: "player", playerId: -1 };
 assert.equal(tradeBoardAssetLabel(st, missing), "a player");
+
+{
+  const jump = readOfMargin(20, 100);
+  assert.equal(jump.text, "They would jump at this.");
+  assert.equal(jump.tone, "good");
+  assert.equal(jump.overpaying, true);
+  assert.equal(readOfMargin(15, 100).overpaying, true, "15% of the deal is the line");
+  assert.equal(readOfMargin(14.9, 100).overpaying, false);
+  assert.equal(readOfMargin(10, 100).text, "They like this. It gets done.");
+  assert.equal(readOfMargin(10, 100).overpaying, false);
+  assert.equal(readOfMargin(10, 0).overpaying, false, "an empty scale is not a lopsided win");
+  assert.equal(readOfMargin(-20, 100).overpaying, false);
+  assert.equal(OVERPAYING_LINE, "You're overpaying — try a smaller sweetener.");
+}
 
 console.log("ok    tradeBoard — rival OVR matches the scouted player page");

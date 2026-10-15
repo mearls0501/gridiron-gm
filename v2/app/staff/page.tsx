@@ -19,6 +19,7 @@ import {
 import { ensureOwners, isPendingForcedMove, ownerJobView, patienceScaleLabel } from "@/lib/core/owner";
 import { ownerCardPace, ownerMarginSub } from "@/lib/view/ownerPace";
 import { schemeById } from "@/lib/core/staff";
+import { coachTermLabel, staffCardFields } from "@/lib/view/staffDesk";
 import {
   leanWord,
   lensWord,
@@ -53,16 +54,30 @@ function schemeName(id: string | undefined): string {
 function CoachCard({
   person,
   role,
+  season,
   canEdit,
   onFire,
   onHire,
 }: {
   person: CoachPerson | undefined;
   role: CoachRole;
+  season: number;
   canEdit: boolean;
   onFire: () => void;
   onHire: () => void;
 }) {
+  const fields = staffCardFields(role);
+  const term = person ? coachTermLabel(person, season) : null;
+  const dials = person
+    ? ([
+        ["Off", person.offense],
+        ["Def", person.defense],
+        ["Dev", person.development],
+        ["Agg", person.aggression],
+        ["Pass", person.passBias >= 0 ? `+${person.passBias.toFixed(2)}` : person.passBias.toFixed(2)],
+        ["Shad", person.shadowTendency.toFixed(2)],
+      ] as const).filter(([k]) => fields.dials.includes(k))
+    : [];
   return (
     <Card
       title={ROLE_TITLE[role]}
@@ -77,24 +92,17 @@ function CoachCard({
         ) : undefined
       }
     >
-      {!person ? (
+      {!person || !term ? (
         <Empty title="This chair is empty" hint="Hire from the market, or wait for the offseason carousel to run." />
       ) : (
         <div className="space-y-3">
-          <div className="grid gap-2 sm:grid-cols-3">
-            <Stat label="Contract" value={`${person.yearsRemaining} yr left`} sub={`${person.years} year deal`} />
+          <div className={fields.scheme ? "grid gap-2 sm:grid-cols-3" : "grid gap-2 sm:grid-cols-2"}>
+            <Stat label="Contract" value={term.value} sub={term.sub} />
             <Stat label="Salary" value={formatMoney(person.salary)} sub="cash / year · not cap" />
-            <Stat label="Scheme" value={schemeName(person.scheme)} />
+            {fields.scheme && <Stat label="Scheme" value={schemeName(person.scheme)} />}
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-6">
-            {([
-              ["Off", person.offense],
-              ["Def", person.defense],
-              ["Dev", person.development],
-              ["Agg", person.aggression],
-              ["Pass", person.passBias >= 0 ? `+${person.passBias.toFixed(2)}` : person.passBias.toFixed(2)],
-              ["Shad", person.shadowTendency.toFixed(2)],
-            ] as const).map(([k, v]) => (
+          <div className={fields.dials.length > 4 ? "grid grid-cols-3 gap-2 text-center sm:grid-cols-6" : "grid grid-cols-2 gap-2 text-center sm:grid-cols-4"}>
+            {dials.map(([k, v]) => (
               <div key={k} className="rounded-lg border border-[var(--color-line-soft)] bg-[var(--color-surface-2)] px-2 py-2">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">{k}</div>
                 <div className="tnum text-sm font-semibold mt-0.5">{v}</div>
@@ -215,6 +223,7 @@ export default function StaffPage() {
           <CoachCard
             key={role}
             role={role}
+            season={state.season}
             person={staffSlot(team, role)}
             canEdit={mine}
             onFire={() => apply((s) => {

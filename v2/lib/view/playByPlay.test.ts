@@ -17,7 +17,10 @@ import { declareGamedayInactives } from "../core/inactives";
 import { startRegularSeason, advance } from "../core/season/engine";
 import { DriveSummary, PlayEvent } from "../core/types";
 import { encodeSave, decodeSave } from "../store/codec";
-import { drivePlays, formatPlay, playedResultLine, spotLabel, wentToOvertime } from "./playByPlay";
+import {
+  drivePlays, formatPlay, formatVisiblePlay, penaltyTeamId, playedResultLine,
+  spotLabel, visiblePlays, wentToOvertime,
+} from "./playByPlay";
 
 function userGame(st: ReturnType<typeof newGame>) {
   return st.games.find(
@@ -58,6 +61,35 @@ function names(): (id: number) => string {
     ...run, kind: "pass", result: "incomplete", yards: 0, targetId: 10,
   };
   assert.match(formatPlay(inc, names()), /incomplete/);
+
+  const sides = {
+    homeId: 1,
+    awayId: 2,
+    abbr: (id: number) => (id === 1 ? "HOM" : "AWY"),
+  };
+  const offPen: PlayEvent = {
+    ...run, kind: "penalty", result: "accepted", yards: -5, offenseId: 1,
+  };
+  assert.equal(penaltyTeamId(offPen, sides), 1);
+  assert.equal(formatPlay(offPen, names(), sides), "Penalty — HOM, 5 yards");
+  const defPen: PlayEvent = { ...offPen, yards: 15 };
+  assert.equal(penaltyTeamId(defPen, sides), 2);
+  assert.equal(formatPlay(defPen, names(), sides), "Penalty — AWY, 15 yards");
+  assert.equal(formatPlay(offPen, names()), "Penalty — 5 yards");
+
+  const fourth: PlayEvent = { ...run, down: 4, yards: 2 };
+  const downs: PlayEvent = { ...run, kind: "downs", result: "downs", yards: 0, down: 4 };
+  const raw = [fourth, downs];
+  const folded = visiblePlays(raw);
+  assert.equal(folded.length, 1);
+  assert.equal(folded[0].event, fourth);
+  assert.equal(folded[0].turnoverOnDowns, true);
+  assert.equal(raw.length, 2, "folding the row does not rewrite the stored log");
+  assert.equal(raw[1].kind, "downs");
+  assert.equal(formatVisiblePlay(folded[0], names()), "Smith run for 2 yards — Turnover on downs");
+  const orphan = visiblePlays([downs]);
+  assert.equal(orphan.length, 1);
+  assert.equal(formatVisiblePlay(orphan[0], names()), "Turnover on downs");
 }
 
 {

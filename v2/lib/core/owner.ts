@@ -1,5 +1,6 @@
 import { teamOutlook, type Posture } from "./frontOffice";
 import { makeCoachName } from "./names";
+import { dedupeOwnerAndCoachNames } from "./peopleNames";
 import { Rng, clamp } from "./rng";
 import { ForcedMove, GameState, GAMES_PER_TEAM, Owner } from "./types";
 import { computeRecords, startSeason } from "./select";
@@ -85,6 +86,7 @@ export function ensureOwners(state: GameState): void {
     }
     if (team.gmHiredSeason == null) team.gmHiredSeason = hired;
   }
+  dedupeOwnerAndCoachNames(state);
 }
 
 export function gmHiredSeasonOf(state: GameState, teamId: number): number {

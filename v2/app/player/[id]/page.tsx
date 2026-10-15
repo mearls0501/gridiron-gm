@@ -13,6 +13,7 @@ import {
 import { attrBand, knowsTrueRatings, veteranIntel, visibleOvr, visiblePot } from "@/lib/core/scouting";
 import { boardGrade, consensusGrade, gradeContext, scoutedSchemeFit, verdictFor } from "@/lib/core/scouting-reports";
 import { isFutureProspect } from "@/lib/core/futureClass";
+import { draftYearLabel } from "@/lib/view/draftYear";
 import { prospectTesting } from "@/lib/view/scoutFog";
 import { capHit, deadMoney, formatMoney } from "@/lib/core/select";
 import { careerTotals, cmpPct, fgPct, passerRating, ypc, ypr } from "@/lib/core/season/stats";
@@ -262,8 +263,8 @@ export default function PlayerPage() {
           <p className="text-xs text-[var(--color-muted)] mt-0.5">
             {p.prospect
               ? future
-                ? `${p.draftClassSeason} class — not scoutable yet`
-                : `${p.draftClassSeason ?? state.season} draft class`
+                ? `${draftYearLabel(p.draftClassSeason ?? state.season)} — not scoutable yet`
+                : draftYearLabel(p.draftClassSeason ?? state.season)
               : team
                 ? `${team.city} ${team.name}`
                 : "Unsigned free agent"}
@@ -361,7 +362,7 @@ export default function PlayerPage() {
             <Stat label="Age" value={p.age} />
             <Stat
               label="Class"
-              value={p.draftClassSeason ?? "—"}
+              value={p.draftClassSeason == null ? "—" : draftYearLabel(p.draftClassSeason)}
               sub={p.profile?.college ?? "Campus"}
             />
           </>
@@ -383,7 +384,7 @@ export default function PlayerPage() {
             <Stat label="Age" value={p.age} />
             <Stat
               label="Class"
-              value={p.draftClassSeason ?? "—"}
+              value={p.draftClassSeason == null ? "—" : draftYearLabel(p.draftClassSeason)}
               sub={p.draftedRound !== null ? `Drafted Rd ${p.draftedRound}` : "Undrafted so far"}
             />
           </>
@@ -431,7 +432,7 @@ export default function PlayerPage() {
                 then.
               </p>
               <div className="grid grid-cols-2 gap-3">
-                <Stat label="Class" value={p.draftClassSeason ?? "—"} />
+                <Stat label="Class" value={p.draftClassSeason == null ? "—" : draftYearLabel(p.draftClassSeason)} />
                 <Stat label="Scouting" value={`${Math.round(p.scouted)}%`} />
               </div>
               <Link href="/draft" className="text-xs text-[var(--color-accent)] hover:underline">

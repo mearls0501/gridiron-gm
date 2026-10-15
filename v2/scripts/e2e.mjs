@@ -169,6 +169,42 @@ async function main() {
     else console.log(`  ok    nav fully visible at ${width}px`);
   }
   await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(200);
+  const phone = await page.evaluate(() => {
+    const menu = [...document.querySelectorAll("header button")].find((b) =>
+      /^Menu$/i.test((b.textContent || "").trim())
+    );
+    const record = document.querySelector("[data-record]");
+    const bar = document.querySelector('header nav[data-nav="bar"]');
+    const menuBox = menu?.getBoundingClientRect();
+    return {
+      menuVisible: !!(menuBox && menuBox.width > 8 && getComputedStyle(menu).display !== "none"),
+      barHidden: !bar || getComputedStyle(bar).display === "none",
+      recordText: (record?.textContent || "").trim(),
+      recordOneLine: !!record && record.getClientRects().length === 1,
+      recordNowrap: !!record && getComputedStyle(record).whiteSpace === "nowrap",
+      scrollWidth: document.documentElement.scrollWidth,
+    };
+  });
+  if (!phone.menuVisible) fail("phone nav @390: Menu button is not visible");
+  else if (!phone.barHidden) fail("phone nav @390: the desktop bar is still showing");
+  else if (!phone.recordOneLine || !phone.recordNowrap || !phone.recordText) {
+    fail(`phone nav @390: record is not one line (${phone.recordText})`);
+  } else if (phone.scrollWidth !== 390) fail(`hub @390 scrollWidth ${phone.scrollWidth}`);
+  else console.log(`  ok    phone nav collapsed at 390px, record "${phone.recordText}" on one line`);
+  await page.getByRole("button", { name: /^Menu$/ }).click();
+  await page.waitForTimeout(150);
+  const opened = await page.evaluate((labels) => {
+    const menu = document.querySelector("#phone-nav");
+    if (!menu || getComputedStyle(menu).display === "none") return ["menu did not open"];
+    const found = [...menu.querySelectorAll("a")].map((a) => a.textContent.trim());
+    const missing = labels.filter((l) => !found.includes(l)).map((l) => `missing ${l}`);
+    const wide = document.documentElement.scrollWidth !== 390 ? [`scrollWidth ${document.documentElement.scrollWidth}`] : [];
+    return [...missing, ...wide];
+  }, NAV_LABELS);
+  if (opened.length) fail(`phone menu @390: ${opened.join(", ")}`);
+  else console.log("  ok    phone menu lists every nav label at 390px");
   await page.goto(BASE + "/stats", { waitUntil: "networkidle" });
   await page.waitForTimeout(300);
   const statsWidth = await page.evaluate(() => document.documentElement.scrollWidth);

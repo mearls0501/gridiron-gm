@@ -1,4 +1,5 @@
 import { makeCoachName } from "./names";
+import { dedupeOwnerAndCoachNames, uniquifyPersonName } from "./peopleNames";
 import { OWNER_MIN_SEASONS, ownerJudgment, tenureRows } from "./owner";
 import { Rng, clamp } from "./rng";
 import {
@@ -334,12 +335,14 @@ export function ensureCoaches(state: GameState): void {
   }
 
   if (state.coachMarket == null) restockMarket(state, rng);
+  dedupeOwnerAndCoachNames(state);
 }
 
 /** Restock the unemployed pool. Child stream only. */
 export function ensureCoachMarket(state: GameState): void {
   if (state.nextCoachId == null) state.nextCoachId = FIRST_COACH_ID;
   restockMarket(state, coachesChildRng(state));
+  dedupeOwnerAndCoachNames(state);
 }
 
 function takeFromMarket(state: GameState, id: number): CoachPerson | null {
@@ -413,6 +416,7 @@ export function hireCoach(
   if (person.yearsRemaining < 1) person.yearsRemaining = band.yearsLo;
   if (!team.coaches) team.coaches = {};
   team.coaches[role] = person;
+  uniquifyPersonName(state, person);
   state.log.push({
     season: state.season, week: state.week, kind: "transaction",
     text: `The ${team.city} ${team.name} hired ${person.name} as ${roleLabel(role)}.`,
@@ -593,6 +597,7 @@ function poachUserOc(state: GameState, hiring: Team, rng: Rng): CarouselEvent | 
   oc.salary = Math.max(oc.salary, COACH_CONTRACT.hc.salaryLo);
   if (!hiring.coaches) hiring.coaches = {};
   hiring.coaches.hc = oc;
+  uniquifyPersonName(state, oc);
   state.log.push({
     season: state.season, week: state.week, kind: "transaction",
     text: `The ${hiring.city} ${hiring.name} hired ${oc.name} as head coach, poaching him from the ${user.city} ${user.name}.`,
@@ -627,6 +632,7 @@ function fillCpuChair(
   }
   if (!team.coaches) team.coaches = {};
   team.coaches[role] = person;
+  uniquifyPersonName(state, person);
   state.log.push({
     season: state.season, week: state.week, kind: "transaction",
     text: `The ${team.city} ${team.name} hired ${person.name} as ${roleLabel(role)}.`,

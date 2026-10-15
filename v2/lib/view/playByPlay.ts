@@ -70,7 +70,50 @@ function signedYards(n: number): string {
   return "for no gain";
 }
 
-export function formatPlay(e: PlayEvent, names: (id: number) => string): string {
+export interface PlaySides {
+  abbr: (id: number) => string;
+  homeId: number;
+  awayId: number;
+}
+
+/** The club that committed the foul, when both sides of the game are known. */
+export function penaltyTeamId(e: PlayEvent, sides: PlaySides): number | null {
+  if (e.kind !== "penalty") return null;
+  const defenseId = e.offenseId === sides.homeId ? sides.awayId : e.offenseId === sides.awayId ? sides.homeId : null;
+  if (e.yards < 0) return e.offenseId;
+  if (e.yards > 0) return defenseId;
+  return null;
+}
+
+export interface VisiblePlay {
+  event: PlayEvent;
+  /** The following "Turnover on downs" row was folded into this line. */
+  turnoverOnDowns: boolean;
+}
+
+/**
+ * Drop the standalone "Turnover on downs" row. The note rides on the
+ * 4th-down play that produced it. The stored log is not rewritten.
+ */
+export function visiblePlays(plays: PlayEvent[]): VisiblePlay[] {
+  const out: VisiblePlay[] = [];
+  for (const e of plays) {
+    if (e.kind === "downs") {
+      const prev = out[out.length - 1];
+      if (prev && prev.event.kind !== "downs") prev.turnoverOnDowns = true;
+      else out.push({ event: e, turnoverOnDowns: false });
+      continue;
+    }
+    out.push({ event: e, turnoverOnDowns: false });
+  }
+  return out;
+}
+
+export function formatPlay(
+  e: PlayEvent,
+  names: (id: number) => string,
+  sides?: PlaySides,
+): string {
   const who = nameOf(e.playerId, names);
   const tgt = nameOf(e.targetId, names);
 
@@ -92,8 +135,13 @@ export function formatPlay(e: PlayEvent, names: (id: number) => string): string 
       return e.result === "good" ? "Two-point conversion GOOD" : "Two-point conversion FAILED";
     case "kneel":
       return `${who || "QB"} kneels ${signedYards(e.yards)}`;
-    case "penalty":
-      return `Penalty — ${Math.abs(e.yards)} yards`;
+    case "penalty": {
+      const yds = Math.abs(e.yards);
+      const teamId = sides ? penaltyTeamId(e, sides) : null;
+      const team = teamId != null && sides ? sides.abbr(teamId) : "";
+      // The engine records the club and the yards. It does not record a foul type.
+      return team ? `Penalty — ${team}, ${yds} yards` : `Penalty — ${yds} yards`;
+    }
     case "safety":
       return who ? `Safety — tackled by ${who}` : "Safety";
     case "downs":
@@ -117,6 +165,16 @@ export function formatPlay(e: PlayEvent, names: (id: number) => string): string 
     default:
       return `${e.kind} ${e.result}`;
   }
+}
+
+export function formatVisiblePlay(
+  row: VisiblePlay,
+  names: (id: number) => string,
+  sides?: PlaySides,
+): string {
+  const base = formatPlay(row.event, names, sides);
+  if (!row.turnoverOnDowns) return base;
+  return `${base} — Turnover on downs`;
 }
 
 export function driveResultLabel(r: DriveResult): string {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import { toastDismissApplies } from "@/lib/store/simToast";
 import { forcedMoveKeepsRoute, showNewGameScreen } from "@/lib/view/newGameRoute";
@@ -51,14 +51,25 @@ export const PHASE_LABEL: Record<string, string> = {
   "offseason-final": "Roster Cutdown",
 };
 
+function navLinks(phase: string): { href: string; label: string }[] {
+  return phase === "regular"
+    ? NAV.flatMap((n) => (n.href === "/week" ? [n, { href: "/play", label: "Play the Game" }] : [n]))
+    : NAV.slice();
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   const { state, hydrated, bootstrap, toast, error, setToast, setError } = useGame();
   const pathname = usePathname();
   const router = useRouter();
+  const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (!state) return;
@@ -91,6 +102,22 @@ export function Shell({ children }: { children: ReactNode }) {
   const team = state.teams[state.userTeamId];
   const rec = computeRecords(state).get(team.id)!;
   const cap = teamCap(state, team.id);
+  const links = navLinks(state.phase);
+
+  const linkClass = (href: string) => {
+    const active =
+      href === "/"
+        ? pathname === "/"
+        : href === "/play"
+          ? pathname === "/play"
+          : pathname.startsWith(href);
+    return cx(
+      "px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors",
+      active
+        ? "border-[var(--color-accent)] text-[var(--color-text)]"
+        : "border-transparent text-[var(--color-muted)] hover:text-[var(--color-text)]"
+    );
+  };
 
   return (
     <div className="min-h-screen">
@@ -98,18 +125,28 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="max-w-[1400px] mx-auto px-4">
           <div className="flex items-center gap-3 h-14">
             <TeamMark team={team} size={30} />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold leading-tight truncate">
                 {team.city} {team.name}
               </div>
-              <div className="text-[11px] text-[var(--color-muted)] leading-tight tnum">
-                {state.season} · {PHASE_LABEL[state.phase] ?? state.phase}
-                {state.phase === "regular" && ` · Week ${state.week}`}
-                {" · "}
-                {recordString(rec)}
+              <div className="flex items-baseline gap-2 min-w-0 text-[11px] text-[var(--color-muted)] leading-tight tnum">
+                <span className="truncate">
+                  {state.season} · {PHASE_LABEL[state.phase] ?? state.phase}
+                  {state.phase === "regular" && ` · Week ${state.week}`}
+                </span>
+                <span data-record className="shrink-0 whitespace-nowrap">{recordString(rec)}</span>
               </div>
             </div>
-            <div className="ml-auto flex items-center gap-4">
+            <div className="ml-auto flex items-center gap-3 shrink-0">
+              <button
+                type="button"
+                className="sm:hidden text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-text)] cursor-pointer"
+                aria-expanded={navOpen}
+                aria-controls="phone-nav"
+                onClick={() => setNavOpen((v) => !v)}
+              >
+                Menu
+              </button>
               <div className="hidden sm:block text-right">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Cap Space</div>
                 <div
@@ -136,35 +173,22 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <nav className="flex flex-wrap gap-0.5 -mb-px">
-            {(state.phase === "regular"
-              ? NAV.flatMap((n) =>
-                  n.href === "/week" ? [n, { href: "/play", label: "Play the Game" }] : [n],
-                )
-              : NAV
-            ).map((n) => {
-              const active =
-                n.href === "/"
-                  ? pathname === "/"
-                  : n.href === "/play"
-                    ? pathname === "/play"
-                    : pathname.startsWith(n.href);
-              return (
-                <Link
-                  key={n.href}
-                  href={n.href}
-                  className={cx(
-                    "px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors",
-                    active
-                      ? "border-[var(--color-accent)] text-[var(--color-text)]"
-                      : "border-transparent text-[var(--color-muted)] hover:text-[var(--color-text)]"
-                  )}
-                >
+          <nav className="hidden sm:flex flex-wrap gap-0.5 -mb-px" data-nav="bar">
+            {links.map((n) => (
+              <Link key={n.href} href={n.href} className={linkClass(n.href)}>
+                {n.label}
+              </Link>
+            ))}
+          </nav>
+          {navOpen && (
+            <nav id="phone-nav" className="sm:hidden flex flex-col pb-2" data-nav="menu">
+              {links.map((n) => (
+                <Link key={n.href} href={n.href} className={linkClass(n.href)}>
                   {n.label}
                 </Link>
-              );
-            })}
-          </nav>
+              ))}
+            </nav>
+          )}
         </div>
       </header>
 

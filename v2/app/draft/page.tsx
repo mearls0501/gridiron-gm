@@ -45,6 +45,7 @@ import {
   leanWord,
   roleWord,
 } from "@/lib/core/scoutStaff";
+import { draftYearLabel } from "@/lib/view/draftYear";
 import { tradeBoardAssetLabel } from "@/lib/view/tradeBoard";
 import {
   boardGrade,
@@ -496,7 +497,7 @@ export default function DraftPage() {
           </>
         ) : (
           <>
-            <Stat label="Class Size" value={pool.length} sub={`${state.season} draft class`} />
+            <Stat label="Class Size" value={pool.length} sub={draftYearLabel(state.season)} />
             <Stat
               label="Scouting window"
               value={WINDOW_LABEL[cal.window]}
@@ -520,7 +521,7 @@ export default function DraftPage() {
       {!d && (
         <Card
           title="The draft is not open yet"
-          subtitle={`Scouting the ${state.season} class`}
+          subtitle={`Scouting the ${draftYearLabel(state.season)}`}
           actions={
             state.phase === "offseason-draft" ? (
               <Button variant="primary" size="sm" onClick={openDraftRoom}>
@@ -1192,7 +1193,7 @@ export default function DraftPage() {
           title="Future classes"
           subtitle={
             futureCounts.names === 0
-              ? `${shownFuture} is empty`
+              ? `${draftYearLabel(shownFuture)} is empty`
               : `${futureCounts.names} names · ${futureCounts.injuries} injur${futureCounts.injuries === 1 ? "y" : "ies"} · ${futureCounts.declared} early declaration${futureCounts.declared === 1 ? "" : "s"} · ${futureCounts.returned} staying in school`
           }
           padded={false}
@@ -1200,7 +1201,7 @@ export default function DraftPage() {
           <div className="px-4 py-3 space-y-3 border-b border-[var(--color-line-soft)]">
             <p className="text-sm text-[var(--color-muted)]">
               These classes are already in the league. Film, visits, and medicals stay on the{" "}
-              {state.season} board. What you can see here is public: school, size, campus testing,
+              {draftYearLabel(state.season)}. What you can see here is public: school, size, campus testing,
               and the consensus board. A knee or an early declaration changes who is in the class
               before that year opens.
             </p>
@@ -1210,11 +1211,11 @@ export default function DraftPage() {
                 setFutureSeason(Number(year));
                 setShowFutureAll(false);
               }}
-              options={horizon.map((year) => ({ value: String(year), label: String(year) }))}
+              options={horizon.map((year) => ({ value: String(year), label: draftYearLabel(year) }))}
             />
           </div>
           {futureRows.length === 0 ? (
-            <Empty title={`No one is in the ${shownFuture} class.`} />
+            <Empty title={`No one is in the ${draftYearLabel(shownFuture)}.`} />
           ) : (
             <Table
               head={["Prospect", "Pos", "Year", "School", "Size", "40", "Consensus", "News"]}
@@ -1253,7 +1254,7 @@ export default function DraftPage() {
       )}
 
       <Card
-        title={d ? "Big board" : `${state.season} draft class`}
+        title={d ? "Big board" : draftYearLabel(state.season)}
         subtitle={`${rows.length} of ${pool.length} prospects · grades are your department's opinion, not the truth`}
         padded={false}
       >

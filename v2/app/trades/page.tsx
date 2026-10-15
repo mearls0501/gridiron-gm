@@ -23,11 +23,13 @@ import {
   TradeOffer,
 } from "@/lib/core/types";
 import { rosterCapView } from "@/lib/view/rosterCap";
+import { draftYearLabel } from "@/lib/view/draftYear";
 import {
   tradeBoardAssetLabel,
   tradeBoardOvr,
   tradeBoardOvrSort,
 } from "@/lib/view/tradeBoard";
+import { OVERPAYING_LINE, readOfMargin } from "@/lib/view/tradeRead";
 import {
   CLOSED_WINDOW_ACTIONS,
   incomingOfferAccept,
@@ -74,22 +76,6 @@ function pickAsset(pk: PickOwnership): TradeAsset {
 function toggle(list: TradeAsset[], a: TradeAsset): TradeAsset[] {
   const k = assetKey(a);
   return list.some((x) => assetKey(x) === k) ? list.filter((x) => assetKey(x) !== k) : [...list, a];
-}
-
-/** The other club's read, in the language a GM would actually get on the phone. */
-function readOfMargin(margin: number, scale: number): { text: string; tone: "good" | "warn" | "bad" } {
-  // Everything is relative to what is on the table. `scale` is the total value
-  // of both packages in the other club's currency, so a shortfall is expressed
-  // as a share of the deal rather than as an absolute gap.
-  const r = scale > 0 ? margin / scale : 0;
-  if (margin > 0) {
-    if (r >= 0.15) return { text: "They would jump at this.", tone: "good" };
-    if (r >= 0.05) return { text: "They like this. It gets done.", tone: "good" };
-    return { text: "They would take it, but only just.", tone: "good" };
-  }
-  if (r >= -0.05) return { text: "Close, but they want a little more.", tone: "warn" };
-  if (r >= -0.2) return { text: "Not close yet — they want considerably more.", tone: "bad" };
-  return { text: "Not interested. This is nowhere near enough.", tone: "bad" };
 }
 
 export default function TradesPage() {
@@ -401,6 +387,9 @@ export default function TradesPage() {
                       {read.text}
                     </span>
                   )}
+                  {read?.overpaying && (
+                    <span className="text-[var(--color-warn)]">{OVERPAYING_LINE}</span>
+                  )}
                 </span>
               )}
             </div>
@@ -600,9 +589,10 @@ function SidePanel({
               const on = keys.has(assetKey(a));
               const origin = state.teams[pk.originalTeamId];
               const slot = liveDraftSlot(state, pk);
+              const year = draftYearLabel(pk.season);
               const label = slot && slot.playerId === null
-                ? `${pk.season} #${slot.pick}`
-                : `${pk.season} Draft`;
+                ? `${year} #${slot.pick}`
+                : year;
               return (
                 <Row
                   key={assetKey(a)}

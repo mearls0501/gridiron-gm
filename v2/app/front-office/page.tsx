@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import { playerName, presentedOvr, presentedPot } from "@/lib/core/ratings";
 import { teamRoster } from "@/lib/core/select";
@@ -22,6 +22,7 @@ import {
 } from "@/lib/core/staff";
 import { PRIVATE_VISIT_CAP } from "@/lib/core/scouting";
 import { Player, StaffBudget } from "@/lib/core/types";
+import { UNCOMMITTED_BUDGET_WARNING } from "@/lib/view/budgetLeave";
 import {
   Button, Card, Cell, cx, Empty, OvrBadge, Pill, PosBadge, Row, Stat, Table,
 } from "@/components/ui";
@@ -141,12 +142,38 @@ export default function FrontOfficePage() {
     [roster]
   );
 
+  const dirty = !!(
+    budget && saved && STAFF_BUCKETS.some((k) => Math.round(budget[k]) !== Math.round(saved[k]))
+  );
+
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = UNCOMMITTED_BUDGET_WARNING;
+    };
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as Element | null)?.closest?.("a");
+      if (!a) return;
+      const href = a.getAttribute("href");
+      if (!href || href.startsWith("#") || href === "/front-office") return;
+      if (window.confirm(UNCOMMITTED_BUDGET_WARNING)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("click", onClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("click", onClick, true);
+    };
+  }, [dirty]);
+
   if (!state || !team || !budget || !saved) {
     return <Empty title="No franchise loaded" hint="Start or load a save first." />;
   }
 
   const focus = developmentFocus(team);
-  const dirty = STAFF_BUCKETS.some((k) => Math.round(budget[k]) !== Math.round(saved[k]));
   const totalNow = STAFF_BUCKETS.reduce((a, k) => a + budget[k], 0);
 
   const setBucket = (bucket: StaffBucket, value: number) => {

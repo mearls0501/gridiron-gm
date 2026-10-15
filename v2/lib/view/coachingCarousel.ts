@@ -71,6 +71,17 @@ function parseMove(text: string): CoachingCarouselMove | null {
  * Moves from this offseason only: the log rows the carousel wrote at
  * the week the tag hub is still on. Null outside that window.
  */
+/** Head-coach rows first. Coordinator rows stay in log order behind them. */
+export function splitCoachingCarousel(moves: CoachingCarouselMove[]): {
+  head: CoachingCarouselMove[];
+  coordinators: CoachingCarouselMove[];
+} {
+  return {
+    head: moves.filter((m) => m.role === "hc"),
+    coordinators: moves.filter((m) => m.role !== "hc"),
+  };
+}
+
 export function coachingCarouselMoves(state: GameState): CoachingCarouselMove[] | null {
   if (state.phase !== "offseason-tag") return null;
   const moves: CoachingCarouselMove[] = [];

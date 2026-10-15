@@ -27,7 +27,7 @@ import { SeasonReviewPanels, SeasonReviewSummary } from "@/components/SeasonRevi
 import { presentSeasonReview } from "@/lib/view/seasonReview";
 import { hubCampCutdownCopy, hubCampFloorCopy, rosterCapView } from "@/lib/view/rosterCap";
 import { hubResignWalkWarning, resignStepRows } from "@/lib/view/resignStep";
-import { coachingCarouselMoves } from "@/lib/view/coachingCarousel";
+import { coachingCarouselMoves, splitCoachingCarousel } from "@/lib/view/coachingCarousel";
 import { teamLeaders } from "@/lib/view/teamLeaders";
 import { presentedOvr } from "@/lib/core/ratings";
 import { PRIVATE_VISIT_CAP, calendarView } from "@/lib/core/scouting";
@@ -75,6 +75,7 @@ export default function Hub() {
   const simLabel = useGame((s) => s.simLabel);
   const [confirming, setConfirming] = useState(false);
   const [simMenu, setSimMenu] = useState(false);
+  const [carouselAll, setCarouselAll] = useState(false);
   const simMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -294,10 +295,12 @@ export default function Hub() {
 
       {state.phase === "offseason-tag" && (() => {
         const moves = coachingCarouselMoves(state) ?? [];
+        const split = splitCoachingCarousel(moves);
+        const rows = carouselAll ? [...split.head, ...split.coordinators] : split.head;
         return (
           <Card
             title="Coaching Carousel"
-            subtitle="Head coach and coordinator firings and hires this offseason."
+            subtitle="Head coach moves first. Coordinator firings and hires are under Show all."
             padded={false}
           >
             {moves.length === 0 ? (
@@ -305,19 +308,34 @@ export default function Hub() {
                 No head coach or coordinator was fired or hired this offseason.
               </p>
             ) : (
-              <div className="max-h-[320px] overflow-y-auto">
-                <Table head={["Club", "Move", "Chair", "Coach"]}>
-                  {moves.map((m, i) => (
-                    <Row key={`${m.action}-${m.role}-${m.club}-${m.coach}-${i}`}>
-                      <Cell align="left">{m.club}</Cell>
-                      <Cell>{m.action === "fired" ? "Fired" : "Hired"}</Cell>
-                      <Cell align="left">{m.chair}</Cell>
-                      <Cell align="left">
-                        {m.fromClub ? `${m.coach}, from the ${m.fromClub}` : m.coach}
-                      </Cell>
-                    </Row>
-                  ))}
-                </Table>
+              <div>
+                {rows.length === 0 ? (
+                  <p className="p-4 text-sm text-[var(--color-muted)]">
+                    No head-coach moves this offseason.
+                  </p>
+                ) : (
+                  <div className="max-h-[320px] overflow-y-auto">
+                    <Table head={["Club", "Move", "Chair", "Coach"]}>
+                      {rows.map((m, i) => (
+                        <Row key={`${m.action}-${m.role}-${m.club}-${m.coach}-${i}`}>
+                          <Cell align="left">{m.club}</Cell>
+                          <Cell>{m.action === "fired" ? "Fired" : "Hired"}</Cell>
+                          <Cell align="left">{m.chair}</Cell>
+                          <Cell align="left">
+                            {m.fromClub ? `${m.coach}, from the ${m.fromClub}` : m.coach}
+                          </Cell>
+                        </Row>
+                      ))}
+                    </Table>
+                  </div>
+                )}
+                {split.coordinators.length > 0 && (
+                  <div className="px-4 py-3 border-t border-[var(--color-line-soft)]">
+                    <Button size="sm" variant="ghost" onClick={() => setCarouselAll((v) => !v)}>
+                      {carouselAll ? "Head coaches" : "Show all"}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </Card>

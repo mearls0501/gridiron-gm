@@ -9,6 +9,7 @@ import { Rng, clamp } from "./rng";
  */
 export const POT_SPREAD = 2.0;
 import { makeName, makeCoachName, FRANCHISES } from "./names";
+import { dedupeOwnerAndCoachNames } from "./peopleNames";
 import { computeOvr, relevantAttrs, POSITION_VALUE } from "./ratings";
 import { blankRecordBook } from "./season/records";
 import { assignFrontOffices } from "./frontOffice";
@@ -564,6 +565,8 @@ export function createNewGame(opts: NewGameOptions = {}): GameState {
       (i + 1) % SCHEMES.filter((s) => s.side === "defense").length
     ].id,
   }));
+
+  dedupeOwnerAndCoachNames(state);
 
   // Team strength spread, shuffled so franchise order isn't destiny.
   const strengths = rng.shuffle(
