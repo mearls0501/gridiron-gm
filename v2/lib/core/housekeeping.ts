@@ -79,7 +79,7 @@ export function trimLog(state: GameState): void {
  */
 export function pruneNeverPlayed(state: GameState): void {
   state.players = state.players.filter(
-    (p) => !p.retired || p.stats.length > 0 || p.careerAwards.length > 0
+    (p) => !p.retired || p.stats.length > 0 || p.playedPostseason === true || p.careerAwards.length > 0
   );
 }
 

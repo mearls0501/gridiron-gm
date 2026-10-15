@@ -282,6 +282,8 @@ export interface Player {
   psElevations?: number;
 
   stats: SeasonStatLine[];
+  /** Keeps a playoff-only player in history without inventing a regular-season appearance. */
+  playedPostseason?: true;
   careerAwards: string[];
 
   /**
