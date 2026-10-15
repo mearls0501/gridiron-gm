@@ -18,6 +18,9 @@ import { briefingGroupOvr, buildBriefing } from "../core/season/briefing";
 import { describeAsset } from "../core/trades";
 import { Player, Position, STARTERS, TradeAsset } from "../core/types";
 import { DEPTH_CHART_HELP, starterCountLabel } from "./depthChartCopy";
+import { draftYearLabel } from "./draftYear";
+import { UNCOMMITTED_BUDGET_WARNING } from "./budgetLeave";
+import { formatMoney } from "../core/select";
 import { tradeBoardAssetLabel, tradeBoardOvr } from "./tradeBoard";
 
 function ladder(age: number, ovr: number): number {
@@ -197,10 +200,33 @@ const GROUPS: { name: string; positions: Position[] }[] = [
     round: pick.round,
     originalTeamId: pick.originalTeamId,
   };
-  assert.equal(tradeBoardAssetLabel(st, pickAsset), describeAsset(st, pickAsset));
+  const truth = describeAsset(st, pickAsset);
+  const desk = tradeBoardAssetLabel(st, pickAsset);
+  assert.ok(truth.startsWith(String(pick.season)), `stored year stays on the log, got ${truth}`);
+  assert.ok(desk.startsWith(draftYearLabel(pick.season)));
+  assert.equal(desk.replace(draftYearLabel(pick.season), String(pick.season)), truth);
   const draft = readFileSync(new URL("../../app/draft/page.tsx", import.meta.url), "utf8");
   assert.equal(draft.includes("describeAsset"), false);
   assert.ok(draft.includes("tradeBoardAssetLabel"));
+}
+
+{
+  const fa = readFileSync(new URL("../../lib/core/offseason/freeAgency.ts", import.meta.url), "utf8");
+  assert.match(
+    fa,
+    /will not listen below \$\{formatMoney\(asking\)\} per year/,
+    "the lowball reply uses the same rounding as the list",
+  );
+  assert.equal(formatMoney(9_400_000), "$9.40M");
+  assert.equal(formatMoney(12_000_000), "$12.0M");
+  assert.equal(formatMoney(750_000), "$750K");
+  const desk = readFileSync(new URL("../../app/front-office/page.tsx", import.meta.url), "utf8");
+  assert.ok(desk.includes("UNCOMMITTED_BUDGET_WARNING"));
+  assert.ok(desk.includes("beforeunload"));
+  assert.equal(
+    UNCOMMITTED_BUDGET_WARNING,
+    "The staff budget is not committed. Leave this page anyway?",
+  );
 }
 
 console.log("ok    invite display — depth copy, week fog, clock offers, FA years");

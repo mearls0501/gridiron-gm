@@ -13,7 +13,8 @@ import { newGame } from "../core/newGame";
 import { ensureOwners } from "../core/owner";
 import { blankRecord } from "../core/select";
 import { GameState } from "../core/types";
-import { coachingCarouselMoves } from "./coachingCarousel";
+import { coachingCarouselMoves, splitCoachingCarousel } from "./coachingCarousel";
+import { coachTermLabel, staffCardFields } from "./staffDesk";
 
 function ok(label: string) { console.log("ok   ", label); }
 
@@ -158,8 +159,47 @@ function blankYear(st: GameState, season: number, winsFor: (teamId: number) => n
 {
   const hub = readFileSync(new URL("../../app/page.tsx", import.meta.url), "utf8");
   assert.match(hub, /coachingCarouselMoves/);
+  assert.match(hub, /splitCoachingCarousel/);
   assert.match(hub, /Coaching Carousel/);
+  assert.match(hub, /Show all/);
+  assert.match(hub, /No head-coach moves this offseason/);
+  const split = splitCoachingCarousel([
+    { action: "fired", role: "oc", chair: "Offensive coordinator", club: "A", coach: "Pat", fromClub: null },
+    { action: "fired", role: "hc", chair: "Head coach", club: "B", coach: "Ada", fromClub: null },
+    { action: "hired", role: "dc", chair: "Defensive coordinator", club: "C", coach: "Dee", fromClub: null },
+  ]);
+  assert.deepEqual(split.head.map((m) => m.coach), ["Ada"]);
+  assert.deepEqual(split.coordinators.map((m) => m.coach), ["Pat", "Dee"]);
   ok("the franchise-tag hub renders the carousel block");
+}
+
+{
+  assert.equal(staffCardFields("stc").scheme, false);
+  assert.deepEqual([...staffCardFields("stc").dials], ["Off", "Def", "Dev", "Agg"]);
+  assert.equal(staffCardFields("oc").scheme, true);
+  assert.ok(staffCardFields("dc").dials.includes("Pass"));
+  assert.ok(staffCardFields("hc").dials.includes("Shad"));
+  const hired = coachTermLabel(
+    { role: "oc", years: 4, yearsRemaining: 2, hiredSeason: 2027 },
+    2026,
+  );
+  assert.equal(hired.value, "4 yr");
+  assert.equal(hired.sub, "4 year deal · full term");
+  const head = coachTermLabel(
+    { role: "hc", years: 4, yearsRemaining: 2, hiredSeason: 2027 },
+    2026,
+  );
+  assert.equal(head.value, "2 yr left");
+  const veteran = coachTermLabel(
+    { role: "dc", years: 3, yearsRemaining: 1, hiredSeason: 2026 },
+    2026,
+  );
+  assert.equal(veteran.value, "1 yr left");
+  assert.equal(veteran.sub, "3 year deal");
+  const staff = readFileSync(new URL("../../app/staff/page.tsx", import.meta.url), "utf8");
+  assert.match(staff, /staffCardFields/);
+  assert.match(staff, /coachTermLabel/);
+  ok("STC hides scheme and a new coordinator shows the full term");
 }
 
 console.log("ok    coaching carousel");

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui";
 import {
   clockLabel, downDistance, driveBar, drivePlays, driveResultLabel, driveResultTone,
-  formatPlay, quarterLabel, spotLabel,
+  formatVisiblePlay, quarterLabel, spotLabel, visiblePlays,
 } from "@/lib/view/playByPlay";
 
 /**
@@ -344,6 +344,12 @@ export default function GamePage() {
     const p = players.get(id);
     return p ? p.lastName : "";
   };
+  const playSides = {
+    abbr: (pid: number) => state.teams[pid]?.abbr ?? "?",
+    homeId: game.homeId,
+    awayId: game.awayId,
+  };
+  const shownPlays = box.plays ? visiblePlays(box.plays) : [];
   const userTeamId = state.userTeamId;
   const homeWon = game.homeScore > game.awayScore;
   const awayWon = game.awayScore > game.homeScore;
@@ -688,7 +694,7 @@ export default function GamePage() {
       ) : null}
 
       {box.plays && box.plays.length > 0 ? (
-        <Card title="Play by Play" subtitle={`${box.plays.length} snaps`} padded={false}>
+        <Card title="Play by Play" subtitle={`${shownPlays.length} snaps`} padded={false}>
           <div
             ref={pbpScroller}
             className="divide-y divide-[var(--color-line-soft)] max-h-[32rem] overflow-y-auto"
@@ -696,7 +702,7 @@ export default function GamePage() {
             {(box.drives ?? []).length > 0
               ? (box.drives ?? []).map((d) => {
                   const t = state.teams[d.offenseId];
-                  const snaps = drivePlays(box.plays!, d);
+                  const snaps = visiblePlays(drivePlays(box.plays!, d));
                   const on = selectedDrive === d.n;
                   return (
                     <div
@@ -720,7 +726,7 @@ export default function GamePage() {
                         <TeamMark team={t} size={16} />
                         Drive {d.n} · {t.abbr} · {driveResultLabel(d.result)}
                       </div>
-                      {snaps.map((e, i) => (
+                      {snaps.map((row, i) => (
                         <div
                           key={`${d.n}-${i}`}
                           data-snap="true"
@@ -728,27 +734,27 @@ export default function GamePage() {
                             "px-3 py-1.5 text-sm flex gap-3",
                             on
                               ? "bg-[var(--color-accent-dim)] shadow-[inset_3px_0_0_var(--color-accent)]"
-                              : e.offenseId === userTeamId && "bg-[var(--color-accent-dim)]/20",
+                              : row.event.offenseId === userTeamId && "bg-[var(--color-accent-dim)]/20",
                           )}
                         >
                           <span className="text-[11px] text-[var(--color-faint)] tnum whitespace-nowrap w-16">
-                            {quarterLabel(e.q)} {clockLabel(e.clock)}
+                            {quarterLabel(row.event.q)} {clockLabel(row.event.clock)}
                           </span>
                           <span className="text-[11px] text-[var(--color-muted)] tnum whitespace-nowrap w-16">
-                            {downDistance(e)}
+                            {downDistance(row.event)}
                           </span>
-                          <span className="min-w-0 truncate">{formatPlay(e, nameOf)}</span>
+                          <span className="min-w-0 truncate">{formatVisiblePlay(row, nameOf, playSides)}</span>
                         </div>
                       ))}
                     </div>
                   );
                 })
-              : box.plays.map((e, i) => (
+              : shownPlays.map((row, i) => (
                   <div key={i} className="px-3 py-1.5 text-sm flex gap-3">
                     <span className="text-[11px] text-[var(--color-faint)] tnum whitespace-nowrap">
-                      {quarterLabel(e.q)} {clockLabel(e.clock)}
+                      {quarterLabel(row.event.q)} {clockLabel(row.event.clock)}
                     </span>
-                    <span className="min-w-0 truncate">{formatPlay(e, nameOf)}</span>
+                    <span className="min-w-0 truncate">{formatVisiblePlay(row, nameOf, playSides)}</span>
                   </div>
                 ))}
           </div>

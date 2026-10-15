@@ -35,7 +35,9 @@ import {
   vacantStcPuntDelta,
 } from "./coaches";
 import { clamp } from "./rng";
-import { GameState } from "./types";
+import { ensureOwners } from "./owner";
+import { dedupeOwnerAndCoachNames, uniquifyPersonName } from "./peopleNames";
+import { CoachRole, GameState } from "./types";
 
 function ok(label: string) { console.log("ok   ", label); }
 
@@ -368,6 +370,55 @@ function stripPeople(st: GameState): GameState {
   assert.equal(old.coach.shadowTendency, 1, "no DC: the played dial is Team.coach");
   assert.equal(effectiveCoach(old).shadowTendency, 1);
   ok("shadow trial sets the shadow the game plays to 1");
+}
+
+{
+  const ROLES: CoachRole[] = ["hc", "oc", "dc", "stc"];
+  const st = newGame({ seed: 42 });
+  const before = st.rngState;
+  ensureOwners(st);
+  ensureCoaches(st);
+  assert.equal(st.rngState, before, "name dedupe must not draw on the parent stream");
+  const names: string[] = [];
+  for (const t of st.teams) {
+    names.push(t.coach.name);
+    assert.equal(t.coaches!.hc!.name, t.coach.name, `${t.abbr} HC is still that coach`);
+    for (const role of ROLES) {
+      const person = t.coaches![role]!;
+      if (role === "hc") continue;
+      names.push(person.name);
+    }
+    names.push(t.owner!.name);
+  }
+  for (const c of st.coachMarket ?? []) names.push(c.name);
+  assert.equal(new Set(names).size, names.length, "owners and coaches share no full name");
+
+  const raw = st.teams[0].coach.name;
+  const oc = st.teams[1].coaches!.oc!;
+  const owner = st.teams[2].owner!;
+  oc.name = raw;
+  owner.name = raw;
+  const mid = st.rngState;
+  dedupeOwnerAndCoachNames(st);
+  assert.equal(st.rngState, mid, "suffixing a collision does not draw");
+  assert.equal(st.teams[0].coach.name, raw, "the earlier coach keeps the name");
+  assert.equal(st.teams[0].coaches!.hc!.name, raw);
+  assert.notEqual(oc.name, raw);
+  assert.ok(oc.name.startsWith(`${raw} `), `coordinator should be suffixed, got ${oc.name}`);
+  assert.notEqual(owner.name, raw);
+  assert.notEqual(owner.name, oc.name);
+  const again = oc.name;
+  dedupeOwnerAndCoachNames(st);
+  assert.equal(oc.name, again, "a second pass does not stack suffixes");
+
+  const hired = st.coachMarket![0];
+  const taken = hired.name;
+  st.teams[3].coaches!.dc!.name = taken;
+  uniquifyPersonName(st, hired);
+  assert.notEqual(hired.name, taken);
+  assert.equal(st.teams[3].coaches!.dc!.name, taken, "only the new person is renamed");
+  assert.equal(st.rngState, mid);
+  ok("owners and coaches do not share a full name, and the parent stream stays put");
 }
 
 console.log("ok    coaches people layer");

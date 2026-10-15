@@ -5,6 +5,49 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-15 — Active GM polish
+
+Matt **SIGNED** this. Built as written. UI and copy only. No engine, dial, band, re-lock, or `docs/baselines.json` edit.
+
+### What landed
+
+1. **Trades verdict.** When the other club's margin is at least 15% of the deal, the existing line stays ("They would jump at this.") and the desk adds "You're overpaying — try a smaller sweetener." The accept threshold is unchanged.
+2. **Phone nav.** Below 640px the bar collapses behind a Menu button. The record is its own nowrap line in the header. At 768 and 1024 the bar is still the first `header nav`, so the laptop checks still see every label.
+3. **Tag hub carousel.** Head-coach rows render first. Coordinator rows stay behind Show all.
+4. **Draft-year labels.** A pick or class stored as season N is labeled "N+1 Draft" on the trade desk, the draft room, and the player page. `describeAsset` and the stored season are unchanged, so the trade log still says the stored year.
+5. **Play-by-play.** A penalty names the club. Negative yards are the offense, positive yards the defense. The engine does not store a foul type, so the line is "Penalty — ABBR, N yards" with no foul name. The "Turnover on downs" row is folded onto the previous snap in the view. The stored log and the drive chart are not rewritten.
+6. **Staff.** The special-teams card hides scheme, pass bias, and shadow. A coordinator whose `hiredSeason` is next season (hired in recap, tag, free agency, or the draft) shows the full `years` term. Head coaches and anyone already in the current season still show years remaining. Cutdown hires are stamped with the current season by `firstSeasonCoaching`, so the card cannot tell them from a coordinator who has been here all year without an engine change. They still show years remaining.
+7. **Names.** Owners and coaches in one league do not share a full name. A collision gets a roman suffix. Nothing in that path draws. The head coach who still is `team.coach` keeps one name. Seed 42 `userOffers` is still tag **823515333**, FA **1063212815**. Not re-locked.
+8. **Copy.** The free-agent lowball reply uses `formatMoney`, the same rounding as the list. Front Office asks "The staff budget is not committed. Leave this page anyway?" on a link click and on `beforeunload` while the draft budget differs from the save.
+
+### Gate
+
+`npm run gate:serial` from `v2/` (1 seed). The only FAIL line was:
+
+```
+FAIL  statcheck.rb5RushYds  1288  expected 1191 +/-95  (NFL ~1191)
+```
+
+**1288** is 2 yards over the fast-tier ceiling (1191 + 95 = 1286). Single-seed stream noise. The baseline stays.
+
+`leverage.wrongSign` was **0** on this seed. The inherited red (seed 1 `EDGE.prs`) did not fire. `EDGE.prs` swung −1.6 and was ok. `leverage.noEffect` stayed **1** (`OT.sta`). Not re-locked.
+
+Every other step exited 0, including `useroffers`, `tradeboard`, `playbyplay`, `carousel`, `peoplecheck`, `verify`, `sweep`, `calibrate`, `statcheck` (aside from that one metric), `leverage`, and `scout`.
+
+### Browser
+
+`npx next build`, then `next start -p 3000`. `PW_CHROMIUM=/usr/bin/google-chrome`.
+
+`node scripts/e2e.mjs` — **E2E PASSED**. Includes the 390px menu (record "0-0" on one line, every nav label in the menu) and the 768/1024 bar.
+
+`node scripts/e2e-interact.mjs` — **INTERACTION TEST PASSED**. Console errors 0. The front-office slider still commits and survives a reload.
+
+### Not changed
+
+`describeAsset`, play emission, coach dials, `firstSeasonCoaching`, `docs/baselines.json`, and the cap-room sentence in `placeUserBid` (the packet named the lowball reply). No foul name was invented.
+
+---
+
 ## 2026-10-14 — FA bid premium ceiling
 
 Matt **SIGNED** this. Built as written. No disagreement.

@@ -5,7 +5,7 @@ import { POSITION_VALUE } from "../ratings";
 import {
   FaBid, FaState, GameState, LEAGUE_MINIMUM, Player, POSITION_TARGET, Position, ROSTER_LIMIT,
 } from "../types";
-import { capHit, isOnWaivers, positionCount, rosterCount, teamCap } from "../select";
+import { capHit, formatMoney, isOnWaivers, positionCount, rosterCount, teamCap } from "../select";
 import { askingPrice, negotiatedApy, suggestedYears } from "./contracts";
 import {
   FrontOffice, Posture, SPEND_FLOOR, evaluate, frontOffice, targetSpend, teamOutlook,
@@ -407,7 +407,7 @@ export function placeUserBid(
   const bid = bidFor(state.userTeamId, p, years, apy);
   const asking = askingPrice(state, p);
   if (bid.apy < asking * 0.92) {
-    return { ok: false, reason: `${p.lastName} will not listen below $${(asking / 1e6).toFixed(1)}M per year.` };
+    return { ok: false, reason: `${p.lastName} will not listen below ${formatMoney(asking)} per year.` };
   }
 
   // Cap is checked against every bid the user already has outstanding, not just

@@ -17,7 +17,7 @@ import { SnapCall } from "@/lib/core/types";
 import { playerMap } from "@/lib/core/select";
 import {
   clockLabel, downDistance, driveBar, driveResultLabel, driveResultTone,
-  formatPlay, playedResultLine, quarterLabel, spotLabel, wentToOvertime,
+  formatVisiblePlay, playedResultLine, quarterLabel, spotLabel, visiblePlays, wentToOvertime,
 } from "@/lib/view/playByPlay";
 
 /**
@@ -114,6 +114,20 @@ export default function PlayPage() {
     const p = players.get(id);
     return p ? p.lastName : "";
   };
+  const playSides = liveGame
+    ? {
+        abbr: (id: number) => state.teams[id]?.abbr ?? "?",
+        homeId: liveGame.homeId,
+        awayId: liveGame.awayId,
+      }
+    : undefined;
+  const shownPlays = view ? visiblePlays(view.plays) : [];
+  const lastShown = shownPlays.length > 0 ? shownPlays[shownPlays.length - 1] : null;
+  const headline = view?.lastSnap
+    ? view.lastSnap.kind === "downs" && lastShown
+      ? lastShown
+      : { event: view.lastSnap, turnoverOnDowns: false as const }
+    : null;
   const sheet = callSheetView(us);
   const sheetBits: string[] = [];
   if (sheet.passLean === PASS_LEAN_RUN) sheetBits.push("run-heavy");
@@ -199,17 +213,17 @@ export default function PlayPage() {
               The staff already sent the offense out on fourth down. This desk calls the snap.
             </p>
           )}
-          {view.lastSnap && (
+          {headline && (
             <div className="mb-3 px-3 py-2 rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-line-soft)]">
               <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-0.5">
                 Last snap
               </div>
               <p className="text-sm">
-                {quarterLabel(view.lastSnap.q)} {clockLabel(view.lastSnap.clock)}
+                {quarterLabel(headline.event.q)} {clockLabel(headline.event.clock)}
                 {" · "}
-                {downDistance(view.lastSnap)}
+                {downDistance(headline.event)}
                 {" · "}
-                {formatPlay(view.lastSnap, nameOf)}
+                {formatVisiblePlay(headline, nameOf, playSides)}
               </p>
             </div>
           )}
@@ -291,9 +305,9 @@ export default function PlayPage() {
         </Card>
       )}
 
-      {view && view.lastSnap && view.done && (
+      {view && headline && view.done && (
         <Card title="Last snap">
-          <p className="text-sm">{formatPlay(view.lastSnap, nameOf)}</p>
+          <p className="text-sm">{formatVisiblePlay(headline, nameOf, playSides)}</p>
         </Card>
       )}
 
@@ -331,23 +345,23 @@ export default function PlayPage() {
         </Card>
       )}
 
-      {view && view.plays.length > 0 && (
-        <Card title="Play by Play" subtitle={`${view.plays.length} snaps`} padded={false}>
+      {view && shownPlays.length > 0 && (
+        <Card title="Play by Play" subtitle={`${shownPlays.length} snaps`} padded={false}>
           <div className="divide-y divide-[var(--color-line-soft)] max-h-80 overflow-y-auto">
-            {view.plays.map((e, i) => (
+            {shownPlays.map((row, i) => (
               <div
                 key={i}
                 className={`px-3 py-1.5 text-sm flex gap-3 ${
-                  view.lastSnap && e === view.lastSnap ? "bg-[var(--color-accent-dim)]/40" : ""
+                  headline && row.event === headline.event ? "bg-[var(--color-accent-dim)]/40" : ""
                 }`}
               >
                 <span className="text-[11px] text-[var(--color-faint)] tnum whitespace-nowrap w-16">
-                  {quarterLabel(e.q)} {clockLabel(e.clock)}
+                  {quarterLabel(row.event.q)} {clockLabel(row.event.clock)}
                 </span>
                 <span className="text-[11px] text-[var(--color-muted)] tnum whitespace-nowrap w-14">
-                  {downDistance(e)}
+                  {downDistance(row.event)}
                 </span>
-                <span className="min-w-0 truncate">{formatPlay(e, nameOf)}</span>
+                <span className="min-w-0 truncate">{formatVisiblePlay(row, nameOf, playSides)}</span>
               </div>
             ))}
           </div>
