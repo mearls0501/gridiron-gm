@@ -4,10 +4,11 @@ import { startRegularSeason } from "./engine";
 import { Game, PlayerGameStat } from "../types";
 import {
   applyGameStats, blankPlayerGameStat, blankSeasonLine, blankTeamGameStats,
-  careerTotals, leaders,
+  careerTotals, leaders, playedSnaps,
 } from "./stats";
 import { careerRecords, franchiseCareerRecords, seasonRecords, teamSeasonStats } from "./records";
-import { recordSeasonHistory } from "../offseason/progression";
+import { developPlayer, recordSeasonHistory } from "../offseason/progression";
+import { Rng } from "../rng";
 import { presentSeasonReview } from "../../view/seasonReview";
 import { decodeSave, encodeSave } from "../../store/codec";
 import { migrate } from "../../store/save";
@@ -58,7 +59,17 @@ assert.deepEqual(state.players.map((p) => p.stats), before,
   "every total, longest play, appearance, and start stays regular-season only");
 assert.deepEqual(playoff, boxBefore, "the playoff score and individual box stay available");
 assert.equal(postseasonOnly.stats.length, 0, "a playoff-only appearance creates no regular-season row");
-assert.equal(postseasonOnly.playedPostseason, true);
+assert.deepEqual(postseasonOnly.postseasonUsage, [{ season: state.season, teamId: 0, snaps: 60 }]);
+assert.equal(playedSnaps(a, state.season), 180, "playoff experience still counts toward development");
+const allSnaps = structuredClone(state);
+const combined = allSnaps.players.find((p) => p.id === a.id)!;
+combined.stats[0].snaps = playedSnaps(a, state.season);
+delete combined.postseasonUsage;
+const separate = structuredClone(state);
+const separatePlayer = separate.players.find((p) => p.id === a.id)!;
+developPlayer(allSnaps, combined, new Rng(17));
+developPlayer(separate, separatePlayer, new Rng(17));
+assert.deepEqual(separatePlayer.attrs, combined.attrs, "splitting production does not reduce development opportunity");
 assert.equal(leaders(state, "passYds")[0].player.id, b.id);
 assert.equal(teamSeasonStats(state).get(0)!.games, 17);
 assert.equal(teamSeasonStats(state).get(0)!.pointsFor, 0, "team regular-season totals exclude playoff points");
@@ -75,6 +86,7 @@ state.history.push(history);
 assert.equal(presentSeasonReview(state).leaders.find((l) => l.key === "passYds")?.value, "400");
 
 const legacy = structuredClone(state);
+for (const p of legacy.players) delete p.postseasonUsage;
 legacy.history[0].leaders.passYds = a.id;
 const legacyA = legacy.players.find((p) => p.id === a.id)!;
 legacyA.stats[0].games++;
@@ -103,11 +115,16 @@ assert.equal(legacy.history[0].leaders.passYds, b.id, "repair also corrects the 
 assert.deepEqual(legacyA.stats.find((s) => s.season === archived.season), archived);
 assert.equal(legacy.players.find((p) => p.id === postseasonOnly.id)!.stats.length, 0);
 const repaired = JSON.stringify(legacy.players.map((p) => p.stats));
+const workload = JSON.stringify(legacy.players.map((p) => p.postseasonUsage));
 migrate(legacy);
 assert.equal(JSON.stringify(legacy.players.map((p) => p.stats)), repaired, "repair is idempotent");
+assert.equal(JSON.stringify(legacy.players.map((p) => p.postseasonUsage)), workload,
+  "reload does not double playoff workload");
 const loaded = decodeSave(JSON.parse(JSON.stringify(encodeSave(legacy))));
 loaded.season++;
 loaded.games = [];
+assert.equal(playedSnaps(loaded.players.find((p) => p.id === a.id)!, state.season), 180,
+  "workload survives sparse save/reload and the discarded boxes");
 loaded.players.find((p) => p.id === postseasonOnly.id)!.retired = true;
 pruneNeverPlayed(loaded);
 assert.ok(loaded.players.some((p) => p.id === postseasonOnly.id),

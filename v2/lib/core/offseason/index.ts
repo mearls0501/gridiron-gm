@@ -129,8 +129,9 @@ export function runFreeAgencyOpen(state: GameState): void {
   // CPU teams get first crack at retaining their own expiring players.
   const byTeam = new Map<number, typeof expiring>();
   for (const p of expiring) {
-    // teamId was cleared by expireContracts; recover the last team from stats.
-    const last = p.stats[p.stats.length - 1]?.teamId ?? null;
+    // A playoff replacement may have no regular-season line with his last club.
+    const last = p.postseasonUsage?.find((s) => s.season === state.season)?.teamId
+      ?? p.stats[p.stats.length - 1]?.teamId ?? null;
     if (last === null || last === state.userTeamId) continue;
     const arr = byTeam.get(last) ?? [];
     arr.push(p);

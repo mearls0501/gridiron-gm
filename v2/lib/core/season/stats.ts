@@ -93,11 +93,19 @@ function foldGameStats(byId: Map<number, Player>, game: Game): void {
   }
 }
 
-function retainPostseasonPlayers(state: GameState, game: Game): void {
+function recordPostseasonUsage(state: GameState, game: Game): void {
   const byId = new Map(state.players.map((p) => [p.id, p]));
   for (const line of game.boxScore!.players) {
     const player = byId.get(line.playerId);
-    if (player && !player.stats.some((s) => s.games > 0)) player.playedPostseason = true;
+    if (!player) continue;
+    player.postseasonUsage ??= [];
+    let usage = player.postseasonUsage.find((s) => s.season === game.season);
+    if (!usage) {
+      usage = { season: game.season, teamId: line.teamId, snaps: 0 };
+      player.postseasonUsage.push(usage);
+    }
+    usage.teamId = line.teamId;
+    usage.snaps += line.snaps;
   }
 }
 
@@ -105,7 +113,7 @@ function retainPostseasonPlayers(state: GameState, game: Game): void {
 export function applyGameStats(state: GameState, game: Game): void {
   if (!game.boxScore) return;
   if (game.playoffRound !== null) {
-    retainPostseasonPlayers(state, game);
+    recordPostseasonUsage(state, game);
     return;
   }
   foldGameStats(new Map(state.players.map((p) => [p.id, p])), game);
@@ -121,11 +129,14 @@ export function rebuildRegularSeasonStats(state: GameState): void {
     if (games.length !== state.teams.length * GAMES_PER_TEAM / 2 ||
         games.some((g) => !g.played || !g.boxScore)) continue;
     const byId = new Map(state.players.map((p) => [p.id, p]));
-    for (const p of state.players) p.stats = p.stats.filter((s) => s.season !== season);
+    for (const p of state.players) {
+      p.stats = p.stats.filter((s) => s.season !== season);
+      if (p.postseasonUsage) p.postseasonUsage = p.postseasonUsage.filter((s) => s.season !== season);
+    }
     for (const game of games) foldGameStats(byId, game);
     for (const game of state.games) {
       if (game.season === season && game.played && game.playoffRound !== null && game.boxScore) {
-        retainPostseasonPlayers(state, game);
+        recordPostseasonUsage(state, game);
       }
     }
     const history = state.history.find((h) => h.season === season);
@@ -173,6 +184,11 @@ export function fgPct(l: SeasonStatLine): number {
 /** Current-season line for a player, or a zeroed line if they haven't played. */
 export function currentLine(p: Player, season: number): SeasonStatLine {
   return p.stats.find((s) => s.season === season) ?? blankSeasonLine(season, p.teamId);
+}
+
+/** Development and opportunity count playoff experience as well as regular-season snaps. */
+export function playedSnaps(p: Player, season: number): number {
+  return currentLine(p, season).snaps + (p.postseasonUsage?.find((s) => s.season === season)?.snaps ?? 0);
 }
 
 export function careerTotals(p: Player): SeasonStatLine {

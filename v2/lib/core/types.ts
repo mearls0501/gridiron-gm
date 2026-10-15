@@ -282,8 +282,8 @@ export interface Player {
   psElevations?: number;
 
   stats: SeasonStatLine[];
-  /** Keeps a playoff-only player in history without inventing a regular-season appearance. */
-  playedPostseason?: true;
+  /** Playing time and last club, kept separately from regular-season production. */
+  postseasonUsage?: { season: number; teamId: number; snaps: number }[];
   careerAwards: string[];
 
   /**
