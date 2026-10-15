@@ -234,7 +234,8 @@ export function tapeLabel(item: DraftTapeItem): string {
 /**
  * One starred or tier-1 name the public board says will not last until the
  * user's next pick. The user's mark is the star or the tier. The "will not
- * last" test is consensus against the clock. CPU boards are not read.
+ * last" test is the same consensus rank the board prints, against the clock.
+ * CPU boards are not read.
  */
 export function moveUpAlert(state: GameState, skip: ReadonlySet<string>): MoveUpAlert | null {
   const d = state.draft;

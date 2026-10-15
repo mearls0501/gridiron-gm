@@ -248,6 +248,8 @@ export default function PlayerPage() {
   const testing = p.prospect && p.profile ? prospectTesting(state, p) : null;
   const scheme = p.prospect && !future ? scoutedSchemeFit(state, p) : null;
   const scouted = fog ? veteranIntel(state, p) : null;
+  const unsignedFa = p.teamId === null && !p.prospect && !p.retired;
+  const showNumber = typeof p.number === "number" && !unsignedFa;
   const shownOvr = presentedOvr(p.pos, p.ovr);
   const shownPot = presentedPot(p.pos, p.ovr, p.pot);
   const tier = known ? ovrTier(shownOvr) : null;
@@ -257,7 +259,7 @@ export default function PlayerPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold">
-            {typeof p.number === "number" ? `#${p.number} ` : ""}
+            {showNumber ? `#${p.number} ` : ""}
             {p.firstName} {p.lastName}
           </h1>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">
@@ -285,7 +287,7 @@ export default function PlayerPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <PosBadge pos={p.pos} />
-              {typeof p.number === "number" && (
+              {showNumber && (
                 <span className="text-lg font-semibold tnum tabular-nums">
                   #{p.number}
                 </span>

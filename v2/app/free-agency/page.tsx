@@ -223,9 +223,11 @@ export default function FreeAgencyPage() {
       // market moving is background.
       if (lost.length > 0) {
         const first = lost[0];
+        const terms = `${first.years}yr / ${formatMoney(first.apy)}`;
+        const line = `${first.name} signed with ${first.team} — ${terms}`;
         return lost.length === 1
-          ? `${first.name} signed with ${first.team} — you were outbid`
-          : `You were outbid on ${lost.length} players`;
+          ? line
+          : `You were outbid on ${lost.length} players — ${line}`;
       }
       if (won.length > 0) {
         return won.length === 1
@@ -487,6 +489,11 @@ export default function FreeAgencyPage() {
             placeholder="Search free agents…"
             className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-lg px-3 py-1.5 text-sm placeholder:text-[var(--color-faint)] outline-none focus:border-[var(--color-accent)] transition-colors min-w-[180px]"
           />
+          {faPhase && (
+            <span className="text-[11px] text-[var(--color-faint)]">
+              Leading bid — rivals may counter when you bid.
+            </span>
+          )}
           {(query || pos !== "ALL" || sortKey !== "ovr") && (
             <Button
               size="sm"
@@ -523,7 +530,7 @@ export default function FreeAgencyPage() {
             }
           />
         ) : (
-          <Table head={["Player", "Pos", "Age", "OVR", "Asking", "CPU bid", "Sug. Yrs", ""]}>
+          <Table head={["Player", "Pos", "Age", "OVR", "Asking", <span key="bid" title="Rivals may counter when you bid.">Leading bid</span>, "Sug. Yrs", ""]}>
             {visible.map((p) => {
               const asking = askingPrice(state, p);
               const bid = cpuBids

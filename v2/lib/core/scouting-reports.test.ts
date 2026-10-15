@@ -37,6 +37,18 @@ assert.equal(new Set(boardSlots).size, pool.length, "department ranks must be un
 assert.equal(new Set(marketSlots).size, pool.length, "consensus ranks must be unique");
 assert.deepEqual([...boardSlots].sort((a, b) => a - b), Array.from({ length: pool.length }, (_, i) => i + 1));
 
+function highestSpecialist(kind: "board" | "market"): number {
+  let best = pool.length + 1;
+  for (const p of pool) {
+    if (p.pos !== "K" && p.pos !== "P") continue;
+    const slot = kind === "board" ? boardGrade(state, p, ctx).slot : consensusGrade(state, p, ctx).slot;
+    if (slot < best) best = slot;
+  }
+  return best;
+}
+assert.ok(highestSpecialist("board") > 64, `kicker or punter inside the top 64 on your board: #${highestSpecialist("board")}`);
+assert.ok(highestSpecialist("market") > 64, `kicker or punter inside the top 64 on consensus: #${highestSpecialist("market")}`);
+
 let differ = 0;
 for (const p of pool) {
   if (boardGrade(state, p, ctx).slot !== consensusGrade(state, p, ctx).slot) differ++;

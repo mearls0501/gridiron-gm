@@ -17,7 +17,7 @@ import {
   submitOfficeOffer,
 } from "../core/offseason/contracts";
 import { runFreeAgencyOpen } from "../core/offseason";
-import { hubResignWalkWarning, resignStepRows, resignWalkCount } from "./resignStep";
+import { hubResignWalkWarning, resignPot, resignStepRows, resignWalkCount } from "./resignStep";
 
 function clubRoster(st: ReturnType<typeof newGame>, teamId: number): Player[] {
   return st.players.filter((p) => p.teamId === teamId && !p.retired && !p.prospect && p.contract);
@@ -189,4 +189,13 @@ function ok(label: string) { console.log("ok   ", label); }
   assert.match(finances, /submitOfficeOffer/);
   assert.match(finances, /Meet asking/);
   ok("Hub and /finances share the contract-office offer");
+}
+
+{
+  const young = plantExpiring(newGame({ seed: 3 }), 0, 70);
+  young.age = 25;
+  assert.equal(typeof resignPot(young), "number");
+  young.age = 26;
+  assert.equal(resignPot(young), null, "potential stays off the row after 25");
+  ok("re-sign potential is only for players 25 and under");
 }

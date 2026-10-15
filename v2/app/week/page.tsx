@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import { Button, Card, Empty, Pill, PosBadge, cx } from "@/components/ui";
 import { PHASE_LABEL } from "@/components/Shell";
@@ -11,8 +11,9 @@ import { isActiveRoster, teamRoster } from "@/lib/core/select";
 import { playerName, presentedOvr } from "@/lib/core/ratings";
 import { POSITIONS } from "@/lib/core/types";
 import {
-  activateFromInactive, canSit, gamedayInactiveView, isSat, sitPlayer,
+  activateFromInactive, canSit, gamedayInactiveView, isSat, scratchCandidates, sitPlayer,
 } from "@/lib/core/inactives";
+import { presentNewsText } from "@/lib/view/draftYear";
 import { isOnBye } from "@/lib/core/season/engine";
 import {
   AGGRESSION_AGGRESSIVE, AGGRESSION_CONSERVATIVE, PASS_LEAN_PASS, PASS_LEAN_RUN,
@@ -29,6 +30,7 @@ export default function WeekPage() {
   const rev = useGame((s) => s.rev);
   const apply = useGame((s) => s.apply);
   const advance = useGame((s) => s.advance);
+  const [showAllInactives, setShowAllInactives] = useState(false);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const b = useMemo(() => (state ? buildBriefing(state) : null), [state, rev]);
@@ -134,7 +136,7 @@ export default function WeekPage() {
         <Card title="Around the League" padded={false}>
           <div className="divide-y divide-[var(--color-line-soft)]">
             {b.headlines.map((h, i) => (
-              <p key={i} className="px-4 py-2.5 text-sm">{h}</p>
+              <p key={i} className="px-4 py-2.5 text-sm">{presentNewsText(h)}</p>
             ))}
           </div>
         </Card>
@@ -309,11 +311,25 @@ export default function WeekPage() {
           const actives = teamRoster(state, state.userTeamId)
             .filter(isActiveRoster)
             .sort((a, b) => POSITIONS.indexOf(a.pos) - POSITIONS.indexOf(b.pos) || b.ovr - a.ovr);
+          const suggested = new Set(
+            scratchCandidates(state, state.userTeamId).slice(0, gameday.stillNeed).map((p) => p.id)
+          );
+          const shortList = actives.filter(
+            (p) => isSat(team, p.id) || p.injuryWeeks > 0 || suggested.has(p.id)
+          );
+          const shown = showAllInactives ? actives : shortList;
           return (
             <Card
               title="Gameday Inactives"
               subtitle={`${gameday.cap} actives this week${gameday.eightOl ? ` · 8 OL (${gameday.ol})` : ` · ${gameday.ol} OL`} · sit at least ${gameday.need}. Injured on the 53 already count.`}
               padded={false}
+              actions={
+                shortList.length < actives.length ? (
+                  <Button size="sm" variant="ghost" onClick={() => setShowAllInactives((v) => !v)}>
+                    {showAllInactives ? "Suggested only" : "Show all"}
+                  </Button>
+                ) : undefined
+              }
             >
               <div className="px-4 py-2.5 text-xs text-[var(--color-muted)] border-b border-[var(--color-line-soft)]">
                 {gameday.injured} injured · {gameday.sat} sat · {gameday.credited} of {gameday.need} required
@@ -322,7 +338,7 @@ export default function WeekPage() {
                   : " — cap met. Sitting more healthy scratches is allowed."}
               </div>
               <div className="divide-y divide-[var(--color-line-soft)]">
-                {actives.map((p) => {
+                {shown.map((p) => {
                   const sat = isSat(team, p.id);
                   return (
                     <div key={p.id} className="flex items-center gap-2 px-4 py-2 text-sm">
@@ -331,6 +347,9 @@ export default function WeekPage() {
                       <span className="text-xs text-[var(--color-faint)] tnum">{presentedOvr(p.pos, p.ovr)}</span>
                       {p.injuryWeeks > 0 && <Pill tone="warn">out</Pill>}
                       {sat && <Pill tone="accent">inactive</Pill>}
+                      {!sat && p.injuryWeeks <= 0 && suggested.has(p.id) && (
+                        <span className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">suggested</span>
+                      )}
                       <span className="ml-auto">
                         {sat ? (
                           <Button

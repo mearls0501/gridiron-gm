@@ -144,7 +144,8 @@ export function clearInactives(state: GameState): void {
   }
 }
 
-function nextCpuScratch(state: GameState, teamId: number): Player | undefined {
+/** Healthy actives Play Week would scratch, deepest and lowest-rated first. */
+export function scratchCandidates(state: GameState, teamId: number): Player[] {
   const team = state.teams[teamId];
   const chartRank = (p: Player): number => {
     const chart = team.depthChart[p.pos] ?? [];
@@ -166,7 +167,11 @@ function nextCpuScratch(state: GameState, teamId: number): Player | undefined {
     if (a.ovr !== b.ovr) return a.ovr - b.ovr;
     return a.id - b.id;
   });
-  return candidates[0];
+  return candidates;
+}
+
+function nextCpuScratch(state: GameState, teamId: number): Player | undefined {
+  return scratchCandidates(state, teamId)[0];
 }
 
 /** Sit remaining extras so the club is at the 47/48 gameday cap. */

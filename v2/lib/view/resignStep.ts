@@ -1,7 +1,7 @@
 import {
   expiringPlayers, extensionAskingApy, isFranchiseTagged, isOfficeExtensionEligible,
 } from "../core/offseason/contracts";
-import { presentedOvr } from "../core/ratings";
+import { presentedOvr, presentedPot } from "../core/ratings";
 import { GameState, Player } from "../core/types";
 
 /**
@@ -38,6 +38,12 @@ export function resignWalkCount(state: GameState, teamId = state.userTeamId): nu
     n += 1;
   }
   return n;
+}
+
+/** Potential on the re-sign row. Blank once a player is older than 25. */
+export function resignPot(p: Player): number | null {
+  if (p.age > 25) return null;
+  return presentedPot(p.pos, p.ovr, p.pot);
 }
 
 /** Hub line next to Continue. Null outside the tag window. */

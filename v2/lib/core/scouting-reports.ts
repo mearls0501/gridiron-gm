@@ -1,5 +1,6 @@
 import { AttrKey, ATTR_LABEL, GameState, Player, Position } from "./types";
-import { relevantAttrs } from "./ratings";
+import { POSITION_VALUE, relevantAttrs } from "./ratings";
+import { REPLACEMENT_OVR } from "./frontOffice";
 import { clamp } from "./rng";
 import { attrBand, getIntel, publicIntel } from "./scouting";
 import {
@@ -20,8 +21,11 @@ import { Scheme, SCHEMES, schemeFor } from "./staff";
  * engine and these functions — but no prospect surface renders them.
  *
  * The board rank is the department's order of its own blends. Consensus is
- * the media's order of the public blends. They share a shade vocabulary and
- * nothing else, so a shallow file can disagree without anyone printing OVR.
+ * the media's order of the public blends. Both ranks weight surplus ability
+ * by the same square-root positional value the CPU board uses, so a kicker
+ * does not sort with a quarterback of the same grade. They share a shade
+ * vocabulary and nothing else, so a shallow file can disagree without
+ * anyone printing OVR.
  *
  * Everything here is DERIVED and deterministic: stable hashes only, no RNG
  * draws, no stored state, no save growth. The same save produces the same
@@ -66,11 +70,22 @@ export interface GradeContext {
   department: Map<number, number>;
 }
 
-/** Present ability and projection blended the way a draft board weighs them. */
-function blend(i: { ovrLow: number; ovrHigh: number; potLow: number; potHigh: number }): number {
-  const ovrMid = (i.ovrLow + i.ovrHigh) / 2;
-  const potMid = (i.potLow + i.potHigh) / 2;
-  return ovrMid * 0.55 + potMid * 0.45;
+/**
+ * Positional score a neutral CPU desk uses, applied to a band.
+ *
+ * Perceived ability is the band midpoint. Headroom is priced with risk at
+ * 0.5, so the risk term is zero and upside is room times 0.33. That product
+ * is multiplied by the square root of positional value. Raw ability is not.
+ * Club need, scheme, and whether he would start here stay on the pick.
+ */
+function positionWeighted(
+  i: { ovrLow: number; ovrHigh: number; potLow: number; potHigh: number },
+  pos: Position,
+): number {
+  const ovr = (i.ovrLow + i.ovrHigh) / 2;
+  const room = Math.max(0, (i.potLow + i.potHigh) / 2 - ovr);
+  const upside = room * (0.18 + 0.5 * 0.30);
+  return Math.max(1, ovr - REPLACEMENT_OVR + upside) * Math.sqrt(POSITION_VALUE[pos]);
 }
 
 function rankMap(pool: Player[], value: (p: Player) => number): Map<number, number> {
@@ -83,13 +98,14 @@ function rankMap(pool: Player[], value: (p: Player) => number): Map<number, numb
 /**
  * Build once per screen. Consensus ranks the public blends against each
  * other. Your board ranks the department's blends against each other.
- * Ties break on player id so every prospect has a slot to hang a judgment
- * on — a shared shade is not a rank.
+ * Both use the CPU's positional weight. Ties break on player id so every
+ * prospect has a slot to hang a judgment on — a shared shade is not a rank.
+ * No draw. The parent RNG does not move.
  */
 export function gradeContext(state: GameState, pool: Player[]): GradeContext {
   return {
-    market: rankMap(pool, (q) => blend(publicIntel(state, q))),
-    department: rankMap(pool, (q) => blend(getIntel(state, q))),
+    market: rankMap(pool, (q) => positionWeighted(publicIntel(state, q), q.pos)),
+    department: rankMap(pool, (q) => positionWeighted(getIntel(state, q), q.pos)),
   };
 }
 

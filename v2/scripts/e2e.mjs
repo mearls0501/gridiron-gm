@@ -20,11 +20,16 @@ import { chromium } from "playwright";
 import {
   checkDraftBoard,
   checkFinancesDesk,
+  checkGamedayInactives,
   checkHistoryDesk,
   checkHoldoutPath,
+  checkLeadingBid,
   checkPhase1BoxScores,
   checkPlayLastSnap,
+  checkSeasonReviewOnce,
   checkStaffDesk,
+  checkUnsignedFaNumber,
+  tryFaOutbidToast,
   hubPhase,
   noteTagResignStep,
   pressFaRosterAutoFix,
@@ -212,12 +217,18 @@ async function main() {
   else console.log("  ok    /stats scrollWidth is 390 at 390px");
   await page.setViewportSize({ width: 1440, height: 900 });
 
-  await visitAll("[preseason]");
-
   const report = {
     fail,
     ok: (m) => console.log(`  ok    ${m}`),
   };
+
+  await checkLeadingBid(page, BASE, report);
+  await checkUnsignedFaNumber(page, BASE, report);
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(300);
+
+  await visitAll("[preseason]");
+
   await checkStaffDesk(page, BASE, report);
   await checkHistoryDesk(page, BASE, report);
   await checkFinancesDesk(page, BASE, report, { click: true });
@@ -241,17 +252,13 @@ async function main() {
   if (playSmoked === "committed") weeks = 1;
 
   const checkInactives = async () => {
-    await page.goto(BASE + "/week", { waitUntil: "networkidle" });
-    await page.waitForTimeout(400);
-    const weekTxt = await page.evaluate(() => document.body.innerText);
-    if (/Bye week/i.test(weekTxt)) return "bye";
-    if (!/Gameday Inactives/.test(weekTxt) || !/\bSit\b/.test(weekTxt)) return "missing";
-    return "ok";
+    const result = await checkGamedayInactives(page, BASE);
+    if (result === "ok") console.log("  ok    /week shows suggested scratches and Show all");
+    else if (result === "bye") console.log("  note  /week is a bye — gameday inactives deferred (not a fail)");
+    else fail(`week gameday inactives: ${result}`);
+    return result;
   };
   let inactives = await checkInactives();
-  if (inactives === "ok") console.log("  ok    /week shows gameday inactives");
-  else if (inactives === "bye") console.log("  note  /week is a bye — gameday inactives deferred (not a fail)");
-  else fail("week missing gameday inactives / Sit");
 
   // Sit leftover: Hub Sim ▾ stayed open after click-away and Esc.
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -294,8 +301,8 @@ async function main() {
     if (!(await btn.count())) break;
     if (inactives !== "ok" && /Play Week/i.test((await btn.innerText()) || "")) {
       inactives = await checkInactives();
-      if (inactives === "ok") console.log("  ok    /week shows gameday inactives");
-      else if (inactives !== "bye") fail("week missing gameday inactives / Sit");
+      if (inactives === "ok") console.log("  ok    /week shows suggested scratches and Show all");
+      else if (inactives !== "bye") fail(`week gameday inactives: ${inactives}`);
       await page.goto(BASE + "/", { waitUntil: "networkidle" });
       await page.waitForTimeout(200);
     }
@@ -358,9 +365,21 @@ async function main() {
   let steps = 0;
   let draftBoardChecked = false;
   let resignNoted = false;
+  let reviewChecked = false;
+  let outbidTried = false;
   for (let i = 0; i < 15; i++) {
     await page.goto(BASE + "/", { waitUntil: "networkidle" });
     await page.waitForTimeout(400);
+    if (!reviewChecked && (await hubPhase(page)) === "Season Review") {
+      reviewChecked = true;
+      await checkSeasonReviewOnce(page, report);
+    }
+    if (!outbidTried && (await hubPhase(page)) === "Free Agency") {
+      outbidTried = true;
+      await tryFaOutbidToast(page, BASE, report);
+      await page.goto(BASE + "/", { waitUntil: "networkidle" });
+      await page.waitForTimeout(400);
+    }
     if ((await hubPhase(page)) === "Preseason" && steps > 0) break;
     if (!draftBoardChecked && await page.getByRole("button", { name: /Finish the Draft/i }).count()) {
       await checkDraftBoard(page, BASE, report);
@@ -408,6 +427,29 @@ async function main() {
   const body = await page.evaluate(() => document.body.innerText);
   if (!/Preseason/i.test(body)) fail("did not roll into the next preseason");
   else console.log("  ok    rolled into the next season");
+  if (!reviewChecked) fail("never landed on Season Review to check awards / champion / waivers");
+
+  const pickNews = await page.evaluate(() => {
+    const t = document.body.innerText;
+    const stored = t.match(/\b20\d{2} (?:R\d|#\d+)/);
+    const labeled = t.match(/\b20\d{2} Draft (?:R\d|#\d+)/);
+    return { stored: stored?.[0] ?? null, labeled: labeled?.[0] ?? null };
+  });
+  if (pickNews.stored) fail(`news still shows the stored pick year (${pickNews.stored})`);
+  else if (pickNews.labeled) console.log(`  ok    news uses the draft-year label (${pickNews.labeled})`);
+  else {
+    await page.goto(BASE + "/league", { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    const leagueNews = await page.evaluate(() => {
+      const t = document.body.innerText;
+      const stored = t.match(/\b20\d{2} (?:R\d|#\d+)/);
+      const labeled = t.match(/\b20\d{2} Draft (?:R\d|#\d+)/);
+      return { stored: stored?.[0] ?? null, labeled: labeled?.[0] ?? null };
+    });
+    if (leagueNews.stored) fail(`league news still shows the stored pick year (${leagueNews.stored})`);
+    else if (leagueNews.labeled) console.log(`  ok    league news uses the draft-year label (${leagueNews.labeled})`);
+    else console.log("  note  no pick line in the news to check the draft-year label");
+  }
 
   await checkHistoryDesk(page, BASE, report, { expectArchive: true });
 

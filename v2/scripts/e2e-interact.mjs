@@ -7,11 +7,15 @@ import { chromium } from "playwright";
 import {
   checkDraftBoard,
   checkFinancesDesk,
+  checkGamedayInactives,
   checkHistoryDesk,
   checkHoldoutPath,
+  checkLeadingBid,
   checkPhase1BoxScores,
   checkPlayLastSnap,
+  checkSeasonReviewOnce,
   checkStaffDesk,
+  checkUnsignedFaNumber,
   hubPhase,
   noteTagResignStep,
   pressFaRosterAutoFix,
@@ -86,7 +90,9 @@ if (await rel.count()) {
   }
 } else fail("no Release button on the roster");
 
-// ---- Free agency: sign someone ---------------------------------------------
+// ---- Free agency: leading bid, unsigned jersey, then sign someone ----------
+await checkLeadingBid(page, BASE, report);
+await checkUnsignedFaNumber(page, BASE, report);
 await page.goto(BASE + "/free-agency", { waitUntil: "networkidle" });
 await page.waitForTimeout(700);
 // Filter to punters — the cheapest position — so the offer is affordable no
@@ -170,6 +176,12 @@ if (await start.count()) {
   await page.waitForTimeout(3500);
 }
 let playSmoked = await checkPlayLastSnap(page, BASE, report);
+{
+  const inactives = await checkGamedayInactives(page, BASE);
+  if (inactives === "ok") ok("/week shows suggested scratches and Show all");
+  else if (inactives === "bye") console.log("  note  /week is a bye — gameday inactives deferred");
+  else fail(`week gameday inactives: ${inactives}`);
+}
 for (let i = 0; i < 20; i++) {
   if (!playSmoked) playSmoked = await checkPlayLastSnap(page, BASE, report);
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -189,8 +201,13 @@ for (let i = 0; i < 5; i++) {
 // auto-picks the whole class, which would leave nothing here to click and
 // silently skip the manual-pick coverage this test exists to provide.
 let resignNoted = false;
+let reviewChecked = false;
 for (let i = 0; i < 15; i++) {
   await page.goto(BASE + "/", { waitUntil: "networkidle" }); await page.waitForTimeout(400);
+  if (!reviewChecked && (await hubPhase(page)) === "Season Review") {
+    reviewChecked = true;
+    await checkSeasonReviewOnce(page, report);
+  }
   if (await page.getByRole("button", { name: /Finish the Draft/i }).count()) break;
   await pressFaRosterAutoFix(page);
   const b = page.getByRole("button", { name: /Continue to/i }).first();
@@ -209,6 +226,7 @@ for (let i = 0; i < 15; i++) {
     await page.waitForTimeout(2200);
   }
 }
+if (!reviewChecked) fail("never landed on Season Review to check awards / champion / waivers");
 if (!(await page.getByRole("button", { name: /Finish the Draft/i }).count())) {
   fail("never reached the draft phase");
 }
