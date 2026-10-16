@@ -5,6 +5,119 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-16 — Studio panel GATE table @ 99f1cae (vs #177 @ 594bf84) (report-only)
+
+Docs only. Lane 1 Mac Studio panel on main after `594bf84` (#177). **Report-only. No re-lock.**
+
+Mac Studio `npm run gate:full:serial`, 5 seeds, on `99f1caeb1ed5ef6591dfe1e6b32e465d77427ce4` (short `99f1cae`). The log header is `gate (full, serial) 5 seeds 14 cores`. The log does not print a git SHA. The figures below are the seed-block `##M` lines from that run. `docs/baselines.json` **not edited**. Engine, dials, and `scripts/` not touched. Report-never-tune. Calibration freeze still stands.
+
+### GATE FAIL 5 — panel @ `99f1cae`
+
+#177 @ `594bf84` was GATE FAIL 5. This panel is GATE FAIL 5. The five lines are the same names. Coherence, `leverage.wrongSign`, and `tails.milestonesOff` print the same seed series as #177. Drift's P0 mean is the same **0.60**. The failing drift seeds on this panel are 2, 3, and 4.
+
+```
+FAIL  coherence  exited 1
+FAIL  drift  exited 1
+FAIL  leverage.wrongSign  0.20  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  drift.p0Failures  0.60  expected <= 0
+FAIL  tails.milestonesOff  22.40  expected <= 16  (KNOWN-HIGH, target 0. Count of categories outside the central 95% Poisson interval (λ = NFL rate × seasons). Panel 16.0 (14/15/15/18/18) after the 2026-08-28 verdict change; the old ratio-band lock of 12 does not apply to this metric.)
+
+GATE FAIL  5 problems
+Fix the cause. Do not edit docs/baselines.json or anything in scripts/.
+```
+
+`coherence` exited 1. The floor is per seed. Seed 2 prints `overall: 84.9%` and `BELOW TARGET (85%)` (`coherence.outlierExplainedPct` **84.91**). Seeds 1, 3, 4, and 5 are COHERENT (**88.24 / 86.27 / 90.38 / 90.91**). The panel mean is **88.14**, above the floor of **85**. The averaged metric is not a FAIL line. Floor **85** stays. Do not soften it. #177 recorded the same five `##M` values and the same seed-2 exit. The indented coherence FAIL reprint is seed 2. It is not a sixth seed.
+
+`drift` exited 1. The P0 on the failing seeds is the age guard `34-year-olds rate below 27-year-olds`. Seed 2 failed at **15/20**. Seed 3 failed at **16/20**. Seed 4 failed at **15/20**. Seed 1 passed at **18/20**. Seed 5 passed at **19/20**. Each failing seed prints `1 P0 REGRESSIONS`. The indented drift FAIL reprint is seed 2 (`holdoutsPerSeason` **10.95**). It is not a sixth seed.
+
+`drift.p0Failures` **0.60** (0/1/1/1/0). Known-open. #177 was **0.60** (1/0/1/1/0), seeds 1, 3, and 4 at **16/20**. Same mean, different seeds. This panel's misses are **15/20**, **16/20**, and **15/20**. The known-open row is that intermittent 15–16 of 20. A count under 15/20 is a different row. These three are not under 15. Max stays **0**. Not re-locked. Do not tune the age curve.
+
+`leverage.wrongSign` **0.20**. Seed 1 only. `EDGE.prs` points swing **+0.3** WRONG SIGN (27.5 → 27.8). Seeds 2–5 are **0**, swings **−1.8 / −1.5 / −1.4 / −3.2**. #177 was the same probe at **0.20**. Max stays **0**. Not re-locked.
+
+`tails.milestonesOff` **22.40** (23/20/22/22/25). KNOWN-HIGH. #177 was **22.40** on that same series. Max stays **16**. Not re-locked.
+
+### Panel means (5-seed)
+
+Seeds in panel order. The mean is the average of the five seed-block `##M` lines. Indented `##M` lines under a FAIL summary are one seed reprinted and are not in these figures. The **#177** column is the 2026-10-13 Studio panel (@ `594bf84`).
+
+`drift.topCapPctMean`, `drift.medianPayrollPct`, and `drift.minPayrollSeasonsUnder55` are still absent from that #177 table. This panel is the first HANDOFF row for them against `594bf84`.
+
+| metric | this panel @ `99f1cae` | #177 @ `594bf84` | notes |
+|---|---|---|---|
+| `drift.topCapPctMean` | **20.6067** (20.431/20.570/20.575/20.706/20.752) | not in #177's table | Inside the signed **20.3 ±3** (window 17.3–23.3). Not a FAIL line. No re-lock |
+| `drift.deadMoneyPct` | **5.5057** (5.691/5.482/5.261/5.614/5.480) | **5.46** (5.264/5.679/5.220/5.580/5.573) | No band. A few hundredths above #177. Not retuned |
+| `drift.medianPayrollPct` | **95.4848** (95.758/96.151/94.059/96.267/95.188) | not in #177's table | Inside the signed **90.602 ±6** (window 84.602–96.602). Every seed is inside that window. Not a FAIL line |
+| `drift.minPayrollSeasonsUnder55` | **0** (0/0/0/0/0) | not in #177's table | Signed max **0**. Payroll-floor prose below. Not a FAIL line |
+| `drift.franchiseTagsPerSeason` | **17.43** (18/17.3/16.75/17.35/17.75) | **16.75** (17.1/16.05/16.25/17.8/16.55) | Mean inside signed **14±4**. Seed 1 prints **18**, the top of that band. The gate scores the mean. Not a FAIL line |
+| `drift.holdoutsPerSeason` | **10.37** (9.55/10.95/11.5/9.65/10.2) | **10.18** (9.95/11.35/11.2/8.7/9.7) | No band. Next to #177. Not retuned |
+| `drift.tradesPerSeason` | **78.86** (76.7/79.15/80.9/80.65/76.9) | **79.57** (78/79.2/80.75/80.75/79.15) | Above min **30**. Inside the open target **60–120** (nfl ~90). Do not retune volume |
+| `coherence.outlierExplainedPct` | **88.14** (88.24/84.91/86.27/90.38/90.91) | **88.14** (88.24/84.91/86.27/90.38/90.91) | Mean above floor **85**. Seed 2 at **84.9** is the coherence exit. Same series as #177 |
+| `drift` exit | age guard, seeds 2, 3, 4 at **15/20, 16/20, 15/20** | age guard, seeds 1, 3, 4 at **16/20** | Step exit 1. Same known-open row. Different seeds |
+| `drift.p0Failures` | **0.60** (0/1/1/1/0) | **0.60** (1/0/1/1/0) | **FAIL**. Age guard. Max stays **0** |
+| `leverage.wrongSign` | **0.20** | **0.20** | **FAIL**. Seed 1 `EDGE.prs` points **+0.3** |
+| `tails.milestonesOff` | **22.40** (23/20/22/22/25) | **22.40** (23/20/22/22/25) | **FAIL** ≤16. KNOWN-HIGH. Same series as #177 |
+
+Seed figures are the raw `##M` values rounded for the table. Each mean is the average of the five unrounded seed-block lines. `topCapPctMean` **20.6067**, `deadMoneyPct` **5.5057**, and `medianPayrollPct` **95.4848** are those raw averages.
+
+### Payroll floor
+
+Every drift seed prints both payroll guards as ok. `minPayrollSeasonsUnder55` is **0** on all five. The median line in the guard block is a rounded percent. The table uses the `##M` value.
+
+| seed | below 55% | lowest payroll | median, guard line | `medianPayrollPct` |
+|---|---|---|---|---|
+| 1 | 0/20 | 73% | 96% of cap | 95.758 |
+| 2 | 0/20 | 66% | 96% of cap | 96.151 |
+| 3 | 0/20 | 65% | 94% of cap | 94.059 |
+| 4 | 0/20 | 73% | 96% of cap | 96.267 |
+| 5 | 0/20 | 72% | 95% of cap | 95.188 |
+
+The guard text on every seed is `no CPU team parks at replacement-level payroll — 0/20 seasons had one below 55%`. The same block prints `no contract exceeds 28% of the cap — 0/20 seasons had one, peak 22%`. `drift.capBustSeasons` is **0** on every seed. That 22% peak is the bust guard. `drift.topCapPctMean` **20.6067** is the mean of each season's highest cap hit, a different read.
+
+### Free agency and the 1.10× ceiling
+
+This log does not contain a pooled top-5 FA APY, as a percent of that season's cap, by position. It does not contain a count of top-5 FA deals sitting exactly on 1.10× the positional ceiling. Those two figures cannot be derived from the lines that are here. The 2026-10-14 top-5 table in this file is a separate seed-12345, 10-season run. This panel does not repeat it. No count from that older run is claimed for `99f1cae`.
+
+What `contractceiling` does print, the same block on all five seeds (one `seed 12345` fixture, not five markets):
+
+- `marketApy ceilings QB 21.0% EDGE 12.9% WR 11.2%`
+- `no negotiated APY above 0.22 of the cap (n=1836)`
+- `year-0 top QB 19.6%, top-five mean 18.3%`
+- `max QB first tag 21.0%, second 25.2%`
+- `12-season seed 12345: peak topCap 21.9%, busts 0`
+- `specialist cap: P87 asks $4.00M, max K asks $6.80M, 76/78 unchanged`
+- `93 EDGE age 25 premium 1.44 is 14.22% (<= 1.10 × 12.9%); mid EDGE unchanged at $14.1M`
+
+The 1.10× line is that unit check. It is one planted EDGE, premium 1.44, landing at 14.22% of the cap, which the line states is `<= 1.10 × 12.9%`. The mid EDGE stays `$14.1M`. It is not a census of live top-5 FA deals. The year-0 top QB **19.6%** and top-five mean **18.3%** are that same fixture. They are not a per-position FA book. The fixture's 12-season peak topCap **21.9%** is not `drift.topCapPctMean`.
+
+`contractceiling` exited 0 (`0 metrics x5 seeds`).
+
+### Verdict
+
+1. GATE FAIL 5. The five lines are the coherence exit (seed 2 at **84.9**), the drift exit, `drift.p0Failures` **0.60** (age guard), `leverage.wrongSign` **0.20** (seed 1 `EDGE.prs` **+0.3**), and `tails.milestonesOff` **22.40**.
+2. Against #177, those three numeric FAIL means are unchanged: `wrongSign` **0.20**, `p0Failures` **0.60**, `milestonesOff` **22.40**. Coherence is the same series, mean **88.14**, seed 2 still under **85**.
+3. The age-guard seeds moved. #177 failed seeds 1, 3, and 4, all **16/20**. This panel fails seeds 2, 3, and 4 at **15/20**, **16/20**, and **15/20**. Seeds 1 and 5 pass at **18/20** and **19/20**. Max stays **0**.
+4. `topCapPctMean` **20.6067** sits inside **20.3 ±3**. `medianPayrollPct` **95.4848** sits inside **90.602 ±6**. `minPayrollSeasonsUnder55` is **0**, and every seed's lowest payroll is above 55% (73 / 66 / 65 / 73 / 72). #177's table does not record these three rows.
+5. `franchiseTagsPerSeason` **17.43** is inside **14±4** (#177 **16.75**). `holdoutsPerSeason` **10.37** (#177 **10.18**). `tradesPerSeason` **78.86** (#177 **79.57**), inside **60–120**. `deadMoneyPct` **5.5057** (#177 **5.46**).
+6. A pooled top-5 FA APY by position, and a count of those deals on 1.10×, are not in this log. `contractceiling` shows the unit check: ceilings QB **21.0%** / EDGE **12.9%** / WR **11.2%**, year-0 top QB **19.6%**, top-five mean **18.3%**, and the planted 93 EDGE at **14.22%** (`<= 1.10 × 12.9%`).
+
+### Calibration freeze
+
+**CALIBRATION FREEZE** in effect (Matt **SIGNED** 2026-10-08). No new metrics, bands, or re-locks unless a playtest finding needs one. This panel is not that finding. The freeze still stands.
+
+### Report-never-tune
+
+No row in `docs/baselines.json` moves. No re-lock. No new band for `topCapPctMean`, `deadMoneyPct`, `medianPayrollPct`, `minPayrollSeasonsUnder55`, `franchiseTagsPerSeason`, `holdoutsPerSeason`, `tradesPerSeason`, `outlierExplainedPct`, `p0Failures`, `milestonesOff`, or `leverage.wrongSign`. The signed locks this panel still sits inside (`topCapPctMean` **20.3 ±3**, `medianPayrollPct` **90.602 ±6**, `minPayrollSeasonsUnder55` max **0**, `franchiseTagsPerSeason` **14±4**, `tradesPerSeason` min **30** and open target **60–120**) stay as signed. Floor **85** on `outlierExplainedPct` stays. `milestonesOff` max stays **16**. `p0Failures` max stays **0**. `wrongSign` max stays **0**.
+
+### Untouched
+
+Engine, dials, `scripts/`, `docs/baselines.json`. No re-lock.
+
+### Gate
+
+Not run in this packet. The table is the Studio log. Docs only.
+
+---
+
 ## 2026-10-15 — Strategy pass, Packets A+B
 
 Matt **SIGNED** this. Built from the signed task text (Packets A and B). View and copy only. No engine draft-order or pick RNG change. No dial, band, re-lock, or `docs/baselines.json` edit. The CPU three-7ths trade filler was left alone.
