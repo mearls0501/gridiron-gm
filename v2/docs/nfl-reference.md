@@ -1612,6 +1612,85 @@ Panel `statcheck.rb5RushYds` **1357 → 1254** (1460/1342/1365/1273/1344 →
 1269/1205/1328/1267/1203) against 1191 ±95. Stream moved; the 5-seed panel is
 the verdict.
 
+### 5.11 Guard measurements — locked conditions, RB panel and milestone references
+
+2026-10-16, user-authorized after the unchanged-code diagnosis. No simulation
+rates or `docs/baselines.json` values change.
+
+**Conditions.** The home-win self-check reads the same target/tolerance as the
+gate: 54.439 +/-3, or 51.439–57.439%. A second hardcoded 52–58% range incorrectly
+failed a default 51.702786% sample that the locked band accepts. All weather and
+rest measurements retain their existing sampling and guards.
+
+**RB #5.** The canonical `statcheck.rb5RushYds` is the arithmetic mean of five
+complete REG rank-five observations on standard gate panel seeds 1–5, using
+the existing `seedFor(8675309)` mixing formula. A dedicated harness owns that
+fixed panel and runs once in either tier, even under `--seeds 1`; the regular
+statcheck's individual reading is report-only. All other statcheck metrics
+retain their original sampling. This avoids averaging already-averaged panels
+or quietly applying a panel-mean band to one season. The lock stays 1191 +/-95.
+
+**Milestone reference.** `docs/milestone-reference.json` preserves integer
+counts for all 27 game and 19 season thresholds, separately for 2021–2024 REG.
+Sources: nflverse `stats_player_week_YEAR.csv.gz` from
+<https://github.com/nflverse/nflverse-data/releases/tag/stats_player>.
+Download URLs and SHA-256s are in the data file. Filter `season_type == REG`;
+weekly rows are unique by `(player_id, game_id)`; aggregate season rows by
+`(season, player_id)` across all clubs. Completed-game exposures are
+272 / 271 / 272 / 272 (1087 total); season exposure is four. Report game rates
+per 272 games, season rates per season. The four rank-five rushing seasons
+1159 / 1269 / 1049 / 1412 reproduce §5.10's mean 1222.25. Defensive data reproduce
+Zaire Franklin's 2024 173 combined tackles (93 primary +80 assists), checked
+against <https://www.nfl.com/players/zaire-franklin/stats/>.
+
+Examples of the corrected inputs: 200-yard rushing games count 1/2/1/2,
+60-yard FG games 4/5/5/4, 3-sack games 16/16/23/17, 4,500-yard passing seasons
+6/4/3/3, 1,800-yard rushing seasons 1/0/0/2, and 1,700-yard receiving seasons
+1/2/2/1. The previous approximate rates (e.g. 5 rushing games or 1.5 FG games
+a year) are retired as reference inputs, not adjusted toward the simulator.
+
+**Comparison.** Keep the same two-sided 5% significance level, but include the
+finite NFL reference's sampling uncertainty: condition two Poisson counts on
+their sum, giving Binomial(total count, sim exposure / combined exposure).
+Sum outcomes with PMF no greater than the observed PMF for an exact two-sided
+p-value. This handles zero NFL observations without asserting an event is
+impossible. Compute from a mode-centred PMF recurrence to avoid underflow.
+No multiple-testing correction or new tolerance is applied. A rejected cell
+reports low/high according to observed rates; every row prints counts,
+exposures and p-value. Nested categories remain correlated and are not
+independent simulation bugs.
+
+**Definitions and scope.** Four combined-tackle categories stay visible as
+explicit unmatched diagnostics; the engine has no assist statistic, so those
+comparisons cannot supply an NFL verdict. The 42 comparable categories retain
+sacks: whole-player credit in the engine versus official fractional credit is
+a meaningful stat-distribution discrepancy, but not proof of excessive total
+sack rate. The harness still samples fresh generated leagues every season;
+results do not establish the distribution of aged franchises. Real passing,
+rushing and receiving tail misses remain visible individually.
+
+**Matched rerun.** Standard panel seeds 1–5 retain the same 6 conditions seasons
+and 16 fresh-league tail seasons each. Conditions raw values are identical and
+all five runs pass; home-win means 54.981550 / 53.732264 / 53.993808 / 53.879310 /
+54.595928%. The unchanged default 51.702786% passes the locked band too.
+RB observations remain 1365 / 1216 / 1291 / 1280 / 1205, mean **1271.4**; the
+default 1288 is report-only. No outlier is removed or clipped.
+
+Corrected milestone offs are **8 / 8 / 9 / 8 / 10** (mean **8.6**) versus the
+previous 23 / 20 / 22 / 22 / 25. Default **23→10**. Every one of the 46 raw
+counts in each of six runs, all progress lines, all extreme metrics and all
+unaffected conditions/statcheck metrics match exactly. A separate log-factorial
+binomial calculation reproduces every p-value/verdict; expected verdicts were
+also reconstructed from the previous frozen ledgers without new simulation
+data. Persistent panel misses include 3-/4-sack and 3-INT games too common,
+plus too few 4,500-yard passing, 1,800-yard rushing and 1,700-yard receiving
+seasons. Passing the legacy cap does not claim those individual issues fixed.
+
+`tails.milestonesOff` counts rejected *comparable* categories and retains max
+16 byte-for-byte. That max was locked on the former measurement; passing it
+after the correction is not a new NFL calibration or a claim that every tail
+is correct. No reference or panel is selected after seeing the repaired run.
+
 ## 6. Starter availability — how much time a real starter misses
 
 Added 2026-08-02 for `task/305-availability`. **PARTIAL: skill positions only.**

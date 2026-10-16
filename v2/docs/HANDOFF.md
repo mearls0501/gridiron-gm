@@ -5,6 +5,108 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-16 — Conditions, RB and milestone guard repairs
+
+User-authorized follow-up on `codex/save-season-fixes` / draft PR #182, after
+the read-only diagnosis at `bb4244d`. No simulation-rate or `lib/` edits, no
+dependencies, no `docs/baselines.json` edit. All functional game files and the
+baseline match their pre-run hashes. Methods and primary-source computation
+are in `nfl-reference.md` §5.11.
+
+**Conditions** now reads the gate's locked home-win band, 54.439 +/-3 or
+51.439–57.439%, removing the contradictory hardcoded 52–58% self-check. The
+default 51.702786% raw value is unchanged and now passes. Both lock endpoints
+pass; values beyond either fail. All weather/rest observations and checks
+remain. The standard panel's home-win mean remains 54.236572%.
+
+**RB** now has a dedicated fixed panel, `scripts/rbPanel.ts`, which owns
+canonical `statcheck.rb5RushYds` in both gate tiers, even `--seeds 1`. It
+requires standard panel seeds 1–5 exactly once, derives rank five from complete
+REG boxes before playoffs, and averages without clipping. The gate's
+`ownsPanel` flag runs it once; an outer panel cannot nest/repeat five identical
+panels. `statcheck.rb5RushYdsSample` preserves the original individual reading;
+other statcheck metrics keep their original sampling. The seed mix is factored
+into pure `panelSeed` with exactly the existing arithmetic. Fixed samples are
+**1365 / 1216 / 1291 / 1280 / 1205**, mean **1271.4**, inside unchanged
+**1191 +/-95**. Default single-season **1288** remains report-only.
+
+**Milestones** now uses `docs/milestone-reference.json`: integer counts and
+exposures for 27 game +19 season thresholds, 2021–24 REG, with download URLs,
+SHA-256s, field definitions and cross-checks. Approximate rates such as 5/year
+for 200-yard rushing games and 1.5/year for 60-yard FG games are replaced by
+observed **6/1087 games** and **18/1087 games**. Season counts aggregate each
+player across clubs. Exact two-sided conditional Poisson tests include NFL
+reference uncertainty at the unchanged 5% level; a zero reference count does
+not imply impossibility. A mode-centred binomial recurrence avoids underflow.
+Four combined-tackle categories stay visible as unmatched diagnostics because
+the engine has no assist statistic. The 42 comparable categories supply
+verdicts; whole-sack credit remains a meaningful stat-distribution comparison.
+The harness still samples fresh leagues, not aged franchises.
+
+### Same panel rerun
+
+Five standard gate panel seeds, unchanged streams and sample sizes. Default
+reproductions are included separately. Milestones use 16 seasons per entry;
+conditions use six seasons; RB rows are the same individual rank-five samples
+used in the fixed five-seed mean.
+
+| Panel | Conditions problems | RB raw sample (report-only) | Old milestone offs | Corrected comparable offs |
+| --- | ---: | ---: | ---: | ---: |
+| default | 0 (was 1) | 1288 | 23 | 10 |
+| 1 | 0 | 1365 | 23 | 8 |
+| 2 | 0 | 1216 | 20 | 8 |
+| 3 | 0 | 1291 | 22 | 9 |
+| 4 | 0 | 1280 | 22 | 8 |
+| 5 | 0 | 1205 | 25 | 10 |
+
+Every one of the 46 raw milestone counts per run, progress lines and seven
+extreme metrics matches the prior diagnosis exactly. All unaffected conditions
+and statcheck metrics match too. The fixed RB panel contains the same five
+samples, mean 1271.4. An independent log-factorial probability calculation
+reproduces all 252 comparable p-values and verdicts; four unmatched rows per
+run remain explicit. Predictions from the old frozen ledgers match live output.
+All source CSV SHA-256s and all per-year counts match the audited reference.
+
+The global milestone max **16** is unchanged. It was locked on the former
+measurement; these passes are legacy regression-cap results, not a new NFL
+calibration. Individual failures persist: all five standard panels still flag excessive
+3-/4-sack and 3-INT games, thin 4,500-yard passing and 1,800-yard rushing seasons,
+and thin 1,700-yard receiving seasons in fresh leagues. No engine issue is
+claimed repaired by correcting the comparisons.
+
+### Validation
+
+- Focused guard regression and typecheck: **PASS**. Covers both home-band
+  boundaries and missing bounds; complete/unique fixed RB samples; duplicate,
+  incomplete and contaminated REG evidence; unchanged gate seed mixing;
+  finite-reference and zero-count cases; large-count underflow; exact analytic
+  binomial fixtures; and genuine mismatches still rejected.
+- New test is registered in `npm test` and both gate tiers; `rbpanel` is in both
+  tiers, with its full panel internally owned.
+- Fast: **GATE PASS (72 metrics within baseline)**; all **64/64** harness steps exit successfully, including the fixed RB panel and new guard regression.
+- The full 20-season drift child reproduces **all 43 metrics** from the
+  previous injury/IR validation exactly; the factored seed helper does not move
+  that unrelated default simulation stream.
+- Full (`npm run gate:full -- --seeds 1`): **GATE PASS (179 metrics within baseline)**; all **70/70** harness steps exit successfully, including drift (20 seasons), careers (24 seasons), conditions, milestones, fixed RB panel, determinism, verify and sweep.
+
+Changed files: `scripts/conditions.ts`, `scripts/guardMeasurements.ts`,
+`scripts/rbPanel.ts`, `scripts/statcheck.ts`, `scripts/metrics.ts`,
+`scripts/gate.ts`, `scripts/tails.ts`, `scripts/milestoneComparisons.ts`,
+`scripts/guardMeasurements.test.ts`, `package.json`,
+`docs/milestone-reference.json`, `AGENTS.md`, `docs/HANDOFF.md`, and
+`docs/nfl-reference.md`.
+
+Artifacts: `/Users/mearls/Documents/Gridiron GM/remaining-guard-fix-validation-2026-10-16/`.
+`source.json` records functional/test/reference/baseline and all `lib/` SHA-256s
+before running. `validation.json` contains all six matched cases, p-values,
+remaining per-category misses, fixed panel and gate results. `check_results.py`
+independently compares every raw count and unaffected metric to the diagnosis,
+checks the reference hashes/counts, and reproduces comparison arithmetic.
+`expected-from-prior-ledgers.json` reconstructs repaired verdicts from old data;
+logs, exit JSON, `run.py` and stdout-only capture preserve live execution.
+
+---
+
 ## 2026-10-16 — Injury/IR availability guard and separate diagnostics
 
 User-authorized follow-up on `codex/save-season-fixes` / draft PR #182. The
