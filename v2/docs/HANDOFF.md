@@ -75,6 +75,13 @@ injury/IR and historical rotation component sums both reconcile exactly.
   unchanged locked band. Conditions/milestone failures already reproduced on
   unchanged `99f1cae`; no remaining calibration failure was tuned away.
 
+After validation, merged remote `c7298d9`, preserving its legacy-save repair
+write-up and the main-branch documentation/standalone FA census script. The
+only merge conflict was adjacent HANDOFF entries; both were retained. All tested
+functional/test/baseline hashes remain identical. Post-merge typecheck and the
+focused availability regression both pass; no executable dependency of the
+60-season or gate simulations changed.
+
 Artifacts: `/Users/mearls/Documents/Gridiron GM/injury-ir-guard-validation-2026-10-16/`.
 `source.json` freezes functional/test/baseline SHA-256 before execution;
 `validation.json` contains the final 43 metrics per seed, all 60 injury/IR season
@@ -84,6 +91,48 @@ historical diagnostics against the earlier raw kickoff ledgers. `seed-*.log`,
 `fast-gate.log`, `full-gate.log`, `regression.log`, exit JSON, `run.py` and the
 stdout-only drift capture preload preserve the run. Earlier dated entries
 below describe the superseded rotation composite and remain historical.
+
+---
+
+## 2026-10-16 — Legacy-save repair of regular-season totals
+
+Checked on a franchise the pre-PR engine wrote, then loaded on this branch. The save was played on `d598dc0` (main after #183 and #184). That tree's `v2/lib` matches `99f1cae`. Seed **12345**. Two seasons, **2026** and **2027**. Each year is 272 regular-season games and 13 playoff games (wild card, divisional, conference, Super Bowl). The file was encoded at **2027 `offseason-tag`**, after that recap stored the year's leaders and before the calendar roll discarded the 2027 boxes. The 2026 boxes were already gone, so those lines are still the combined regular-plus-playoff totals the old `applyGameStats` wrote. Pre-PR file **8,013,076** bytes.
+
+Loaded here with `decodeSave` then `migrate` (`rebuildRegularSeasonStats`). A second load encoded the repaired state and ran `decodeSave` + `migrate` again.
+
+**2027, boxes still on the save.** Every rebuilt season line matches an independent sum of that player's regular-season boxes. **1,550** players, **0** mismatches, counting stats and longest plays. **508** lines had playoff production folded in. Playoff games stay on the box and off the season line.
+
+| Player | Stat | Before (REG+POST) | After | REG-only |
+| --- | --- | ---: | ---: | ---: |
+| Micah Rutledge, QB, Philadelphia | pass yards | 5,910 in 20 games | 4,617 in 16 | 4,617 (1,293 in 4 playoff games left out) |
+| Micah Rutledge, QB | rush yards | 983 | 756 | 756 (227 left out) |
+| Vince Green, QB | pass yards | 4,708 in 17 | 4,708 in 17 | 4,708 (no playoff games) |
+| DeShawn Rodriguez III, RB | rush yards | 1,463 in 19 | 1,271 in 17 | 1,271 (192 left out) |
+| Julian Mayfield, RB | rush yards | 1,372 in 17 | 1,372 in 17 | 1,372 (no playoff rushes) |
+| Cameron Boseman, WR | rec yards | 2,160 in 20 | 1,744 in 17 | 1,744 (416 left out) |
+| Chris Voss, EDGE | sacks | 19 in 17 games | 16 in 16 | 16 (3 left out) |
+| Chris Hernandez, EDGE | sacks | 16 in 16 | 16 | 16 (no playoff sacks) |
+| Omar Anderson, QB | longest pass | 40 | 13 | 13 (playoff long was 40) |
+| Carlos Caldwell, RB | season line | 2 games, 8 rush yards, 17 snaps | no 2027 row | 0 regular-season games |
+
+Carlos Caldwell is playoff-only. The repair drops the invented 2027 row and keeps **17** snaps on `postseasonUsage`. Three other playoff-only players (Micah Pemberton, OG; Micah Quarles, S; Omar Wright, C) lose the 2027 row the same way and keep their postseason snaps.
+
+2027 season leaders (`history.leaders` and `leaders()`) equal those regular-season totals:
+
+- Passing yards: Micah Rutledge **5,910** → Vince Green **4,708**.
+- Rushing yards: DeShawn Rodriguez III **1,463** → Julian Mayfield **1,372**.
+- Receiving yards: Cameron Boseman stays the leader, **2,160 → 1,744**.
+- Sacks: Chris Voss **19** → Chris Hernandez **16**.
+
+`seasonRecords` reads the best single season still stored. The 2027 passing high is Vince Green **4,708**, the regular-season sum. The all-time passing season record stays DeShawn Hernandez **4,945** in 2026, because that year's boxes were discarded and the repair does not guess. The sacks season record moves from Chris Voss **19** (2027, combined) to Chris Hernandez **16** (2027), the regular-season sum. Micah Rutledge's career passing yards go **9,738 → 8,445**. The career passing lead becomes DeShawn Hernandez **8,805**; his 2026 playoff yards are still inside the preserved line.
+
+Team points for 2027 come off the same boxes and leave the playoffs out. Brooklyn: **351** with the playoffs, **299** after, regular-season sum **299**, playoff **52**, **17** games. All 32 clubs match.
+
+**2026, boxes discarded.** **0** stat lines changed. Leaders stay DeShawn Hernandez **4,945** pass, Joseph Baker **1,587** rush, Quinn Ulrich III **1,919** receiving, Amari Rodriguez **16** sacks. Awards for both years are not reassigned.
+
+**Second load.** The repaired encoding is **8,069,158** bytes. Loading it again is byte-identical. Stat lines, postseason workload, and archived leaders do not change.
+
+No engine tuning, no dial change, no RNG change. `drift.playerWeeksLost` is not re-locked. `docs/baselines.json` was not edited.
 
 ---
 
@@ -225,6 +274,198 @@ Raw logs, source hashes, independent snapshot checks and per-position results:
 `/Users/mearls/Documents/Gridiron GM/age-guard-fix-validation-2026-10-16/validation.json`.
 Method and historical diagnosis are documented in `docs/nfl-reference.md`
 §6.9 and the age-guard row in `AGENTS.md`.
+
+---
+
+## 2026-10-16 — Pooled top-5 FA APY on the gate panel (report-only)
+
+Docs and one observer. The Lane 1 panel at `99f1cae` (the next section) could not print a pooled top-5 free-agent APY by position, or a count of those deals on 1.10× the positional ceiling. This section is that measurement, on `main` at `4e8dd6c`. **Report-only. No re-lock.**
+
+`4e8dd6c` differs from `99f1cae` by the Lane 1 HANDOFF section only. The engine this walk ran is that panel's engine. `docs/baselines.json` was not edited. No dial moved. Calibration freeze still stands.
+
+### Method
+
+`scripts/faApyCensus.ts`. It is not a gate step and it is not in `package.json`. The observer adds no draw of its own. The sim writes `state.rngState` the same way drift does. The gate does not import the script.
+
+Same walk as `scripts/drift.ts` at 20 seasons. `newGame` on `seedFor(12345)` with `GG_SEED` set to each `gate:full` panel index, 1 through 5. Those are the five seeds `npm run gate:full` passes into drift. The mixed seeds were 506939785, 1013891931, 1520852267, 2027804413, and 387272780. Each seed plays 20 seasons and walks every offseason with the same `advance` / `advanceOffseason` loop drift uses. That is 100 offseasons. The headless user's club does not bid, the same as drift.
+
+A signing is a player who was a street free agent when `offseason-fa` opened and held a contract after that phase's `advanceOffseason`. Street is `freeAgents`: no club, not retired, not a prospect, not on waivers. The open is the return from the `offseason-tag` advance (contracts expired, CPU re-signs done, market open, opening bids placed). The close is the return from the `offseason-fa` advance (every FA wave, the trade burst, and entering the draft). Re-signs before the market opens stay out of this book. Undrafted free agents and cutdown signings happen later and stay out of this book.
+
+APY is `(sum of base salaries + signing bonus) / years`. Every deal in the pool still had `yearsRemaining === years` and a full base-salary array, so that quotient is the APY the bid was built from. Percent is `100 × APY / teamCap().cap`. That cap is `salaryCap` for the league year the deal is priced on. Carryover adds room. It is not the denominator.
+
+Each offseason, each position, the top five APYs enter the pool. A shorter book enters every deal it signed. An empty book enters nothing. Mean is the arithmetic mean of those percents. Median is the middle value, or the average of the two central values when the count is even. Max is the highest single deal. Percents in the table are rounded to 0.01 points of cap. The kicker mean is 0.995 before that rounding, so the cell reads 1.00.
+
+The 1.10× cap is `Math.round(positionalCeiling(pos, age, cap) × 1.10)`, the dollar stop `apyFromAsk` rounds before `MAX_CONTRACT_SHARE` (`lib/core/offseason/contracts.ts`). Age is the player's age at the signing, after recap. K and P use the specialist shares inside `positionalCeiling` (`7.0M/301.2M` and `4.1M/301.2M`, times `ageMult`). A deal is on that cap when the absolute gap is at most **$1,000**. Every deal in the count below had a gap of **$0**. The $1,000 tolerance added no deals. $1,000 is about 0.0003% of a $300M cap, inside 0.01% of the cap.
+
+`apyFromAsk` then takes the minimum of that dollar cap and `Math.round(cap × 0.22)`. For every position except quarterback, 1.10× the prime-age ceiling sits under 22%, so the two stops are the same number on a prime-age player. A quarterback at age 25–29 has a 1.10× cap of 23.10%, and the function stops at 22%.
+
+The ceiling column is `positionalCeiling(pos, 27, 1)`, the age-25–29 share, in percent. An older or younger player caps lower (`ageMult` 0.88 / 0.70 / 0.50). The NFL column is a top-five mean only where `docs/nfl-reference.md` §4 lists the five APYs. Quarterback is the 2025 top five excluding Mahomes, **20.06%**. Kicker is the mean of the five OTC rows in that section (Boswell, Aubrey, Fairbairn, Butker, Elliott): `$6,541,333 / $301.2M` = **2.17%**. Punter is the mean of Stout, Dickson, Cooke, Cole, and Mann: `$3,920,000 / $301.2M` = **1.30%**. EDGE and WR are a 12–13% cluster in that section (Garrett 14.32%, Bosa 12.18%, Jefferson 12.54%, Lamb 12.18%), not a listed top five, so those cells are a dash. The other positions have no top-five APY in the file.
+
+### Pooled top-5 FA APY, percent of that season's cap
+
+100 offseasons. 6,150 top-5 deals. **501** sit on 1.10× `positionalCeiling` for that player's age. **530** sit on the dollar cap `apyFromAsk` returns, which is the 1.10× stop or 22% when 22% is tighter.
+
+| pos | ceiling | 1.10× | NFL top-5 | n | mean | median | max | on 1.10× |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| QB | 21.00 | 23.10 | 20.06 | 500 | 7.93 | 6.03 | 22.00 | 15 |
+| EDGE | 12.93 | 14.22 | — | 500 | 7.12 | 6.31 | 14.22 | 71 |
+| OT | 12.39 | 13.63 | — | 500 | 6.15 | 5.21 | 13.63 | 49 |
+| WR | 11.28 | 12.41 | — | 500 | 6.25 | 5.38 | 12.41 | 67 |
+| CB | 11.28 | 12.41 | — | 500 | 6.09 | 5.24 | 12.41 | 57 |
+| DT | 9.83 | 10.82 | — | 498 | 4.19 | 3.36 | 10.82 | 40 |
+| S | 8.92 | 9.81 | — | 492 | 3.79 | 2.95 | 9.81 | 39 |
+| TE | 8.60 | 9.46 | — | 485 | 2.70 | 2.04 | 9.46 | 20 |
+| LB | 8.28 | 9.11 | — | 494 | 3.56 | 2.80 | 9.11 | 42 |
+| OG | 8.28 | 9.11 | — | 492 | 3.43 | 2.72 | 9.11 | 42 |
+| C | 7.96 | 8.75 | — | 424 | 2.38 | 1.62 | 8.75 | 20 |
+| RB | 6.95 | 7.64 | — | 440 | 1.77 | 1.16 | 7.64 | 14 |
+| K | 2.32 | 2.56 | 2.17 | 116 | 1.00 | 0.78 | 2.56 | 10 |
+| P | 1.36 | 1.50 | 1.30 | 209 | 0.57 | 0.40 | 1.50 | 15 |
+
+Pooled on 1.10×: **501 / 6,150**. Pooled on the cap `apyFromAsk` returns: **530 / 6,150**. The extra 29 are quarterbacks.
+
+The quarterback max is **22.00**, the outer backstop. Of the 500 QB deals, **29** sit exactly on 22.00% and all 29 are age 25–29. Those 29 are in the 530 and stay out of the 15. The 15 on 1.10× are age-discounted: 7 at 30–31, 4 at 32–33, 4 at 34+. A prime-age quarterback in this pool is paid at 22%, which is under the 23.10% product.
+
+Of the 501 deals on 1.10×, **320** are age 25–29, on the prime-age share in the ceiling column. The other **181** are on that player's lower `ageMult` cap. For every position except quarterback, the "on 1.10×" count and the `apyFromAsk` count are the same number.
+
+Books shorter than five, so `n` is under 500: DT 498 (2 short), S 492 (5), TE 485 (9), LB 494 (3), OG 492 (4), C 424 (35), RB 440 (23 short, 2 empty), K 116 (58 short, 41 empty), P 209 (54 short, 27 empty). QB, EDGE, OT, WR, and CB signed at least five in every offseason.
+
+### Scope
+
+The 2026-10-14 table in this file is seed 12345, 10 seasons, and the five highest deals in that whole run. This table is each offseason's top five, pooled across the five panel seeds, so the mean sits under the ceiling and the max is the pin. The Studio log at `99f1cae` still does not contain these figures. Nothing here is a `##M` line from that panel. `contractceiling`'s year-0 top QB 19.6% and top-five mean 18.3% are the planted fixture.
+
+### Calibration freeze
+
+**CALIBRATION FREEZE** in effect (Matt **SIGNED** 2026-10-08). No new metrics, bands, or re-locks. This census is not a finding that needs one. The freeze still stands.
+
+### Untouched
+
+Engine, dials, `docs/baselines.json`, `scripts/gate.ts`. The new file is `scripts/faApyCensus.ts`. It only observes. No re-lock.
+
+### Gate
+
+Fast `npm run gate:serial` from `v2/` (1 seed, 4 cores). `GATE FAIL  1 problem`. The only FAIL line is the known single-seed noise:
+
+```
+FAIL  statcheck.rb5RushYds  1288  expected 1191 +/-95  (NFL ~1191)
+```
+
+**1288** is 2 yards over the fast-tier ceiling (1191 + 95 = 1286). The same line, on the same seed, is the fast-gate result recorded on 2026-10-15 and on 2026-10-14. The baseline stays.
+
+`useroffers` exited 0 (`parent rng unchanged`). That step still asserts tag **823515333** and FA **1063212815**. `determinism` printed `DETERMINISTIC`. `verify.failures` **0**. `calibrate.scoreMismatches` **0**. `calibrate.pts` **23.19**, `passYds` **241.14**, `rushYds` **118.28**, `fgPct` **86.0**. `statcheck.qb5PassYds` **4103**, `qb10PassYds` **3581**, `qb20PassYds` **3050**, `wr10RecYds` **1136**. `leverage.wrongSign` **0**. `leverage.noEffect` **1** (`OT.sta`). Those are the figures from the 2026-10-15 fast gate. Gate fingerprints are unchanged. Not re-locked.
+
+---
+
+## 2026-10-16 — Studio panel GATE table @ 99f1cae (vs #177 @ 594bf84) (report-only)
+
+Docs only. Lane 1 Mac Studio panel on main after `594bf84` (#177). **Report-only. No re-lock.**
+
+Mac Studio `npm run gate:full:serial`, 5 seeds, on `99f1caeb1ed5ef6591dfe1e6b32e465d77427ce4` (short `99f1cae`). The log header is `gate (full, serial) 5 seeds 14 cores`. The log does not print a git SHA. The figures below are the seed-block `##M` lines from that run. `docs/baselines.json` **not edited**. Engine, dials, and `scripts/` not touched. Report-never-tune. Calibration freeze still stands.
+
+### GATE FAIL 5 — panel @ `99f1cae`
+
+#177 @ `594bf84` was GATE FAIL 5. This panel is GATE FAIL 5. The five lines are the same names. Coherence, `leverage.wrongSign`, and `tails.milestonesOff` print the same seed series as #177. Drift's P0 mean is the same **0.60**. The failing drift seeds on this panel are 2, 3, and 4.
+
+```
+FAIL  coherence  exited 1
+FAIL  drift  exited 1
+FAIL  leverage.wrongSign  0.20  expected <= 0  (no attribute may move its metric the wrong way)
+FAIL  drift.p0Failures  0.60  expected <= 0
+FAIL  tails.milestonesOff  22.40  expected <= 16  (KNOWN-HIGH, target 0. Count of categories outside the central 95% Poisson interval (λ = NFL rate × seasons). Panel 16.0 (14/15/15/18/18) after the 2026-08-28 verdict change; the old ratio-band lock of 12 does not apply to this metric.)
+
+GATE FAIL  5 problems
+Fix the cause. Do not edit docs/baselines.json or anything in scripts/.
+```
+
+`coherence` exited 1. The floor is per seed. Seed 2 prints `overall: 84.9%` and `BELOW TARGET (85%)` (`coherence.outlierExplainedPct` **84.91**). Seeds 1, 3, 4, and 5 are COHERENT (**88.24 / 86.27 / 90.38 / 90.91**). The panel mean is **88.14**, above the floor of **85**. The averaged metric is not a FAIL line. Floor **85** stays. Do not soften it. #177 recorded the same five `##M` values and the same seed-2 exit. The indented coherence FAIL reprint is seed 2. It is not a sixth seed.
+
+`drift` exited 1. The P0 on the failing seeds is the age guard `34-year-olds rate below 27-year-olds`. Seed 2 failed at **15/20**. Seed 3 failed at **16/20**. Seed 4 failed at **15/20**. Seed 1 passed at **18/20**. Seed 5 passed at **19/20**. Each failing seed prints `1 P0 REGRESSIONS`. The indented drift FAIL reprint is seed 2 (`holdoutsPerSeason` **10.95**). It is not a sixth seed.
+
+`drift.p0Failures` **0.60** (0/1/1/1/0). Known-open. #177 was **0.60** (1/0/1/1/0), seeds 1, 3, and 4 at **16/20**. Same mean, different seeds. This panel's misses are **15/20**, **16/20**, and **15/20**. The known-open row is that intermittent 15–16 of 20. A count under 15/20 is a different row. These three are not under 15. Max stays **0**. Not re-locked. Do not tune the age curve.
+
+`leverage.wrongSign` **0.20**. Seed 1 only. `EDGE.prs` points swing **+0.3** WRONG SIGN (27.5 → 27.8). Seeds 2–5 are **0**, swings **−1.8 / −1.5 / −1.4 / −3.2**. #177 was the same probe at **0.20**. Max stays **0**. Not re-locked.
+
+`tails.milestonesOff` **22.40** (23/20/22/22/25). KNOWN-HIGH. #177 was **22.40** on that same series. Max stays **16**. Not re-locked.
+
+### Panel means (5-seed)
+
+Seeds in panel order. The mean is the average of the five seed-block `##M` lines. Indented `##M` lines under a FAIL summary are one seed reprinted and are not in these figures. The **#177** column is the 2026-10-13 Studio panel (@ `594bf84`).
+
+`drift.topCapPctMean`, `drift.medianPayrollPct`, and `drift.minPayrollSeasonsUnder55` are still absent from that #177 table. This panel is the first HANDOFF row for them against `594bf84`.
+
+| metric | this panel @ `99f1cae` | #177 @ `594bf84` | notes |
+|---|---|---|---|
+| `drift.topCapPctMean` | **20.6067** (20.431/20.570/20.575/20.706/20.752) | not in #177's table | Inside the signed **20.3 ±3** (window 17.3–23.3). Not a FAIL line. No re-lock |
+| `drift.deadMoneyPct` | **5.5057** (5.691/5.482/5.261/5.614/5.480) | **5.46** (5.264/5.679/5.220/5.580/5.573) | No band. A few hundredths above #177. Not retuned |
+| `drift.medianPayrollPct` | **95.4848** (95.758/96.151/94.059/96.267/95.188) | not in #177's table | Inside the signed **90.602 ±6** (window 84.602–96.602). Every seed is inside that window. Not a FAIL line |
+| `drift.minPayrollSeasonsUnder55` | **0** (0/0/0/0/0) | not in #177's table | Signed max **0**. Payroll-floor prose below. Not a FAIL line |
+| `drift.franchiseTagsPerSeason` | **17.43** (18/17.3/16.75/17.35/17.75) | **16.75** (17.1/16.05/16.25/17.8/16.55) | Mean inside signed **14±4**. Seed 1 prints **18**, the top of that band. The gate scores the mean. Not a FAIL line |
+| `drift.holdoutsPerSeason` | **10.37** (9.55/10.95/11.5/9.65/10.2) | **10.18** (9.95/11.35/11.2/8.7/9.7) | No band. Next to #177. Not retuned |
+| `drift.tradesPerSeason` | **78.86** (76.7/79.15/80.9/80.65/76.9) | **79.57** (78/79.2/80.75/80.75/79.15) | Above min **30**. Inside the open target **60–120** (nfl ~90). Do not retune volume |
+| `coherence.outlierExplainedPct` | **88.14** (88.24/84.91/86.27/90.38/90.91) | **88.14** (88.24/84.91/86.27/90.38/90.91) | Mean above floor **85**. Seed 2 at **84.9** is the coherence exit. Same series as #177 |
+| `drift` exit | age guard, seeds 2, 3, 4 at **15/20, 16/20, 15/20** | age guard, seeds 1, 3, 4 at **16/20** | Step exit 1. Same known-open row. Different seeds |
+| `drift.p0Failures` | **0.60** (0/1/1/1/0) | **0.60** (1/0/1/1/0) | **FAIL**. Age guard. Max stays **0** |
+| `leverage.wrongSign` | **0.20** | **0.20** | **FAIL**. Seed 1 `EDGE.prs` points **+0.3** |
+| `tails.milestonesOff` | **22.40** (23/20/22/22/25) | **22.40** (23/20/22/22/25) | **FAIL** ≤16. KNOWN-HIGH. Same series as #177 |
+
+Seed figures are the raw `##M` values rounded for the table. Each mean is the average of the five unrounded seed-block lines. `topCapPctMean` **20.6067**, `deadMoneyPct` **5.5057**, and `medianPayrollPct` **95.4848** are those raw averages.
+
+### Payroll floor
+
+Every drift seed prints both payroll guards as ok. `minPayrollSeasonsUnder55` is **0** on all five. The median line in the guard block is a rounded percent. The table uses the `##M` value.
+
+| seed | below 55% | lowest payroll | median, guard line | `medianPayrollPct` |
+|---|---|---|---|---|
+| 1 | 0/20 | 73% | 96% of cap | 95.758 |
+| 2 | 0/20 | 66% | 96% of cap | 96.151 |
+| 3 | 0/20 | 65% | 94% of cap | 94.059 |
+| 4 | 0/20 | 73% | 96% of cap | 96.267 |
+| 5 | 0/20 | 72% | 95% of cap | 95.188 |
+
+The guard text on every seed is `no CPU team parks at replacement-level payroll — 0/20 seasons had one below 55%`. The same block prints `no contract exceeds 28% of the cap — 0/20 seasons had one, peak 22%`. `drift.capBustSeasons` is **0** on every seed. That 22% peak is the bust guard. `drift.topCapPctMean` **20.6067** is the mean of each season's highest cap hit, a different read.
+
+### Free agency and the 1.10× ceiling
+
+This log does not contain a pooled top-5 FA APY, as a percent of that season's cap, by position. It does not contain a count of top-5 FA deals sitting exactly on 1.10× the positional ceiling. Those two figures cannot be derived from the lines that are here. The 2026-10-14 top-5 table in this file is a separate seed-12345, 10-season run. This panel does not repeat it. No count from that older run is claimed for `99f1cae`.
+
+What `contractceiling` does print, the same block on all five seeds (one `seed 12345` fixture, not five markets):
+
+- `marketApy ceilings QB 21.0% EDGE 12.9% WR 11.2%`
+- `no negotiated APY above 0.22 of the cap (n=1836)`
+- `year-0 top QB 19.6%, top-five mean 18.3%`
+- `max QB first tag 21.0%, second 25.2%`
+- `12-season seed 12345: peak topCap 21.9%, busts 0`
+- `specialist cap: P87 asks $4.00M, max K asks $6.80M, 76/78 unchanged`
+- `93 EDGE age 25 premium 1.44 is 14.22% (<= 1.10 × 12.9%); mid EDGE unchanged at $14.1M`
+
+The 1.10× line is that unit check. It is one planted EDGE, premium 1.44, landing at 14.22% of the cap, which the line states is `<= 1.10 × 12.9%`. The mid EDGE stays `$14.1M`. It is not a census of live top-5 FA deals. The year-0 top QB **19.6%** and top-five mean **18.3%** are that same fixture. They are not a per-position FA book. The fixture's 12-season peak topCap **21.9%** is not `drift.topCapPctMean`.
+
+`contractceiling` exited 0 (`0 metrics x5 seeds`).
+
+### Verdict
+
+1. GATE FAIL 5. The five lines are the coherence exit (seed 2 at **84.9**), the drift exit, `drift.p0Failures` **0.60** (age guard), `leverage.wrongSign` **0.20** (seed 1 `EDGE.prs` **+0.3**), and `tails.milestonesOff` **22.40**.
+2. Against #177, those three numeric FAIL means are unchanged: `wrongSign` **0.20**, `p0Failures` **0.60**, `milestonesOff` **22.40**. Coherence is the same series, mean **88.14**, seed 2 still under **85**.
+3. The age-guard seeds moved. #177 failed seeds 1, 3, and 4, all **16/20**. This panel fails seeds 2, 3, and 4 at **15/20**, **16/20**, and **15/20**. Seeds 1 and 5 pass at **18/20** and **19/20**. Max stays **0**.
+4. `topCapPctMean` **20.6067** sits inside **20.3 ±3**. `medianPayrollPct` **95.4848** sits inside **90.602 ±6**. `minPayrollSeasonsUnder55` is **0**, and every seed's lowest payroll is above 55% (73 / 66 / 65 / 73 / 72). #177's table does not record these three rows.
+5. `franchiseTagsPerSeason` **17.43** is inside **14±4** (#177 **16.75**). `holdoutsPerSeason` **10.37** (#177 **10.18**). `tradesPerSeason` **78.86** (#177 **79.57**), inside **60–120**. `deadMoneyPct` **5.5057** (#177 **5.46**).
+6. A pooled top-5 FA APY by position, and a count of those deals on 1.10×, are not in this log. `contractceiling` shows the unit check: ceilings QB **21.0%** / EDGE **12.9%** / WR **11.2%**, year-0 top QB **19.6%**, top-five mean **18.3%**, and the planted 93 EDGE at **14.22%** (`<= 1.10 × 12.9%`).
+
+### Calibration freeze
+
+**CALIBRATION FREEZE** in effect (Matt **SIGNED** 2026-10-08). No new metrics, bands, or re-locks unless a playtest finding needs one. This panel is not that finding. The freeze still stands.
+
+### Report-never-tune
+
+No row in `docs/baselines.json` moves. No re-lock. No new band for `topCapPctMean`, `deadMoneyPct`, `medianPayrollPct`, `minPayrollSeasonsUnder55`, `franchiseTagsPerSeason`, `holdoutsPerSeason`, `tradesPerSeason`, `outlierExplainedPct`, `p0Failures`, `milestonesOff`, or `leverage.wrongSign`. The signed locks this panel still sits inside (`topCapPctMean` **20.3 ±3**, `medianPayrollPct` **90.602 ±6**, `minPayrollSeasonsUnder55` max **0**, `franchiseTagsPerSeason` **14±4**, `tradesPerSeason` min **30** and open target **60–120**) stay as signed. Floor **85** on `outlierExplainedPct` stays. `milestonesOff` max stays **16**. `p0Failures` max stays **0**. `wrongSign` max stays **0**.
+
+### Untouched
+
+Engine, dials, `scripts/`, `docs/baselines.json`. No re-lock.
+
+### Gate
+
+Not run in this packet. The table is the Studio log. Docs only.
 
 ---
 
