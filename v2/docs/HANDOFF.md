@@ -5,6 +5,116 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-16 — End-of-half field-goal decision
+
+User-authorized follow-up on `codex/save-season-fixes` / draft PR #182.
+The preceding read-only investigation is preserved at
+`/Users/mearls/Documents/Gridiron GM/milestone-causes-2026-10-16/`.
+
+`sim/game.ts` now checks a last-kick decision on every down before normal
+fourth-down aggression and offensive snap prompts. A first-half possession
+banks the field goal when another scrimmage play could consume the remaining
+clock. In the fourth quarter or overtime, it does so only when a field goal
+can tie or take the lead (margin -3 through 0); victory formation and
+TD-required possessions retain their existing paths. The kicker must exist
+and the existing kicker/weather range test must pass.
+
+The clock window is the existing maximum scrimmage runoff: **45 seconds**
+(the sack path), factored into `sim/clock.ts` and reused by that same duration
+draw. This is a conservative decision for an engine without timeouts or a
+hurry-up system, not an NFL rate target. Kick accuracy, range, duration,
+scoring/stat accounting, ordinary play duration distributions and the locked
+baseline are unchanged. The new decision consumes no RNG itself; a selected
+kick follows the existing kick path, so subsequent results may change.
+
+The registered `sim/clock.test.ts` covers clock/quarter/score boundaries,
+TD-required and victory exclusions, and 40 seeded games with actual early-down
+kicks and score/stat reconciliation. Bulk/live/CPU parity includes an actual
+new early-down kick. The same regression fails against the parent engine
+(seed 1/game 2 runs out the first-half clock in comfortable range: third-and-8
+at the opponent 11, 22 seconds left; a seven-yard completion consumes the
+remaining clock instead of attempting the available 28-yard FG).
+
+### Same five panels
+
+Unchanged standard GG_SEED panels 1–5, 16 fresh leagues each (80 seasons,
+21,760 REG games). No rate or baseline changes after measurement.
+
+| Panel | Five-FG games before → after | Milestone misses before → after | Clock-expiration misses after |
+| --- | ---: | ---: | ---: |
+| 1 | 89 → 151 | 8 → 7 | 0 |
+| 2 | 107 → 172 | 8 → 12 | 0 |
+| 3 | 94 → 161 | 9 → 10 | 0 |
+| 4 | 105 → 164 | 8 → 10 | 0 |
+| 5 | 103 → 154 | 10 → 11 | 0 |
+
+Five-made-FG games average **6.225 → 10.025/year**, against the unchanged
+2021–24 REG reference **9.008/272 games**. Every panel passes that individual
+comparison. Overall comparable milestone misses average **8.6 → 10.0**;
+all pass the unchanged legacy max 16, while other distribution failures remain.
+The new action changes subsequent RNG draws and the balance of kicks/offensive
+plays; other game/season samples are not expected to stay identical.
+
+An external observer on copies of the engine checks every game log. All five
+observed harness outputs match the stock harness byte-for-byte. The measured
+failure is an early-down, non-scoring scrimmage play consuming the remaining
+clock from <=45-yard FG range with <=45 seconds available beforehand, in the
+first half or a game-ending tie/win FG situation. There are **zero** in all
+80 seasons. The prior clock audit found 314 first-half failures with <=10
+seconds remaining across the matched first four samples of each panel; that
+same subset also has zero now. Observation adds no RNG draws or production
+hooks. Original and observed runs all exit 0.
+
+### Validation
+
+Focused regression and typecheck pass. Fast (`npm run gate:serial`):
+**GATE FAIL 2 problems**, **65** steps executed; the clock regression, live/bulk
+replay, deterministic replay, 348/348 verification checks and sweep pass.
+Failures are the unchanged RB band (**1318.4**, ceiling 1286; fixed samples
+1273 / 1354 / 1269 / 1308 / 1388) and the existing user-offers whole-season RNG
+literal. No bounds, samples or rates were changed in response.
+
+The user-offers assertion expects seed 42's tag RNG 823515333; the new stream
+is 1599887382 (FA 2847491416 versus old 1063212815). Trade/FA production code
+is byte-identical to the parent. A diagnostic copy omitting only those two
+whole-season RNG literals passes every remaining behavior assertion. A separate
+strict fixture sets the user roster to positional minimums, proves no ordinary
+shop target exists, then verifies successful fallback inquiries on seeds
+11 / 42 / 99 consume exactly the original 24 parent shop picks and no further
+parent draws. Thus the literal is stale; the actual child-stream isolation
+claim still holds. The repository test is deliberately left unchanged in this
+request. Both diagnostic probes exit 0 and are preserved in the artifacts.
+
+Full (`npm run gate:full -- --seeds 1`, externally bounded to three active
+checks): **GATE FAIL 2 problems**. All **71/71** registered checks execute
+exactly once with their original arguments; the same user-offers literal and
+RB mean are the only gate failures. The 20-season drift reports **zero P0
+regressions** (injury/IR 1636.1 weeks/year, save 13.65 MB); 24-season careers,
+10-season verification, 25×2-season sweep, conditions and staff complete.
+
+The full leverage process also exits 1 on the known `OT.sta` NO EFFECT probe:
+`leverage.noEffect=1`, wrong-sign=0, unbacked OVR=0. Its exit is non-gating by
+existing design and all three metrics remain inside their unchanged bounds;
+it does not add a third gate failure. No assertion or limit was weakened.
+The strict source/hash checker passes; kick/range functions, all other game
+source, the trade test, reference data and baseline retain their expected
+bytes. The observed engine copies differ only by the passive end-of-game
+log observation. Scheduling logs verify a maximum of three active checks. Initial concurrent gate attempts were stopped because the contested
+host reached load 220 and ~25 GB swap. Only this task's verified-cwd process
+trees were terminated; aborted logs are preserved. Same checks/sample sizes
+restart with serial fast checks and at most three active full-tier checks
+(an external npx scheduling wrapper); no check, seed or sample size is skipped.
+No implementation or threshold change was made for a result.
+
+Artifacts at
+`/Users/mearls/Documents/Gridiron GM/end-half-fg-fix-validation-2026-10-16/`.
+No rate tuning or baseline edits. New test registered in `npm test` and both
+gate tiers. Changed files: `lib/core/sim/game.ts`, `lib/core/sim/clock.ts`,
+`lib/core/sim/clock.test.ts`, `package.json`, `scripts/gate.ts`,
+`AGENTS.md`, `docs/HANDOFF.md`, and `docs/nfl-reference.md`.
+
+---
+
 ## 2026-10-16 — Conditions, RB and milestone guard repairs
 
 User-authorized follow-up on `codex/save-season-fixes` / draft PR #182, after

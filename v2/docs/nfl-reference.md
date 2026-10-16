@@ -1691,6 +1691,40 @@ seasons. Passing the legacy cap does not claim those individual issues fixed.
 after the correction is not a new NFL calibration or a claim that every tail
 is correct. No reference or panel is selected after seeing the repaired run.
 
+### 5.12 End-of-half kick decision — 2026-10-16
+
+The unchanged 2021–24 REG reference in §5.11 is retained. A read-only replay
+of the same five panels (80 fresh leagues, 21,760 games) found that five-FG
+games were short because of attempts (11.625 games/year with five attempts
+versus 17.5 in the source), while make percentage was already close
+(85.46% versus 85.01%). A separate 20-season clock observation found 314
+non-scoring first-half-ending scrimmage plays on downs 1–3 from 45-yard FG
+range or closer with ten seconds or less available beforehand. The engine
+only offered a field goal on fourth down.
+
+The user authorized a decision repair, not calibration. Before normal
+fourth-down decisions or offensive snap prompts, a clock-aware branch now
+uses the existing kicker/weather range check on any down at the end of the
+first half. It also banks a tying/winning field goal at game end (margin
+-3 through 0), retaining victory formation and required-TD offense. The
+window is the existing longest scrimmage runoff, 45 seconds, shared with the
+unchanged sack-duration draw. With no timeout/hurry-up system, this deliberately
+conservative policy avoids a full snap expiring the clock; it is an
+implementation time budget, **not** a sourced NFL target or new rate.
+
+No kick-accuracy, range, duration, ordinary scrimmage duration distribution,
+reference comparison or baseline is changed. The same five 16-season tails
+panels produce five-made-FG game counts **151 / 172 / 161 / 164 / 154**
+(before: 89 / 107 / 94 / 105 / 103), or **10.025/year** versus the unchanged
+reference **9.008/272 games**. All five individual comparisons pass. The
+measured comfortable-range clock-expiration failure is zero across all 80
+seasons, verified against complete game logs by an external passive observer.
+Overall milestone misses are 7 / 12 / 10 / 10 / 11; the unchanged max 16 is
+still a legacy regression cap, not evidence every other distribution fits.
+No tolerance is widened here. Full validation is recorded in HANDOFF and the
+validation artifacts.
+
+
 ## 6. Starter availability — how much time a real starter misses
 
 Added 2026-08-02 for `task/305-availability`. **PARTIAL: skill positions only.**
