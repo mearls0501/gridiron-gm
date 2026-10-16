@@ -5,6 +5,88 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-16 — Injury/IR availability guard and separate diagnostics
+
+User-authorized follow-up on `codex/save-season-fixes` / draft PR #182. The
+guard now measures full-game injury/IR absence at each REG kickoff, across all
+living non-prospect players then rostered on an active roster or IR. Zero-snap
+players and players still on IR at season end count; practice squad, free
+agents, byes and postseason games do not. Healthy IR restrictions count once
+as IR absence. An in-game injury contributes only to subsequent missed
+kickoffs. Club membership is observed at kickoff, so a later signing is not
+charged for games before joining.
+
+`lib/core/season/engine.ts` adds an optional observer after waivers, depth-chart
+refresh and gameday inactive declarations, before any game/healing/IR moves.
+The harness copies primitive fields into an external ledger; it adds no save
+fields and takes no RNG draws. `scripts/driftAvailability.ts` validates complete
+kickoff/box evidence, freezes season totals and reconciles the old rotation's
+nonappearance into injury/IR, healthy bench, roster churn, holdout and calendar
+components. The old REG-end active-53 >100 REG-snap cohort is retained only for
+those report-only diagnostics. No injury rates, durations or roster rules were
+tuned; `docs/baselines.json` remains byte-for-byte unchanged.
+
+### Three seeds, 20 seasons each
+
+Means per league season; the guard and historical diagnostics use different
+populations as described above.
+
+| Seed | League injury/IR guard | Historical rotation bench | Historical rotation churn | Legacy band |
+| --- | ---: | ---: | ---: | --- |
+| 12345 | **1679.70** | 1673.05 | 153.75 | PASS |
+| 54321 | **1674.85** | 1679.95 | 143.45 | PASS |
+| 98765 | **1667.70** | 1726.50 | 112.20 | PASS |
+
+League injury/IR totals split into injured active **517.50 / 508.70 / 543.00**,
+injured IR **1049.60 / 1052.75 / 1029.60**, and healthy IR restrictions
+**112.60 / 113.40 / 95.10**. The historical rotation injury/IR component remains
+**1047.85 / 1047.20 / 1085.15**; that survivor-selected cohort misses long/zero-snap
+absences, so it is not the guard population.
+
+The unchanged locked band is **2158.23 +/-700** (1458.23–2858.23), and the broad
+internal band remains **1500–4000**. Both were established for the previous
+composite. These passes are legacy regression-band results, **not a calibrated
+NFL injury fit**. The unchanged baseline's NFL note is not a target for the new
+population; see `nfl-reference.md` §6.7 before any future calibration work.
+
+All 32 other pre-existing drift metrics and every non-availability column of
+all 60 season rows match `a13b012` exactly. All 60 season progress rows also
+match. P0 failures are zero on all three seeds. Every historical diagnostic
+mean independently matches the previous read-only kickoff-ledger investigation,
+including bench/churn, injury/IR, holdouts, calendar and the old total. Main
+injury/IR and historical rotation component sums both reconcile exactly.
+
+### Validation and remaining reds
+
+- Focused regression and typecheck: **PASS**. The registered availability test
+  now covers zero-snap injury, year-end/healthy IR, byes, bench/churn separation,
+  immutable kickoff evidence, missing/duplicate observations and impossible
+  appearances. One real engine week yields a deeply identical complete seeded
+  GameState with and without the observer. The test remains in `npm test` and
+  both gate tiers; no registration or dependency changes.
+- Fast gate: **GATE FAIL 1 problem**; all **62/62** harnesses exit successfully.
+  Sole metric miss is unchanged `statcheck.rb5RushYds=1288`, expected 1191 +/-95.
+- Full (`npm run gate:full -- --seeds 1`): **GATE FAIL 4 problems**;
+  **67/68** harnesses exit successfully, including drift (20 seasons), careers
+  (24 seasons), both measurement regressions, determinism, verify and sweep.
+  Remaining failures: `conditions` exit 1 and `conditions.problems=1` (home win
+  **51.702786%**, minimum 52%); `tails.milestonesOff=23`, max 16; and unchanged
+  `statcheck.rb5RushYds=1288`, expected 1191 +/-95. Availability passes the
+  unchanged locked band. Conditions/milestone failures already reproduced on
+  unchanged `99f1cae`; no remaining calibration failure was tuned away.
+
+Artifacts: `/Users/mearls/Documents/Gridiron GM/injury-ir-guard-validation-2026-10-16/`.
+`source.json` freezes functional/test/baseline SHA-256 before execution;
+`validation.json` contains the final 43 metrics per seed, all 60 injury/IR season
+readings and gate results. `check_results.py` independently compares the prior
+32 metrics and season outputs, reconciles component identities and verifies
+historical diagnostics against the earlier raw kickoff ledgers. `seed-*.log`,
+`fast-gate.log`, `full-gate.log`, `regression.log`, exit JSON, `run.py` and the
+stdout-only drift capture preload preserve the run. Earlier dated entries
+below describe the superseded rotation composite and remain historical.
+
+---
+
 ## 2026-10-16 — Regular-season availability guard
 
 User-authorized follow-up on `codex/save-season-fixes` / PR #182. Previously

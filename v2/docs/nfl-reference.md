@@ -1853,9 +1853,80 @@ check on the often-and-brief against rare-and-long split, not as a target.
 **What this does not fix.** `drift.playerWeeksLost` is a different population
 and a different question; see §6.7.
 
-### 6.7 `drift.playerWeeksLost` is about half roster churn, not absence
+### 6.7 Injury/IR absence and the historical rotation composite
 
-**2026-10-16 — user-authorized regular-season measurement correction.**
+**2026-10-16 — current method, user-authorized injury/IR guard.**
+`drift.playerWeeksLost` now counts a player-game when a living, non-prospect
+player belongs to a club playing a REG game and, at kickoff, either has
+`injuryWeeks > 0` or is on IR. IR includes healthy players still subject to
+activation/minimum-stay restrictions; the two conditions never double count.
+Practice-squad players and free agents are outside this rostered population.
+Byes and postseason games contribute zero. This measures full-game
+unavailability at kickoff: an in-game injury counts only at later kickoffs
+where the player remains unavailable. Players with no snaps and those
+still on IR at REG completion are included; a survivor-only >100-snap filter
+would censor precisely the long absences this guard needs to measure.
+
+The season engine supplies an optional observer after waivers, depth-chart
+refresh and gameday inactive declarations, before games, healing, new injuries
+and IR activation. The harness copies primitive kickoff fields into its own
+ledger, outside the save. It validates complete REG kickoff/box evidence and
+reconciles appearances with kickoff eligibility. The resulting season totals
+are frozen before playoff simulation. No injury probability, duration, roster
+rule or RNG draw changes.
+
+The previous REG-end active-53, >100 REG-snap population remains solely as a
+**report-only diagnostic**. Its nonappearance total reconciles exactly into
+injury/IR, healthy bench (scratch or no box row), roster churn (PS/off-roster),
+holdouts and the club-calendar adjustment. Injury/IR takes precedence over
+healthy bench, and off-roster/PS time stays churn even if also injured. These
+components explain that historical cohort; they do not purport to cover all
+bench time or all roster churn league-wide. The main injury/IR count uses the
+actual club at each kickoff rather than charging a future signing for weeks
+before he joined it.
+
+The locked **2158.23 +/-700** (1458.23–2858.23) and internal **1500–4000**
+limits are unchanged. Both were established on the old composite and have
+**not** been calibrated to the new injury/IR population. A pass or failure
+against them is a legacy regression-band result, not an empirical NFL injury
+fit. The `nfl` note in the unchanged baseline is not a target for this new
+population. No injury-rate tuning or baseline re-lock accompanies this repair.
+The test command and both gate tiers already register the focused regression
+harness, now also covering zero-snap injury, year-end and healthy IR, byes,
+healing after capture, separate bench/churn, missing observations and identical
+seeded engine state with versus without the observer.
+
+**Validation: 20 seasons each, seeds 12345 / 54321 / 98765.** All three
+new readings are inside the unchanged legacy band. Component means per league
+season:
+
+| Seed | Injured active | Injured IR | Healthy IR restrictions | Injury/IR total |
+| --- | ---: | ---: | ---: | ---: |
+| 12345 | 517.50 | 1049.60 | 112.60 | **1679.70** |
+| 54321 | 508.70 | 1052.75 | 113.40 | **1674.85** |
+| 98765 | 543.00 | 1029.60 | 95.10 | **1667.70** |
+
+The report-only historical rotation cohort reconciles as follows. Its injury/IR
+column covers that cohort only and is not the league-wide total above.
+
+| Seed | Rotation nonappearance | Rotation injury/IR | Healthy bench | Roster churn | Holdout | Calendar |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 12345 | 2917.50 | 1047.85 | 1673.05 | 153.75 | 39.90 | 2.95 |
+| 54321 | 2910.20 | 1047.20 | 1679.95 | 143.45 | 37.35 | 2.25 |
+| 98765 | 2969.40 | 1085.15 | 1726.50 | 112.20 | 41.15 | 4.40 |
+
+Every diagnostic mean matches the independent kickoff-ledger investigation on
+unchanged `a13b012`. All 32 other pre-existing drift metrics, all non-availability
+season-table columns and all progress outcomes match that commit on each seed;
+P0 failures remain zero. This is a measurement repair with no injury tuning.
+Source hashes, independent checks, full logs and gate results are recorded in
+`docs/HANDOFF.md`. Passing the old band does not establish a new NFL calibration.
+
+The earlier measurements below are historical and superseded by this method;
+they explain why the previous composite was retired as the availability guard.
+
+
+**2026-10-16 — earlier regular-season timing correction (historical).**
 The guard now freezes the rotation and missed-week total immediately after the
 last regular-season week, before any playoff game. It counts appearances and
 snaps directly from completed, current-season REG boxes; a playoff appearance

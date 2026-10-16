@@ -23,7 +23,7 @@ import { encodeSave } from "../lib/store/codec";
 import { schemeFit, schemeFor } from "../lib/core/staff";
 import { emitAll, progress, seedFor } from "./metrics";
 import { AgingMeasurement, captureAging, measureAging, postPeakProblems, summarizePostPeak } from "./driftAging";
-import { captureRegularAvailability } from "./driftAvailability";
+import { AvailabilityMeasurement, RegularAvailabilityTracker } from "./driftAvailability";
 
 const SEASONS = Number(process.argv[2] ?? 20);
 const SEEDS = process.argv.slice(3).map(Number);
@@ -55,6 +55,7 @@ interface Snapshot {
   season: number; ovrMean: number; n85: number; n90: number;
   ageMean: number; ovrAt27: number; ovrAt34: number; fade: number[];
   aging: AgingMeasurement;
+  availability: AvailabilityMeasurement;
   passLead: number; rushLead: number; recLead: number;
   players: number; saveMB: number; playerWeeksLost: number;
   topCapPct: number; minPayrollPct: number; medPayrollPct: number; irCapPct: number; pick1FromBottom6: boolean;
@@ -88,15 +89,15 @@ function runOne(seed: number): Snapshot[] {
 
   for (let s = 0; s < SEASONS; s++) {
     const season = st.season;
+    const availabilityTracker = new RegularAvailabilityTracker(season);
     let g = 0;
 
-    // Freeze regular-season marks and rotation availability before playoff
-    // injuries, IR moves and replacement signings can change the population.
-    // Records were historically polluted by REG+POST totals; availability
-    // must use REG boxes for both its >100-snap threshold and appearances.
+    // Observe injury/IR eligibility at kickoff, before games and healing.
+    // The old >100-snap rotation nonappearance total remains report-only.
     while (st.phase !== "regular" && g++ < 12) advance(st);
-    while (st.phase === "regular" && g++ < 40) advance(st);
-    const { playerWeeksLost } = captureRegularAvailability(st);
+    while (st.phase === "regular" && g++ < 40) advance(st, availabilityTracker.observeKickoff);
+    const availability = availabilityTracker.finish(st);
+    const playerWeeksLost = availability.injuryIrMissedWeeks;
     const regLine = (p: Player) => p.stats.find((x) => x.season === season);
     const regLead = (k: string) =>
       Math.max(0, ...st.players.map((p) => {
@@ -192,7 +193,7 @@ function runOne(seed: number): Snapshot[] {
       season, ovrMean: mean(ovrs),
       n85: ovrs.filter((v) => v >= 85).length,
       n90: ovrs.filter((v) => v >= 90).length,
-      ageMean, ovrAt27, ovrAt34, fade, aging,
+      ageMean, ovrAt27, ovrAt34, fade, aging, availability,
       passLead: regPassLead, rushLead: regRushLead, recLead: regRecLead,
       players: st.players.length,
       // What actually lands in IndexedDB, not the in-memory object: the save
@@ -381,11 +382,14 @@ const overPass = flat.filter((r) => r.passLead > 5477).length;
 guard(overPass < flat.length * 0.15, "the passing record is not broken every year",
   `${overPass}/${flat.length} seasons exceeded 5,477 yards`, true);
 
-// A band, not a floor. Too few and injuries are decoration; too many and depth
-// stops being depth and every season is decided by attrition.
+// Preserve existing regression limits; these were locked on the old composite
+// and have not been calibrated as an NFL target for this injury/IR population.
 const injuryLoad = mean(flat.map((r) => r.playerWeeksLost));
-guard(injuryLoad > 1500 && injuryLoad < 4000, "regular-season rotation missed weeks stay bounded",
-  `${injuryLoad.toFixed(0)} rotation player-weeks lost league-wide per season`);
+guard(injuryLoad > 1500 && injuryLoad < 4000, "regular-season injury/IR absences stay bounded",
+  `${injuryLoad.toFixed(0)} rostered injury/IR player-weeks lost league-wide per season`);
+console.log(`  rotation diagnostics (report-only): bench ${mean(flat.map((r) => r.availability.rotationBenchWeeks)).toFixed(2)}, ` +
+  `churn ${mean(flat.map((r) => r.availability.rotationChurnWeeks)).toFixed(2)}, ` +
+  `all nonappearances ${mean(flat.map((r) => r.availability.rotationNonappearanceWeeks)).toFixed(2)} per season`);
 
 const growth = mean(all.map((s) => (s[s.length - 1].saveMB - s[0].saveMB) / (SEASONS - 1)));
 // 0.61, matching the panel-locked `drift.saveGrowthMbPerSeason` baseline
@@ -428,6 +432,16 @@ emitAll({
   "drift.topCapPctMean": topCapPctMean,
   "drift.passRecordSeasons": overPass,
   "drift.playerWeeksLost": injuryLoad,
+  "drift.injuredActiveWeeks": mean(flat.map((r) => r.availability.injuredActiveWeeks)),
+  "drift.injuredIrWeeks": mean(flat.map((r) => r.availability.injuredIrWeeks)),
+  "drift.healthyIrWeeks": mean(flat.map((r) => r.availability.healthyIrWeeks)),
+  "drift.injuryIrOpportunities": mean(flat.map((r) => r.availability.rosteredGameOpportunities)),
+  "drift.rotationNonappearanceWeeks": mean(flat.map((r) => r.availability.rotationNonappearanceWeeks)),
+  "drift.rotationInjuryIrWeeks": mean(flat.map((r) => r.availability.rotationInjuryIrWeeks)),
+  "drift.rotationBenchWeeks": mean(flat.map((r) => r.availability.rotationBenchWeeks)),
+  "drift.rotationRosterChurnWeeks": mean(flat.map((r) => r.availability.rotationChurnWeeks)),
+  "drift.rotationHoldoutWeeks": mean(flat.map((r) => r.availability.rotationHoldoutWeeks)),
+  "drift.rotationCalendarAdjustment": mean(flat.map((r) => r.availability.rotationCalendarAdjustment)),
   "drift.ovrDrift": ovrDrift,
   "drift.eliteGrowthRatio": eliteGrowth,
   "drift.franchiseTagsPerSeason": mean(flat.map((r) => r.franchiseTags)),
