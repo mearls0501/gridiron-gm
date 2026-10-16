@@ -1972,6 +1972,33 @@ movement smaller than ~170 as noise.
 
 ### 6.9 `drift.active()` is the 53-man, not every body on `teamId`
 
+
+**2026-10-16 — authorized age-guard correction.** Age and OVR cohort
+measurements now freeze primitive values at `offseason-recap`, before any
+progression, retirement, or roster changes. The age27/age34 ordering is a
+diagnostic, not an aging assertion: older rostered players are a selected
+population that was stronger to begin with. Under the former guard, in all six
+failed default-seed cohorts the same people had already lost 11.88–15.30 OVR
+from age27; a higher
+mean than a different young cohort did not demonstrate missing aging.
+
+The progression audit selects **all living non-prospects before progression**,
+not just the men who remain on a roster afterward. It matches player IDs
+immediately after the recap step, including newly retired players. Each must
+age exactly once. When the incoming age is strictly beyond that player's
+frozen personal `peakAge`, record the same-player OVR change. Within each seed,
+every position must have observations and a negative mean annual change.
+This is an internal progression invariant, not an estimate of an NFL age curve.
+The existing individual career-peak decline guard (`meanFade < -5`) remains.
+
+`scripts/driftAging.test.ts` guards immutable before/after observations, late
+peaks, retirement/IR/PS/release inclusion, missing or skipped age updates, empty
+samples, and stalled or reversed aging in one position. Its steps are registered
+in both gate tiers and the test command. No engine coefficient or
+`docs/baselines.json` target changes. The historical population-filter analysis
+below still applies to the active-roster OVR and demographic tables; the paired
+progression audit intentionally covers everyone eligible to progress.
+
 Added 2026-09-12 for Wave 3.4 Packet C. Changing WHAT the franchise-arc
 guards measure, not the engine. `docs/baselines.json` is not moved in this
 packet.

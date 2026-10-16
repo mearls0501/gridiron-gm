@@ -5,6 +5,73 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-16 — Frozen, personal-peak aging guard
+
+User-authorized follow-up to the save/regular-season fixes on
+`codex/save-season-fixes` / PR #182. The old age34/age27 ordering compared
+different populations and deferred reading mutable player references until
+after offseason progression. Unchanged code scored 14/20, 17/20 and 17/20 on
+seeds 12345, 54321 and 98765 even though the older subjects declined.
+
+`scripts/drift.ts` now freezes recap age/OVR values before advancing. Cohort
+ordering remains report-only. `scripts/driftAging.ts` captures immutable
+before/after primitives for the same players, including those who retire or
+leave a roster during the step. Every living non-prospect must age exactly
+once. Players whose incoming age exceeds their own frozen `peakAge` enter the
+annual decline sample; each position, separately for each seed, must have a
+sample and a negative mean change. The existing career-peak guard
+`meanFade < -5` stays. No aging-engine, baseline, dependency or RNG change.
+
+### Three seeds, 20 seasons each
+
+| Seed | Same-player comparisons | Post-peak observations | Mean annual OVR change | Aging guard |
+| --- | ---: | ---: | ---: | --- |
+| 12345 | 61,492 | 15,627 | -2.873 | PASS |
+| 54321 | 61,200 | 15,610 | -2.860 | PASS |
+| 98765 | 62,090 | 15,611 | -2.929 | PASS |
+
+Zero age errors in 184,782 comparisons. All 14 positions have negative means
+in every seed (46,848 post-peak player-seasons total). All 27 existing
+simulation metrics besides the deliberately corrected `drift.p0Failures`
+match the pre-change `043c777` runs exactly in each seed. All 60 printed
+age/OVR demographic rows match independently captured pre-offseason
+snapshots. The properly frozen cohort-ordering diagnostic reads 7/20, 8/20
+and 9/20; it no longer determines whether aging works.
+
+Regression coverage passes for immutable before/after snapshots, personal
+peak boundaries, retirement/IR/PS/release inclusion, missing/skipped/double
+age ticks, missing samples, and stalled/reversed aging in a single position.
+Registered `driftaging` in `npm test` and both gate tiers. Typecheck passes.
+Fast gate: **GATE FAIL 1 problem**, solely the inherited
+`statcheck.rb5RushYds=1288`, expected 1191 +/-95 (ceiling 1286).
+
+Full gate (`npm run gate:full -- --seeds 1`): **GATE FAIL 5 problems**;
+66 of 67 harness steps exit successfully, including `drift`, `driftaging`,
+`careers` (24 seasons), determinism, verify, sweep and both save/stats tests.
+The previous age failure and its drift exit failure are gone. Remaining lines:
+
+```
+FAIL  conditions  exited 1
+FAIL  conditions.problems  1  expected <= 0
+FAIL  tails.milestonesOff  23  expected <= 16
+FAIL  drift.playerWeeksLost  2999.60  expected 2158.23 +/-700
+FAIL  statcheck.rb5RushYds  1288  expected 1191 +/-95
+```
+
+These match the earlier save/stats-fix run. Unchanged `99f1cae` also reproduces
+the conditions home win rate (51.702786%), milestone count and RB figure.
+The separate availability measurement changed with regular-only stat rows:
+its `17-games` reading occurs after playoffs, and its existing lock used
+combined regular/playoff rows. That measurement and its bound remain for
+review; this age-guard follow-up changes neither injuries nor availability.
+
+Raw logs, source hashes, independent snapshot checks and per-position results:
+`/Users/mearls/Documents/Gridiron GM/age-guard-fix-validation-2026-10-16/validation.json`.
+Method and historical diagnosis are documented in `docs/nfl-reference.md`
+§6.9 and the age-guard row in `AGENTS.md`.
+
+---
+
 ## 2026-10-15 — Strategy pass, Packets A+B
 
 Matt **SIGNED** this. Built from the signed task text (Packets A and B). View and copy only. No engine draft-order or pick RNG change. No dial, band, re-lock, or `docs/baselines.json` edit. The CPU three-7ths trade filler was left alone.
