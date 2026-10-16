@@ -5,6 +5,80 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-16 — Regular-season availability guard
+
+User-authorized follow-up on `codex/save-season-fixes` / PR #182. Previously
+`drift.playerWeeksLost` read REG-only appearance rows against a population
+selected after the playoffs. That mixed regular-season absence with later
+injury healing, IR activation and replacement/roster changes; before the stats
+correction it also subtracted postseason appearances from 17.
+
+The guard now freezes a numerical snapshot at regular-season completion.
+`scripts/driftAvailability.ts` derives appearances and the strict >100-snap
+rotation cutoff from current-season REG boxes, then computes
+`max(0, club REG games - REG appearances)` for each active-53 rotation player.
+Current schedules have 17 games, excluding the bye. Existing active-53
+eligibility remains; this is still the §6.7 rotation non-appearance/churn
+composite, not a pure injury count. Postseason games, workload, stat rows and
+roster changes cannot alter the frozen snapshot. Missing boxes, a missing
+rotation, duplicate appearances or sampling after a playoff game fail loudly.
+
+The baseline stays **2158.23 +/-700** (1458.23–2858.23), byte-for-byte unchanged.
+No game engine, injury model, dependency or RNG change. The old broad internal
+P0 band is unchanged; the gate continues to enforce the narrower locked band.
+Regression coverage and typecheck pass; the test is registered in `npm test`
+and both gate tiers.
+
+### Three seeds, 20 seasons each
+
+| Seed | Previous post-playoff roster reading | Corrected REG reading | Excess over unchanged 2858.23 ceiling |
+| --- | ---: | ---: | ---: |
+| 12345 | 2999.60 | 2917.50 | 59.27 |
+| 54321 | 2981.25 | 2910.20 | 51.97 |
+| 98765 | 3041.15 | 2969.40 | 111.17 |
+
+**The corrected measurement still fails the locked availability band on all
+three seeds.** Sampling before playoff roster/IR changes removes 82.10,
+71.05 and 71.75 weeks respectively; it does not remove the whole calibration
+miss. The baseline is preserved, not widened or re-centered. These readings
+remain the rotation/churn composite described in §6.7 and do not establish an
+injury-model defect by themselves.
+
+All 32 other emitted drift metrics match the preceding `0f8a292` runs exactly
+on every seed, including zero aging errors and zero P0 failures. The old broad
+internal P0 availability band passes; the narrower locked gate band above does
+not. All other columns of all 60 season-table rows also match. Both direct
+alternate-seed drift processes exit 0; the default seed is the full gate's
+20-season child. Source hashes verify that the functional files stayed fixed
+throughout validation, and the baseline hash matches the committed base.
+
+Fast gate: **GATE FAIL 1 problem**; all 62 harness steps exit successfully.
+Only `statcheck.rb5RushYds=1288`, expected 1191 +/-95 (ceiling 1286), remains.
+Full gate (`npm run gate:full -- --seeds 1`): **GATE FAIL 5 problems**;
+67 of 68 harness steps exit successfully, including `drift`,
+`driftavailability`, `driftaging`, careers (24 seasons), determinism, verify,
+sweep and the save/stats regressions. Final failures:
+
+```
+FAIL  conditions  exited 1
+FAIL  conditions.problems  1  expected <= 0
+FAIL  tails.milestonesOff  23  expected <= 16
+FAIL  drift.playerWeeksLost  2917.50  expected 2158.23 +/-700
+FAIL  statcheck.rb5RushYds  1288  expected 1191 +/-95
+```
+
+The non-availability failures match the previous full gate. Conditions' home
+win rate remains 51.702786% (minimum 52%). The corrected availability reading
+replaces 2999.60 with 2917.50; its remaining 59.27-week excess is not hidden by
+the broad P0 band, because the locked gate comparison still fails. No browser
+or build rerun is needed for this scripts/docs-only follow-up; game code is
+unchanged from the previously validated implementation.
+
+Raw logs, tested source hashes and comparisons:
+`/Users/mearls/Documents/Gridiron GM/availability-guard-fix-validation-2026-10-16/validation.json`.
+
+---
+
 ## 2026-10-16 — Frozen, personal-peak aging guard
 
 User-authorized follow-up to the save/regular-season fixes on

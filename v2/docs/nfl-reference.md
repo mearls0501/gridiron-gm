@@ -1855,6 +1855,40 @@ and a different question; see §6.7.
 
 ### 6.7 `drift.playerWeeksLost` is about half roster churn, not absence
 
+**2026-10-16 — user-authorized regular-season measurement correction.**
+The guard now freezes the rotation and missed-week total immediately after the
+last regular-season week, before any playoff game. It counts appearances and
+snaps directly from completed, current-season REG boxes; a playoff appearance
+cannot erase a REG absence or push someone above the >100-snap cutoff. The
+denominator is the current club's scheduled REG games (17 on this schedule),
+so the bye is not a missed game. Season-stat rows and postseason workload do
+not enter this calculation. Both roster membership and the result are frozen
+before postseason injury healing, IR moves, replacements or releases.
+
+The existing active-53 filter and strict >100 REG-snap threshold remain. A
+player still on IR/PS, retired, a prospect or a free agent at that cutoff is
+outside the population; a returned active player carries his REG absences.
+This remains a rotation non-appearance/churn composite, not an injury-only
+counter or the established-starter NFL target in §6.5. The baseline stays
+**2158.23 +/-700**, unchanged, including both bounds **1458.23–2858.23**.
+No engine or injury tuning is authorized by a remaining calibration miss.
+
+Twenty-season runs on seeds **12345 / 54321 / 98765** read **2917.50 /
+2910.20 / 2969.40**, against previous post-playoff roster readings **2999.60 /
+2981.25 / 3041.15**. All three corrected values still exceed 2858.23; the
+measurement repair does not close the calibration miss. All 32 other emitted
+drift metrics and all other season-table columns match the prior `0f8a292`
+runs exactly. Full results and artifact locations are in `docs/HANDOFF.md`.
+
+`scripts/driftAvailability.ts` requires complete REG boxes and a nonempty
+rotation, rejects a late postseason sample, and returns frozen primitives.
+`scripts/driftAvailability.test.ts` covers actual REG absences, full-season
+attendance, byes, the strict snap threshold, roster exclusions, contaminated
+combined season rows, postseason-only workload, later roster mutations,
+missing evidence and duplicate appearances. It is registered in the test
+command and both gate tiers. The historical measurements below describe the
+previous timing and remain for comparison.
+
 Added 2026-08-02, measured while fitting §6.5. Recorded because the metric reads
 as an injury guard and is not one, and anyone tuning availability against it
 will be misled the way this task was.

@@ -23,6 +23,7 @@ import { encodeSave } from "../lib/store/codec";
 import { schemeFit, schemeFor } from "../lib/core/staff";
 import { emitAll, progress, seedFor } from "./metrics";
 import { AgingMeasurement, captureAging, measureAging, postPeakProblems, summarizePostPeak } from "./driftAging";
+import { captureRegularAvailability } from "./driftAvailability";
 
 const SEASONS = Number(process.argv[2] ?? 20);
 const SEEDS = process.argv.slice(3).map(Number);
@@ -89,18 +90,13 @@ function runOne(seed: number): Snapshot[] {
     const season = st.season;
     let g = 0;
 
-    // Single-season marks are REGULAR-SEASON records, so they have to be read
-    // before the playoffs write into the same stat line. `applyGameStats` is
-    // called from `playoffs.ts` too, and a quarterback who plays four playoff
-    // games adds about 1,000 yards to the row this used to measure: on twelve
-    // matched sim seasons the best passing season read 5,316 with the playoffs
-    // in it and 4,735 without, against a 5,477 record that is REG-only.
-    //
-    // Everything else in the snapshot is still taken at `offseason-recap`,
-    // where it has always been taken — in particular `playerWeeksLost`, whose
-    // band was locked against that reading.
+    // Freeze regular-season marks and rotation availability before playoff
+    // injuries, IR moves and replacement signings can change the population.
+    // Records were historically polluted by REG+POST totals; availability
+    // must use REG boxes for both its >100-snap threshold and appearances.
     while (st.phase !== "regular" && g++ < 12) advance(st);
     while (st.phase === "regular" && g++ < 40) advance(st);
+    const { playerWeeksLost } = captureRegularAvailability(st);
     const regLine = (p: Player) => p.stats.find((x) => x.season === season);
     const regLead = (k: string) =>
       Math.max(0, ...st.players.map((p) => {
@@ -123,17 +119,6 @@ function runOne(seed: number): Snapshot[] {
     const ovrs = A.map((p) => p.ovr);
     for (const p of A) peak.set(p.id, Math.max(peak.get(p.id) ?? 0, p.ovr));
     const fade = A.filter((p) => p.age >= 33 && peak.has(p.id)).map((p) => p.ovr - peak.get(p.id)!);
-    const line = (p: Player) => p.stats.find((x) => x.season === season);
-
-    // Games a rostered player was unavailable for: 17 minus what he played,
-    // counted only for players good enough to have been in the rotation.
-    // Includes IR minimum weeks after #33 (`IR_MIN_GAMES` = 4): a
-    // designation cannot return before four games, so those weeks sit
-    // in `17 - games` for anyone who served IR and is still in this
-    // rotation set at recap. The metric remains the §6.7
-    // churn-plus-absence composite; this is not a new claim.
-    const rotation = A.filter((p) => (line(p)?.snaps ?? 0) > 100);
-    const playerWeeksLost = rotation.reduce((n, p) => n + Math.max(0, 17 - (line(p)?.games ?? 0)), 0);
 
     const cap = salaryCap(season, season - st.history.length);
     // The user's club is excluded for the same reason checkParity excludes it:
@@ -399,7 +384,7 @@ guard(overPass < flat.length * 0.15, "the passing record is not broken every yea
 // A band, not a floor. Too few and injuries are decoration; too many and depth
 // stops being depth and every season is decided by attrition.
 const injuryLoad = mean(flat.map((r) => r.playerWeeksLost));
-guard(injuryLoad > 1500 && injuryLoad < 4000, "injuries cost a realistic amount of playing time",
+guard(injuryLoad > 1500 && injuryLoad < 4000, "regular-season rotation missed weeks stay bounded",
   `${injuryLoad.toFixed(0)} rotation player-weeks lost league-wide per season`);
 
 const growth = mean(all.map((s) => (s[s.length - 1].saveMB - s[0].saveMB) / (SEASONS - 1)));
