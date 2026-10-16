@@ -5,6 +5,48 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-16 — Legacy-save repair of regular-season totals
+
+Checked on a franchise the pre-PR engine wrote, then loaded on this branch. The save was played on `d598dc0` (main after #183 and #184). That tree's `v2/lib` matches `99f1cae`. Seed **12345**. Two seasons, **2026** and **2027**. Each year is 272 regular-season games and 13 playoff games (wild card, divisional, conference, Super Bowl). The file was encoded at **2027 `offseason-tag`**, after that recap stored the year's leaders and before the calendar roll discarded the 2027 boxes. The 2026 boxes were already gone, so those lines are still the combined regular-plus-playoff totals the old `applyGameStats` wrote. Pre-PR file **8,013,076** bytes.
+
+Loaded here with `decodeSave` then `migrate` (`rebuildRegularSeasonStats`). A second load encoded the repaired state and ran `decodeSave` + `migrate` again.
+
+**2027, boxes still on the save.** Every rebuilt season line matches an independent sum of that player's regular-season boxes. **1,550** players, **0** mismatches, counting stats and longest plays. **508** lines had playoff production folded in. Playoff games stay on the box and off the season line.
+
+| Player | Stat | Before (REG+POST) | After | REG-only |
+| --- | --- | ---: | ---: | ---: |
+| Micah Rutledge, QB, Philadelphia | pass yards | 5,910 in 20 games | 4,617 in 16 | 4,617 (1,293 in 4 playoff games left out) |
+| Micah Rutledge, QB | rush yards | 983 | 756 | 756 (227 left out) |
+| Vince Green, QB | pass yards | 4,708 in 17 | 4,708 in 17 | 4,708 (no playoff games) |
+| DeShawn Rodriguez III, RB | rush yards | 1,463 in 19 | 1,271 in 17 | 1,271 (192 left out) |
+| Julian Mayfield, RB | rush yards | 1,372 in 17 | 1,372 in 17 | 1,372 (no playoff rushes) |
+| Cameron Boseman, WR | rec yards | 2,160 in 20 | 1,744 in 17 | 1,744 (416 left out) |
+| Chris Voss, EDGE | sacks | 19 in 17 games | 16 in 16 | 16 (3 left out) |
+| Chris Hernandez, EDGE | sacks | 16 in 16 | 16 | 16 (no playoff sacks) |
+| Omar Anderson, QB | longest pass | 40 | 13 | 13 (playoff long was 40) |
+| Carlos Caldwell, RB | season line | 2 games, 8 rush yards, 17 snaps | no 2027 row | 0 regular-season games |
+
+Carlos Caldwell is playoff-only. The repair drops the invented 2027 row and keeps **17** snaps on `postseasonUsage`. Three other playoff-only players (Micah Pemberton, OG; Micah Quarles, S; Omar Wright, C) lose the 2027 row the same way and keep their postseason snaps.
+
+2027 season leaders (`history.leaders` and `leaders()`) equal those regular-season totals:
+
+- Passing yards: Micah Rutledge **5,910** → Vince Green **4,708**.
+- Rushing yards: DeShawn Rodriguez III **1,463** → Julian Mayfield **1,372**.
+- Receiving yards: Cameron Boseman stays the leader, **2,160 → 1,744**.
+- Sacks: Chris Voss **19** → Chris Hernandez **16**.
+
+`seasonRecords` reads the best single season still stored. The 2027 passing high is Vince Green **4,708**, the regular-season sum. The all-time passing season record stays DeShawn Hernandez **4,945** in 2026, because that year's boxes were discarded and the repair does not guess. The sacks season record moves from Chris Voss **19** (2027, combined) to Chris Hernandez **16** (2027), the regular-season sum. Micah Rutledge's career passing yards go **9,738 → 8,445**. The career passing lead becomes DeShawn Hernandez **8,805**; his 2026 playoff yards are still inside the preserved line.
+
+Team points for 2027 come off the same boxes and leave the playoffs out. Brooklyn: **351** with the playoffs, **299** after, regular-season sum **299**, playoff **52**, **17** games. All 32 clubs match.
+
+**2026, boxes discarded.** **0** stat lines changed. Leaders stay DeShawn Hernandez **4,945** pass, Joseph Baker **1,587** rush, Quinn Ulrich III **1,919** receiving, Amari Rodriguez **16** sacks. Awards for both years are not reassigned.
+
+**Second load.** The repaired encoding is **8,069,158** bytes. Loading it again is byte-identical. Stat lines, postseason workload, and archived leaders do not change.
+
+No engine tuning, no dial change, no RNG change. `drift.playerWeeksLost` is not re-locked. `docs/baselines.json` was not edited.
+
+---
+
 ## 2026-10-16 — Regular-season availability guard
 
 User-authorized follow-up on `codex/save-season-fixes` / PR #182. Previously
