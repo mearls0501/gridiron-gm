@@ -5,6 +5,85 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-16 — Pooled top-5 FA APY on the gate panel (report-only)
+
+Docs and one observer. The Lane 1 panel at `99f1cae` (the next section) could not print a pooled top-5 free-agent APY by position, or a count of those deals on 1.10× the positional ceiling. This section is that measurement, on `main` at `4e8dd6c`. **Report-only. No re-lock.**
+
+`4e8dd6c` differs from `99f1cae` by the Lane 1 HANDOFF section only. The engine this walk ran is that panel's engine. `docs/baselines.json` was not edited. No dial moved. Calibration freeze still stands.
+
+### Method
+
+`scripts/faApyCensus.ts`. It is not a gate step and it is not in `package.json`. The observer adds no draw of its own. The sim writes `state.rngState` the same way drift does. The gate does not import the script.
+
+Same walk as `scripts/drift.ts` at 20 seasons. `newGame` on `seedFor(12345)` with `GG_SEED` set to each `gate:full` panel index, 1 through 5. Those are the five seeds `npm run gate:full` passes into drift. The mixed seeds were 506939785, 1013891931, 1520852267, 2027804413, and 387272780. Each seed plays 20 seasons and walks every offseason with the same `advance` / `advanceOffseason` loop drift uses. That is 100 offseasons. The headless user's club does not bid, the same as drift.
+
+A signing is a player who was a street free agent when `offseason-fa` opened and held a contract after that phase's `advanceOffseason`. Street is `freeAgents`: no club, not retired, not a prospect, not on waivers. The open is the return from the `offseason-tag` advance (contracts expired, CPU re-signs done, market open, opening bids placed). The close is the return from the `offseason-fa` advance (every FA wave, the trade burst, and entering the draft). Re-signs before the market opens stay out of this book. Undrafted free agents and cutdown signings happen later and stay out of this book.
+
+APY is `(sum of base salaries + signing bonus) / years`. Every deal in the pool still had `yearsRemaining === years` and a full base-salary array, so that quotient is the APY the bid was built from. Percent is `100 × APY / teamCap().cap`. That cap is `salaryCap` for the league year the deal is priced on. Carryover adds room. It is not the denominator.
+
+Each offseason, each position, the top five APYs enter the pool. A shorter book enters every deal it signed. An empty book enters nothing. Mean is the arithmetic mean of those percents. Median is the middle value, or the average of the two central values when the count is even. Max is the highest single deal. Percents in the table are rounded to 0.01 points of cap. The kicker mean is 0.995 before that rounding, so the cell reads 1.00.
+
+The 1.10× cap is `Math.round(positionalCeiling(pos, age, cap) × 1.10)`, the dollar stop `apyFromAsk` rounds before `MAX_CONTRACT_SHARE` (`lib/core/offseason/contracts.ts`). Age is the player's age at the signing, after recap. K and P use the specialist shares inside `positionalCeiling` (`7.0M/301.2M` and `4.1M/301.2M`, times `ageMult`). A deal is on that cap when the absolute gap is at most **$1,000**. Every deal in the count below had a gap of **$0**. The $1,000 tolerance added no deals. $1,000 is about 0.0003% of a $300M cap, inside 0.01% of the cap.
+
+`apyFromAsk` then takes the minimum of that dollar cap and `Math.round(cap × 0.22)`. For every position except quarterback, 1.10× the prime-age ceiling sits under 22%, so the two stops are the same number on a prime-age player. A quarterback at age 25–29 has a 1.10× cap of 23.10%, and the function stops at 22%.
+
+The ceiling column is `positionalCeiling(pos, 27, 1)`, the age-25–29 share, in percent. An older or younger player caps lower (`ageMult` 0.88 / 0.70 / 0.50). The NFL column is a top-five mean only where `docs/nfl-reference.md` §4 lists the five APYs. Quarterback is the 2025 top five excluding Mahomes, **20.06%**. Kicker is the mean of the five OTC rows in that section (Boswell, Aubrey, Fairbairn, Butker, Elliott): `$6,541,333 / $301.2M` = **2.17%**. Punter is the mean of Stout, Dickson, Cooke, Cole, and Mann: `$3,920,000 / $301.2M` = **1.30%**. EDGE and WR are a 12–13% cluster in that section (Garrett 14.32%, Bosa 12.18%, Jefferson 12.54%, Lamb 12.18%), not a listed top five, so those cells are a dash. The other positions have no top-five APY in the file.
+
+### Pooled top-5 FA APY, percent of that season's cap
+
+100 offseasons. 6,150 top-5 deals. **501** sit on 1.10× `positionalCeiling` for that player's age. **530** sit on the dollar cap `apyFromAsk` returns, which is the 1.10× stop or 22% when 22% is tighter.
+
+| pos | ceiling | 1.10× | NFL top-5 | n | mean | median | max | on 1.10× |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| QB | 21.00 | 23.10 | 20.06 | 500 | 7.93 | 6.03 | 22.00 | 15 |
+| EDGE | 12.93 | 14.22 | — | 500 | 7.12 | 6.31 | 14.22 | 71 |
+| OT | 12.39 | 13.63 | — | 500 | 6.15 | 5.21 | 13.63 | 49 |
+| WR | 11.28 | 12.41 | — | 500 | 6.25 | 5.38 | 12.41 | 67 |
+| CB | 11.28 | 12.41 | — | 500 | 6.09 | 5.24 | 12.41 | 57 |
+| DT | 9.83 | 10.82 | — | 498 | 4.19 | 3.36 | 10.82 | 40 |
+| S | 8.92 | 9.81 | — | 492 | 3.79 | 2.95 | 9.81 | 39 |
+| TE | 8.60 | 9.46 | — | 485 | 2.70 | 2.04 | 9.46 | 20 |
+| LB | 8.28 | 9.11 | — | 494 | 3.56 | 2.80 | 9.11 | 42 |
+| OG | 8.28 | 9.11 | — | 492 | 3.43 | 2.72 | 9.11 | 42 |
+| C | 7.96 | 8.75 | — | 424 | 2.38 | 1.62 | 8.75 | 20 |
+| RB | 6.95 | 7.64 | — | 440 | 1.77 | 1.16 | 7.64 | 14 |
+| K | 2.32 | 2.56 | 2.17 | 116 | 1.00 | 0.78 | 2.56 | 10 |
+| P | 1.36 | 1.50 | 1.30 | 209 | 0.57 | 0.40 | 1.50 | 15 |
+
+Pooled on 1.10×: **501 / 6,150**. Pooled on the cap `apyFromAsk` returns: **530 / 6,150**. The extra 29 are quarterbacks.
+
+The quarterback max is **22.00**, the outer backstop. Of the 500 QB deals, **29** sit exactly on 22.00% and all 29 are age 25–29. Those 29 are in the 530 and stay out of the 15. The 15 on 1.10× are age-discounted: 7 at 30–31, 4 at 32–33, 4 at 34+. A prime-age quarterback in this pool is paid at 22%, which is under the 23.10% product.
+
+Of the 501 deals on 1.10×, **320** are age 25–29, on the prime-age share in the ceiling column. The other **181** are on that player's lower `ageMult` cap. For every position except quarterback, the "on 1.10×" count and the `apyFromAsk` count are the same number.
+
+Books shorter than five, so `n` is under 500: DT 498 (2 short), S 492 (5), TE 485 (9), LB 494 (3), OG 492 (4), C 424 (35), RB 440 (23 short, 2 empty), K 116 (58 short, 41 empty), P 209 (54 short, 27 empty). QB, EDGE, OT, WR, and CB signed at least five in every offseason.
+
+### Scope
+
+The 2026-10-14 table in this file is seed 12345, 10 seasons, and the five highest deals in that whole run. This table is each offseason's top five, pooled across the five panel seeds, so the mean sits under the ceiling and the max is the pin. The Studio log at `99f1cae` still does not contain these figures. Nothing here is a `##M` line from that panel. `contractceiling`'s year-0 top QB 19.6% and top-five mean 18.3% are the planted fixture.
+
+### Calibration freeze
+
+**CALIBRATION FREEZE** in effect (Matt **SIGNED** 2026-10-08). No new metrics, bands, or re-locks. This census is not a finding that needs one. The freeze still stands.
+
+### Untouched
+
+Engine, dials, `docs/baselines.json`, `scripts/gate.ts`. The new file is `scripts/faApyCensus.ts`. It only observes. No re-lock.
+
+### Gate
+
+Fast `npm run gate:serial` from `v2/` (1 seed, 4 cores). `GATE FAIL  1 problem`. The only FAIL line is the known single-seed noise:
+
+```
+FAIL  statcheck.rb5RushYds  1288  expected 1191 +/-95  (NFL ~1191)
+```
+
+**1288** is 2 yards over the fast-tier ceiling (1191 + 95 = 1286). The same line, on the same seed, is the fast-gate result recorded on 2026-10-15 and on 2026-10-14. The baseline stays.
+
+`useroffers` exited 0 (`parent rng unchanged`). That step still asserts tag **823515333** and FA **1063212815**. `determinism` printed `DETERMINISTIC`. `verify.failures` **0**. `calibrate.scoreMismatches` **0**. `calibrate.pts` **23.19**, `passYds` **241.14**, `rushYds` **118.28**, `fgPct` **86.0**. `statcheck.qb5PassYds` **4103**, `qb10PassYds` **3581**, `qb20PassYds` **3050**, `wr10RecYds` **1136**. `leverage.wrongSign` **0**. `leverage.noEffect` **1** (`OT.sta`). Those are the figures from the 2026-10-15 fast gate. Gate fingerprints are unchanged. Not re-locked.
+
+---
+
 ## 2026-10-16 — Studio panel GATE table @ 99f1cae (vs #177 @ 594bf84) (report-only)
 
 Docs only. Lane 1 Mac Studio panel on main after `594bf84` (#177). **Report-only. No re-lock.**
