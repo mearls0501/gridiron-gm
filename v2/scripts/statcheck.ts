@@ -130,7 +130,8 @@ emitAll({
   "statcheck.qb5PassYds": rankAt("passYds", 5),
   "statcheck.qb10PassYds": rankAt("passYds", 10),
   "statcheck.qb20PassYds": rankAt("passYds", 20),
-  "statcheck.rb5RushYds": rankAt("rushYds", 5),
+  // The canonical guard is emitted by rbPanel.ts, including in the fast tier.
+  "statcheck.rb5RushYdsSample": rankAt("rushYds", 5),
   "statcheck.wr10RecYds": rankAt("recYds", 10),
   "statcheck.rushers1700": countOver("rushYds", 1700),
   "statcheck.passers4800": countOver("passYds", 4800),

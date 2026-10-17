@@ -2,7 +2,7 @@ import { Rng } from "../rng";
 import { simulateGame } from "../sim/game";
 import { refreshDepthCharts } from "../generate";
 import { generateSchedule } from "../schedule";
-import { GameState, Player, REGULAR_SEASON_WEEKS, TRADE_DEADLINE_WEEK } from "../types";
+import { Game, GameState, Player, REGULAR_SEASON_WEEKS, TRADE_DEADLINE_WEEK } from "../types";
 import { applyGameStats } from "./stats";
 import { recordGame } from "./records";
 import { initPlayoffs, simulatePlayoffRound } from "./playoffs";
@@ -54,8 +54,11 @@ export function startRegularSeason(state: GameState): void {
   runPsychology(state);
 }
 
+/** Optional observation point after roster/active declarations, before any game or healing. */
+export type RegularKickoffObserver = (state: Readonly<GameState>, games: readonly Game[]) => void;
+
 /** Simulate every unplayed game in the current week. */
-export function simulateWeek(state: GameState): void {
+export function simulateWeek(state: GameState, onKickoff?: RegularKickoffObserver): void {
   resolveWaivers(state);
   const rng = new Rng(state.rngState);
   refreshDepthCharts(state);
@@ -70,6 +73,7 @@ export function simulateWeek(state: GameState): void {
     dressing.add(g.awayId);
   }
   declareGamedayInactives(state, dressing);
+  onKickoff?.(state, games);
 
   // Who was fit at kickoff, so anything that turns serious during the games can
   // be charged against the player's durability afterwards.
@@ -163,7 +167,7 @@ export function simulateWeek(state: GameState): void {
  * Advance the franchise one step. Returns a short description of what happened
  * so the UI can surface it without re-deriving the phase.
  */
-export function advance(state: GameState): string {
+export function advance(state: GameState, onRegularKickoff?: RegularKickoffObserver): string {
   switch (state.phase) {
     case "preseason": {
       startRegularSeason(state);
@@ -171,7 +175,7 @@ export function advance(state: GameState): string {
     }
 
     case "regular": {
-      simulateWeek(state);
+      simulateWeek(state, onRegularKickoff);
       if (state.week >= REGULAR_SEASON_WEEKS) {
         state.phase = "playoffs";
         state.playoffs = initPlayoffs(state);

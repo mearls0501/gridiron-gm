@@ -1,5 +1,5 @@
 import {
-  Game, GameState, Player, PlayerGameStat, Position, SeasonStatLine, TeamGameStats,
+  Game, GameState, GAMES_PER_TEAM, Player, PlayerGameStat, Position, SeasonStatLine, TeamGameStats,
 } from "../types";
 
 /**
@@ -75,13 +75,8 @@ export function seasonLine(p: Player, season: number, teamId: number | null): Se
   return line;
 }
 
-/** Fold a finished game's box score into every involved player's season line. */
-export function applyGameStats(state: GameState, game: Game): void {
-  if (!game.boxScore) return;
-  const byId = new Map<number, Player>();
-  for (const p of state.players) byId.set(p.id, p);
-
-  for (const gs of game.boxScore.players) {
+function foldGameStats(byId: Map<number, Player>, game: Game): void {
+  for (const gs of game.boxScore!.players) {
     const player = byId.get(gs.playerId);
     if (!player) continue;
     const line = seasonLine(player, game.season, gs.teamId);
@@ -94,6 +89,61 @@ export function applyGameStats(state: GameState, game: Game): void {
     for (const k of MAX_KEYS) {
       const rec = line as unknown as Record<string, number>;
       rec[k] = Math.max(rec[k] ?? 0, (gs as unknown as Record<string, number>)[k] ?? 0);
+    }
+  }
+}
+
+function recordPostseasonUsage(state: GameState, game: Game): void {
+  const byId = new Map(state.players.map((p) => [p.id, p]));
+  for (const line of game.boxScore!.players) {
+    const player = byId.get(line.playerId);
+    if (!player) continue;
+    player.postseasonUsage ??= [];
+    let usage = player.postseasonUsage.find((s) => s.season === game.season);
+    if (!usage) {
+      usage = { season: game.season, teamId: line.teamId, snaps: 0 };
+      player.postseasonUsage.push(usage);
+    }
+    usage.teamId = line.teamId;
+    usage.snaps += line.snaps;
+  }
+}
+
+/** Season and career totals are regular-season only; playoff boxes stay on the game. */
+export function applyGameStats(state: GameState, game: Game): void {
+  if (!game.boxScore) return;
+  if (game.playoffRound !== null) {
+    recordPostseasonUsage(state, game);
+    return;
+  }
+  foldGameStats(new Map(state.players.map((p) => [p.id, p])), game);
+}
+
+/** Repair legacy combined totals only when the full regular-season evidence survives. */
+export function rebuildRegularSeasonStats(state: GameState): void {
+  const seasons = new Set(state.games
+    .filter((g) => g.played && g.playoffRound !== null && g.boxScore)
+    .map((g) => g.season));
+  for (const season of seasons) {
+    const games = state.games.filter((g) => g.season === season && g.playoffRound === null);
+    if (games.length !== state.teams.length * GAMES_PER_TEAM / 2 ||
+        games.some((g) => !g.played || !g.boxScore)) continue;
+    const byId = new Map(state.players.map((p) => [p.id, p]));
+    for (const p of state.players) {
+      p.stats = p.stats.filter((s) => s.season !== season);
+      if (p.postseasonUsage) p.postseasonUsage = p.postseasonUsage.filter((s) => s.season !== season);
+    }
+    for (const game of games) foldGameStats(byId, game);
+    for (const game of state.games) {
+      if (game.season === season && game.played && game.playoffRound !== null && game.boxScore) {
+        recordPostseasonUsage(state, game);
+      }
+    }
+    const history = state.history.find((h) => h.season === season);
+    if (history) {
+      for (const key of ["passYds", "rushYds", "recYds", "sacks"] as const) {
+        history.leaders[key] = leaders(state, key, season, 1)[0]?.player.id ?? null;
+      }
     }
   }
 }
@@ -134,6 +184,11 @@ export function fgPct(l: SeasonStatLine): number {
 /** Current-season line for a player, or a zeroed line if they haven't played. */
 export function currentLine(p: Player, season: number): SeasonStatLine {
   return p.stats.find((s) => s.season === season) ?? blankSeasonLine(season, p.teamId);
+}
+
+/** Development and opportunity count playoff experience as well as regular-season snaps. */
+export function playedSnaps(p: Player, season: number): number {
+  return currentLine(p, season).snaps + (p.postseasonUsage?.find((s) => s.season === season)?.snaps ?? 0);
 }
 
 export function careerTotals(p: Player): SeasonStatLine {

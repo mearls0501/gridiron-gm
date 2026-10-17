@@ -6,7 +6,7 @@ import { ensureJerseyNumbers, maybeRetireNumbersForHallOfFame } from "../core/je
 import { newGame, NewGameOptions } from "../core/newGame";
 import { advance as advanceSeason } from "../core/season/engine";
 import { advanceOffseason } from "../core/offseason";
-import { saveGame, loadGame, listSaves, lastSaveId, deleteSave } from "./save";
+import { createSave, saveGame, loadGame, listSaves, lastSaveId, deleteSave } from "./save";
 import { simToStepper, type SimTarget } from "./simTo";
 import { offseasonContinueStepper, openingOffseasonLabel } from "./offseasonContinue";
 import { draftNightStepper, drainDraftNight, type DraftNightMode, type DraftNightStep } from "./draftNight";
@@ -308,7 +308,7 @@ export const useGame = create<Store>((set, get) => ({
     try {
       clearDraftSession();
       const s = newGame(opts);
-      await saveGame(s);
+      await createSave(s);
       set({
         state: s,
         rev: get().rev + 1,

@@ -1,6 +1,6 @@
 import { STARTER_GAMES } from "./outcomes";
 import { Rng, clamp } from "./rng";
-import { currentLine, passerRating } from "./season/stats";
+import { passerRating, playedSnaps } from "./season/stats";
 import { schemeFit, schemeFor } from "./staff";
 import { GameState, Player, Position, SeasonStatLine, Team } from "./types";
 
@@ -92,7 +92,8 @@ function badSeasonElsewhere(
 }
 
 function firstSeasonAtClub(p: Player, teamId: number, season: number): boolean {
-  return !p.stats.some((s) => s.season < season && s.teamId === teamId);
+  return !p.stats.some((s) => s.season < season && s.teamId === teamId)
+    && !p.postseasonUsage?.some((s) => s.season < season && s.teamId === teamId);
 }
 
 function ocDevelopment(team: Team): number | null {
@@ -135,8 +136,7 @@ export function maybeApplySecondScene(state: GameState, p: Player): boolean {
   const team = state.teams[p.teamId];
   if (!team || team.depthChart[p.pos]?.[0] !== p.id) return false;
 
-  const line = currentLine(p, state.season);
-  if (line.snaps < OPPORTUNITY_SNAPS) return false;
+  if (playedSnaps(p, state.season) < OPPORTUNITY_SNAPS) return false;
   if (!firstSeasonAtClub(p, p.teamId, state.season)) return false;
 
   const bad = badSeasonElsewhere(state, p, p.teamId);

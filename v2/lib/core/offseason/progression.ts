@@ -1,7 +1,7 @@
 import { Rng, clamp } from "../rng";
 import { refreshOvr, relevantAttrs, POSITION_WEIGHTS } from "../ratings";
 import { AttrKey, GameState, Player, SeasonHistory } from "../types";
-import { currentLine, isReceivingLeaderPos } from "../season/stats";
+import { isReceivingLeaderPos, playedSnaps } from "../season/stats";
 import { healOffseason } from "../season/injuries";
 import { leagueStandings } from "../season/standings";
 import { addDeadCap, computeRecords, deadMoney } from "../select";
@@ -98,8 +98,7 @@ export function developPlayer(state: GameState, p: Player, rng: Rng): number {
   const growing = p.age < p.peakAge;
 
   // Playing time accelerates development for young players.
-  const line = currentLine(p, state.season);
-  const snapShare = clamp(line.snaps / 700, 0, 1);
+  const snapShare = clamp(playedSnaps(p, state.season) / 700, 0, 1);
 
   // Both are exactly 1.0 for a club on an even staff budget with nobody named,
   // so an unallocated league develops precisely as it did before.
