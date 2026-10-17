@@ -5,6 +5,100 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-17 — Inquiry RNG isolation and RB panel diagnosis
+
+User-authorized follow-up on the same worktree / draft PR #182. The only
+functional edit is `lib/core/userOffers.test.ts`; trade and simulation
+production code, panel definitions, reference data and baseline bytes stay
+unchanged. Evidence and reproducible runners:
+`/Users/mearls/Documents/Gridiron GM/rng-isolation-rb-diagnosis-2026-10-17/`.
+
+The test now creates minimum positional rosters on seeds 11 / 42 / 99. It
+proves every ordinary shop proposal has no target and takes no draws, then
+requires successful, legal inquiries while the supplied parent RNG advances
+only by the 24 ordinary club selections. The save's RNG is still caller-owned.
+The previous full-season offer/expiry/diversity/live-pick checks remain; only
+the two unrelated absolute tag/FA RNG literals are replaced. Focused tests
+pass. A copy with the inquiry walk wired to the parent fails the new isolation
+assertion (4179556753 versus expected 3299532595), confirming sensitivity to
+the actual fault.
+
+### Why the RB mean rose
+
+Fresh pre-fix (`d4b4cd2`) and post-fix (`a393ac9`) copies reproduce the exact
+standard five-seed REG panel. Initial worlds are identical except save
+metadata timestamps; each has 272 complete REG boxes before playoffs. All
+rushing attempts/yards reconstructed from complete play logs reconcile with
+every box row. The fifth-place identity changes in all five samples.
+
+| Panel | Fifth-place yards before → after | Carries before → after | YPC before → after |
+| --- | ---: | ---: | ---: |
+| 1 | 1365 → 1273 | 284 → 269 | 4.806 → 4.732 |
+| 2 | 1216 → 1354 | 255 → 247 | 4.769 → 5.482 |
+| 3 | 1291 → 1269 | 289 → 289 | 4.467 → 4.391 |
+| 4 | 1280 → 1308 | 250 → 296 | 5.120 → 4.419 |
+| 5 | 1205 → 1388 | 271 → 308 | 4.446 → 4.506 |
+
+Mean yards rise **1271.4 → 1318.4 (+47)**; mean carries **269.8 → 281.8**.
+The exact symmetric identity `Δyards = Δcarries × mean(YPC) + ΔYPC ×
+mean(carries)` assigns **+54.50 yards to volume and -7.50 to efficiency**.
+This is a descriptive decomposition between rank-five observations, not a
+same-player treatment effect. Panels 4–5 supply 83 of the net 60 additional
+carries across the five rank-five observations; panel 2's gain is efficiency.
+
+Frozen kickoff re-runs of panels 4–5 reproduce every rushing line and identify
+two concrete workload changes. Panel 4's new fifth-place player Nico Northcutt
+had **13 appearances / 202 carries / 1116 yards** before and **17 / 296 / 1308**
+after. The four missing games were **injury/IR absences in weeks 15–18**
+(injuryWeeks 5/4/3/2), not bench time or roster churn; the fixed run has none.
+Panel 5's Silas Robinson II stays on the same club and plays all 17 games in
+both runs: **248 → 308 carries**, while YPC is almost unchanged
+(**4.496 → 4.506**). His team's RB carries rise **355 → 404** and his share
+**69.86% → 76.24%**. Thus the largest workload gains involve both changed
+injury absence and healthy workload allocation, not a universal gain in snaps.
+
+Across all five actual seasons, league credited carries change only
+**74332 → 74491 (+0.21%)**, and rushing yards **324885 → 326819 (+0.60%)**.
+The fixed rushing formulas and carry-share distribution are byte-identical.
+After the first changed kick path, the common RNG stream shifts subsequent
+play results, weekly workload scripts, injuries and roster decisions; only
+six of 1,360 games retain identical pass-lean/lead-back-share script draws
+between the independent season runs. An ordinary fourth-down FG may even
+look identical while skipping a prior go-for-it RNG draw.
+
+A separate controlled diagnostic replays **all 1,360 pre-fix kickoff states**
+through the fixed engine using deep-cloned state, identical options and a
+private RNG starting at the exact same state. Replay results never feed into
+the season. It produces **195 fewer credited carries (-0.26%)**, **1684 fewer
+rushing yards (-0.52%)**, **51 fewer scrimmage snaps**, and **797 more FG
+attempts**. Thus banking kicks does not create general rushing opportunity
+inflation in this sample. Nevertheless, assembling those replay boxes raises
+rank five **1271.4 → 1294.6 (+23.2)**: altered within-game outcomes and their
+distribution already move the tail, even with later roster/availability
+trajectories held to the parent. This diagnostic is not a playable alternate
+season and its difference cannot be subtracted from +47 as a clean causal
+percentage; in-game injury outcomes can still differ.
+
+The remaining miss is a real measured tail result, not playoff contamination
+or a changed rushing rate. These five seasons do not establish a persistent
+increase in the tail's expectation. The canonical guard remains **1318.4,
+FAIL**, against unchanged **1191 +/-95** (32.4 over its upper bound). No rate,
+sample or bound was adjusted.
+
+Validation: focused inquiry test and negative control pass; fresh fast gate
+(`npm run gate:serial -- --seeds 1`) executes all 65 checks and reports
+**GATE FAIL 1 problem**, solely `statcheck.rb5RushYds = 1318.4`. Fresh full
+(`npm run gate:full -- --seeds 1`, external three-check scheduling limit)
+executes all 71 registered checks exactly once with the original arguments
+and reports **GATE FAIL 1 problem**, the same RB mean. The 20-season drift,
+24-season careers and eight-season staff checks complete with no other bound
+failures. The existing leverage harness exits 1 but its metrics pass and its
+exit remains non-gating. Source hashes match the tested files, and every
+waiting wrapper used for scheduling was resumed. `verification.json` records
+the source audit, exact arguments, exit codes and maximum concurrency of three.
+
+---
+
 ## 2026-10-16 — End-of-half field-goal decision
 
 User-authorized follow-up on `codex/save-season-fixes` / draft PR #182.
