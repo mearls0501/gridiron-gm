@@ -49,6 +49,47 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-18 — #182 finish signed
+
+Matt signed the #182 finish on 2026-10-18. The work stays on
+`codex/save-season-fixes` / draft PR #182. The seed-42 user-offers canary is
+tag **1599887382** and FA **2847491416**. The 2026-10-17 inquiry-isolation
+checks stay. Behavioral assertions and `trades.ts` are unchanged.
+`docs/baselines.json` is unchanged. `drift.playerWeeksLost` is not re-locked.
+
+### 5-seed Studio panels
+
+`c7298d9` was GATE FAIL 4 (coherence, wrongSign 0.20, milestonesOff 22.40,
+playerWeeksLost 2929.42). `a393ac9` was GATE FAIL 5 (useroffers, staff exit +
+staff.problems 0.20, path2BurnInTop10PrPct 6.03, rb5RushYds 1318.4), with
+p0Failures 0.60→0, coherence ok, wrongSign 0, milestonesOff 10.0. #183 at
+`99f1cae` was GATE FAIL 5.
+
+### Triage
+
+All four game-side moves come from `a393ac9`, where `takeLastKick` in
+`sim/clock.ts` kicks in-range field goals at the end of a half and reshuffles
+the RNG stream from week 1. `bb4244d` and `d4b4cd2` don't move the sim.
+useroffers is an intended stream-canary change. Staff seed 2 at 1.31 is noise
+(mean 0.58). path2 at 7/116 is k-of-n noise (P(k≤8)≈0.40 at the #183 rate).
+rb5 +47 yds is noise (paired t 0.93). playerWeeksLost 1638.95 is a measurement
+change from `4e82214`.
+
+### Decisions
+
+Matt's decisions (2026-10-18): useroffers literal update signed; staff, path2
+and rb5 left reported as red lines; no playerWeeksLost re-lock.
+`staff.problems` stays seed 2 at 1.31 vs 1.2. `careers.path2BurnInTop10PrPct`
+stays 7/116 = 6.03%. The five-seed `statcheck.rb5RushYds` reading **1318.4**
+was left reported, with no tuning and no band changes. `b028602`, already on
+this branch, then expanded that owned panel to IDs 1–100 (mean **1262.81**)
+without moving the **1191 +/-95** lock. This commit does not revert that
+expansion.
+
+The legacy-save repair check stays as previously recorded.
+
+---
+
 ## 2026-10-18 — Larger fixed RB guard panel
 
 User-authorized follow-up on the same worktree / draft PR #182. The guard

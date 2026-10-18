@@ -1981,6 +1981,14 @@ and a different question; see §6.7.
 
 ### 6.7 Injury/IR absence and the historical rotation composite
 
+**2026-10-18 — playoffs out of the regular-season count; injury/IR method not re-locked.**
+Playoff games no longer count toward regular-season stats or `playerWeeksLost`.
+Since `4e82214`, `drift.playerWeeksLost` counts injured-active + injured-IR +
+healthy-IR player-games (`a393ac9` panel mean **1638.95**), no longer the
+rotation-nonappearance composite (**2929.42** at `c7298d9`, **2806.49** on
+#183 at `99f1cae`). It still passes the legacy **2158.23 ±700** lock, and a
+re-lock or new injury target needs a separate sign-off.
+
 **2026-10-16 — current method, user-authorized injury/IR guard.**
 `drift.playerWeeksLost` now counts a player-game when a living, non-prospect
 player belongs to a club playing a REG game and, at kickoff, either has
