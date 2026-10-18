@@ -351,6 +351,8 @@ function contractApy(p: Player): number {
 }
 
 function lastClubThisSeason(p: Player, season: number): number | null {
+  const postseason = p.postseasonUsage?.find((s) => s.season === season);
+  if (postseason) return postseason.teamId;
   const lines = p.stats.filter((s) => s.season === season && s.teamId != null);
   const last = lines[lines.length - 1];
   return last?.teamId ?? null;

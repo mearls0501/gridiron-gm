@@ -1,5 +1,49 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-18 — Postseason club history in Hall eligibility and compensatory picks
+
+Follow-up to PR #182 review on `codex/save-season-fixes`. Changed
+`lib/core/hallOfFame.ts`, `lib/core/offseason/draft.ts` and their existing
+`hallOfFame.test.ts` / `draftRules.test.ts` suites. No gate registrations,
+simulation-rate files or baseline bytes change.
+
+Hall membership counts the union of regular-season appearances and postseason
+usage, once per club/year. A playoff-only fourth season and championship now
+preserve franchise eligibility, season bounds, primary-club selection, legacy
+retirement timing and league induction. Championship stamps prefer the archived
+champion and otherwise the postseason club, so a regular-season club cannot
+inherit a later club's title. Regular-season awards, production and starter
+thresholds continue using regular-season rows.
+
+Compensatory UFA attribution prefers this season's postseason club, matching
+the CPU re-sign path. Existing APY/regular-season playing-time tiers and cut
+exclusions are unchanged. Tests exercise playoff-only departures, club changes,
+REG/postseason overlap, actual added picks, re-signing and cut exclusion.
+
+Both new regression suites fail on pre-fix `b028602`; a separate membership-only
+title mutant fails the cross-club championship assertion. All pass on final
+source. An initial gate attempt was interrupted to add that correction; its
+outputs are kept separately and are not claimed as validation.
+
+Fresh final-source validation:
+- `npm run gate:serial -- --seeds 1`: **GATE PASS**, 65 checks, 72 metrics.
+- `npm run gate:full -- --seeds 1`: **GATE PASS**, 71 checks, 179 metrics.
+- Every full-tier check executes exactly once with original arguments;
+  an external semaphore limits full concurrency to four. Drift 20, careers 24,
+  staff 8, verification 10 and sweep 25 × 2 all finish.
+- Both owned 100-seed RB panels independently report **1262.81**. Every
+  seed/value matches the prior run. No samples are dropped or reweighted.
+- The known non-gating leverage OT.sta NO EFFECT exit remains: noEffect=1,
+  wrongSign=0, unbackedOvr=0, all inside existing bounds.
+- Baseline SHA-256 remains
+  `12bcbcd2cd26d23f1f7e0ac8e598cb8165fe3e85cfb3a8e56fd59b52a987d74e`.
+
+Frozen-source hashes, all logs, negative controls, runner and completed audit:
+`/Users/mearls/Documents/Gridiron GM/postseason-club-history-validation-2026-10-18/`.
+`verification.json` reports **PASS**, both gates pass, tested source unchanged.
+
+---
+
 Where the build stands, what is still wrong, and what to do next. Read this
 first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 

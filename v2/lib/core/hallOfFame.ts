@@ -17,7 +17,7 @@ import {
  * A retiree is a franchise legend when they:
  *   1. are retired,
  *   2. played at least `MIN_FRANCHISE_SEASONS` seasons with this club
- *      (`stats` rows with `teamId === club` and `games > 0`), and
+ *      (regular-season appearances or postseason usage), and
  *   3. at least one of:
  *        - MVP / OPOY / DPOY in a season they played for this club
  *        - a championship with this club
@@ -143,7 +143,21 @@ export function franchiseSeasonLines(p: Player, teamId: number): SeasonStatLine[
 }
 
 export function franchiseSeasonCount(p: Player, teamId: number): number {
-  return franchiseSeasonLines(p, teamId).length;
+  return playedSeasons(p, teamId).length;
+}
+
+function playedSeasons(p: Player, teamId?: number): number[] {
+  return [...new Set([
+    ...p.stats.filter((s) => s.games > 0 && (teamId === undefined || s.teamId === teamId)).map((s) => s.season),
+    ...(p.postseasonUsage ?? []).filter((s) => teamId === undefined || s.teamId === teamId).map((s) => s.season),
+  ])].sort((a, b) => a - b);
+}
+
+function playedClubs(p: Player): Set<number> {
+  return new Set([
+    ...p.stats.filter((s) => s.games > 0 && s.teamId !== null).map((s) => s.teamId!),
+    ...(p.postseasonUsage ?? []).map((s) => s.teamId),
+  ]);
 }
 
 function playerById(state: GameState, id: number | null): Player | null {
@@ -179,17 +193,22 @@ function divisionFinish(state: GameState, teamId: number, standings: TeamRecord[
   return `${rank}${suf} in ${team.division}`;
 }
 
-function careerAwardReasons(p: Player, teamId: number): HofReason[] {
+function careerAwardReasons(state: GameState, p: Player, teamId: number): HofReason[] {
   const reasons: HofReason[] = [];
   for (const raw of p.careerAwards) {
     const m = CAREER_AWARD_RE.exec(raw);
     if (!m) continue;
     const season = Number(m[1]);
-    if (!playedFor(p, teamId, season)) continue;
     if (m[2] === "Champion") {
-      reasons.push({ kind: "champion", season });
+      const champion = state.history.find((h) => h.season === season)?.championId
+        ?? p.postseasonUsage?.find((s) => s.season === season)?.teamId
+        ?? p.stats.find((s) => s.season === season)?.teamId;
+      if (champion === teamId && playedSeasons(p, teamId).includes(season)) {
+        reasons.push({ kind: "champion", season });
+      }
       continue;
     }
+    if (!playedFor(p, teamId, season)) continue;
     const key: AwardKey =
       m[2] === "MVP" ? "mvp" : m[2] === "Offensive Player of the Year" ? "opoy" : "dpoy";
     reasons.push({ kind: "award", season, key, label: AWARD_SHORT[key] });
@@ -200,14 +219,14 @@ function careerAwardReasons(p: Player, teamId: number): HofReason[] {
 function historyReasons(state: GameState, p: Player, teamId: number): HofReason[] {
   const reasons: HofReason[] = [];
   for (const h of state.history) {
+    if (h.championId === teamId && playedSeasons(p, teamId).includes(h.season)) {
+      reasons.push({ kind: "champion", season: h.season });
+    }
     if (!playedFor(p, teamId, h.season)) continue;
     for (const key of MAJOR_AWARD_KEYS) {
       if (h.awards[key] === p.id) {
         reasons.push({ kind: "award", season: h.season, key, label: AWARD_SHORT[key] });
       }
-    }
-    if (h.championId === teamId) {
-      reasons.push({ kind: "champion", season: h.season });
     }
     for (const key of LEADER_KEYS) {
       if (h.leaders[key] === p.id) {
@@ -244,7 +263,7 @@ export function hofReasons(state: GameState, p: Player, teamId: number): HofReas
   const seasons = franchiseSeasonCount(p, teamId);
   const reasons = dedupeReasons([
     ...historyReasons(state, p, teamId),
-    ...careerAwardReasons(p, teamId),
+    ...careerAwardReasons(state, p, teamId),
   ]);
   if (seasons >= LONGEVITY_SEASONS) {
     reasons.push({ kind: "longevity", seasons });
@@ -274,13 +293,13 @@ export function franchiseHallOfFame(state: GameState, teamId: number): HofEntry[
   const rows: HofEntry[] = [];
   for (const p of state.players) {
     if (!isHofEligible(state, p, teamId)) continue;
-    const lines = franchiseSeasonLines(p, teamId);
+    const seasons = playedSeasons(p, teamId);
     const reasons = hofReasons(state, p, teamId);
     rows.push({
       player: p,
-      seasons: lines.length,
-      firstSeason: lines[0]?.season ?? null,
-      lastSeason: lines[lines.length - 1]?.season ?? null,
+      seasons: seasons.length,
+      firstSeason: seasons[0] ?? null,
+      lastSeason: seasons[seasons.length - 1] ?? null,
       reasons,
       championships: reasons.filter((r) => r.kind === "champion").length,
     });
@@ -389,12 +408,7 @@ export function reasonLine(r: HofReason): string {
 }
 
 export function lastPlayedSeason(p: Player): number | null {
-  let last: number | null = null;
-  for (const s of p.stats) {
-    if (s.games <= 0) continue;
-    if (last == null || s.season > last) last = s.season;
-  }
-  return last;
+  return playedSeasons(p).at(-1) ?? null;
 }
 
 export function retiredSeasonOf(p: Player): number | null {
@@ -412,9 +426,8 @@ export function eliteSeasonsOf(p: Player): number {
 
 export function primaryTeamId(p: Player): number | null {
   const counts = new Map<number, number>();
-  for (const s of p.stats) {
-    if (s.teamId == null || s.games <= 0) continue;
-    counts.set(s.teamId, (counts.get(s.teamId) ?? 0) + 1);
+  for (const teamId of playedClubs(p)) {
+    counts.set(teamId, franchiseSeasonCount(p, teamId));
   }
   let best: number | null = null;
   let n = -1;
@@ -454,10 +467,7 @@ export function isWaitComplete(state: GameState, p: Player): boolean {
 
 export function isLeagueHofCandidate(state: GameState, p: Player): boolean {
   if (!p.retired || p.prospect) return false;
-  const teams = new Set<number>();
-  for (const s of p.stats) {
-    if (s.teamId != null && s.games > 0) teams.add(s.teamId);
-  }
+  const teams = playedClubs(p);
   let franchise = false;
   for (const teamId of teams) {
     if (isHofEligible(state, p, teamId)) {
@@ -470,10 +480,7 @@ export function isLeagueHofCandidate(state: GameState, p: Player): boolean {
 
 function bestFranchiseReasonWeight(state: GameState, p: Player): number {
   let best = 0;
-  const teams = new Set<number>();
-  for (const s of p.stats) {
-    if (s.teamId != null && s.games > 0) teams.add(s.teamId);
-  }
+  const teams = playedClubs(p);
   for (const teamId of teams) {
     const w = reasonWeight(hofReasons(state, p, teamId));
     if (w > best) best = w;
@@ -494,7 +501,7 @@ export function compareHofCandidates(state: GameState, a: Player, b: Player): nu
   return (
     leagueHofScore(state, b) - leagueHofScore(state, a) ||
     championshipsAsStarter(state, b) - championshipsAsStarter(state, a) ||
-    (b.stats.length - a.stats.length) ||
+    (playedSeasons(b).length - playedSeasons(a).length) ||
     a.lastName.localeCompare(b.lastName) ||
     a.id - b.id
   );
@@ -521,17 +528,15 @@ export function tickHofCareerLabels(state: GameState): void {
 
 function toLeagueEntry(state: GameState, p: Player): LeagueHofEntry {
   const teamId = primaryTeamId(p);
-  const lines = teamId != null
-    ? franchiseSeasonLines(p, teamId)
-    : p.stats.filter((s) => s.games > 0).slice().sort((a, b) => a.season - b.season);
+  const seasons = playedSeasons(p, teamId ?? undefined);
   const reasons = teamId != null ? hofReasons(state, p, teamId) : [];
   return {
     playerId: p.id,
     inductedSeason: state.season,
     teamId,
-    seasons: lines.length,
-    firstSeason: lines[0]?.season ?? lastPlayedSeason(p),
-    lastSeason: lines[lines.length - 1]?.season ?? lastPlayedSeason(p),
+    seasons: seasons.length,
+    firstSeason: seasons[0] ?? null,
+    lastSeason: seasons[seasons.length - 1] ?? null,
     championships: reasons.filter((r) => r.kind === "champion").length,
   };
 }

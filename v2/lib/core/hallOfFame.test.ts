@@ -8,10 +8,10 @@
  */
 import assert from "node:assert/strict";
 import { newGame } from "./newGame";
-import { blankSeasonLine } from "./season/stats";
+import { applyGameStats, blankPlayerGameStat, blankSeasonLine, blankTeamGameStats, careerTotals } from "./season/stats";
 import { blankRecord } from "./select";
 import {
-  GameState, Player, SeasonHistory, SeasonStatLine, TeamRecord,
+  Game, GameState, Player, SeasonHistory, SeasonStatLine, TeamRecord,
 } from "./types";
 import {
   HOF_RULE,
@@ -19,9 +19,14 @@ import {
   MIN_FRANCHISE_SEASONS,
   franchiseHallOfFame,
   franchiseSeasonCount,
+  hofReasons,
   isHofEligible,
+  isLeagueHofCandidate,
+  lastPlayedSeason,
   presentFranchiseHistory,
+  primaryTeamId,
   reasonLine,
+  runHofInduction,
 } from "./hallOfFame";
 
 function plantSeasons(p: Player, teamId: number, seasons: number[], games = 10): SeasonStatLine[] {
@@ -74,6 +79,19 @@ function retiree(st: GameState, pos: Player["pos"] = "QB"): Player {
   p.prospect = false;
   p.careerAwards = [];
   return p;
+}
+
+function playoffAppearance(st: GameState, p: Player, teamId: number, season: number): void {
+  const game: Game = {
+    id: 999, season, week: 22, homeId: teamId, awayId: (teamId + 1) % 32,
+    played: true, homeScore: 21, awayScore: 0, playoffRound: "SB",
+    boxScore: {
+      home: blankTeamGameStats(), away: blankTeamGameStats(),
+      quarters: { home: [], away: [] }, scoringPlays: [],
+      players: [{ ...blankPlayerGameStat(p.id, teamId, true), snaps: 60, rushYds: 100 }],
+    },
+  };
+  applyGameStats(st, game);
 }
 
 {
@@ -225,4 +243,79 @@ function retiree(st: GameState, pos: Player["pos"] = "QB"): Player {
   assert.equal(view.emptyHof, true);
 }
 
-console.log("ok    Hall of Fame eligibility and franchise history presenter");
+// Championship membership survives even when the title year's only appearances
+// were in the postseason. Exercise history and the career stamp independently.
+for (const archived of [true, false]) {
+  const st = newGame({ seed: 23 });
+  const p = retiree(st, "RB");
+  const club = st.userTeamId;
+  plantSeasons(p, club, [2026, 2027, 2028]);
+  const regularBefore = structuredClone(p.stats);
+  playoffAppearance(st, p, club, 2028);
+  playoffAppearance(st, p, club, 2029);
+  if (archived) {
+    plantHistory(st, 2029, { championId: club, awards: { mvp: p.id, opoy: null, dpoy: null, roy: null } });
+  } else {
+    p.careerAwards = ["2029 Champion", "2029 MVP"];
+  }
+  assert.equal(franchiseSeasonCount(p, club), 4, "REG plus playoffs in one year counts once");
+  assert.equal(franchiseSeasonCount(p, (club + 1) % 32), 0, "membership stays with the actual club");
+  assert.equal(isHofEligible(st, p, club), true, "the playoff-only fourth season and title qualify");
+  const reasons = hofReasons(st, p, club);
+  assert.equal(reasons.filter((r) => r.kind === "champion").length, 1);
+  assert.equal(reasons.filter((r) => r.kind === "award").length, 0,
+    "postseason membership cannot assign regular-season awards to that club");
+  const entry = franchiseHallOfFame(st, club).find((e) => e.player.id === p.id)!;
+  assert.equal(entry.seasons, 4);
+  assert.equal(entry.firstSeason, 2026);
+  assert.equal(entry.lastSeason, 2029);
+  assert.equal(entry.championships, 1);
+  p.starSeasons = 3;
+  st.season = 2034;
+  assert.equal(lastPlayedSeason(p), 2029, "the retirement fallback includes postseason service");
+  assert.equal(isLeagueHofCandidate(st, p), true);
+  const inducted = runHofInduction(st).find((e) => e.playerId === p.id)!;
+  assert.equal(inducted.seasons, 4);
+  assert.equal(inducted.lastSeason, 2029);
+  assert.equal(inducted.championships, 1);
+  assert.deepEqual(p.stats, regularBefore, "club history does not invent production rows");
+  assert.equal(careerTotals(p).rushYds, 0);
+}
+
+{
+  const st = newGame({ seed: 24 });
+  const p = retiree(st, "RB");
+  p.stats = [];
+  for (const season of [2026, 2027, 2028, 2029]) playoffAppearance(st, p, st.userTeamId, season);
+  p.careerAwards = ["2029 Champion"];
+  p.eliteSeasons = 1;
+  st.season = 2034;
+  assert.equal(primaryTeamId(p), st.userTeamId, "postseason-only clubs participate in primary-club selection");
+  assert.equal(isLeagueHofCandidate(st, p), true, "candidate discovery includes postseason-only clubs");
+  const entry = runHofInduction(st).find((e) => e.playerId === p.id)!;
+  assert.equal(entry.teamId, st.userTeamId);
+  assert.equal(entry.seasons, 4);
+  assert.equal(entry.firstSeason, 2026);
+  assert.equal(entry.lastSeason, 2029);
+  assert.equal(entry.championships, 1);
+  assert.equal(careerTotals(p).games, 0);
+}
+
+for (const archived of [true, false]) {
+  const st = newGame({ seed: 26 });
+  const p = retiree(st, "RB");
+  const regularClub = st.userTeamId;
+  const playoffClub = (regularClub + 1) % 32;
+  plantSeasons(p, regularClub, [2026, 2027, 2028, 2029]);
+  playoffAppearance(st, p, playoffClub, 2029);
+  p.careerAwards = ["2029 Champion", "2029 MVP"];
+  if (archived) plantHistory(st, 2029, { championId: playoffClub });
+  assert.equal(hofReasons(st, p, regularClub).some((r) => r.kind === "champion"), false,
+    "a title stamp belongs to the championship club, not an earlier regular-season club");
+  assert.equal(hofReasons(st, p, playoffClub).filter((r) => r.kind === "champion").length, 1);
+  assert.equal(hofReasons(st, p, regularClub).filter((r) => r.kind === "award").length, 1,
+    "regular-season award attribution stays with the regular-season club");
+  assert.equal(hofReasons(st, p, playoffClub).some((r) => r.kind === "award"), false);
+}
+
+console.log("ok    Hall of Fame eligibility, postseason club history, and franchise history presenter");
