@@ -25,7 +25,8 @@ export function insideBand(value: number, band: { lo: number; hi: number }): boo
   return Number.isFinite(value) && value >= band.lo && value <= band.hi;
 }
 
-export const RB_PANEL = Object.freeze([1, 2, 3, 4, 5]);
+// Fixed diagnostic expansion: preserve the original five and include every ID through 100.
+export const RB_PANEL = Object.freeze(Array.from({ length: 100 }, (_, i) => i + 1));
 export function rushingPanelMean(samples: readonly { panel: number; yards: number }[]): number {
   if (samples.length !== RB_PANEL.length || new Set(samples.map((s) => s.panel)).size !== RB_PANEL.length ||
       samples.some((s) => !RB_PANEL.includes(s.panel) || !Number.isFinite(s.yards) || s.yards < 0)) {

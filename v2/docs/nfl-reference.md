@@ -1622,13 +1622,26 @@ gate: 54.439 +/-3, or 51.439–57.439%. A second hardcoded 52–58% range incorr
 failed a default 51.702786% sample that the locked band accepts. All weather and
 rest measurements retain their existing sampling and guards.
 
-**RB #5.** The canonical `statcheck.rb5RushYds` is the arithmetic mean of five
-complete REG rank-five observations on standard gate panel seeds 1–5, using
-the existing `seedFor(8675309)` mixing formula. A dedicated harness owns that
-fixed panel and runs once in either tier, even under `--seeds 1`; the regular
-statcheck's individual reading is report-only. All other statcheck metrics
-retain their original sampling. This avoids averaging already-averaged panels
-or quietly applying a panel-mean band to one season. The lock stays 1191 +/-95.
+**RB #5.** Expanded 2026-10-18, user-authorized after a fixed 100-pair
+before/after study. The canonical `statcheck.rb5RushYds` is the arithmetic
+mean of **100** complete REG rank-five observations on panel IDs **1–100**,
+using the existing `panelSeed(8675309, id)` mixing formula. IDs 1–5 are
+retained; none are dropped, trimmed or reweighted. A dedicated harness owns
+that fixed panel and runs once in either tier, including `--seeds 1`; the
+regular statcheck's individual reading remains report-only. Outer gate seeds
+do not repeat or nest the owned panel. All other statcheck sampling stays
+unchanged, and the lock remains **1191 +/-95**.
+
+The prior five-seed guard read 1271.4 before and 1318.4 after the end-of-half
+kick decision. The independent 95 new matched seeds read 1264.13 → 1259.88,
+paired difference -4.24 (95% interval -22.29 to +13.80; bootstrap -22.00 to
++13.73). Across all 100, means were 1264.49 → 1262.81. This supports expanding
+the fixed sample without changing the measured rank statistic or NFL lock.
+The study ran 200 fresh REG seasons / 54,400 games using exact Git copies of
+`d4b4cd2` and `a393ac9`; all initial worlds and rushing ledgers reconcile.
+Reproducible evidence:
+`/Users/mearls/Documents/Gridiron GM/rb-matched-panel-2026-10-18/`.
+This changes simulation sampling only, not reference data or simulation rates.
 
 **Milestone reference.** `docs/milestone-reference.json` preserves integer
 counts for all 27 game and 19 season thresholds, separately for 2021–2024 REG.

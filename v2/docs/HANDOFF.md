@@ -5,6 +5,60 @@ first, then `AGENTS.md`, then `docs/nfl-reference.md`.
 
 ---
 
+## 2026-10-18 — Larger fixed RB guard panel
+
+User-authorized follow-up on the same worktree / draft PR #182. The guard
+now averages every panel ID **1–100**, preserving the existing seed mix and
+the original five seeds. It remains owned by `rbPanel.ts` and runs once per
+gate invocation in either tier, including `--seeds 1`. No nested averages,
+trimming, discarded seeds, simulation changes or baseline changes.
+
+The expansion follows the read-only matched-code study at
+`/Users/mearls/Documents/Gridiron GM/rb-matched-panel-2026-10-18/`:
+100 pairs / 200 fresh REG seasons / 54,400 games, exact uninstrumented
+`d4b4cd2` before and `a393ac9` after. The original five reproduce +47 yards,
+but 95 new pairs average **1264.13 → 1259.88 (-4.24)**, paired 95% interval
+**-22.29 to +13.80**; bootstrap agrees. All 100 average **1264.49 → 1262.81**.
+That supports a larger fixed measurement, not a wider bound. The unchanged
+lock is **1191 +/-95**, so the upper limit remains **1286**.
+
+`guardMeasurements.test.ts` now rejects the old five-seed panel, missing
+late IDs, duplicate/substituted/extra IDs and invalid yards. It verifies
+order-independent averaging, preserved seed mixing, independence from outer
+GG_SEED, and an untrimmed outlier panel whose mean 1287.5 still fails the
+unchanged bound. REG box evidence checks remain in place. `rbPanel.ts`
+reports its actual fixed sample size; the canonical metric name and both
+existing `ownsPanel` registrations are unchanged.
+
+Validation evidence:
+`/Users/mearls/Documents/Gridiron GM/rb-guard-panel-validation-2026-10-18/`.
+Focused guard regression passes. Fresh fast (`npm run gate:serial -- --seeds 1`)
+reports **GATE PASS**: all 65 checks execute, and the owned RB panel emits
+**1262.81** from exactly 100 samples. Every ID, mixed seed and observed value
+matches the independent study. Fresh full (`npm run gate:full -- --seeds 1`)
+also reports **GATE PASS**, with all 71 registered checks executed exactly
+once using the original arguments. Its owned RB panel independently emits
+the same **1262.81** from all 100 samples. Fast reports 72 metric entries;
+full reports 179. Other harnesses use the same single outer seed as prior
+validation; the RB panel owns all 100 seeds in either tier.
+
+The full gate completes 20-season drift, 24-season careers, eight-season staff,
+10-season verification and the 25-seed/two-season sweep. An external semaphore
+limits full-tier concurrency to four; the long contract check was scheduled
+on the next free slot by pausing only waiting wrappers, all of which resumed.
+Every original argument and exit code is audited in `verification.json`.
+The known leverage OT.sta NO EFFECT exits 1 but remains non-gating; noEffect=1,
+wrongSign=0 and unbackedOvr=0 satisfy the unchanged bounds.
+
+Each gate's fresh RB sample vector matches all 100 post-fix observations in
+the independent study (range **1098–1447**, with no clipping). Thus the higher
+individual observations still contribute. All production simulation files,
+`gate.ts`, `metrics.ts`, package registration and NFL reference data remain
+unchanged. The baseline SHA-256 remains
+`12bcbcd2cd26d23f1f7e0ac8e598cb8165fe3e85cfb3a8e56fd59b52a987d74e`.
+
+---
+
 ## 2026-10-17 — Inquiry RNG isolation and RB panel diagnosis
 
 User-authorized follow-up on the same worktree / draft PR #182. The only

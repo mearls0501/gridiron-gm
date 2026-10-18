@@ -1,4 +1,4 @@
-/** The RB guard always measures the same complete five-seed panel, in either gate tier. */
+/** The RB guard always measures the same complete 100-seed panel, in either gate tier. */
 import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { captureRushingRank5, RB_PANEL, rushingPanelMean } from "./guardMeasurements";
@@ -15,7 +15,7 @@ const samples = RB_PANEL.map((panel) => {
   return Object.freeze({ panel, yards });
 });
 const mean = rushingPanelMean(samples);
-console.log(`RB #5 five-seed REG mean: ${mean.toFixed(2)} yards (individual seasons are diagnostic)`);
+console.log(`RB #5 ${RB_PANEL.length}-seed REG mean: ${mean.toFixed(2)} yards (individual seasons are diagnostic)`);
 emitAll({ "statcheck.rb5RushYds": mean, "rbpanel.samples": samples.length,
   "rbpanel.minSample": Math.min(...samples.map((s) => s.yards)),
   "rbpanel.maxSample": Math.max(...samples.map((s) => s.yards)) });

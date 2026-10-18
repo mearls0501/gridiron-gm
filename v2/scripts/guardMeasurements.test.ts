@@ -14,14 +14,24 @@ assert.ok(!insideBand(51.4389, home) && !insideBand(57.4391, home) && !insideBan
 assert.throws(() => lockedBand("missing.metric"), /missing locked/);
 for (const b of [{}, { target: 54 }, { target: 54, tol: -1 }, { min: 58, max: 52 }, { min: NaN }]) assert.throws(() => bandLimits(b));
 
-const samples = [1365, 1216, 1291, 1280, 1205].map((yards, i) => Object.freeze({ panel: i + 1, yards }));
-assert.equal(rushingPanelMean(samples), 1271.4);
+assert.equal(RB_PANEL.length, 100, "both gate tiers own the full expanded panel");
+assert.deepEqual(RB_PANEL.slice(0, 5), [1, 2, 3, 4, 5], "retain the discovery seeds");
+assert.equal(RB_PANEL[99], 100, "include the full new-seed range");
+const samples = RB_PANEL.map((panel) => Object.freeze({ panel, yards: 1200 + panel }));
+assert.equal(rushingPanelMean(samples), 1250.5);
+assert.equal(rushingPanelMean([...samples].reverse()), 1250.5, "ordering cannot select or reweight samples");
 assert.ok(insideBand(rushingPanelMean(samples), lockedBand("statcheck.rb5RushYds")));
-assert.ok(!insideBand(1288, lockedBand("statcheck.rb5RushYds")), "single-sample miss stays visible, while the guard measures the complete panel");
-assert.throws(() => rushingPanelMean(samples.slice(0, 4)), /each standard panel/);
-assert.throws(() => rushingPanelMean([...samples.slice(0, 4), samples[0]]), /each standard panel/);
-assert.throws(() => rushingPanelMean([...samples.slice(0, 4), { panel: 6, yards: 1205 }]), /each standard panel/);
-assert.throws(() => rushingPanelMean([...samples.slice(0, 4), { panel: 5, yards: NaN }]), /each standard panel/);
+const outlier = [...samples.slice(0, 99), { panel: 100, yards: 5000 }];
+assert.equal(rushingPanelMean(outlier), 1287.5, "every observation contributes, including a tail sample");
+assert.ok(!insideBand(rushingPanelMean(outlier), lockedBand("statcheck.rb5RushYds")), "the unchanged upper bound still rejects a real panel miss");
+assert.throws(() => rushingPanelMean(samples.slice(0, 5)), /each standard panel/, "the old five-seed panel is incomplete");
+assert.throws(() => rushingPanelMean(samples.slice(0, 99)), /each standard panel/);
+assert.throws(() => rushingPanelMean([...samples.slice(0, 99), samples[0]]), /each standard panel/);
+assert.throws(() => rushingPanelMean([...samples.slice(0, 99), { panel: 101, yards: 1300 }]), /each standard panel/);
+assert.throws(() => rushingPanelMean([...samples, { panel: 101, yards: 1300 }]), /each standard panel/);
+for (const yards of [NaN, Infinity, -1]) {
+  assert.throws(() => rushingPanelMean([...samples.slice(0, 99), { panel: 100, yards }]), /each standard panel/);
+}
 const previous = process.env.GG_SEED;
 try {
   for (const panel of RB_PANEL) {
@@ -29,7 +39,7 @@ try {
     assert.equal(panelSeed(8675309, panel), seedFor(8675309), "explicit panel preserves existing gate streams");
   }
   process.env.GG_SEED = "999";
-  assert.equal(rushingPanelMean(samples), 1271.4, "an outer seed cannot change fixed panel membership");
+  assert.equal(rushingPanelMean(samples), 1250.5, "an outer seed cannot change fixed panel membership");
 } finally { if (previous === undefined) delete process.env.GG_SEED; else process.env.GG_SEED = previous; }
 
 const st = newGame({ seed: 42 }); startRegularSeason(st);
