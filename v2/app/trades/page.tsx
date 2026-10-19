@@ -89,6 +89,8 @@ export default function TradesPage() {
   const [get, setGet] = useState<TradeAsset[]>([]);
   const [offerError, setOfferError] = useState<{ id: number; reason: string } | null>(null);
   const [reviewId, setReviewId] = useState<number | null>(null);
+  /** The proposal under review; any edit to the deal makes it stale and closes the panel. */
+  const [proposalReviewKey, setProposalReviewKey] = useState<string | null>(null);
 
   const partnerId = useMemo(() => {
     if (!state) return null;
@@ -119,6 +121,12 @@ export default function TradesPage() {
     const offer = (state.tradeOffers ?? []).find((o) => o.id === reviewId);
     return offer ? buildOfferReview(state, offer) : null;
   }, [state, rev, reviewId]);
+
+  const proposalKey = `${partnerId}|${give.map(assetKey).join(",")}|${get.map(assetKey).join(",")}`;
+  const proposalReview = useMemo(() => {
+    if (!state || !proposal || proposalReviewKey !== proposalKey) return null;
+    return buildOfferReview(state, proposal.offer);
+  }, [state, rev, proposal, proposalReviewKey, proposalKey]);
 
   if (!state) return null;
 
@@ -198,6 +206,7 @@ export default function TradesPage() {
     if (done) {
       setGive([]);
       setGet([]);
+      setProposalReviewKey(null);
     }
   }
 
@@ -335,7 +344,8 @@ export default function TradesPage() {
                     <ReviewPanel
                       review={review}
                       userAbbr={userTeam.abbr}
-                      fromAbbr={from.abbr}
+                      partnerAbbr={from.abbr}
+                      title="Review before you accept"
                       canConfirm={acceptBtn.enabled && review.check.ok}
                       onConfirm={() => accept(offer)}
                       onBack={() => setReviewId(null)}
@@ -444,8 +454,8 @@ export default function TradesPage() {
               <Button
                 size="sm"
                 variant={proposeBtn.variant}
-                onClick={propose}
-                disabled={!proposeBtn.enabled}
+                onClick={() => setProposalReviewKey(proposalKey)}
+                disabled={!proposeBtn.enabled || !!proposalReview}
                 className={!proposeBtn.enabled ? "opacity-40 cursor-not-allowed" : undefined}
                 title={
                   !open
@@ -463,6 +473,18 @@ export default function TradesPage() {
               </Button>
             </div>
           </div>
+
+          {proposalReview && other && (
+            <ReviewPanel
+              review={proposalReview}
+              userAbbr={userTeam.abbr}
+              partnerAbbr={other.abbr}
+              title="Review before you propose"
+              canConfirm={proposeBtn.enabled}
+              onConfirm={propose}
+              onBack={() => setProposalReviewKey(null)}
+            />
+          )}
         </div>
       </Card>
 
@@ -548,14 +570,16 @@ function ReviewLines({
 function ReviewPanel({
   review,
   userAbbr,
-  fromAbbr,
+  partnerAbbr,
+  title,
   canConfirm,
   onConfirm,
   onBack,
 }: {
   review: OfferReview;
   userAbbr: string;
-  fromAbbr: string;
+  partnerAbbr: string;
+  title: string;
   canConfirm: boolean;
   onConfirm: () => void;
   onBack: () => void;
@@ -563,11 +587,11 @@ function ReviewPanel({
   const { cap, roster, check } = review;
   return (
     <div className="mt-3 border border-[var(--color-accent)] rounded-lg p-3 space-y-3 bg-[var(--color-surface-2)]">
-      <div className="text-sm font-semibold">Review before you accept</div>
+      <div className="text-sm font-semibold">{title}</div>
 
       <div className="grid sm:grid-cols-2 gap-3">
         <ReviewLines label={`${userAbbr} receive`} lines={review.incoming} arriving />
-        <ReviewLines label={`${fromAbbr} receive`} lines={review.outgoing} arriving={false} />
+        <ReviewLines label={`${partnerAbbr} receive`} lines={review.outgoing} arriving={false} />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm tnum">

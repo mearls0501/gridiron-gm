@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { newGame } from "../core/newGame";
 import { makeContract } from "../core/generate";
 import { Rng } from "../core/rng";
-import { acceptOffer } from "../core/trades";
+import { acceptOffer, executeTrade, proposeFromUser } from "../core/trades";
 import { capHit, formatMoney, rosterCount, teamCap } from "../core/select";
 import type { GameState, Player, TradeOffer } from "../core/types";
 import { tradeBoardAssetLabel } from "./tradeBoard";
@@ -165,5 +165,25 @@ ok("refusals and missing players show before Confirm");
   assert.ok(r.warnings.some((w) => w.includes("Cutdown")));
 }
 ok("offseason over-53 is noted, not blocked");
+
+// (7) The user's own proposal reads from the user's side and matches execution.
+for (const seed of [11, 42, 99]) {
+  const { st, user, cpu, cpuTeamId } = fixture(seed);
+  st.tradeOffers = [];
+  const before = JSON.stringify(st);
+  const prop = proposeFromUser(
+    st, cpuTeamId, [{ kind: "player", playerId: user.id }], [{ kind: "player", playerId: cpu.id }],
+  );
+  const r = buildOfferReview(st, prop.offer);
+  assert.equal(JSON.stringify(st), before, "proposal review mutates nothing");
+  assert.equal(r.partnerTeamId, cpuTeamId);
+  assert.equal(player(r.incoming, cpu.id).capAfter, cpu.contract!.baseSalary[0], "arrival on the user's side");
+  assert.ok(player(r.outgoing, user.id).deadOnSender > 0, "departure on the user's side");
+  assert.equal(r.check.ok, prop.check.ok);
+  assert.equal(executeTrade(st, prop.offer).ok, true);
+  assert.ok(Math.abs(teamCap(st, st.userTeamId).space - r.cap.spaceAfter) <= 2, `seed ${seed}: proposal cap`);
+  assert.equal(rosterCount(st, st.userTeamId), r.roster.after);
+}
+ok("proposal review reads the user's side and matches execution");
 
 console.log("tradeReview view: all passed");

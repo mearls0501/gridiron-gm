@@ -15,6 +15,7 @@ import {
   checkPlayLastSnap,
   checkSeasonReviewOnce,
   checkStaffDesk,
+  checkTradeReview,
   checkUnsignedFaNumber,
   hubPhase,
   noteTagResignStep,
@@ -46,6 +47,7 @@ await checkStaffDesk(page, BASE, report);
 await checkHistoryDesk(page, BASE, report);
 await checkFinancesDesk(page, BASE, report, { click: false });
 await checkHoldoutPath(page, BASE, report);
+await checkTradeReview(page, BASE, report);
 
 // ---- Depth chart reorder ---------------------------------------------------
 await page.goto(BASE + "/depth-chart", { waitUntil: "networkidle" });

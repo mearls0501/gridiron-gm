@@ -7,7 +7,8 @@ import { GameState, ROSTER_LIMIT, TradeAsset, TradeOffer } from "../core/types";
 import { draftPickDeskLabel, tradeBoardOvr } from "./tradeBoard";
 
 /**
- * /trades incoming-offer review. Display only.
+ * /trades review before a trade commits: an incoming offer's Accept and the
+ * user's own Propose. Display only.
  *
  * The offer card prints `Name (POS, OVR)` and nothing else, and the offer
  * stores no injury or cap snapshot, so Accept used to commit blind. This
@@ -49,7 +50,8 @@ export type ReviewLine = ReviewPlayer | ReviewPick | { kind: "missing"; label: s
 
 export interface OfferReview {
   offerId: number;
-  fromTeamId: number;
+  /** The club on the other end, whichever side made the offer. */
+  partnerTeamId: number;
   /** What the user receives. */
   incoming: ReviewLine[];
   /** What the user sends. */
@@ -103,10 +105,17 @@ function activeCount(state: GameState, assets: TradeAsset[]): number {
   return n;
 }
 
+/**
+ * Works for an incoming call (user is `toTeamId`) and for the user's own
+ * proposal (user is `fromTeamId`); the lines are always from the user's side.
+ */
 export function buildOfferReview(state: GameState, offer: TradeOffer): OfferReview {
   const userId = state.userTeamId;
-  const incoming = offer.give.map((a) => line(state, a));
-  const outgoing = offer.get.map((a) => line(state, a));
+  const userProposes = offer.fromTeamId === userId;
+  const gets = userProposes ? offer.get : offer.give;
+  const sends = userProposes ? offer.give : offer.get;
+  const incoming = gets.map((a) => line(state, a));
+  const outgoing = sends.map((a) => line(state, a));
 
   let change = 0;
   let deadAdded = 0;
@@ -121,7 +130,7 @@ export function buildOfferReview(state: GameState, offer: TradeOffer): OfferRevi
   const spaceBefore = teamCap(state, userId).space;
 
   const before = rosterCount(state, userId);
-  const after = before - activeCount(state, offer.get) + activeCount(state, offer.give);
+  const after = before - activeCount(state, sends) + activeCount(state, gets);
 
   const warnings: string[] = [];
   for (const l of incoming) {
@@ -138,7 +147,7 @@ export function buildOfferReview(state: GameState, offer: TradeOffer): OfferRevi
 
   return {
     offerId: offer.id,
-    fromTeamId: offer.fromTeamId,
+    partnerTeamId: userProposes ? offer.toTeamId : offer.fromTeamId,
     incoming,
     outgoing,
     cap: { spaceBefore, change, spaceAfter: spaceBefore - change, deadAdded },
