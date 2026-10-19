@@ -30,6 +30,7 @@ import {
   tradeBoardOvrSort,
 } from "@/lib/view/tradeBoard";
 import { OVERPAYING_LINE, readOfMargin } from "@/lib/view/tradeRead";
+import { buildOfferReview, OfferReview, ReviewLine } from "@/lib/view/tradeReview";
 import {
   CLOSED_WINDOW_ACTIONS,
   incomingOfferAccept,
@@ -87,6 +88,7 @@ export default function TradesPage() {
   const [give, setGive] = useState<TradeAsset[]>([]);
   const [get, setGet] = useState<TradeAsset[]>([]);
   const [offerError, setOfferError] = useState<{ id: number; reason: string } | null>(null);
+  const [reviewId, setReviewId] = useState<number | null>(null);
 
   const partnerId = useMemo(() => {
     if (!state) return null;
@@ -110,6 +112,13 @@ export default function TradesPage() {
     for (const a of [...give, ...get]) scale += assetValue(state, partnerId, a, posture);
     return readOfMargin(proposal.verdict.margin, scale);
   }, [state, rev, partnerId, proposal, give, get]);
+
+  // Rebuilt on every mutation so an injury, IR move or cap change shows up.
+  const review = useMemo(() => {
+    if (!state || reviewId === null) return null;
+    const offer = (state.tradeOffers ?? []).find((o) => o.id === reviewId);
+    return offer ? buildOfferReview(state, offer) : null;
+  }, [state, rev, reviewId]);
 
   if (!state) return null;
 
@@ -135,6 +144,15 @@ export default function TradesPage() {
     setGet([]);
   }
 
+  function openReview(offer: TradeOffer) {
+    if (!incomingOfferAccept(open).enabled) {
+      setOfferError({ id: offer.id, reason: "The trade window is closed." });
+      return;
+    }
+    setOfferError(null);
+    setReviewId(offer.id);
+  }
+
   function accept(offer: TradeOffer) {
     if (!incomingOfferAccept(open).enabled) {
       setOfferError({ id: offer.id, reason: "The trade window is closed." });
@@ -150,6 +168,7 @@ export default function TradesPage() {
       return `Trade agreed with ${s.teams[offer.fromTeamId].abbr}`;
     });
     setOfferError(failed ? { id: offer.id, reason: failed } : null);
+    if (!failed) setReviewId(null);
   }
 
   function reject(offer: TradeOffer) {
@@ -159,6 +178,7 @@ export default function TradesPage() {
       return `Turned down ${abbr}`;
     });
     setOfferError(null);
+    if (reviewId === offer.id) setReviewId(null);
   }
 
   function propose() {
@@ -270,10 +290,14 @@ export default function TradesPage() {
                       <Button
                         size="sm"
                         variant={acceptBtn.variant}
-                        onClick={() => accept(offer)}
-                        disabled={!acceptBtn.enabled}
+                        onClick={() => openReview(offer)}
+                        disabled={!acceptBtn.enabled || reviewId === offer.id}
                         className={!acceptBtn.enabled ? "opacity-40 cursor-not-allowed" : undefined}
-                        title={acceptBtn.enabled ? undefined : "The trade window is closed"}
+                        title={
+                          acceptBtn.enabled
+                            ? "Review injuries, cap and roster before you commit"
+                            : "The trade window is closed"
+                        }
                       >
                         Accept
                       </Button>
@@ -305,6 +329,17 @@ export default function TradesPage() {
                     <p className="text-xs text-[var(--color-muted)] mt-3 italic">
                       &ldquo;{offer.rationale}&rdquo; — {from.abbr} front office
                     </p>
+                  )}
+
+                  {review && review.offerId === offer.id && (
+                    <ReviewPanel
+                      review={review}
+                      userAbbr={userTeam.abbr}
+                      fromAbbr={from.abbr}
+                      canConfirm={acceptBtn.enabled && review.check.ok}
+                      onConfirm={() => accept(offer)}
+                      onBack={() => setReviewId(null)}
+                    />
                   )}
 
                   {err && (
@@ -461,6 +496,133 @@ export default function TradesPage() {
 }
 
 // ---------------------------------------------------------------------------
+
+function ReviewLines({
+  label,
+  lines,
+  arriving,
+}: {
+  label: string;
+  lines: ReviewLine[];
+  /** Arriving players count base salary only on the user's cap. */
+  arriving: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">{label}</div>
+      {lines.length === 0 ? (
+        <div className="text-sm text-[var(--color-faint)] mt-1">Nothing</div>
+      ) : (
+        <ul className="mt-1 space-y-1.5">
+          {lines.map((l, i) =>
+            l.kind === "player" ? (
+              <li key={i} className="text-sm">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <PosBadge pos={l.pos as Player["pos"]} />
+                  <span className="font-medium">{l.name}</span>
+                  <OvrBadge ovr={l.ovr} size="sm" />
+                  {l.ir && <Pill tone="bad">IR</Pill>}
+                  {!l.ir && l.injury && <Pill tone="bad">Injured</Pill>}
+                </div>
+                <div className="text-[11px] text-[var(--color-muted)] tnum mt-0.5">
+                  Age {l.age} ·{" "}
+                  {arriving
+                    ? `${formatMoney(l.capAfter)} on your cap`
+                    : `${formatMoney(l.capNow)} cap hit`}
+                  {l.yearsLeft > 0 ? ` · ${l.yearsLeft} yr${l.yearsLeft === 1 ? "" : "s"} left` : ""}
+                  {l.injury ? ` · ${l.injury}` : ""}
+                </div>
+              </li>
+            ) : (
+              <li key={i} className="text-sm">
+                {l.label}
+              </li>
+            )
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ReviewPanel({
+  review,
+  userAbbr,
+  fromAbbr,
+  canConfirm,
+  onConfirm,
+  onBack,
+}: {
+  review: OfferReview;
+  userAbbr: string;
+  fromAbbr: string;
+  canConfirm: boolean;
+  onConfirm: () => void;
+  onBack: () => void;
+}) {
+  const { cap, roster, check } = review;
+  return (
+    <div className="mt-3 border border-[var(--color-accent)] rounded-lg p-3 space-y-3 bg-[var(--color-surface-2)]">
+      <div className="text-sm font-semibold">Review before you accept</div>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        <ReviewLines label={`${userAbbr} receive`} lines={review.incoming} arriving />
+        <ReviewLines label={`${fromAbbr} receive`} lines={review.outgoing} arriving={false} />
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm tnum">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Cap space now</div>
+          {formatMoney(cap.spaceBefore)}
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">After the trade</div>
+          <span className={cap.spaceAfter < 0 ? "text-[var(--color-bad)]" : undefined}>
+            {formatMoney(cap.spaceAfter)}
+          </span>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Dead money</div>
+          {formatMoney(cap.deadAdded)}
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Roster</div>
+          {roster.before} → {roster.after}
+        </div>
+      </div>
+
+      {review.warnings.length > 0 && (
+        <ul className="space-y-1">
+          {review.warnings.map((w, i) => (
+            <li key={i} className="text-xs text-[var(--color-warn)]">{w}</li>
+          ))}
+        </ul>
+      )}
+
+      {!check.ok && (
+        <p className="flex items-center gap-2 text-xs">
+          <Pill tone="bad">Can&rsquo;t complete</Pill>
+          <span className="text-[var(--color-bad)]">{check.reason ?? "That trade cannot be made."}</span>
+        </p>
+      )}
+
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={onBack}>
+          Back
+        </Button>
+        <Button
+          size="sm"
+          variant={canConfirm ? "primary" : "default"}
+          onClick={onConfirm}
+          disabled={!canConfirm}
+          className={!canConfirm ? "opacity-40 cursor-not-allowed" : undefined}
+        >
+          Confirm trade
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function AssetPanel({
   label,
