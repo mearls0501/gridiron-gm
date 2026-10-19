@@ -1,5 +1,78 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-19 — Trade review before Accept and Propose (#185)
+
+Draft PR #185 on `claude/dazzling-pasteur-02nh3y`. UI, view model and tests
+only. Trade valuation, CPU behavior, `trades.ts`, the RNG, simulation tuning
+and `docs/baselines.json` are unchanged.
+
+### The repro
+
+An incoming offer's card printed `Name (POS, OVR)` per asset and nothing else.
+`TradeOffer` stores no injury or cap snapshot, and `acceptOffer` re-runs only
+`checkTrade`, never `evaluateOffer`. A call that aged a week accepted blind: an
+injury or IR move after the call still went through, and no screen showed the
+cap effect. `lib/view/tradeReview.test.ts` case 1 pins the card.
+
+### What landed
+
+- `lib/view/tradeReview.ts` builds the review from the live save, from the
+  user's side, for an incoming offer or the user's own proposal. Per player:
+  injury ("Out 6 wks · Torn hamstring"), IR, age, years left. Arrivals show what
+  they cost on the user's cap; departures show today's hit. Cap space now and
+  after, dead money, roster before → after, and warnings for an injured or IR
+  arrival, dead money and an offseason roster over 53.
+- `/trades`: Accept and Propose trade open the review. Nothing commits until
+  Confirm trade. Confirm is disabled when `checkTrade` refuses (reason shown)
+  or, for a proposal, when the club would decline. Back closes it; editing the
+  proposal closes it. Building the review leaves the save byte-identical.
+- The review's cap is what `executeTrade` posts, not `checkTrade`'s estimate.
+
+### Finding — check and execution price a contract differently (not changed)
+
+`checkTrade` charges the sender full `deadMoney` (uncharged bonus plus
+remaining guaranteed base). `moveAsset` posts only the uncharged bonus, and
+the receiver's copy has `guaranteedYears` 0. The guaranteed base is charged
+to nobody, the receiver can cut him free, and the check refuses some deals
+execution would fit. `lib/core/tradeReview.test.ts` pins both numbers as
+KNOWN GAP assertions. Whether guarantees transfer, or the sender eats them, is
+Matt's call; either moves CPU cap behavior and the gates.
+
+Also left alone: the user's Propose path bumps `nextTradeId` twice
+(`executeTrade` sets `id+1`, then the page adds 1). Inquiry child streams key
+on `nextTradeId`, so fixing it would move the seed-42 user-offers canary.
+
+### Tests
+
+- `lib/core/tradeReview.test.ts`: execution cap on seeds 11/42/99; the
+  check-vs-execution gap and the refusal boundary; stale injury and IR still
+  execute (IR is off the 53, so a full roster refuses); released, retired,
+  closed window, cap, missing offer, used and moved picks refuse with the save
+  byte-identical and the offer still in the inbox.
+- `lib/view/tradeReview.test.ts`: the repro; live injury/IR; review cap and
+  roster equal the executed trade on three seeds for Accept and Propose;
+  read-only; refusals shown before Confirm; offseason over 53 is a note.
+- Both registered in `package.json` and `scripts/gate.ts` FAST and FULL
+  (the #47 convention).
+- `scripts/e2e-desks.mjs` `checkTradeReview`, called from `e2e-interact.mjs`:
+  proposes the user's last own pick for nothing, opens the review, Back,
+  then a double-clicked Confirm sends exactly one pick. An incoming offer,
+  when one is waiting, is opened and backed out of only.
+
+### Validation
+
+`npm test` PASS. Browser against `next start`:
+`PW_CHROMIUM=/opt/pw-browsers/chromium node scripts/e2e.mjs` printed
+**E2E PASSED**; `node scripts/e2e-interact.mjs` printed **INTERACTION TEST
+PASSED** with `/trades Propose → review → Back → Confirm sent one pick
+(21 → 20)`. A one-off seed-42 week-3 fixture checked the incoming review at
+1280 and 390 wide: injury, cap ($22.3M → $11.4M; $11.6M arriving base, $1.25M
+dead, $1.99M leaving), roster, no horizontal scroll, no page errors.
+
+Gates (`gate:serial -- --seeds 1`, then `gate:full:serial -- --seeds 1`, 4 cores) are running with both new steps registered; results follow in the next commit.
+
+---
+
 ## 2026-10-18 — #182 finish signed
 
 Matt signed the #182 finish on 2026-10-18. The work stays on
