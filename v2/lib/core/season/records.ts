@@ -230,7 +230,7 @@ export function teamSeasonStats(
   for (const t of state.teams) out.set(t.id, blankTeamSeason(t.id));
 
   for (const g of state.games) {
-    if (!g.played || !g.boxScore || g.season !== season) continue;
+    if (!g.played || !g.boxScore || g.season !== season || g.playoffRound !== null) continue;
 
     const pairs: [number, typeof g.boxScore.home, typeof g.boxScore.away, number, number][] = [
       [g.homeId, g.boxScore.home, g.boxScore.away, g.homeScore, g.awayScore],

@@ -282,6 +282,8 @@ export interface Player {
   psElevations?: number;
 
   stats: SeasonStatLine[];
+  /** Playing time and last club, kept separately from regular-season production. */
+  postseasonUsage?: { season: number; teamId: number; snaps: number }[];
   careerAwards: string[];
 
   /**

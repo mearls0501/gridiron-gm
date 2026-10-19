@@ -3,11 +3,11 @@
  * shop with nobody the CPU posture will move, so the 24-draw pass returns
  * nothing. The inquiry walks the league on a child stream.
  *
- * Seed 42, tag → FA. The FA rng lock is the proof the inquiry did not add a
- * parent draw beyond the offseason trade step. The specialist ask cap moved
- * opening contracts, so the absolute moved: tag 823515333, FA 1063212815.
- * Coordinator ratings had left it at tag 865642336, FA 2177187567.
- * Before that, tag was 4285417656 and FA was 485912630.
+ * A minimum-roster fixture forces the ordinary shop to exhaust its draw
+ * budget, then verifies successful inquiries add no parent draws.
+ * Seed 42, tag → FA. The end-of-half kick reshuffled the parent stream
+ * from week 1, so the canary moved: tag 1599887382, FA 2847491416
+ * (was 823515333 and 1063212815). Offer logic is unchanged.
  *
  * Run: npx tsx lib/core/userOffers.test.ts
  */
@@ -16,7 +16,8 @@ import { newGame } from "./newGame";
 import { Rng } from "./rng";
 import { advance } from "./season/engine";
 import { advanceOffseason } from "./offseason";
-import { checkTrade, dropSpentInboxOffers, generateUserOffers, isSpentPick } from "./trades";
+import { checkTrade, dropSpentInboxOffers, generateUserOffers, isSpentPick, proposeTrade } from "./trades";
+import { POSITION_MIN } from "./types";
 import type { TradeAsset, TradeOffer } from "./types";
 
 function giveKey(offer: TradeOffer): string {
@@ -57,6 +58,44 @@ function assertLivePicks(st: ReturnType<typeof newGame>, offer: TradeOffer): voi
   }
 }
 
+for (const seed of [11, 42, 99]) {
+  const st = newGame({ seed });
+  st.phase = "offseason-fa";
+  st.week = 0;
+  st.tradeOffers = [];
+  // No surplus body can be shopped; inquiries can still ask about the roster.
+  for (const pos of Object.keys(POSITION_MIN) as (keyof typeof POSITION_MIN)[]) {
+    const group = st.players
+      .filter((p) => p.teamId === st.userTeamId && p.pos === pos && !p.retired && !p.prospect)
+      .sort((a, b) => b.ovr - a.ovr);
+    for (const p of group.slice(POSITION_MIN[pos])) {
+      p.teamId = null;
+      p.contract = null;
+    }
+  }
+  const ids = st.teams.map((t) => t.id).filter((id) => id !== st.userTeamId);
+  for (const from of ids) {
+    const probe = new Rng(123);
+    assert.equal(proposeTrade(st, from, st.userTeamId, probe), null, "fixture has no ordinary shop target");
+    assert.equal(probe.state, 123, "empty shop proposals take no draws");
+  }
+  const entry = st.rngState;
+  const parent = new Rng(entry);
+  const expected = new Rng(entry);
+  // The ordinary shop still pays for its 24 club selections.
+  for (let i = 0; i < 24; i++) expected.pick(ids);
+  const offers = generateUserOffers(st, parent, 2);
+  assert.ok(offers.length > 0, "exercise a successful inquiry after all 24 empty shop attempts");
+  assert.equal(parent.state, expected.state, "inquiries add no parent draws beyond the ordinary shop");
+  assert.equal(st.rngState, entry, "caller owns persistence of its parent stream");
+  for (const offer of offers) {
+    assert.equal(checkTrade(st, offer).ok, true);
+    assertLivePicks(st, offer);
+  }
+}
+
+console.log("ok    userOffers — successful inquiries add no parent RNG draws (seeds 11, 42, 99)");
+
 {
   const st = newGame({ seed: 42 });
   const seen = new Map<number, string>();
@@ -74,11 +113,11 @@ function assertLivePicks(st: ReturnType<typeof newGame>, offer: TradeOffer): voi
     }
   }
   assert.equal(st.phase, "offseason-tag");
-  assert.equal(st.rngState, 823515333);
+  assert.equal(st.rngState, 1599887382);
 
   advanceOffseason(st);
   assert.equal(st.phase, "offseason-fa");
-  assert.equal(st.rngState, 1063212815, "inquiry must not move the parent stream");
+  assert.equal(st.rngState, 2847491416, "inquiry must not move the parent stream");
 
   const offers = st.tradeOffers ?? [];
   assert.ok(offers.length >= 1, `free agency opened with no calls (${offers.length})`);

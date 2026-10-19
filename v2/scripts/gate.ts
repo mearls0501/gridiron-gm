@@ -58,6 +58,8 @@ interface Step {
   args: string[];
   /** false for steps that only report (their metrics still gate). */
   exitGates: boolean;
+  /** This harness owns a fixed internal panel; do not repeat/nest it per gate seed. */
+  ownsPanel?: boolean;
 }
 
 const FAST: Step[] = [
@@ -67,6 +69,11 @@ const FAST: Step[] = [
   { name: "offseasoncontinue", cmd: "npx", args: ["tsx", "lib/store/offseasonContinue.test.ts"], exitGates: true },
   { name: "draftnight", cmd: "npx", args: ["tsx", "lib/store/draftNight.test.ts"], exitGates: true },
   { name: "savelist",    cmd: "npx", args: ["tsx", "lib/store/saveList.test.ts"], exitGates: true },
+  { name: "saveidentity", cmd: "npx", args: ["tsx", "lib/store/saveIdentity.test.ts"], exitGates: true },
+  { name: "regularstats", cmd: "npx", args: ["tsx", "lib/core/season/regularStats.test.ts"], exitGates: true },
+  { name: "driftaging", cmd: "npx", args: ["tsx", "scripts/driftAging.test.ts"], exitGates: true },
+  { name: "driftavailability", cmd: "npx", args: ["tsx", "scripts/driftAvailability.test.ts"], exitGates: true },
+  { name: "guardmeasurements", cmd: "npx", args: ["tsx", "scripts/guardMeasurements.test.ts"], exitGates: true },
   { name: "useroffers",  cmd: "npx", args: ["tsx", "lib/core/userOffers.test.ts"], exitGates: true },
   { name: "drafttoast",  cmd: "npx", args: ["tsx", "lib/view/draftToast.test.ts"], exitGates: true },
   { name: "newgame",     cmd: "npx", args: ["tsx", "lib/view/newGameRoute.test.ts"], exitGates: true },
@@ -86,6 +93,7 @@ const FAST: Step[] = [
   { name: "inactives",    cmd: "npx", args: ["tsx", "lib/core/inactives.test.ts"], exitGates: true },
   { name: "waivers",      cmd: "npx", args: ["tsx", "lib/core/waivers.test.ts"], exitGates: true },
   { name: "callsheet",    cmd: "npx", args: ["tsx", "lib/core/callSheet.test.ts"], exitGates: true },
+  { name: "endhalfclock", cmd: "npx", args: ["tsx", "lib/core/sim/clock.test.ts"], exitGates: true },
   { name: "snapintent",   cmd: "npx", args: ["tsx", "lib/core/snapIntent.test.ts"], exitGates: true },
   { name: "livegame",     cmd: "npx", args: ["tsx", "lib/core/liveGame.test.ts"], exitGates: true },
   { name: "franchisetag", cmd: "npx", args: ["tsx", "lib/core/franchiseTag.test.ts"], exitGates: true },
@@ -117,6 +125,7 @@ const FAST: Step[] = [
   { name: "sweep",       cmd: "npx", args: ["tsx", "scripts/sweep.ts", "5", "2"],  exitGates: true },
   { name: "calibrate",   cmd: "npx", args: ["tsx", "scripts/calibrate.ts", "300"], exitGates: false },
   { name: "statcheck",   cmd: "npx", args: ["tsx", "scripts/statcheck.ts"],        exitGates: false },
+  { name: "rbpanel", cmd: "npx", args: ["tsx", "scripts/rbPanel.ts"], exitGates: true, ownsPanel: true },
   { name: "leverage",    cmd: "npx", args: ["tsx", "scripts/leverage.ts", "150"],  exitGates: false },
   // Cheap (one generated league + one headless draft) and it guards the four
   // claims the scouting system makes — including that no rendered surface can
@@ -131,6 +140,11 @@ const FULL: Step[] = [
   { name: "offseasoncontinue", cmd: "npx", args: ["tsx", "lib/store/offseasonContinue.test.ts"], exitGates: true },
   { name: "draftnight", cmd: "npx", args: ["tsx", "lib/store/draftNight.test.ts"], exitGates: true },
   { name: "savelist",    cmd: "npx", args: ["tsx", "lib/store/saveList.test.ts"], exitGates: true },
+  { name: "saveidentity", cmd: "npx", args: ["tsx", "lib/store/saveIdentity.test.ts"], exitGates: true },
+  { name: "regularstats", cmd: "npx", args: ["tsx", "lib/core/season/regularStats.test.ts"], exitGates: true },
+  { name: "driftaging", cmd: "npx", args: ["tsx", "scripts/driftAging.test.ts"], exitGates: true },
+  { name: "driftavailability", cmd: "npx", args: ["tsx", "scripts/driftAvailability.test.ts"], exitGates: true },
+  { name: "guardmeasurements", cmd: "npx", args: ["tsx", "scripts/guardMeasurements.test.ts"], exitGates: true },
   { name: "useroffers",  cmd: "npx", args: ["tsx", "lib/core/userOffers.test.ts"], exitGates: true },
   { name: "drafttoast",  cmd: "npx", args: ["tsx", "lib/view/draftToast.test.ts"], exitGates: true },
   { name: "newgame",     cmd: "npx", args: ["tsx", "lib/view/newGameRoute.test.ts"], exitGates: true },
@@ -150,6 +164,7 @@ const FULL: Step[] = [
   { name: "inactives",    cmd: "npx", args: ["tsx", "lib/core/inactives.test.ts"], exitGates: true },
   { name: "waivers",      cmd: "npx", args: ["tsx", "lib/core/waivers.test.ts"], exitGates: true },
   { name: "callsheet",    cmd: "npx", args: ["tsx", "lib/core/callSheet.test.ts"], exitGates: true },
+  { name: "endhalfclock", cmd: "npx", args: ["tsx", "lib/core/sim/clock.test.ts"], exitGates: true },
   { name: "snapintent",   cmd: "npx", args: ["tsx", "lib/core/snapIntent.test.ts"], exitGates: true },
   { name: "livegame",     cmd: "npx", args: ["tsx", "lib/core/liveGame.test.ts"], exitGates: true },
   { name: "franchisetag", cmd: "npx", args: ["tsx", "lib/core/franchiseTag.test.ts"], exitGates: true },
@@ -181,6 +196,7 @@ const FULL: Step[] = [
   { name: "sweep",       cmd: "npx", args: ["tsx", "scripts/sweep.ts", "25", "2"], exitGates: true },
   { name: "calibrate",   cmd: "npx", args: ["tsx", "scripts/calibrate.ts", "300"], exitGates: false },
   { name: "statcheck",   cmd: "npx", args: ["tsx", "scripts/statcheck.ts"],        exitGates: false },
+  { name: "rbpanel", cmd: "npx", args: ["tsx", "scripts/rbPanel.ts"], exitGates: true, ownsPanel: true },
   { name: "leverage",    cmd: "npx", args: ["tsx", "scripts/leverage.ts", "150"],  exitGates: false },
   { name: "tails",       cmd: "npx", args: ["tsx", "scripts/tails.ts", "16"],      exitGates: false },
   { name: "conditions",  cmd: "npx", args: ["tsx", "scripts/conditions.ts", "6"],  exitGates: true },
@@ -287,7 +303,7 @@ function once(step: Step, seed: number): Promise<{ code: number; metrics: Record
 function run(step: Step): Promise<Result> {
   return new Promise(async (resolve) => {
     const started = Date.now();
-    const panel = seeds.length ? seeds : [0];
+    const panel = step.ownsPanel ? [0] : seeds.length ? seeds : [0];
     const runs: Record<string, number>[] = [];
     let worstCode = 0;
     let tail = "";

@@ -10,6 +10,7 @@ import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { GameState, isHarsh } from "../lib/core/types";
 import { emitAll, progress, seedFor } from "./metrics";
+import { insideBand, lockedBand } from "./guardMeasurements";
 
 const SEASONS = Number(process.argv[2] ?? 6);
 
@@ -146,7 +147,8 @@ console.log(
 // Sanity assertions
 const problems: string[] = [];
 const hw = homeWins / (homeWins + awayWins) * 100;
-if (hw < 52 || hw > 58) problems.push(`home win rate ${hw.toFixed(1)}% outside 52-58%`);
+const homeBand = lockedBand("conditions.homeWinPct");
+if (!insideBand(hw, homeBand)) problems.push(`home win rate ${hw.toFixed(3)}% outside locked ${homeBand.lo.toFixed(3)}–${homeBand.hi.toFixed(3)}%`);
 if (cold.n > 50 && dome.n > 50) {
   const d = cold.points / cold.n - dome.points / dome.n;
   if (d > -0.5) problems.push(`cold games should score less than dome games (delta ${d.toFixed(1)})`);

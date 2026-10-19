@@ -1612,6 +1612,132 @@ Panel `statcheck.rb5RushYds` **1357 → 1254** (1460/1342/1365/1273/1344 →
 1269/1205/1328/1267/1203) against 1191 ±95. Stream moved; the 5-seed panel is
 the verdict.
 
+### 5.11 Guard measurements — locked conditions, RB panel and milestone references
+
+2026-10-16, user-authorized after the unchanged-code diagnosis. No simulation
+rates or `docs/baselines.json` values change.
+
+**Conditions.** The home-win self-check reads the same target/tolerance as the
+gate: 54.439 +/-3, or 51.439–57.439%. A second hardcoded 52–58% range incorrectly
+failed a default 51.702786% sample that the locked band accepts. All weather and
+rest measurements retain their existing sampling and guards.
+
+**RB #5.** Expanded 2026-10-18, user-authorized after a fixed 100-pair
+before/after study. The canonical `statcheck.rb5RushYds` is the arithmetic
+mean of **100** complete REG rank-five observations on panel IDs **1–100**,
+using the existing `panelSeed(8675309, id)` mixing formula. IDs 1–5 are
+retained; none are dropped, trimmed or reweighted. A dedicated harness owns
+that fixed panel and runs once in either tier, including `--seeds 1`; the
+regular statcheck's individual reading remains report-only. Outer gate seeds
+do not repeat or nest the owned panel. All other statcheck sampling stays
+unchanged, and the lock remains **1191 +/-95**.
+
+The prior five-seed guard read 1271.4 before and 1318.4 after the end-of-half
+kick decision. The independent 95 new matched seeds read 1264.13 → 1259.88,
+paired difference -4.24 (95% interval -22.29 to +13.80; bootstrap -22.00 to
++13.73). Across all 100, means were 1264.49 → 1262.81. This supports expanding
+the fixed sample without changing the measured rank statistic or NFL lock.
+The study ran 200 fresh REG seasons / 54,400 games using exact Git copies of
+`d4b4cd2` and `a393ac9`; all initial worlds and rushing ledgers reconcile.
+Reproducible evidence:
+`/Users/mearls/Documents/Gridiron GM/rb-matched-panel-2026-10-18/`.
+This changes simulation sampling only, not reference data or simulation rates.
+
+**Milestone reference.** `docs/milestone-reference.json` preserves integer
+counts for all 27 game and 19 season thresholds, separately for 2021–2024 REG.
+Sources: nflverse `stats_player_week_YEAR.csv.gz` from
+<https://github.com/nflverse/nflverse-data/releases/tag/stats_player>.
+Download URLs and SHA-256s are in the data file. Filter `season_type == REG`;
+weekly rows are unique by `(player_id, game_id)`; aggregate season rows by
+`(season, player_id)` across all clubs. Completed-game exposures are
+272 / 271 / 272 / 272 (1087 total); season exposure is four. Report game rates
+per 272 games, season rates per season. The four rank-five rushing seasons
+1159 / 1269 / 1049 / 1412 reproduce §5.10's mean 1222.25. Defensive data reproduce
+Zaire Franklin's 2024 173 combined tackles (93 primary +80 assists), checked
+against <https://www.nfl.com/players/zaire-franklin/stats/>.
+
+Examples of the corrected inputs: 200-yard rushing games count 1/2/1/2,
+60-yard FG games 4/5/5/4, 3-sack games 16/16/23/17, 4,500-yard passing seasons
+6/4/3/3, 1,800-yard rushing seasons 1/0/0/2, and 1,700-yard receiving seasons
+1/2/2/1. The previous approximate rates (e.g. 5 rushing games or 1.5 FG games
+a year) are retired as reference inputs, not adjusted toward the simulator.
+
+**Comparison.** Keep the same two-sided 5% significance level, but include the
+finite NFL reference's sampling uncertainty: condition two Poisson counts on
+their sum, giving Binomial(total count, sim exposure / combined exposure).
+Sum outcomes with PMF no greater than the observed PMF for an exact two-sided
+p-value. This handles zero NFL observations without asserting an event is
+impossible. Compute from a mode-centred PMF recurrence to avoid underflow.
+No multiple-testing correction or new tolerance is applied. A rejected cell
+reports low/high according to observed rates; every row prints counts,
+exposures and p-value. Nested categories remain correlated and are not
+independent simulation bugs.
+
+**Definitions and scope.** Four combined-tackle categories stay visible as
+explicit unmatched diagnostics; the engine has no assist statistic, so those
+comparisons cannot supply an NFL verdict. The 42 comparable categories retain
+sacks: whole-player credit in the engine versus official fractional credit is
+a meaningful stat-distribution discrepancy, but not proof of excessive total
+sack rate. The harness still samples fresh generated leagues every season;
+results do not establish the distribution of aged franchises. Real passing,
+rushing and receiving tail misses remain visible individually.
+
+**Matched rerun.** Standard panel seeds 1–5 retain the same 6 conditions seasons
+and 16 fresh-league tail seasons each. Conditions raw values are identical and
+all five runs pass; home-win means 54.981550 / 53.732264 / 53.993808 / 53.879310 /
+54.595928%. The unchanged default 51.702786% passes the locked band too.
+RB observations remain 1365 / 1216 / 1291 / 1280 / 1205, mean **1271.4**; the
+default 1288 is report-only. No outlier is removed or clipped.
+
+Corrected milestone offs are **8 / 8 / 9 / 8 / 10** (mean **8.6**) versus the
+previous 23 / 20 / 22 / 22 / 25. Default **23→10**. Every one of the 46 raw
+counts in each of six runs, all progress lines, all extreme metrics and all
+unaffected conditions/statcheck metrics match exactly. A separate log-factorial
+binomial calculation reproduces every p-value/verdict; expected verdicts were
+also reconstructed from the previous frozen ledgers without new simulation
+data. Persistent panel misses include 3-/4-sack and 3-INT games too common,
+plus too few 4,500-yard passing, 1,800-yard rushing and 1,700-yard receiving
+seasons. Passing the legacy cap does not claim those individual issues fixed.
+
+`tails.milestonesOff` counts rejected *comparable* categories and retains max
+16 byte-for-byte. That max was locked on the former measurement; passing it
+after the correction is not a new NFL calibration or a claim that every tail
+is correct. No reference or panel is selected after seeing the repaired run.
+
+### 5.12 End-of-half kick decision — 2026-10-16
+
+The unchanged 2021–24 REG reference in §5.11 is retained. A read-only replay
+of the same five panels (80 fresh leagues, 21,760 games) found that five-FG
+games were short because of attempts (11.625 games/year with five attempts
+versus 17.5 in the source), while make percentage was already close
+(85.46% versus 85.01%). A separate 20-season clock observation found 314
+non-scoring first-half-ending scrimmage plays on downs 1–3 from 45-yard FG
+range or closer with ten seconds or less available beforehand. The engine
+only offered a field goal on fourth down.
+
+The user authorized a decision repair, not calibration. Before normal
+fourth-down decisions or offensive snap prompts, a clock-aware branch now
+uses the existing kicker/weather range check on any down at the end of the
+first half. It also banks a tying/winning field goal at game end (margin
+-3 through 0), retaining victory formation and required-TD offense. The
+window is the existing longest scrimmage runoff, 45 seconds, shared with the
+unchanged sack-duration draw. With no timeout/hurry-up system, this deliberately
+conservative policy avoids a full snap expiring the clock; it is an
+implementation time budget, **not** a sourced NFL target or new rate.
+
+No kick-accuracy, range, duration, ordinary scrimmage duration distribution,
+reference comparison or baseline is changed. The same five 16-season tails
+panels produce five-made-FG game counts **151 / 172 / 161 / 164 / 154**
+(before: 89 / 107 / 94 / 105 / 103), or **10.025/year** versus the unchanged
+reference **9.008/272 games**. All five individual comparisons pass. The
+measured comfortable-range clock-expiration failure is zero across all 80
+seasons, verified against complete game logs by an external passive observer.
+Overall milestone misses are 7 / 12 / 10 / 10 / 11; the unchanged max 16 is
+still a legacy regression cap, not evidence every other distribution fits.
+No tolerance is widened here. Full validation is recorded in HANDOFF and the
+validation artifacts.
+
+
 ## 6. Starter availability — how much time a real starter misses
 
 Added 2026-08-02 for `task/305-availability`. **PARTIAL: skill positions only.**
@@ -1853,7 +1979,120 @@ check on the often-and-brief against rare-and-long split, not as a target.
 **What this does not fix.** `drift.playerWeeksLost` is a different population
 and a different question; see §6.7.
 
-### 6.7 `drift.playerWeeksLost` is about half roster churn, not absence
+### 6.7 Injury/IR absence and the historical rotation composite
+
+**2026-10-18 — playoffs out of the regular-season count; injury/IR method not re-locked.**
+Playoff games no longer count toward regular-season stats or `playerWeeksLost`.
+Since `4e82214`, `drift.playerWeeksLost` counts injured-active + injured-IR +
+healthy-IR player-games (`a393ac9` panel mean **1638.95**), no longer the
+rotation-nonappearance composite (**2929.42** at `c7298d9`, **2806.49** on
+#183 at `99f1cae`). It still passes the legacy **2158.23 ±700** lock, and a
+re-lock or new injury target needs a separate sign-off.
+
+**2026-10-16 — current method, user-authorized injury/IR guard.**
+`drift.playerWeeksLost` now counts a player-game when a living, non-prospect
+player belongs to a club playing a REG game and, at kickoff, either has
+`injuryWeeks > 0` or is on IR. IR includes healthy players still subject to
+activation/minimum-stay restrictions; the two conditions never double count.
+Practice-squad players and free agents are outside this rostered population.
+Byes and postseason games contribute zero. This measures full-game
+unavailability at kickoff: an in-game injury counts only at later kickoffs
+where the player remains unavailable. Players with no snaps and those
+still on IR at REG completion are included; a survivor-only >100-snap filter
+would censor precisely the long absences this guard needs to measure.
+
+The season engine supplies an optional observer after waivers, depth-chart
+refresh and gameday inactive declarations, before games, healing, new injuries
+and IR activation. The harness copies primitive kickoff fields into its own
+ledger, outside the save. It validates complete REG kickoff/box evidence and
+reconciles appearances with kickoff eligibility. The resulting season totals
+are frozen before playoff simulation. No injury probability, duration, roster
+rule or RNG draw changes.
+
+The previous REG-end active-53, >100 REG-snap population remains solely as a
+**report-only diagnostic**. Its nonappearance total reconciles exactly into
+injury/IR, healthy bench (scratch or no box row), roster churn (PS/off-roster),
+holdouts and the club-calendar adjustment. Injury/IR takes precedence over
+healthy bench, and off-roster/PS time stays churn even if also injured. These
+components explain that historical cohort; they do not purport to cover all
+bench time or all roster churn league-wide. The main injury/IR count uses the
+actual club at each kickoff rather than charging a future signing for weeks
+before he joined it.
+
+The locked **2158.23 +/-700** (1458.23–2858.23) and internal **1500–4000**
+limits are unchanged. Both were established on the old composite and have
+**not** been calibrated to the new injury/IR population. A pass or failure
+against them is a legacy regression-band result, not an empirical NFL injury
+fit. The `nfl` note in the unchanged baseline is not a target for this new
+population. No injury-rate tuning or baseline re-lock accompanies this repair.
+The test command and both gate tiers already register the focused regression
+harness, now also covering zero-snap injury, year-end and healthy IR, byes,
+healing after capture, separate bench/churn, missing observations and identical
+seeded engine state with versus without the observer.
+
+**Validation: 20 seasons each, seeds 12345 / 54321 / 98765.** All three
+new readings are inside the unchanged legacy band. Component means per league
+season:
+
+| Seed | Injured active | Injured IR | Healthy IR restrictions | Injury/IR total |
+| --- | ---: | ---: | ---: | ---: |
+| 12345 | 517.50 | 1049.60 | 112.60 | **1679.70** |
+| 54321 | 508.70 | 1052.75 | 113.40 | **1674.85** |
+| 98765 | 543.00 | 1029.60 | 95.10 | **1667.70** |
+
+The report-only historical rotation cohort reconciles as follows. Its injury/IR
+column covers that cohort only and is not the league-wide total above.
+
+| Seed | Rotation nonappearance | Rotation injury/IR | Healthy bench | Roster churn | Holdout | Calendar |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 12345 | 2917.50 | 1047.85 | 1673.05 | 153.75 | 39.90 | 2.95 |
+| 54321 | 2910.20 | 1047.20 | 1679.95 | 143.45 | 37.35 | 2.25 |
+| 98765 | 2969.40 | 1085.15 | 1726.50 | 112.20 | 41.15 | 4.40 |
+
+Every diagnostic mean matches the independent kickoff-ledger investigation on
+unchanged `a13b012`. All 32 other pre-existing drift metrics, all non-availability
+season-table columns and all progress outcomes match that commit on each seed;
+P0 failures remain zero. This is a measurement repair with no injury tuning.
+Source hashes, independent checks, full logs and gate results are recorded in
+`docs/HANDOFF.md`. Passing the old band does not establish a new NFL calibration.
+
+The earlier measurements below are historical and superseded by this method;
+they explain why the previous composite was retired as the availability guard.
+
+
+**2026-10-16 — earlier regular-season timing correction (historical).**
+The guard now freezes the rotation and missed-week total immediately after the
+last regular-season week, before any playoff game. It counts appearances and
+snaps directly from completed, current-season REG boxes; a playoff appearance
+cannot erase a REG absence or push someone above the >100-snap cutoff. The
+denominator is the current club's scheduled REG games (17 on this schedule),
+so the bye is not a missed game. Season-stat rows and postseason workload do
+not enter this calculation. Both roster membership and the result are frozen
+before postseason injury healing, IR moves, replacements or releases.
+
+The existing active-53 filter and strict >100 REG-snap threshold remain. A
+player still on IR/PS, retired, a prospect or a free agent at that cutoff is
+outside the population; a returned active player carries his REG absences.
+This remains a rotation non-appearance/churn composite, not an injury-only
+counter or the established-starter NFL target in §6.5. The baseline stays
+**2158.23 +/-700**, unchanged, including both bounds **1458.23–2858.23**.
+No engine or injury tuning is authorized by a remaining calibration miss.
+
+Twenty-season runs on seeds **12345 / 54321 / 98765** read **2917.50 /
+2910.20 / 2969.40**, against previous post-playoff roster readings **2999.60 /
+2981.25 / 3041.15**. All three corrected values still exceed 2858.23; the
+measurement repair does not close the calibration miss. All 32 other emitted
+drift metrics and all other season-table columns match the prior `0f8a292`
+runs exactly. Full results and artifact locations are in `docs/HANDOFF.md`.
+
+`scripts/driftAvailability.ts` requires complete REG boxes and a nonempty
+rotation, rejects a late postseason sample, and returns frozen primitives.
+`scripts/driftAvailability.test.ts` covers actual REG absences, full-season
+attendance, byes, the strict snap threshold, roster exclusions, contaminated
+combined season rows, postseason-only workload, later roster mutations,
+missing evidence and duplicate appearances. It is registered in the test
+command and both gate tiers. The historical measurements below describe the
+previous timing and remain for comparison.
 
 Added 2026-08-02, measured while fitting §6.5. Recorded because the metric reads
 as an injury guard and is not one, and anyone tuning availability against it
@@ -1971,6 +2210,33 @@ season and a 60-seed sweep costs about fifteen seconds — and treat any panel
 movement smaller than ~170 as noise.
 
 ### 6.9 `drift.active()` is the 53-man, not every body on `teamId`
+
+
+**2026-10-16 — authorized age-guard correction.** Age and OVR cohort
+measurements now freeze primitive values at `offseason-recap`, before any
+progression, retirement, or roster changes. The age27/age34 ordering is a
+diagnostic, not an aging assertion: older rostered players are a selected
+population that was stronger to begin with. Under the former guard, in all six
+failed default-seed cohorts the same people had already lost 11.88–15.30 OVR
+from age27; a higher
+mean than a different young cohort did not demonstrate missing aging.
+
+The progression audit selects **all living non-prospects before progression**,
+not just the men who remain on a roster afterward. It matches player IDs
+immediately after the recap step, including newly retired players. Each must
+age exactly once. When the incoming age is strictly beyond that player's
+frozen personal `peakAge`, record the same-player OVR change. Within each seed,
+every position must have observations and a negative mean annual change.
+This is an internal progression invariant, not an estimate of an NFL age curve.
+The existing individual career-peak decline guard (`meanFade < -5`) remains.
+
+`scripts/driftAging.test.ts` guards immutable before/after observations, late
+peaks, retirement/IR/PS/release inclusion, missing or skipped age updates, empty
+samples, and stalled or reversed aging in one position. Its steps are registered
+in both gate tiers and the test command. No engine coefficient or
+`docs/baselines.json` target changes. The historical population-filter analysis
+below still applies to the active-roster OVR and demographic tables; the paired
+progression audit intentionally covers everyone eligible to progress.
 
 Added 2026-09-12 for Wave 3.4 Packet C. Changing WHAT the franchise-arc
 guards measure, not the engine. `docs/baselines.json` is not moved in this

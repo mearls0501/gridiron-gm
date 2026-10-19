@@ -1,7 +1,724 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-18 — #182 finish signed
+
+Matt signed the #182 finish on 2026-10-18. The work stays on
+`codex/save-season-fixes` / draft PR #182. The seed-42 user-offers canary is
+tag **1599887382** and FA **2847491416**. The 2026-10-17 inquiry-isolation
+checks stay. Behavioral assertions and `trades.ts` are unchanged.
+`docs/baselines.json` is unchanged. `drift.playerWeeksLost` is not re-locked.
+
+### 5-seed Studio panels
+
+`c7298d9` was GATE FAIL 4 (coherence, wrongSign 0.20, milestonesOff 22.40,
+playerWeeksLost 2929.42). `a393ac9` was GATE FAIL 5 (useroffers, staff exit +
+staff.problems 0.20, path2BurnInTop10PrPct 6.03, rb5RushYds 1318.4), with
+p0Failures 0.60→0, coherence ok, wrongSign 0, milestonesOff 10.0. #183 at
+`99f1cae` was GATE FAIL 5.
+
+### Triage
+
+All four game-side moves come from `a393ac9`, where `takeLastKick` in
+`sim/clock.ts` kicks in-range field goals at the end of a half and reshuffles
+the RNG stream from week 1. `bb4244d` and `d4b4cd2` don't move the sim.
+useroffers is an intended stream-canary change. Staff seed 2 at 1.31 is noise
+(mean 0.58). path2 at 7/116 is k-of-n noise (P(k≤8)≈0.40 at the #183 rate).
+rb5 +47 yds is noise (paired t 0.93). playerWeeksLost 1638.95 is a measurement
+change from `4e82214`.
+
+### Decisions
+
+Matt's decisions (2026-10-18): useroffers literal update signed; staff, path2
+and rb5 left reported as red lines; no playerWeeksLost re-lock.
+`staff.problems` stays seed 2 at 1.31 vs 1.2. `careers.path2BurnInTop10PrPct`
+stays 7/116 = 6.03%. The five-seed `statcheck.rb5RushYds` reading **1318.4**
+was left reported, with no tuning and no band changes. `b028602`, already on
+this branch, then expanded that owned panel to IDs 1–100 (mean **1262.81**)
+without moving the **1191 +/-95** lock. This commit does not revert that
+expansion.
+
+The legacy-save repair check stays as previously recorded.
+
+---
+
+## 2026-10-18 — Postseason club history in Hall eligibility and compensatory picks
+
+Follow-up to PR #182 review on `codex/save-season-fixes`. Changed
+`lib/core/hallOfFame.ts`, `lib/core/offseason/draft.ts` and their existing
+`hallOfFame.test.ts` / `draftRules.test.ts` suites. No gate registrations,
+simulation-rate files or baseline bytes change.
+
+Hall membership counts the union of regular-season appearances and postseason
+usage, once per club/year. A playoff-only fourth season and championship now
+preserve franchise eligibility, season bounds, primary-club selection, legacy
+retirement timing and league induction. Championship stamps prefer the archived
+champion and otherwise the postseason club, so a regular-season club cannot
+inherit a later club's title. Regular-season awards, production and starter
+thresholds continue using regular-season rows.
+
+Compensatory UFA attribution prefers this season's postseason club, matching
+the CPU re-sign path. Existing APY/regular-season playing-time tiers and cut
+exclusions are unchanged. Tests exercise playoff-only departures, club changes,
+REG/postseason overlap, actual added picks, re-signing and cut exclusion.
+
+Both new regression suites fail on pre-fix `b028602`; a separate membership-only
+title mutant fails the cross-club championship assertion. All pass on final
+source. An initial gate attempt was interrupted to add that correction; its
+outputs are kept separately and are not claimed as validation.
+
+Fresh final-source validation:
+- `npm run gate:serial -- --seeds 1`: **GATE PASS**, 65 checks, 72 metrics.
+- `npm run gate:full -- --seeds 1`: **GATE PASS**, 71 checks, 179 metrics.
+- Every full-tier check executes exactly once with original arguments;
+  an external semaphore limits full concurrency to four. Drift 20, careers 24,
+  staff 8, verification 10 and sweep 25 × 2 all finish.
+- Both owned 100-seed RB panels independently report **1262.81**. Every
+  seed/value matches the prior run. No samples are dropped or reweighted.
+- The known non-gating leverage OT.sta NO EFFECT exit remains: noEffect=1,
+  wrongSign=0, unbackedOvr=0, all inside existing bounds.
+- Baseline SHA-256 remains
+  `12bcbcd2cd26d23f1f7e0ac8e598cb8165fe3e85cfb3a8e56fd59b52a987d74e`.
+
+Frozen-source hashes, all logs, negative controls, runner and completed audit:
+`/Users/mearls/Documents/Gridiron GM/postseason-club-history-validation-2026-10-18/`.
+`verification.json` reports **PASS**, both gates pass, tested source unchanged.
+
+---
+
 Where the build stands, what is still wrong, and what to do next. Read this
 first, then `AGENTS.md`, then `docs/nfl-reference.md`.
+
+---
+
+## 2026-10-18 — Larger fixed RB guard panel
+
+User-authorized follow-up on the same worktree / draft PR #182. The guard
+now averages every panel ID **1–100**, preserving the existing seed mix and
+the original five seeds. It remains owned by `rbPanel.ts` and runs once per
+gate invocation in either tier, including `--seeds 1`. No nested averages,
+trimming, discarded seeds, simulation changes or baseline changes.
+
+The expansion follows the read-only matched-code study at
+`/Users/mearls/Documents/Gridiron GM/rb-matched-panel-2026-10-18/`:
+100 pairs / 200 fresh REG seasons / 54,400 games, exact uninstrumented
+`d4b4cd2` before and `a393ac9` after. The original five reproduce +47 yards,
+but 95 new pairs average **1264.13 → 1259.88 (-4.24)**, paired 95% interval
+**-22.29 to +13.80**; bootstrap agrees. All 100 average **1264.49 → 1262.81**.
+That supports a larger fixed measurement, not a wider bound. The unchanged
+lock is **1191 +/-95**, so the upper limit remains **1286**.
+
+`guardMeasurements.test.ts` now rejects the old five-seed panel, missing
+late IDs, duplicate/substituted/extra IDs and invalid yards. It verifies
+order-independent averaging, preserved seed mixing, independence from outer
+GG_SEED, and an untrimmed outlier panel whose mean 1287.5 still fails the
+unchanged bound. REG box evidence checks remain in place. `rbPanel.ts`
+reports its actual fixed sample size; the canonical metric name and both
+existing `ownsPanel` registrations are unchanged.
+
+Validation evidence:
+`/Users/mearls/Documents/Gridiron GM/rb-guard-panel-validation-2026-10-18/`.
+Focused guard regression passes. Fresh fast (`npm run gate:serial -- --seeds 1`)
+reports **GATE PASS**: all 65 checks execute, and the owned RB panel emits
+**1262.81** from exactly 100 samples. Every ID, mixed seed and observed value
+matches the independent study. Fresh full (`npm run gate:full -- --seeds 1`)
+also reports **GATE PASS**, with all 71 registered checks executed exactly
+once using the original arguments. Its owned RB panel independently emits
+the same **1262.81** from all 100 samples. Fast reports 72 metric entries;
+full reports 179. Other harnesses use the same single outer seed as prior
+validation; the RB panel owns all 100 seeds in either tier.
+
+The full gate completes 20-season drift, 24-season careers, eight-season staff,
+10-season verification and the 25-seed/two-season sweep. An external semaphore
+limits full-tier concurrency to four; the long contract check was scheduled
+on the next free slot by pausing only waiting wrappers, all of which resumed.
+Every original argument and exit code is audited in `verification.json`.
+The known leverage OT.sta NO EFFECT exits 1 but remains non-gating; noEffect=1,
+wrongSign=0 and unbackedOvr=0 satisfy the unchanged bounds.
+
+Each gate's fresh RB sample vector matches all 100 post-fix observations in
+the independent study (range **1098–1447**, with no clipping). Thus the higher
+individual observations still contribute. All production simulation files,
+`gate.ts`, `metrics.ts`, package registration and NFL reference data remain
+unchanged. The baseline SHA-256 remains
+`12bcbcd2cd26d23f1f7e0ac8e598cb8165fe3e85cfb3a8e56fd59b52a987d74e`.
+
+---
+
+## 2026-10-17 — Inquiry RNG isolation and RB panel diagnosis
+
+User-authorized follow-up on the same worktree / draft PR #182. The only
+functional edit is `lib/core/userOffers.test.ts`; trade and simulation
+production code, panel definitions, reference data and baseline bytes stay
+unchanged. Evidence and reproducible runners:
+`/Users/mearls/Documents/Gridiron GM/rng-isolation-rb-diagnosis-2026-10-17/`.
+
+The test now creates minimum positional rosters on seeds 11 / 42 / 99. It
+proves every ordinary shop proposal has no target and takes no draws, then
+requires successful, legal inquiries while the supplied parent RNG advances
+only by the 24 ordinary club selections. The save's RNG is still caller-owned.
+The previous full-season offer/expiry/diversity/live-pick checks remain; only
+the two unrelated absolute tag/FA RNG literals are replaced. Focused tests
+pass. A copy with the inquiry walk wired to the parent fails the new isolation
+assertion (4179556753 versus expected 3299532595), confirming sensitivity to
+the actual fault.
+
+### Why the RB mean rose
+
+Fresh pre-fix (`d4b4cd2`) and post-fix (`a393ac9`) copies reproduce the exact
+standard five-seed REG panel. Initial worlds are identical except save
+metadata timestamps; each has 272 complete REG boxes before playoffs. All
+rushing attempts/yards reconstructed from complete play logs reconcile with
+every box row. The fifth-place identity changes in all five samples.
+
+| Panel | Fifth-place yards before → after | Carries before → after | YPC before → after |
+| --- | ---: | ---: | ---: |
+| 1 | 1365 → 1273 | 284 → 269 | 4.806 → 4.732 |
+| 2 | 1216 → 1354 | 255 → 247 | 4.769 → 5.482 |
+| 3 | 1291 → 1269 | 289 → 289 | 4.467 → 4.391 |
+| 4 | 1280 → 1308 | 250 → 296 | 5.120 → 4.419 |
+| 5 | 1205 → 1388 | 271 → 308 | 4.446 → 4.506 |
+
+Mean yards rise **1271.4 → 1318.4 (+47)**; mean carries **269.8 → 281.8**.
+The exact symmetric identity `Δyards = Δcarries × mean(YPC) + ΔYPC ×
+mean(carries)` assigns **+54.50 yards to volume and -7.50 to efficiency**.
+This is a descriptive decomposition between rank-five observations, not a
+same-player treatment effect. Panels 4–5 supply 83 of the net 60 additional
+carries across the five rank-five observations; panel 2's gain is efficiency.
+
+Frozen kickoff re-runs of panels 4–5 reproduce every rushing line and identify
+two concrete workload changes. Panel 4's new fifth-place player Nico Northcutt
+had **13 appearances / 202 carries / 1116 yards** before and **17 / 296 / 1308**
+after. The four missing games were **injury/IR absences in weeks 15–18**
+(injuryWeeks 5/4/3/2), not bench time or roster churn; the fixed run has none.
+Panel 5's Silas Robinson II stays on the same club and plays all 17 games in
+both runs: **248 → 308 carries**, while YPC is almost unchanged
+(**4.496 → 4.506**). His team's RB carries rise **355 → 404** and his share
+**69.86% → 76.24%**. Thus the largest workload gains involve both changed
+injury absence and healthy workload allocation, not a universal gain in snaps.
+
+Across all five actual seasons, league credited carries change only
+**74332 → 74491 (+0.21%)**, and rushing yards **324885 → 326819 (+0.60%)**.
+The fixed rushing formulas and carry-share distribution are byte-identical.
+After the first changed kick path, the common RNG stream shifts subsequent
+play results, weekly workload scripts, injuries and roster decisions; only
+six of 1,360 games retain identical pass-lean/lead-back-share script draws
+between the independent season runs. An ordinary fourth-down FG may even
+look identical while skipping a prior go-for-it RNG draw.
+
+A separate controlled diagnostic replays **all 1,360 pre-fix kickoff states**
+through the fixed engine using deep-cloned state, identical options and a
+private RNG starting at the exact same state. Replay results never feed into
+the season. It produces **195 fewer credited carries (-0.26%)**, **1684 fewer
+rushing yards (-0.52%)**, **51 fewer scrimmage snaps**, and **797 more FG
+attempts**. Thus banking kicks does not create general rushing opportunity
+inflation in this sample. Nevertheless, assembling those replay boxes raises
+rank five **1271.4 → 1294.6 (+23.2)**: altered within-game outcomes and their
+distribution already move the tail, even with later roster/availability
+trajectories held to the parent. This diagnostic is not a playable alternate
+season and its difference cannot be subtracted from +47 as a clean causal
+percentage; in-game injury outcomes can still differ.
+
+The remaining miss is a real measured tail result, not playoff contamination
+or a changed rushing rate. These five seasons do not establish a persistent
+increase in the tail's expectation. The canonical guard remains **1318.4,
+FAIL**, against unchanged **1191 +/-95** (32.4 over its upper bound). No rate,
+sample or bound was adjusted.
+
+Validation: focused inquiry test and negative control pass; fresh fast gate
+(`npm run gate:serial -- --seeds 1`) executes all 65 checks and reports
+**GATE FAIL 1 problem**, solely `statcheck.rb5RushYds = 1318.4`. Fresh full
+(`npm run gate:full -- --seeds 1`, external three-check scheduling limit)
+executes all 71 registered checks exactly once with the original arguments
+and reports **GATE FAIL 1 problem**, the same RB mean. The 20-season drift,
+24-season careers and eight-season staff checks complete with no other bound
+failures. The existing leverage harness exits 1 but its metrics pass and its
+exit remains non-gating. Source hashes match the tested files, and every
+waiting wrapper used for scheduling was resumed. `verification.json` records
+the source audit, exact arguments, exit codes and maximum concurrency of three.
+
+---
+
+## 2026-10-16 — End-of-half field-goal decision
+
+User-authorized follow-up on `codex/save-season-fixes` / draft PR #182.
+The preceding read-only investigation is preserved at
+`/Users/mearls/Documents/Gridiron GM/milestone-causes-2026-10-16/`.
+
+`sim/game.ts` now checks a last-kick decision on every down before normal
+fourth-down aggression and offensive snap prompts. A first-half possession
+banks the field goal when another scrimmage play could consume the remaining
+clock. In the fourth quarter or overtime, it does so only when a field goal
+can tie or take the lead (margin -3 through 0); victory formation and
+TD-required possessions retain their existing paths. The kicker must exist
+and the existing kicker/weather range test must pass.
+
+The clock window is the existing maximum scrimmage runoff: **45 seconds**
+(the sack path), factored into `sim/clock.ts` and reused by that same duration
+draw. This is a conservative decision for an engine without timeouts or a
+hurry-up system, not an NFL rate target. Kick accuracy, range, duration,
+scoring/stat accounting, ordinary play duration distributions and the locked
+baseline are unchanged. The new decision consumes no RNG itself; a selected
+kick follows the existing kick path, so subsequent results may change.
+
+The registered `sim/clock.test.ts` covers clock/quarter/score boundaries,
+TD-required and victory exclusions, and 40 seeded games with actual early-down
+kicks and score/stat reconciliation. Bulk/live/CPU parity includes an actual
+new early-down kick. The same regression fails against the parent engine
+(seed 1/game 2 runs out the first-half clock in comfortable range: third-and-8
+at the opponent 11, 22 seconds left; a seven-yard completion consumes the
+remaining clock instead of attempting the available 28-yard FG).
+
+### Same five panels
+
+Unchanged standard GG_SEED panels 1–5, 16 fresh leagues each (80 seasons,
+21,760 REG games). No rate or baseline changes after measurement.
+
+| Panel | Five-FG games before → after | Milestone misses before → after | Clock-expiration misses after |
+| --- | ---: | ---: | ---: |
+| 1 | 89 → 151 | 8 → 7 | 0 |
+| 2 | 107 → 172 | 8 → 12 | 0 |
+| 3 | 94 → 161 | 9 → 10 | 0 |
+| 4 | 105 → 164 | 8 → 10 | 0 |
+| 5 | 103 → 154 | 10 → 11 | 0 |
+
+Five-made-FG games average **6.225 → 10.025/year**, against the unchanged
+2021–24 REG reference **9.008/272 games**. Every panel passes that individual
+comparison. Overall comparable milestone misses average **8.6 → 10.0**;
+all pass the unchanged legacy max 16, while other distribution failures remain.
+The new action changes subsequent RNG draws and the balance of kicks/offensive
+plays; other game/season samples are not expected to stay identical.
+
+An external observer on copies of the engine checks every game log. All five
+observed harness outputs match the stock harness byte-for-byte. The measured
+failure is an early-down, non-scoring scrimmage play consuming the remaining
+clock from <=45-yard FG range with <=45 seconds available beforehand, in the
+first half or a game-ending tie/win FG situation. There are **zero** in all
+80 seasons. The prior clock audit found 314 first-half failures with <=10
+seconds remaining across the matched first four samples of each panel; that
+same subset also has zero now. Observation adds no RNG draws or production
+hooks. Original and observed runs all exit 0.
+
+### Validation
+
+Focused regression and typecheck pass. Fast (`npm run gate:serial`):
+**GATE FAIL 2 problems**, **65** steps executed; the clock regression, live/bulk
+replay, deterministic replay, 348/348 verification checks and sweep pass.
+Failures are the unchanged RB band (**1318.4**, ceiling 1286; fixed samples
+1273 / 1354 / 1269 / 1308 / 1388) and the existing user-offers whole-season RNG
+literal. No bounds, samples or rates were changed in response.
+
+The user-offers assertion expects seed 42's tag RNG 823515333; the new stream
+is 1599887382 (FA 2847491416 versus old 1063212815). Trade/FA production code
+is byte-identical to the parent. A diagnostic copy omitting only those two
+whole-season RNG literals passes every remaining behavior assertion. A separate
+strict fixture sets the user roster to positional minimums, proves no ordinary
+shop target exists, then verifies successful fallback inquiries on seeds
+11 / 42 / 99 consume exactly the original 24 parent shop picks and no further
+parent draws. Thus the literal is stale; the actual child-stream isolation
+claim still holds. The repository test is deliberately left unchanged in this
+request. Both diagnostic probes exit 0 and are preserved in the artifacts.
+
+Full (`npm run gate:full -- --seeds 1`, externally bounded to three active
+checks): **GATE FAIL 2 problems**. All **71/71** registered checks execute
+exactly once with their original arguments; the same user-offers literal and
+RB mean are the only gate failures. The 20-season drift reports **zero P0
+regressions** (injury/IR 1636.1 weeks/year, save 13.65 MB); 24-season careers,
+10-season verification, 25×2-season sweep, conditions and staff complete.
+
+The full leverage process also exits 1 on the known `OT.sta` NO EFFECT probe:
+`leverage.noEffect=1`, wrong-sign=0, unbacked OVR=0. Its exit is non-gating by
+existing design and all three metrics remain inside their unchanged bounds;
+it does not add a third gate failure. No assertion or limit was weakened.
+The strict source/hash checker passes; kick/range functions, all other game
+source, the trade test, reference data and baseline retain their expected
+bytes. The observed engine copies differ only by the passive end-of-game
+log observation. Scheduling logs verify a maximum of three active checks. Initial concurrent gate attempts were stopped because the contested
+host reached load 220 and ~25 GB swap. Only this task's verified-cwd process
+trees were terminated; aborted logs are preserved. Same checks/sample sizes
+restart with serial fast checks and at most three active full-tier checks
+(an external npx scheduling wrapper); no check, seed or sample size is skipped.
+No implementation or threshold change was made for a result.
+
+Artifacts at
+`/Users/mearls/Documents/Gridiron GM/end-half-fg-fix-validation-2026-10-16/`.
+No rate tuning or baseline edits. New test registered in `npm test` and both
+gate tiers. Changed files: `lib/core/sim/game.ts`, `lib/core/sim/clock.ts`,
+`lib/core/sim/clock.test.ts`, `package.json`, `scripts/gate.ts`,
+`AGENTS.md`, `docs/HANDOFF.md`, and `docs/nfl-reference.md`.
+
+---
+
+## 2026-10-16 — Conditions, RB and milestone guard repairs
+
+User-authorized follow-up on `codex/save-season-fixes` / draft PR #182, after
+the read-only diagnosis at `bb4244d`. No simulation-rate or `lib/` edits, no
+dependencies, no `docs/baselines.json` edit. All functional game files and the
+baseline match their pre-run hashes. Methods and primary-source computation
+are in `nfl-reference.md` §5.11.
+
+**Conditions** now reads the gate's locked home-win band, 54.439 +/-3 or
+51.439–57.439%, removing the contradictory hardcoded 52–58% self-check. The
+default 51.702786% raw value is unchanged and now passes. Both lock endpoints
+pass; values beyond either fail. All weather/rest observations and checks
+remain. The standard panel's home-win mean remains 54.236572%.
+
+**RB** now has a dedicated fixed panel, `scripts/rbPanel.ts`, which owns
+canonical `statcheck.rb5RushYds` in both gate tiers, even `--seeds 1`. It
+requires standard panel seeds 1–5 exactly once, derives rank five from complete
+REG boxes before playoffs, and averages without clipping. The gate's
+`ownsPanel` flag runs it once; an outer panel cannot nest/repeat five identical
+panels. `statcheck.rb5RushYdsSample` preserves the original individual reading;
+other statcheck metrics keep their original sampling. The seed mix is factored
+into pure `panelSeed` with exactly the existing arithmetic. Fixed samples are
+**1365 / 1216 / 1291 / 1280 / 1205**, mean **1271.4**, inside unchanged
+**1191 +/-95**. Default single-season **1288** remains report-only.
+
+**Milestones** now uses `docs/milestone-reference.json`: integer counts and
+exposures for 27 game +19 season thresholds, 2021–24 REG, with download URLs,
+SHA-256s, field definitions and cross-checks. Approximate rates such as 5/year
+for 200-yard rushing games and 1.5/year for 60-yard FG games are replaced by
+observed **6/1087 games** and **18/1087 games**. Season counts aggregate each
+player across clubs. Exact two-sided conditional Poisson tests include NFL
+reference uncertainty at the unchanged 5% level; a zero reference count does
+not imply impossibility. A mode-centred binomial recurrence avoids underflow.
+Four combined-tackle categories stay visible as unmatched diagnostics because
+the engine has no assist statistic. The 42 comparable categories supply
+verdicts; whole-sack credit remains a meaningful stat-distribution comparison.
+The harness still samples fresh leagues, not aged franchises.
+
+### Same panel rerun
+
+Five standard gate panel seeds, unchanged streams and sample sizes. Default
+reproductions are included separately. Milestones use 16 seasons per entry;
+conditions use six seasons; RB rows are the same individual rank-five samples
+used in the fixed five-seed mean.
+
+| Panel | Conditions problems | RB raw sample (report-only) | Old milestone offs | Corrected comparable offs |
+| --- | ---: | ---: | ---: | ---: |
+| default | 0 (was 1) | 1288 | 23 | 10 |
+| 1 | 0 | 1365 | 23 | 8 |
+| 2 | 0 | 1216 | 20 | 8 |
+| 3 | 0 | 1291 | 22 | 9 |
+| 4 | 0 | 1280 | 22 | 8 |
+| 5 | 0 | 1205 | 25 | 10 |
+
+Every one of the 46 raw milestone counts per run, progress lines and seven
+extreme metrics matches the prior diagnosis exactly. All unaffected conditions
+and statcheck metrics match too. The fixed RB panel contains the same five
+samples, mean 1271.4. An independent log-factorial probability calculation
+reproduces all 252 comparable p-values and verdicts; four unmatched rows per
+run remain explicit. Predictions from the old frozen ledgers match live output.
+All source CSV SHA-256s and all per-year counts match the audited reference.
+
+The global milestone max **16** is unchanged. It was locked on the former
+measurement; these passes are legacy regression-cap results, not a new NFL
+calibration. Individual failures persist: all five standard panels still flag excessive
+3-/4-sack and 3-INT games, thin 4,500-yard passing and 1,800-yard rushing seasons,
+and thin 1,700-yard receiving seasons in fresh leagues. No engine issue is
+claimed repaired by correcting the comparisons.
+
+### Validation
+
+- Focused guard regression and typecheck: **PASS**. Covers both home-band
+  boundaries and missing bounds; complete/unique fixed RB samples; duplicate,
+  incomplete and contaminated REG evidence; unchanged gate seed mixing;
+  finite-reference and zero-count cases; large-count underflow; exact analytic
+  binomial fixtures; and genuine mismatches still rejected.
+- New test is registered in `npm test` and both gate tiers; `rbpanel` is in both
+  tiers, with its full panel internally owned.
+- Fast: **GATE PASS (72 metrics within baseline)**; all **64/64** harness steps exit successfully, including the fixed RB panel and new guard regression.
+- The full 20-season drift child reproduces **all 43 metrics** from the
+  previous injury/IR validation exactly; the factored seed helper does not move
+  that unrelated default simulation stream.
+- Full (`npm run gate:full -- --seeds 1`): **GATE PASS (179 metrics within baseline)**; all **70/70** harness steps exit successfully, including drift (20 seasons), careers (24 seasons), conditions, milestones, fixed RB panel, determinism, verify and sweep.
+
+Changed files: `scripts/conditions.ts`, `scripts/guardMeasurements.ts`,
+`scripts/rbPanel.ts`, `scripts/statcheck.ts`, `scripts/metrics.ts`,
+`scripts/gate.ts`, `scripts/tails.ts`, `scripts/milestoneComparisons.ts`,
+`scripts/guardMeasurements.test.ts`, `package.json`,
+`docs/milestone-reference.json`, `AGENTS.md`, `docs/HANDOFF.md`, and
+`docs/nfl-reference.md`.
+
+Artifacts: `/Users/mearls/Documents/Gridiron GM/remaining-guard-fix-validation-2026-10-16/`.
+`source.json` records functional/test/reference/baseline and all `lib/` SHA-256s
+before running. `validation.json` contains all six matched cases, p-values,
+remaining per-category misses, fixed panel and gate results. `check_results.py`
+independently compares every raw count and unaffected metric to the diagnosis,
+checks the reference hashes/counts, and reproduces comparison arithmetic.
+`expected-from-prior-ledgers.json` reconstructs repaired verdicts from old data;
+logs, exit JSON, `run.py` and stdout-only capture preserve live execution.
+
+---
+
+## 2026-10-16 — Injury/IR availability guard and separate diagnostics
+
+User-authorized follow-up on `codex/save-season-fixes` / draft PR #182. The
+guard now measures full-game injury/IR absence at each REG kickoff, across all
+living non-prospect players then rostered on an active roster or IR. Zero-snap
+players and players still on IR at season end count; practice squad, free
+agents, byes and postseason games do not. Healthy IR restrictions count once
+as IR absence. An in-game injury contributes only to subsequent missed
+kickoffs. Club membership is observed at kickoff, so a later signing is not
+charged for games before joining.
+
+`lib/core/season/engine.ts` adds an optional observer after waivers, depth-chart
+refresh and gameday inactive declarations, before any game/healing/IR moves.
+The harness copies primitive fields into an external ledger; it adds no save
+fields and takes no RNG draws. `scripts/driftAvailability.ts` validates complete
+kickoff/box evidence, freezes season totals and reconciles the old rotation's
+nonappearance into injury/IR, healthy bench, roster churn, holdout and calendar
+components. The old REG-end active-53 >100 REG-snap cohort is retained only for
+those report-only diagnostics. No injury rates, durations or roster rules were
+tuned; `docs/baselines.json` remains byte-for-byte unchanged.
+
+### Three seeds, 20 seasons each
+
+Means per league season; the guard and historical diagnostics use different
+populations as described above.
+
+| Seed | League injury/IR guard | Historical rotation bench | Historical rotation churn | Legacy band |
+| --- | ---: | ---: | ---: | --- |
+| 12345 | **1679.70** | 1673.05 | 153.75 | PASS |
+| 54321 | **1674.85** | 1679.95 | 143.45 | PASS |
+| 98765 | **1667.70** | 1726.50 | 112.20 | PASS |
+
+League injury/IR totals split into injured active **517.50 / 508.70 / 543.00**,
+injured IR **1049.60 / 1052.75 / 1029.60**, and healthy IR restrictions
+**112.60 / 113.40 / 95.10**. The historical rotation injury/IR component remains
+**1047.85 / 1047.20 / 1085.15**; that survivor-selected cohort misses long/zero-snap
+absences, so it is not the guard population.
+
+The unchanged locked band is **2158.23 +/-700** (1458.23–2858.23), and the broad
+internal band remains **1500–4000**. Both were established for the previous
+composite. These passes are legacy regression-band results, **not a calibrated
+NFL injury fit**. The unchanged baseline's NFL note is not a target for the new
+population; see `nfl-reference.md` §6.7 before any future calibration work.
+
+All 32 other pre-existing drift metrics and every non-availability column of
+all 60 season rows match `a13b012` exactly. All 60 season progress rows also
+match. P0 failures are zero on all three seeds. Every historical diagnostic
+mean independently matches the previous read-only kickoff-ledger investigation,
+including bench/churn, injury/IR, holdouts, calendar and the old total. Main
+injury/IR and historical rotation component sums both reconcile exactly.
+
+### Validation and remaining reds
+
+- Focused regression and typecheck: **PASS**. The registered availability test
+  now covers zero-snap injury, year-end/healthy IR, byes, bench/churn separation,
+  immutable kickoff evidence, missing/duplicate observations and impossible
+  appearances. One real engine week yields a deeply identical complete seeded
+  GameState with and without the observer. The test remains in `npm test` and
+  both gate tiers; no registration or dependency changes.
+- Fast gate: **GATE FAIL 1 problem**; all **62/62** harnesses exit successfully.
+  Sole metric miss is unchanged `statcheck.rb5RushYds=1288`, expected 1191 +/-95.
+- Full (`npm run gate:full -- --seeds 1`): **GATE FAIL 4 problems**;
+  **67/68** harnesses exit successfully, including drift (20 seasons), careers
+  (24 seasons), both measurement regressions, determinism, verify and sweep.
+  Remaining failures: `conditions` exit 1 and `conditions.problems=1` (home win
+  **51.702786%**, minimum 52%); `tails.milestonesOff=23`, max 16; and unchanged
+  `statcheck.rb5RushYds=1288`, expected 1191 +/-95. Availability passes the
+  unchanged locked band. Conditions/milestone failures already reproduced on
+  unchanged `99f1cae`; no remaining calibration failure was tuned away.
+
+After validation, merged remote `c7298d9`, preserving its legacy-save repair
+write-up and the main-branch documentation/standalone FA census script. The
+only merge conflict was adjacent HANDOFF entries; both were retained. All tested
+functional/test/baseline hashes remain identical. Post-merge typecheck and the
+focused availability regression both pass; no executable dependency of the
+60-season or gate simulations changed.
+
+Artifacts: `/Users/mearls/Documents/Gridiron GM/injury-ir-guard-validation-2026-10-16/`.
+`source.json` freezes functional/test/baseline SHA-256 before execution;
+`validation.json` contains the final 43 metrics per seed, all 60 injury/IR season
+readings and gate results. `check_results.py` independently compares the prior
+32 metrics and season outputs, reconciles component identities and verifies
+historical diagnostics against the earlier raw kickoff ledgers. `seed-*.log`,
+`fast-gate.log`, `full-gate.log`, `regression.log`, exit JSON, `run.py` and the
+stdout-only drift capture preload preserve the run. Earlier dated entries
+below describe the superseded rotation composite and remain historical.
+
+---
+
+## 2026-10-16 — Legacy-save repair of regular-season totals
+
+Checked on a franchise the pre-PR engine wrote, then loaded on this branch. The save was played on `d598dc0` (main after #183 and #184). That tree's `v2/lib` matches `99f1cae`. Seed **12345**. Two seasons, **2026** and **2027**. Each year is 272 regular-season games and 13 playoff games (wild card, divisional, conference, Super Bowl). The file was encoded at **2027 `offseason-tag`**, after that recap stored the year's leaders and before the calendar roll discarded the 2027 boxes. The 2026 boxes were already gone, so those lines are still the combined regular-plus-playoff totals the old `applyGameStats` wrote. Pre-PR file **8,013,076** bytes.
+
+Loaded here with `decodeSave` then `migrate` (`rebuildRegularSeasonStats`). A second load encoded the repaired state and ran `decodeSave` + `migrate` again.
+
+**2027, boxes still on the save.** Every rebuilt season line matches an independent sum of that player's regular-season boxes. **1,550** players, **0** mismatches, counting stats and longest plays. **508** lines had playoff production folded in. Playoff games stay on the box and off the season line.
+
+| Player | Stat | Before (REG+POST) | After | REG-only |
+| --- | --- | ---: | ---: | ---: |
+| Micah Rutledge, QB, Philadelphia | pass yards | 5,910 in 20 games | 4,617 in 16 | 4,617 (1,293 in 4 playoff games left out) |
+| Micah Rutledge, QB | rush yards | 983 | 756 | 756 (227 left out) |
+| Vince Green, QB | pass yards | 4,708 in 17 | 4,708 in 17 | 4,708 (no playoff games) |
+| DeShawn Rodriguez III, RB | rush yards | 1,463 in 19 | 1,271 in 17 | 1,271 (192 left out) |
+| Julian Mayfield, RB | rush yards | 1,372 in 17 | 1,372 in 17 | 1,372 (no playoff rushes) |
+| Cameron Boseman, WR | rec yards | 2,160 in 20 | 1,744 in 17 | 1,744 (416 left out) |
+| Chris Voss, EDGE | sacks | 19 in 17 games | 16 in 16 | 16 (3 left out) |
+| Chris Hernandez, EDGE | sacks | 16 in 16 | 16 | 16 (no playoff sacks) |
+| Omar Anderson, QB | longest pass | 40 | 13 | 13 (playoff long was 40) |
+| Carlos Caldwell, RB | season line | 2 games, 8 rush yards, 17 snaps | no 2027 row | 0 regular-season games |
+
+Carlos Caldwell is playoff-only. The repair drops the invented 2027 row and keeps **17** snaps on `postseasonUsage`. Three other playoff-only players (Micah Pemberton, OG; Micah Quarles, S; Omar Wright, C) lose the 2027 row the same way and keep their postseason snaps.
+
+2027 season leaders (`history.leaders` and `leaders()`) equal those regular-season totals:
+
+- Passing yards: Micah Rutledge **5,910** → Vince Green **4,708**.
+- Rushing yards: DeShawn Rodriguez III **1,463** → Julian Mayfield **1,372**.
+- Receiving yards: Cameron Boseman stays the leader, **2,160 → 1,744**.
+- Sacks: Chris Voss **19** → Chris Hernandez **16**.
+
+`seasonRecords` reads the best single season still stored. The 2027 passing high is Vince Green **4,708**, the regular-season sum. The all-time passing season record stays DeShawn Hernandez **4,945** in 2026, because that year's boxes were discarded and the repair does not guess. The sacks season record moves from Chris Voss **19** (2027, combined) to Chris Hernandez **16** (2027), the regular-season sum. Micah Rutledge's career passing yards go **9,738 → 8,445**. The career passing lead becomes DeShawn Hernandez **8,805**; his 2026 playoff yards are still inside the preserved line.
+
+Team points for 2027 come off the same boxes and leave the playoffs out. Brooklyn: **351** with the playoffs, **299** after, regular-season sum **299**, playoff **52**, **17** games. All 32 clubs match.
+
+**2026, boxes discarded.** **0** stat lines changed. Leaders stay DeShawn Hernandez **4,945** pass, Joseph Baker **1,587** rush, Quinn Ulrich III **1,919** receiving, Amari Rodriguez **16** sacks. Awards for both years are not reassigned.
+
+**Second load.** The repaired encoding is **8,069,158** bytes. Loading it again is byte-identical. Stat lines, postseason workload, and archived leaders do not change.
+
+No engine tuning, no dial change, no RNG change. `drift.playerWeeksLost` is not re-locked. `docs/baselines.json` was not edited.
+
+---
+
+## 2026-10-16 — Regular-season availability guard
+
+User-authorized follow-up on `codex/save-season-fixes` / PR #182. Previously
+`drift.playerWeeksLost` read REG-only appearance rows against a population
+selected after the playoffs. That mixed regular-season absence with later
+injury healing, IR activation and replacement/roster changes; before the stats
+correction it also subtracted postseason appearances from 17.
+
+The guard now freezes a numerical snapshot at regular-season completion.
+`scripts/driftAvailability.ts` derives appearances and the strict >100-snap
+rotation cutoff from current-season REG boxes, then computes
+`max(0, club REG games - REG appearances)` for each active-53 rotation player.
+Current schedules have 17 games, excluding the bye. Existing active-53
+eligibility remains; this is still the §6.7 rotation non-appearance/churn
+composite, not a pure injury count. Postseason games, workload, stat rows and
+roster changes cannot alter the frozen snapshot. Missing boxes, a missing
+rotation, duplicate appearances or sampling after a playoff game fail loudly.
+
+The baseline stays **2158.23 +/-700** (1458.23–2858.23), byte-for-byte unchanged.
+No game engine, injury model, dependency or RNG change. The old broad internal
+P0 band is unchanged; the gate continues to enforce the narrower locked band.
+Regression coverage and typecheck pass; the test is registered in `npm test`
+and both gate tiers.
+
+### Three seeds, 20 seasons each
+
+| Seed | Previous post-playoff roster reading | Corrected REG reading | Excess over unchanged 2858.23 ceiling |
+| --- | ---: | ---: | ---: |
+| 12345 | 2999.60 | 2917.50 | 59.27 |
+| 54321 | 2981.25 | 2910.20 | 51.97 |
+| 98765 | 3041.15 | 2969.40 | 111.17 |
+
+**The corrected measurement still fails the locked availability band on all
+three seeds.** Sampling before playoff roster/IR changes removes 82.10,
+71.05 and 71.75 weeks respectively; it does not remove the whole calibration
+miss. The baseline is preserved, not widened or re-centered. These readings
+remain the rotation/churn composite described in §6.7 and do not establish an
+injury-model defect by themselves.
+
+All 32 other emitted drift metrics match the preceding `0f8a292` runs exactly
+on every seed, including zero aging errors and zero P0 failures. The old broad
+internal P0 availability band passes; the narrower locked gate band above does
+not. All other columns of all 60 season-table rows also match. Both direct
+alternate-seed drift processes exit 0; the default seed is the full gate's
+20-season child. Source hashes verify that the functional files stayed fixed
+throughout validation, and the baseline hash matches the committed base.
+
+Fast gate: **GATE FAIL 1 problem**; all 62 harness steps exit successfully.
+Only `statcheck.rb5RushYds=1288`, expected 1191 +/-95 (ceiling 1286), remains.
+Full gate (`npm run gate:full -- --seeds 1`): **GATE FAIL 5 problems**;
+67 of 68 harness steps exit successfully, including `drift`,
+`driftavailability`, `driftaging`, careers (24 seasons), determinism, verify,
+sweep and the save/stats regressions. Final failures:
+
+```
+FAIL  conditions  exited 1
+FAIL  conditions.problems  1  expected <= 0
+FAIL  tails.milestonesOff  23  expected <= 16
+FAIL  drift.playerWeeksLost  2917.50  expected 2158.23 +/-700
+FAIL  statcheck.rb5RushYds  1288  expected 1191 +/-95
+```
+
+The non-availability failures match the previous full gate. Conditions' home
+win rate remains 51.702786% (minimum 52%). The corrected availability reading
+replaces 2999.60 with 2917.50; its remaining 59.27-week excess is not hidden by
+the broad P0 band, because the locked gate comparison still fails. No browser
+or build rerun is needed for this scripts/docs-only follow-up; game code is
+unchanged from the previously validated implementation.
+
+Raw logs, tested source hashes and comparisons:
+`/Users/mearls/Documents/Gridiron GM/availability-guard-fix-validation-2026-10-16/validation.json`.
+
+---
+
+## 2026-10-16 — Frozen, personal-peak aging guard
+
+User-authorized follow-up to the save/regular-season fixes on
+`codex/save-season-fixes` / PR #182. The old age34/age27 ordering compared
+different populations and deferred reading mutable player references until
+after offseason progression. Unchanged code scored 14/20, 17/20 and 17/20 on
+seeds 12345, 54321 and 98765 even though the older subjects declined.
+
+`scripts/drift.ts` now freezes recap age/OVR values before advancing. Cohort
+ordering remains report-only. `scripts/driftAging.ts` captures immutable
+before/after primitives for the same players, including those who retire or
+leave a roster during the step. Every living non-prospect must age exactly
+once. Players whose incoming age exceeds their own frozen `peakAge` enter the
+annual decline sample; each position, separately for each seed, must have a
+sample and a negative mean change. The existing career-peak guard
+`meanFade < -5` stays. No aging-engine, baseline, dependency or RNG change.
+
+### Three seeds, 20 seasons each
+
+| Seed | Same-player comparisons | Post-peak observations | Mean annual OVR change | Aging guard |
+| --- | ---: | ---: | ---: | --- |
+| 12345 | 61,492 | 15,627 | -2.873 | PASS |
+| 54321 | 61,200 | 15,610 | -2.860 | PASS |
+| 98765 | 62,090 | 15,611 | -2.929 | PASS |
+
+Zero age errors in 184,782 comparisons. All 14 positions have negative means
+in every seed (46,848 post-peak player-seasons total). All 27 existing
+simulation metrics besides the deliberately corrected `drift.p0Failures`
+match the pre-change `043c777` runs exactly in each seed. All 60 printed
+age/OVR demographic rows match independently captured pre-offseason
+snapshots. The properly frozen cohort-ordering diagnostic reads 7/20, 8/20
+and 9/20; it no longer determines whether aging works.
+
+Regression coverage passes for immutable before/after snapshots, personal
+peak boundaries, retirement/IR/PS/release inclusion, missing/skipped/double
+age ticks, missing samples, and stalled/reversed aging in a single position.
+Registered `driftaging` in `npm test` and both gate tiers. Typecheck passes.
+Fast gate: **GATE FAIL 1 problem**, solely the inherited
+`statcheck.rb5RushYds=1288`, expected 1191 +/-95 (ceiling 1286).
+
+Full gate (`npm run gate:full -- --seeds 1`): **GATE FAIL 5 problems**;
+66 of 67 harness steps exit successfully, including `drift`, `driftaging`,
+`careers` (24 seasons), determinism, verify, sweep and both save/stats tests.
+The previous age failure and its drift exit failure are gone. Remaining lines:
+
+```
+FAIL  conditions  exited 1
+FAIL  conditions.problems  1  expected <= 0
+FAIL  tails.milestonesOff  23  expected <= 16
+FAIL  drift.playerWeeksLost  2999.60  expected 2158.23 +/-700
+FAIL  statcheck.rb5RushYds  1288  expected 1191 +/-95
+```
+
+These match the earlier save/stats-fix run. Unchanged `99f1cae` also reproduces
+the conditions home win rate (51.702786%), milestone count and RB figure.
+The separate availability measurement changed with regular-only stat rows:
+its `17-games` reading occurs after playoffs, and its existing lock used
+combined regular/playoff rows. That measurement and its bound remain for
+review; this age-guard follow-up changes neither injuries nor availability.
+
+Raw logs, source hashes, independent snapshot checks and per-position results:
+`/Users/mearls/Documents/Gridiron GM/age-guard-fix-validation-2026-10-16/validation.json`.
+Method and historical diagnosis are documented in `docs/nfl-reference.md`
+§6.9 and the age-guard row in `AGENTS.md`.
 
 ---
 

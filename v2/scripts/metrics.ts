@@ -64,7 +64,11 @@ export function emitAll(values: Record<string, number>): void {
  * otherwise every harness would simulate the same league on seed N.
  */
 export function seedFor(fallback: number): number {
-  const panel = Number(process.env.GG_SEED);
+  return panelSeed(fallback, Number(process.env.GG_SEED));
+}
+
+/** Same gate seed mix, with an explicit panel ID for harnesses that own their panel. */
+export function panelSeed(fallback: number, panel: number): number {
   if (!Number.isFinite(panel) || panel <= 0) return fallback;
   return ((fallback ^ Math.imul(panel, 2654435761)) >>> 0) % 2147483647 || fallback;
 }

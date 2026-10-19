@@ -22,6 +22,8 @@ import { GameState, Player, Position, salaryCap } from "../lib/core/types";
 import { encodeSave } from "../lib/store/codec";
 import { schemeFit, schemeFor } from "../lib/core/staff";
 import { emitAll, progress, seedFor } from "./metrics";
+import { AgingMeasurement, captureAging, measureAging, postPeakProblems, summarizePostPeak } from "./driftAging";
+import { AvailabilityMeasurement, RegularAvailabilityTracker } from "./driftAvailability";
 
 const SEASONS = Number(process.argv[2] ?? 20);
 const SEEDS = process.argv.slice(3).map(Number);
@@ -52,6 +54,8 @@ const active = (s: GameState) =>
 interface Snapshot {
   season: number; ovrMean: number; n85: number; n90: number;
   ageMean: number; ovrAt27: number; ovrAt34: number; fade: number[];
+  aging: AgingMeasurement;
+  availability: AvailabilityMeasurement;
   passLead: number; rushLead: number; recLead: number;
   players: number; saveMB: number; playerWeeksLost: number;
   topCapPct: number; minPayrollPct: number; medPayrollPct: number; irCapPct: number; pick1FromBottom6: boolean;
@@ -85,20 +89,15 @@ function runOne(seed: number): Snapshot[] {
 
   for (let s = 0; s < SEASONS; s++) {
     const season = st.season;
+    const availabilityTracker = new RegularAvailabilityTracker(season);
     let g = 0;
 
-    // Single-season marks are REGULAR-SEASON records, so they have to be read
-    // before the playoffs write into the same stat line. `applyGameStats` is
-    // called from `playoffs.ts` too, and a quarterback who plays four playoff
-    // games adds about 1,000 yards to the row this used to measure: on twelve
-    // matched sim seasons the best passing season read 5,316 with the playoffs
-    // in it and 4,735 without, against a 5,477 record that is REG-only.
-    //
-    // Everything else in the snapshot is still taken at `offseason-recap`,
-    // where it has always been taken — in particular `playerWeeksLost`, whose
-    // band was locked against that reading.
+    // Observe injury/IR eligibility at kickoff, before games and healing.
+    // The old >100-snap rotation nonappearance total remains report-only.
     while (st.phase !== "regular" && g++ < 12) advance(st);
-    while (st.phase === "regular" && g++ < 40) advance(st);
+    while (st.phase === "regular" && g++ < 40) advance(st, availabilityTracker.observeKickoff);
+    const availability = availabilityTracker.finish(st);
+    const playerWeeksLost = availability.injuryIrMissedWeeks;
     const regLine = (p: Player) => p.stats.find((x) => x.season === season);
     const regLead = (k: string) =>
       Math.max(0, ...st.players.map((p) => {
@@ -112,21 +111,15 @@ function runOne(seed: number): Snapshot[] {
     while (st.phase !== "offseason-recap" && g++ < 40) advance(st);
 
     const A = active(st);
+    const agingBefore = captureAging(st.players);
+    const ageRoster = agingBefore.filter((p) => p.active);
+    const ageMean = mean(ageRoster.map((p) => p.age));
+    const ovrAtAge = (a: number) => mean(ageRoster.filter((p) => p.age === a).map((p) => p.ovr));
+    const ovrAt27 = ovrAtAge(27);
+    const ovrAt34 = ovrAtAge(34);
     const ovrs = A.map((p) => p.ovr);
     for (const p of A) peak.set(p.id, Math.max(peak.get(p.id) ?? 0, p.ovr));
     const fade = A.filter((p) => p.age >= 33 && peak.has(p.id)).map((p) => p.ovr - peak.get(p.id)!);
-    const line = (p: Player) => p.stats.find((x) => x.season === season);
-    const ovrAtAge = (a: number) => mean(A.filter((p) => p.age === a).map((p) => p.ovr));
-
-    // Games a rostered player was unavailable for: 17 minus what he played,
-    // counted only for players good enough to have been in the rotation.
-    // Includes IR minimum weeks after #33 (`IR_MIN_GAMES` = 4): a
-    // designation cannot return before four games, so those weeks sit
-    // in `17 - games` for anyone who served IR and is still in this
-    // rotation set at recap. The metric remains the §6.7
-    // churn-plus-absence composite; this is not a new claim.
-    const rotation = A.filter((p) => (line(p)?.snaps ?? 0) > 100);
-    const playerWeeksLost = rotation.reduce((n, p) => n + Math.max(0, 17 - (line(p)?.games ?? 0)), 0);
 
     const cap = salaryCap(season, season - st.history.length);
     // The user's club is excluded for the same reason checkParity excludes it:
@@ -150,9 +143,11 @@ function runOne(seed: number): Snapshot[] {
     let cpuDraftFitSum = 0;
     let cpuDraftFitN = 0;
     let o = 0;
+    let aging: AgingMeasurement | undefined;
     while (isOffseason(st.phase) && o++ < 12) {
       const before = st.phase;
       advanceOffseason(st);
+      if (before === "offseason-recap") aging = measureAging(agingBefore, st.players);
       // The claim is that the SLOT assignment tracks the standings — that is
       // the regression this guard was built to catch (a season-wipe bug once
       // handed pick 1 to team id 31 forever). Measured on `originalTeamId`
@@ -192,13 +187,13 @@ function runOne(seed: number): Snapshot[] {
       else if (p.status === "ps") qbsOnPs++;
     }
     const qbClubs = Math.max(1, st.teams.length);
+    if (!aging) throw new Error(`season ${season}: progression was not observed`);
 
     out.push({
       season, ovrMean: mean(ovrs),
       n85: ovrs.filter((v) => v >= 85).length,
       n90: ovrs.filter((v) => v >= 90).length,
-      ageMean: mean(A.map((p) => p.age)),
-      ovrAt27: ovrAtAge(27), ovrAt34: ovrAtAge(34), fade,
+      ageMean, ovrAt27, ovrAt34, fade, aging, availability,
       passLead: regPassLead, rushLead: regRushLead, recLead: regRecLead,
       players: st.players.length,
       // What actually lands in IndexedDB, not the in-memory object: the save
@@ -317,8 +312,25 @@ guard(eliteGrowth < 1.6, "the elite population is stable",
   `85+ players grew ${eliteGrowth.toFixed(1)}x`);
 
 const agedWorse = flat.filter((r) => r.ovrAt34 < r.ovrAt27).length;
-guard(agedWorse > flat.length * 0.8, "34-year-olds rate below 27-year-olds",
-  `${agedWorse}/${flat.length} seasons`);
+console.log(`  age-cohort ordering (report-only): 34 < 27 in ${agedWorse}/${flat.length} frozen recap snapshots`);
+
+const agingErrors = flat.flatMap((r) => r.aging.errors);
+guard(agingErrors.length === 0, "every player ages exactly once before retirement selection",
+  `${flat.reduce((n, r) => n + r.aging.compared, 0)} comparisons, ${agingErrors.length} errors` +
+  (agingErrors.length ? `: ${agingErrors.slice(0, 3).join("; ")}` : ""));
+let postPeakFailures = 0;
+for (let i = 0; i < all.length; i++) {
+  const pairs = all[i].flatMap((r) => r.aging.pairs);
+  const problems = postPeakProblems(pairs);
+  postPeakFailures += problems.length;
+  guard(problems.length === 0, "post-peak players decline within every position",
+    `seed ${seeds[i]}, ${pairs.length} same-player observations` +
+    (problems.length ? `: ${problems.join("; ")}` : ""));
+  for (const g of summarizePostPeak(pairs)) {
+    console.log(`    ${g.pos.padEnd(4)} n=${String(g.n).padStart(5)} mean annual OVR change=${g.meanDelta?.toFixed(3) ?? "missing"}`);
+  }
+}
+const postPeakPairs = flat.flatMap((r) => r.aging.pairs);
 
 const fades = flat.flatMap((r) => r.fade);
 const meanFade = mean(fades);
@@ -370,11 +382,14 @@ const overPass = flat.filter((r) => r.passLead > 5477).length;
 guard(overPass < flat.length * 0.15, "the passing record is not broken every year",
   `${overPass}/${flat.length} seasons exceeded 5,477 yards`, true);
 
-// A band, not a floor. Too few and injuries are decoration; too many and depth
-// stops being depth and every season is decided by attrition.
+// Preserve existing regression limits; these were locked on the old composite
+// and have not been calibrated as an NFL target for this injury/IR population.
 const injuryLoad = mean(flat.map((r) => r.playerWeeksLost));
-guard(injuryLoad > 1500 && injuryLoad < 4000, "injuries cost a realistic amount of playing time",
-  `${injuryLoad.toFixed(0)} rotation player-weeks lost league-wide per season`);
+guard(injuryLoad > 1500 && injuryLoad < 4000, "regular-season injury/IR absences stay bounded",
+  `${injuryLoad.toFixed(0)} rostered injury/IR player-weeks lost league-wide per season`);
+console.log(`  rotation diagnostics (report-only): bench ${mean(flat.map((r) => r.availability.rotationBenchWeeks)).toFixed(2)}, ` +
+  `churn ${mean(flat.map((r) => r.availability.rotationChurnWeeks)).toFixed(2)}, ` +
+  `all nonappearances ${mean(flat.map((r) => r.availability.rotationNonappearanceWeeks)).toFixed(2)} per season`);
 
 const growth = mean(all.map((s) => (s[s.length - 1].saveMB - s[0].saveMB) / (SEASONS - 1)));
 // 0.61, matching the panel-locked `drift.saveGrowthMbPerSeason` baseline
@@ -402,6 +417,11 @@ console.log(
 
 emitAll({
   "drift.p0Failures": failures,
+  "drift.agingErrors": agingErrors.length,
+  "drift.postPeakNoDeclinePositions": postPeakFailures,
+  "drift.postPeakPairs": postPeakPairs.length,
+  "drift.postPeakMeanDelta": mean(postPeakPairs.map((p) => p.delta)),
+  "drift.ageCohortOrderingSeasons": agedWorse,
   "drift.saveGrowthMbPerSeason": growth,
   "drift.saveMbAtEnd": mean(last.map((r) => r.saveMB)),
   "drift.tradesPerSeason": trades,
@@ -412,6 +432,16 @@ emitAll({
   "drift.topCapPctMean": topCapPctMean,
   "drift.passRecordSeasons": overPass,
   "drift.playerWeeksLost": injuryLoad,
+  "drift.injuredActiveWeeks": mean(flat.map((r) => r.availability.injuredActiveWeeks)),
+  "drift.injuredIrWeeks": mean(flat.map((r) => r.availability.injuredIrWeeks)),
+  "drift.healthyIrWeeks": mean(flat.map((r) => r.availability.healthyIrWeeks)),
+  "drift.injuryIrOpportunities": mean(flat.map((r) => r.availability.rosteredGameOpportunities)),
+  "drift.rotationNonappearanceWeeks": mean(flat.map((r) => r.availability.rotationNonappearanceWeeks)),
+  "drift.rotationInjuryIrWeeks": mean(flat.map((r) => r.availability.rotationInjuryIrWeeks)),
+  "drift.rotationBenchWeeks": mean(flat.map((r) => r.availability.rotationBenchWeeks)),
+  "drift.rotationRosterChurnWeeks": mean(flat.map((r) => r.availability.rotationChurnWeeks)),
+  "drift.rotationHoldoutWeeks": mean(flat.map((r) => r.availability.rotationHoldoutWeeks)),
+  "drift.rotationCalendarAdjustment": mean(flat.map((r) => r.availability.rotationCalendarAdjustment)),
   "drift.ovrDrift": ovrDrift,
   "drift.eliteGrowthRatio": eliteGrowth,
   "drift.franchiseTagsPerSeason": mean(flat.map((r) => r.franchiseTags)),

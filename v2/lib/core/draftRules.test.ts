@@ -11,8 +11,8 @@ import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { makeContract } from "./generate";
 import { Rng } from "./rng";
-import { blankSeasonLine } from "./season/stats";
-import { LEAGUE_MINIMUM, PickOwnership, Player } from "./types";
+import { applyGameStats, blankPlayerGameStat, blankSeasonLine, blankTeamGameStats } from "./season/stats";
+import { Game, LEAGUE_MINIMUM, PickOwnership, Player } from "./types";
 import {
   awardCompensatoryPicks,
   buildDraftPicks,
@@ -161,4 +161,42 @@ function plantUfa(
   assert.equal(st.draft.picks.length, 224);
 }
 
-console.log("ok    draftRules — slot scale + compensatory picks");
+// A playoff replacement's expiring club is recorded outside REG production.
+for (const regularClub of [null, 0, 1]) {
+  const st = newGame({ seed: 25 });
+  const p = plantUfa(st, 1, 2, 15_000_000, 17);
+  p.stats = regularClub === null ? [] : [{ ...blankSeasonLine(st.season, regularClub), games: 17 }];
+  p.postseasonUsage = [{ season: st.season - 1, teamId: 3, snaps: 60 }];
+  const regularBefore = structuredClone(p.stats);
+  const game: Game = {
+    id: 999, season: st.season, week: 22, homeId: 1, awayId: 3,
+    played: true, homeScore: 21, awayScore: 0, playoffRound: "SB",
+    boxScore: {
+      home: blankTeamGameStats(), away: blankTeamGameStats(),
+      quarters: { home: [], away: [] }, scoringPlays: [],
+      players: [{ ...blankPlayerGameStat(p.id, 1, true), snaps: 60 }],
+    },
+  };
+  applyGameStats(st, game);
+  const moves = qualifyingUfaMoves(st).filter((m) => m.playerId === p.id);
+  assert.equal(moves.length, 1, "REG and postseason service cannot duplicate a UFA departure");
+  assert.equal(moves[0].fromTeamId, 1, "the postseason club owns the expiring contract");
+  assert.equal(moves[0].toTeamId, 2);
+  assert.equal(moves[0].tier, regularClub === null ? 4 : 3,
+    "the existing playing-time tier still uses regular-season games");
+  const awards = computeCompensatoryAwards(st);
+  assert.equal(awards.length, 1);
+  assert.equal(awards[0].teamId, 1, "compensation belongs to the playoff club");
+  const picks = buildDraftPicks(st, st.season);
+  assert.equal(picks.length, 225);
+  assert.equal(picks.find((pick) => pick.compensatory)?.teamId, 1);
+  assert.deepEqual(p.stats, regularBefore, "attribution cannot invent or rewrite REG production");
+
+  p.teamId = 1;
+  assert.equal(qualifyingUfaMoves(st).length, 0, "re-signing with the playoff club is not a UFA departure");
+  p.teamId = 2;
+  p.waivedSeason = st.season;
+  assert.equal(qualifyingUfaMoves(st).length, 0, "postseason membership does not bypass the existing cut exclusion");
+}
+
+console.log("ok    draftRules — slot scale, compensatory picks, and postseason club attribution");

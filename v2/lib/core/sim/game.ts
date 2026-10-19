@@ -5,6 +5,7 @@ import {
   Player, PlayerGameStat, Position, ROTATION, ScoringPlay, SnapCall, STARTERS, Team, TeamGameStats,
 } from "../types";
 import { buildDrives } from "./events";
+import { MAX_SCRIMMAGE_SECONDS, takeLastKick } from "./clock";
 import { CLEAR, HOME_FIELD, restEffect, weatherEffects } from "../weather";
 import { blankPlayerGameStat, blankTeamGameStats } from "../season/stats";
 import { isSat } from "../inactives";
@@ -1297,14 +1298,14 @@ function* runGameSim(
           const rec = rng.pick(rushers);
           if (rec) statFor(rec, d).fr++;
           return {
-            yards: -loss, timeUsed: rng.int(31, 45), turnover: true, touchdown: false,
+            yards: -loss, timeUsed: rng.int(31, MAX_SCRIMMAGE_SECONDS), turnover: true, touchdown: false,
             scored: false, passerId: qb.id, scorerId: null, isPass: true, result: "fumble",
           };
         }
       }
 
       return {
-        yards: -loss, timeUsed: rng.int(31, 45), turnover: false, touchdown: false,
+        yards: -loss, timeUsed: rng.int(31, MAX_SCRIMMAGE_SECONDS), turnover: false, touchdown: false,
         scored: false, passerId: qb.id, scorerId: null, isPass: true, result: "sack",
       };
     }
@@ -1734,6 +1735,14 @@ function* runGameSim(
         }
         continue;
       }
+    }
+
+    if (
+      takeLastKick(quarter, clock, scoreDiffFor(offenseIsHome)) &&
+      off().starters.K.length > 0 && inFieldGoalRange()
+    ) {
+      attemptFieldGoal();
+      continue;
     }
 
     if (down === 4) {

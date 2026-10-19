@@ -10,6 +10,7 @@ import { ensureScoutStaff } from "../core/scoutStaff";
 import { catchUpFutureClasses } from "../core/futureClass";
 import { pruneStaleTradeInbox } from "../core/trades";
 import { decodeSave, encodeSave, EncodedSave } from "./codec";
+import { rebuildRegularSeasonStats } from "../core/season/stats";
 
 /**
  * Save persistence.
@@ -97,14 +98,31 @@ export interface SaveSummary {
   updatedAt: number;
 }
 
-export async function saveGame(state: GameState): Promise<void> {
+async function writeGame(state: GameState, insert: boolean): Promise<void> {
   ensureCoaches(state);
   ensureOwners(state);
   state.updatedAt = Date.now();
   // The JSON round trip is still here on purpose: it strips anything the
   // structured-clone algorithm would choke on before it reaches the store.
-  await tx(STORE, "readwrite", (s) => s.put(JSON.parse(JSON.stringify(encodeSave(state)))));
+  const document = JSON.parse(JSON.stringify(encodeSave(state)));
+  await tx(STORE, "readwrite", (s) => insert ? s.add(document) : s.put(document));
   await tx(META, "readwrite", (s) => s.put(state.id, "lastSaveId"));
+}
+
+export async function saveGame(state: GameState): Promise<void> {
+  await writeGame(state, false);
+}
+
+/** Storage identity is independent of the deterministic league seed. */
+export async function createSave(state: GameState): Promise<void> {
+  const previousId = state.id;
+  state.id = `save-${crypto.randomUUID()}`;
+  try {
+    await writeGame(state, true);
+  } catch (error) {
+    state.id = previousId;
+    throw error;
+  }
 }
 
 export async function loadGame(id: string): Promise<GameState | null> {
@@ -149,6 +167,7 @@ export async function lastSaveId(): Promise<string | null> {
  * hook exists so a future change can't strand someone's franchise.
  */
 export function migrate(state: GameState): GameState {
+  rebuildRegularSeasonStats(state);
   // Structural backfills run regardless of version so a save written by an
   // earlier build never lands in the UI missing a field it now reads.
   if (!state.records) state.records = blankRecordBook();
@@ -291,8 +310,6 @@ export async function importSave(file: File): Promise<GameState> {
   }
   // A file exported before the codec landed is dense, which decodes to itself.
   const state = migrate(decodeSave(parsed));
-  // Give the import a fresh id so it can't clobber an existing franchise.
-  state.id = `${state.id}-import-${Date.now().toString(36)}`;
-  await saveGame(state);
+  await createSave(state);
   return state;
 }
