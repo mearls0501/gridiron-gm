@@ -1,5 +1,45 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-20 — CPU prices a trade at the acquiring club's cost (`claude/trade-valuation`)
+
+Stacked on #185. Asked for by Matt after #185's trade cap accounting.
+
+`playerTradeValue` set a player's contract burden from the sender's `capHit`,
+which includes bonus proration. Since #185 an acquiring club takes on base
+salary and its guarantee, never the bonus, so every CPU club over-priced the
+cost of a bonus-heavy target and passed on deals a real GM makes. The
+acquiring side now uses `acquiredCapHit` (this season's base). A club valuing
+its own player still uses `capHit`. No RNG change of its own; one line of
+valuation in `trades.ts`.
+
+**Seed-42 user-offers canary moved, signed by Matt 2026-10-20:** tag
+**3967213056 → 2282341061**, FA **3639016065 → 3785709883**. Seed 42's first
+season to the tag step goes from 32 to 51 trades: deals that were over-priced
+clear at once. Inquiry isolation passes unchanged.
+
+Paired `npx tsx scripts/drift.ts 10 12345`, #185 head (`66bd132`) vs this
+change. The #185 side reproduces the earlier `544e025` run exactly. One seed,
+direction only. Both: no P0 regressions.
+
+| metric | #185 | + valuation | reference |
+|---|---|---|---|
+| `tradesPerSeason` | 81.8 | **88.9** | NFL ≈90 (target 60–120) |
+| `deadMoneyPct` | 5.51 | 5.44 | ~5–8% (OTC) |
+| `topCapPctMean` | 20.6 | 20.0 | lock 20.3 ±3 |
+| `medianPayrollPct` | 99.15 | 99.46 | — |
+| `rotationRosterChurnWeeks` | 159.6 | 181.8 | report-only |
+
+`gate:serial -- --seeds 1` before the literal update: **GATE FAIL 1**,
+`useroffers` only (the signed canary); 72 metrics within baseline,
+`statcheck.rb5RushYds` **1248.31** (inside 1191 ±95). Gate on the committed
+head follows in the next commit. Full tier needs the Mac Studio.
+
+Pro rata in-season salary was the other half of this item. The sim charges a
+full year's base to whoever holds a contract for every in-season transaction,
+so it is now its own roadmap item (design first), not part of this change.
+
+---
+
 ## 2026-10-20 — Trade cap accounting, offer re-check at Accept, one trade id (#185)
 
 Follow-ups on draft PR #185, each asked for by Matt.

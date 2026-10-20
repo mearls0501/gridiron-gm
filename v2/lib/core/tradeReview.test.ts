@@ -22,7 +22,10 @@ import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { makeContract } from "./generate";
 import { Rng } from "./rng";
-import { acceptOffer, checkTrade, generateUserOffers, proposerStillWants } from "./trades";
+import {
+  acceptOffer, acquiredCapHit, checkTrade, generateUserOffers, playerTradeValue, proposerStillWants,
+} from "./trades";
+import { teamOutlook } from "./frontOffice";
 import { startRegularSeason } from "./season/engine";
 import { capHit, deadMoney, remainingBonusProration, rosterCount, teamCap } from "./select";
 import { TRADE_DEADLINE_WEEK } from "./types";
@@ -349,5 +352,23 @@ ok("stale refusals: released, retired, closed window, cap, missing");
   refusedUnchanged(st, offer.id, /belongs to someone else/, "moved pick");
 }
 ok("stale picks: used and moved picks refused without mutation");
+
+// (8) A club pricing a player it would acquire pays his base, not the
+// sender's bonus proration. His own club still carries the bonus.
+{
+  const { st, user, cpuTeamId } = fixture(42);
+  const c = user.contract!;
+  assert.ok(capHit(c) > c.baseSalary[0], "fixture deal carries bonus proration");
+  assert.equal(acquiredCapHit(c), c.baseSalary[0]);
+  const buyer = teamOutlook(st, cpuTeamId).posture;
+  const own = teamOutlook(st, st.userTeamId).posture;
+  const withBonus = { buy: playerTradeValue(st, cpuTeamId, user, buyer), own: playerTradeValue(st, st.userTeamId, user, own) };
+  user.contract = { ...c, signingBonus: 0, bonusProrationYears: 0 };
+  const noBonus = { buy: playerTradeValue(st, cpuTeamId, user, buyer), own: playerTradeValue(st, st.userTeamId, user, own) };
+  assert.equal(withBonus.buy, noBonus.buy, "the bonus does not change his price to a buyer");
+  assert.ok(noBonus.own >= withBonus.own, "his own club still feels the bonus in his cap hit");
+  user.contract = c;
+}
+ok("acquiring club prices base salary only; own club keeps capHit");
 
 console.log("tradeReview: all passed");

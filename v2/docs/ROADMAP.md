@@ -57,7 +57,7 @@ on #185 head `4d350f0` (72 metrics). #185's full tier has not been run.
 
 | metric | reads | target | status | note |
 |---|---|---|---|---|
-| `userOffers` seed-42 canary | tag 3967213056, FA 3639016065 | literal | signed 2026-10-20 | Moved with #185 trade cap accounting; no new parent draws. |
+| `userOffers` seed-42 canary | tag 2282341061, FA 3785709883 | literal | signed 2026-10-20 | Moved with #185 trade cap accounting (3967213056 / 3639016065), then with trade valuation. No new parent draws. |
 | `staff.problems` | seed 2 `leagueOvrDelta` 1.31 | ≤ 1.2 per seed | reported red | Mean 0.58. Left reported 2026-10-18. Do not widen 1.2. |
 | `careers.path2BurnInTop10PrPct` | 7/116 = 6.03% | 7–16% pooled | reported red | k-of-n noise (P(k≤8)≈0.40). Left reported. |
 | `statcheck.rb5RushYds` | 1255.68 (100-seed, #185) | 1191 ±95 | **PASS** | Fixed 100-seed panel since 2026-10-18. |
@@ -79,20 +79,28 @@ table to `HANDOFF.md`, click through `/trades`, merge. #185 changed which CPU
 trades clear (paired 10-season drift, seed 12345: trades 77.6 → 81.8,
 dead money 5.37% → 5.51%), so `drift` and `careers` must be read before merge.
 
-### Next — trades cost what the NFL says they cost (engine; needs a panel)
+### Next — CPU prices a trade at the acquiring club's cost (`claude/trade-valuation`)
 
-One rule, two halves, one sign-off:
+`playerTradeValue` priced a target at the sender's `capHit`, bonus proration
+included. Since #185 the receiver only takes on base salary (and the
+guarantee), so CPU clubs over-priced bonus-heavy players. The acquiring side
+now uses `acquiredCapHit` (base only); a club valuing its own player is
+unchanged. Paired 10-season drift (seed 12345): trades 81.8 → **88.9** (NFL
+≈90), dead money 5.51% → 5.44%. Seed-42 canary signed 2026-10-20. Stacked on
+#185; needs a Studio panel.
 
-1. **CPU valuation uses the acquiring club's cost.** `playerTradeValue`
-   prices a target at the sender's `capHit`, bonus proration included. Since
-   #185 the receiver only takes on base salary (and the guarantee), so CPU
-   clubs over-price bonus-heavy players and pass on deals a real GM makes.
-2. **In-season base is pro rata.** After a deadline deal the acquiring club
-   pays only the remaining weeks of base salary, the sender the weeks played
-   (`docs/nfl-reference.md`, "Trade cap accounting", not modelled). Today the
-   receiver carries the full year.
+### Later — in-season salary is pro rata (season-wide rule; design first)
 
-Moves trade volume and cap reads; expect the seed-42 canary to move again.
+The sim charges a full year's base salary to whoever holds a contract, at any
+point in the season: a deadline trade, a mid-season street signing, a waiver
+claim and a cut all count the whole year. In the NFL base salary is paid
+weekly over the regular season, so each club carries only the weeks it held
+the player (`docs/nfl-reference.md`, "Trade cap accounting", not modelled).
+Doing it for trades alone would make trades the one transaction priced by the
+week. It needs one rule for every in-season transaction, and a separate
+bucket for salary already earned — booking it as dead money would inflate
+`drift.deadMoneyPct`, which is read against OTC's dead-money share. Primary
+source and design first, then a packet with its own panel.
 
 ### Then — the long tail (Phase 6, unchanged)
 
