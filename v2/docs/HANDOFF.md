@@ -38,7 +38,43 @@ room's clock offers have their own Accept and are not covered.
 
 ### Validation
 
-Gate and paired-drift results for this entry follow in the next commit.
+4 cores, `--seeds 1`. Full tier not run here: this box's 2-hour background
+limit cannot hold `gate:full:serial` (see the 2026-10-19 entry). **Run
+`gate:full:serial` on the Mac Studio before merge**, which covers `drift` and
+`careers` against baselines.
+
+- `7a6f829` (re-check + trade id): `gate:serial` **GATE PASS**, 72 metrics,
+  348/348 verify, `rb5RushYds` 1262.81.
+- `544e025` (guarantees): `gate:serial` **GATE FAIL 1**, `draftnight` only.
+  72 metrics within baseline. That was a false positive in the test's leak
+  check, which cut allowed numbers out as substrings: removing round "6" made
+  "#655" read "# 55", that kicker's pot. Item 4 changed seed 42's class order
+  and exposed it. Fixed in `4d350f0` (whole tokens); the old helper fails and
+  the new one passes on the same code.
+- `4d350f0`: `gate:serial` **GATE PASS**, 72 metrics within baseline, 348/348
+  verify, `draftnight` ok, `useroffers` ok on the signed literals.
+  `statcheck.rb5RushYds` **1255.68** (was 1262.81; trades differ; inside the
+  unchanged 1191 +/-95). Known `OT.sta` NO EFFECT only.
+- `docs/baselines.json` SHA-256 unchanged
+  (`12bcbcd2cd26d23f1f7e0ac8e598cb8165fe3e85cfb3a8e56fd59b52a987d74e`).
+
+Paired `npx tsx scripts/drift.ts 10 12345`, before (`7a6f829`) vs after
+(`544e025`). One seed, diverging from week 5 of year 1, so direction only.
+Both runs: no P0 regressions.
+
+| metric | before | after | reference |
+|---|---|---|---|
+| `tradesPerSeason` | 77.6 | 81.8 | NFL 60–120, floor 30 |
+| `deadMoneyPct` | 5.37 | 5.51 | ~5–8% (OTC) |
+| `topCapPctMean` | 20.18 | 20.60 | — |
+| `medianPayrollPct` | 99.27 | 99.15 | — |
+| `irCapPctMean` | 6.96 | 6.12 | — |
+| `hcFiresPerSeason` | 5.7 | 6.3 | report-only |
+| `holdoutsPerSeason` | 19.2 | 21.3 | report-only |
+
+Trade volume and dead money rose slightly in the expected direction (the check
+stops refusing deals that fit; a traded guarantee now costs the club that cuts
+him). No tuning; no band changes.
 
 ---
 
