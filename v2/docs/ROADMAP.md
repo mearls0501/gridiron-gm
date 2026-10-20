@@ -96,7 +96,9 @@ Moves trade volume and cap reads; expect the seed-42 canary to move again.
 
 ### Then — the long tail (Phase 6, unchanged)
 
-Preseason games feeding camp battles into the cutdown. Onside kicks, blocked
+Preseason games feeding camp battles into the cutdown (design and Matt's
+decisions: `docs/preseason-games-design-2026-10-20.md`; packet A after
+#185–#187 merge). Onside kicks, blocked
 kicks and fair catches (none in the sim today). Benching a passer for bad
 play. Trick plays. A per-position injury duration table (closes the QB
 availability limitation). The 6-veteran PS cap and international PS slot.

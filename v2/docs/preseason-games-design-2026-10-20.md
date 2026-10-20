@@ -1,8 +1,9 @@
 # Preseason games — design note (2026-10-20)
 
 Docs only. No code, no gate, no baseline. Asked for by Matt (ROADMAP Phase 6:
-"Preseason games feeding camp battles into the cutdown"). Decisions for Matt
-are at the end. The calibration freeze (signed 2026-10-08) applies: this is a
+"Preseason games feeding camp battles into the cutdown"). **Decided
+2026-10-20 (Matt):** see "Decided" at the end. Build starts after #185–#187
+merge. The calibration freeze (signed 2026-10-08) applies: this is a
 feature with no NFL rate behind its main mechanism, so that part is designed
 to be ungated and switchable.
 
@@ -182,3 +183,22 @@ Both need a Studio panel and a signed canary.
    series / first quarter), or the default plan only?
 5. **Staged cuts.** The single 53 cut after week 3 (current NFL), not the
    2021–22 staged 85/80/53?
+
+## Decided (Matt, 2026-10-20)
+
+1. **Placement:** three preseason weeks inside camp (`offseason-final`),
+   before the cut. The existing `preseason` phase stays the post-cut step, so
+   harnesses that take one `advance()` from `preseason` to `regular` are
+   unchanged.
+2. **Packets:** A first — games, injuries, screens and the user's usage
+   choice, camp nudge **off** — with its own Studio panel and signed canary.
+   Then B, the camp nudge, as a separate small packet with its own panel.
+3. **Injuries:** the engine's own per-snap rates, no preseason multiplier.
+4. **Usage:** the default plan for CPU clubs; for the user's club a per-game
+   choice (sit / one series / first quarter). No `/play` for preseason in
+   packet A.
+5. **Cuts:** a single cut to 53 after preseason week 3, as today.
+
+First build step for packet A: read whether the engine can swap whole units
+within a game through `onField`; if not, simulate each game in segments with a
+temporary depth chart per segment.
