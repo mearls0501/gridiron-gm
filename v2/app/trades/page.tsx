@@ -197,9 +197,9 @@ export default function TradesPage() {
       const fresh = proposeFromUser(s, to, give, get);
       if (!fresh.check.ok) return fresh.check.reason ?? "That trade cannot be made.";
       if (!fresh.verdict.accept) return `${s.teams[to].abbr} turned it down.`;
+      // executeTrade advances nextTradeId past this offer's id.
       const res = executeTrade(s, fresh.offer);
       if (!res.ok) return res.reason ?? "That trade could not be completed.";
-      s.nextTradeId = (s.nextTradeId ?? 1) + 1;
       done = true;
       return `Trade completed with ${s.teams[to].abbr}`;
     });

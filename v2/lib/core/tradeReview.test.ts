@@ -9,11 +9,13 @@
  * both numbers and the gap; when the accounting is unified, flip the KNOWN GAP
  * assertions on purpose.
  *
- * Stale offers: an offer is priced when it is made. `acceptOffer` re-runs only
- * `checkTrade`, never `evaluateOffer`, so an injury or IR move after the call
- * still goes through. The offer stores no injury or cap snapshot, so the
- * review has to read the live player. A refused Accept leaves the save
- * byte-identical and the offer in the inbox.
+ * Stale offers: an offer is priced when it is made and stores no injury or
+ * cap snapshot, so the review reads the live player. At Accept the calling
+ * club re-runs its own gain test (`proposerStillWants`), the way a physical
+ * would: an injury it can live with still goes through; one that tips the
+ * deal withdraws the offer. A refused Accept (`checkTrade`) leaves the save
+ * byte-identical and the offer in the inbox; a withdrawal removes only the
+ * offer.
  *
  * Fixtures only; no sim, no parent RNG draws. Run: npx tsx lib/core/tradeReview.test.ts
  */
@@ -21,8 +23,10 @@ import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { makeContract } from "./generate";
 import { Rng } from "./rng";
-import { acceptOffer, checkTrade } from "./trades";
+import { acceptOffer, checkTrade, generateUserOffers, proposerStillWants } from "./trades";
+import { startRegularSeason } from "./season/engine";
 import { capHit, deadMoney, remainingBonusProration, rosterCount, teamCap } from "./select";
+import { TRADE_DEADLINE_WEEK } from "./types";
 import type { GameState, Player, TradeAsset, TradeOffer } from "./types";
 
 function ok(label: string) { console.log("ok   ", label); }
@@ -33,14 +37,30 @@ function rostered(st: St, teamId: number): Player[] {
   return st.players.filter((p) => p.teamId === teamId && !p.retired && !p.prospect && p.contract);
 }
 
-/** A same-position 1-for-1 so roster counts and position minimums hold. */
+/**
+ * A same-position 1-for-1 so roster counts and position minimums hold, with
+ * the fixture contracts planted, that the calling club would really make:
+ * `acceptOffer` re-runs its own gain test.
+ */
 function swapPair(st: St): { user: Player; cpu: Player; cpuTeamId: number } {
-  const cpuTeamId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
-  for (const u of rostered(st, st.userTeamId).sort((a, b) => b.ovr - a.ovr)) {
-    const c = rostered(st, cpuTeamId).find((p) => p.pos === u.pos);
-    if (c) return { user: u, cpu: c, cpuTeamId };
+  for (const t of st.teams) {
+    if (t.id === st.userTeamId) continue;
+    for (const u of rostered(st, st.userTeamId).sort((a, b) => b.ovr - a.ovr)) {
+      for (const c of rostered(st, t.id).filter((p) => p.pos === u.pos).sort((a, b) => a.ovr - b.ovr)) {
+        const was = [u.contract, c.contract];
+        u.contract = makeContract(new Rng(7), 12_000_000, 4, st.season, 2);
+        c.contract = makeContract(new Rng(8), 6_000_000, 3, st.season, 0);
+        const probe: TradeOffer = {
+          id: 0, fromTeamId: t.id, toTeamId: st.userTeamId,
+          give: [{ kind: "player", playerId: c.id }], get: [{ kind: "player", playerId: u.id }],
+          season: st.season, week: st.week, rationale: "",
+        };
+        if (proposerStillWants(st, probe)) return { user: u, cpu: c, cpuTeamId: t.id };
+        [u.contract, c.contract] = was;
+      }
+    }
   }
-  throw new Error("no same-position pair");
+  throw new Error("no pair the club would offer");
 }
 
 function offerFor(st: St, cpuTeamId: number, give: TradeAsset[], get: TradeAsset[]): TradeOffer {
@@ -64,13 +84,13 @@ function fixture(seed: number) {
   st.phase = "preseason";
   st.week = 0;
   st.tradeOffers = [];
+  for (const p of st.players) {
+    if (p.teamId === null || p.retired || p.prospect) continue;
+    p.status = undefined;
+    p.injuryWeeks = 0;
+    p.injuryDesc = null;
+  }
   const { user, cpu, cpuTeamId } = swapPair(st);
-  user.status = undefined;
-  cpu.status = undefined;
-  user.injuryWeeks = 0;
-  cpu.injuryWeeks = 0;
-  user.contract = makeContract(new Rng(7), 12_000_000, 4, st.season, 2);
-  cpu.contract = makeContract(new Rng(8), 6_000_000, 3, st.season, 0);
   // Room on both sides; cases that test the cap set the user's space exactly.
   st.teams[cpuTeamId].capCarryover = (st.teams[cpuTeamId].capCarryover ?? 0) + 200_000_000;
   st.teams[st.userTeamId].capCarryover = (st.teams[st.userTeamId].capCarryover ?? 0) + 200_000_000;
@@ -168,7 +188,7 @@ ok("KNOWN GAP: check refuses a deal that would fit; refusal mutates nothing");
 }
 ok("checked charge is the refusal boundary");
 
-// (4) Stale: injury after the offer. No re-evaluation; the offer has no snapshot.
+// (4) Stale: injury after the offer. A short one is priced in and the deal stands.
 {
   const { st, user, cpuTeamId, offer } = fixture(42);
   assert.deepEqual(
@@ -178,11 +198,80 @@ ok("checked charge is the refusal boundary");
   );
   user.injuryWeeks = 6;
   user.injuryDesc = "Torn hamstring";
+  assert.equal(proposerStillWants(st, offer), true, "a six-week injury on this player is still worth it");
   assert.equal(acceptOffer(st, offer.id).ok, true, "CPU still takes an injured player");
   assert.equal(user.teamId, cpuTeamId);
   assert.equal(user.injuryWeeks, 6, "injury travels with him");
 }
 ok("stale injury: accept still executes; review must read the live player");
+
+// (4b) Stale: an injury that tips the deal. The club pulls the offer at Accept.
+{
+  let found = false;
+  for (const seed of [11, 42, 99]) {
+    const st = newGame({ seed });
+    st.phase = "preseason";
+    st.week = 0;
+    for (const t of st.teams) t.capCarryover = (t.capCarryover ?? 0) + 200_000_000;
+    // A healthy-wanted, hurt-unwanted pair: the margin case a physical exists for.
+    for (const t of st.teams) {
+      if (t.id === st.userTeamId || found) continue;
+      for (const u of rostered(st, st.userTeamId)) {
+        if (found) break;
+        for (const c of rostered(st, t.id).filter((p) => p.pos === u.pos)) {
+          for (const p of [u, c]) { p.status = undefined; p.injuryWeeks = 0; p.injuryDesc = null; }
+          const offer: TradeOffer = {
+            id: st.nextTradeId ?? 1, fromTeamId: t.id, toTeamId: st.userTeamId,
+            give: [{ kind: "player", playerId: c.id }], get: [{ kind: "player", playerId: u.id }],
+            season: st.season, week: st.week, rationale: "fixture",
+          };
+          if (!proposerStillWants(st, offer) || !checkTrade(st, offer).ok) continue;
+          u.injuryWeeks = 16;
+          u.injuryDesc = "Torn ACL";
+          if (proposerStillWants(st, offer)) { u.injuryWeeks = 0; u.injuryDesc = null; continue; }
+
+          st.tradeOffers = [offer, { ...offer, id: offer.id + 1 }];
+          const players = JSON.stringify(st.players);
+          const teams = JSON.stringify(st.teams);
+          const res = acceptOffer(st, offer.id);
+          assert.equal(res.ok, false, "club withdraws");
+          assert.match(res.reason ?? "", new RegExp(`${t.abbr} pulled the offer after ${u.firstName} ${u.lastName}'s physical`));
+          assert.equal(JSON.stringify(st.players), players, "nobody moves");
+          assert.equal(JSON.stringify(st.teams), teams, "no cap moves");
+          assert.deepEqual(st.tradeOffers.map((o) => o.id), [offer.id + 1], "only that offer leaves the inbox");
+          assert.equal(acceptOffer(st, offer.id).reason, "That offer is no longer on the table.");
+          found = true;
+          break;
+        }
+      }
+    }
+    if (found) break;
+  }
+  assert.ok(found, "a seed has a margin deal that a long injury tips");
+}
+ok("stale injury that tips the deal: club withdraws, nothing else moves");
+
+// (4c) An offer nothing has touched is never pulled: the re-check is the
+// same test every user-offer path ran when it made the call.
+{
+  let n = 0;
+  for (const seed of [11, 42, 99]) {
+    for (const phase of ["offseason-fa", "preseason", "regular"] as const) {
+      const st = newGame({ seed });
+      if (phase === "regular") { startRegularSeason(st); st.week = TRADE_DEADLINE_WEEK; }
+      else { st.phase = phase; st.week = 0; }
+      for (let k = 0; k < 3; k++) {
+        st.tradeOffers = [];
+        for (const o of generateUserOffers(st, new Rng(seed * 100 + k), 2)) {
+          n++;
+          assert.equal(proposerStillWants(st, o), true, `seed ${seed} ${phase}: fresh offer ${o.id} still wanted`);
+        }
+      }
+    }
+  }
+  assert.ok(n >= 20, `enough fresh offers checked (${n})`);
+}
+ok("fresh offers survive the re-check");
 
 // (5) Stale: IR move after the offer. IR is off the 53 on both sides, so the
 // user's count rises by one; at 53 that turns a legal call into a refusal.

@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { newGame } from "../core/newGame";
 import { makeContract } from "../core/generate";
 import { Rng } from "../core/rng";
-import { acceptOffer, executeTrade, proposeFromUser } from "../core/trades";
+import { acceptOffer, executeTrade, proposeFromUser, proposerStillWants } from "../core/trades";
 import { capHit, formatMoney, rosterCount, teamCap } from "../core/select";
 import type { GameState, Player, TradeOffer } from "../core/types";
 import { tradeBoardAssetLabel } from "./tradeBoard";
@@ -32,14 +32,23 @@ function fixture(seed = 42) {
   const cpuTeamId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
   let user: Player | undefined;
   let cpu: Player | undefined;
-  for (const u of rostered(st, st.userTeamId).sort((a, b) => b.ovr - a.ovr)) {
-    cpu = rostered(st, cpuTeamId).find((p) => p.pos === u.pos);
-    if (cpu) { user = u; break; }
+  // A pair the club would really offer: Accept re-runs its own gain test.
+  search: for (const u of rostered(st, st.userTeamId).sort((a, b) => b.ovr - a.ovr)) {
+    for (const c of rostered(st, cpuTeamId).filter((p) => p.pos === u.pos).sort((a, b) => a.ovr - b.ovr)) {
+      const was = [u.contract, c.contract];
+      for (const p of [u, c]) { p.status = undefined; p.injuryWeeks = 0; p.injuryDesc = null; }
+      u.contract = makeContract(new Rng(7), 12_000_000, 4, st.season, 2);
+      c.contract = makeContract(new Rng(8), 6_000_000, 3, st.season, 0);
+      const probe: TradeOffer = {
+        id: 0, fromTeamId: cpuTeamId, toTeamId: st.userTeamId,
+        give: [{ kind: "player", playerId: c.id }], get: [{ kind: "player", playerId: u.id }],
+        season: st.season, week: st.week, rationale: "",
+      };
+      if (proposerStillWants(st, probe)) { user = u; cpu = c; break search; }
+      [u.contract, c.contract] = was;
+    }
   }
-  assert.ok(user && cpu);
-  for (const p of [user, cpu]) { p.status = undefined; p.injuryWeeks = 0; p.injuryDesc = null; }
-  user.contract = makeContract(new Rng(7), 12_000_000, 4, st.season, 2);
-  cpu.contract = makeContract(new Rng(8), 6_000_000, 3, st.season, 0);
+  assert.ok(user && cpu, "a pair the club would offer");
   for (const id of [st.userTeamId, cpuTeamId]) {
     st.teams[id].capCarryover = (st.teams[id].capCarryover ?? 0) + 200_000_000;
   }
@@ -180,7 +189,11 @@ for (const seed of [11, 42, 99]) {
   assert.equal(player(r.incoming, cpu.id).capAfter, cpu.contract!.baseSalary[0], "arrival on the user's side");
   assert.ok(player(r.outgoing, user.id).deadOnSender > 0, "departure on the user's side");
   assert.equal(r.check.ok, prop.check.ok);
+  const idBefore = st.nextTradeId ?? 1;
+  assert.equal(prop.offer.id, idBefore, "a proposal takes the next trade id");
   assert.equal(executeTrade(st, prop.offer).ok, true);
+  // /trades no longer adds a second bump; inquiry streams key on this id.
+  assert.equal(st.nextTradeId, idBefore + 1, "a completed proposal uses exactly one id");
   assert.ok(Math.abs(teamCap(st, st.userTeamId).space - r.cap.spaceAfter) <= 2, `seed ${seed}: proposal cap`);
   assert.equal(rosterCount(st, st.userTeamId), r.roster.after);
 }
