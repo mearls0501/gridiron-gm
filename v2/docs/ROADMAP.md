@@ -100,7 +100,8 @@ Doing it for trades alone would make trades the one transaction priced by the
 week. It needs one rule for every in-season transaction, and a separate
 bucket for salary already earned — booking it as dead money would inflate
 `drift.deadMoneyPct`, which is read against OTC's dead-money share. Primary
-source and design first, then a packet with its own panel.
+source and design first, then a packet with its own panel. Design note:
+`docs/pro-rata-salary-design-2026-10-20.md` (four decisions for Matt at the end).
 
 ### Then — the long tail (Phase 6, unchanged)
 
