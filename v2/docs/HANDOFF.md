@@ -69,7 +69,24 @@ PASSED** with `/trades Propose → review → Back → Confirm sent one pick
 1280 and 390 wide: injury, cap ($22.3M → $11.4M; $11.6M arriving base, $1.25M
 dead, $1.99M leaving), roster, no horizontal scroll, no page errors.
 
-Gates (`gate:serial -- --seeds 1`, then `gate:full:serial -- --seeds 1`, 4 cores) are running with both new steps registered; results follow in the next commit.
+Gates, 4 cores, both new steps registered:
+
+- `npm run gate:serial -- --seeds 1`: **GATE PASS**, 72 metrics within
+  baseline. `tradereview` and `tradereviewview` ok. 348/348 verify checks.
+  `statcheck.rb5RushYds` **1262.81** (unchanged). Known non-gating leverage
+  `OT.sta` NO EFFECT only.
+- `npm run gate:full:serial -- --seeds 1`: **NOT COMPLETED.** The cloud
+  session's 2-hour background limit stopped it inside `sweep`. Every step
+  before that passed, 61 in all: the unit suites including both new steps,
+  `determinism`, and `verify` (1063/1063 checks, 1295 s). `contractceiling`
+  alone took 1586 s. `sweep`, `calibrate`, `statcheck`, `leverage`, `tails`,
+  `conditions`, `coherence`, `drift`, `careers` and `staff` did not run in
+  the full tier. No non-test file under `lib/core/` changed; the diff is
+  `app/trades`, `lib/view/tradeReview.ts`, tests and the e2e script. Run
+  `gate:full:serial` on the Mac Studio before merge.
+
+`docs/baselines.json` SHA-256 is still
+`12bcbcd2cd26d23f1f7e0ac8e598cb8165fe3e85cfb3a8e56fd59b52a987d74e`.
 
 ---
 
