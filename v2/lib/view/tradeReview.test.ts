@@ -132,6 +132,20 @@ ok("review cap and roster match the executed trade");
 }
 ok("review is pure");
 
+// (4b) A guarantee travels with the contract; the review says so.
+{
+  const { st, user, cpu, offer } = fixture();
+  const r0 = buildOfferReview(st, offer);
+  assert.ok(player(r0.outgoing, user.id).guaranteed > 0, "the departing deal shows its guarantee");
+  assert.equal(r0.warnings.some((w) => w.includes("guaranteed salary")), false, "no guaranteed arrival yet");
+  cpu.contract!.guaranteedYears = 1;
+  const r = buildOfferReview(st, offer);
+  const g = cpu.contract!.baseSalary[0];
+  assert.equal(player(r.incoming, cpu.id).guaranteed, g);
+  assert.ok(r.warnings.some((w) => w.includes(`${formatMoney(g)} of guaranteed salary`)));
+}
+ok("guarantees show on both sides and warn on arrival");
+
 // (5) Refusals surface before Confirm, with the engine's reason.
 {
   const { st, user, offer } = fixture();

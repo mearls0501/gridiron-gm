@@ -552,6 +552,7 @@ function ReviewLines({
                     ? `${formatMoney(l.capAfter)} on your cap`
                     : `${formatMoney(l.capNow)} cap hit`}
                   {l.yearsLeft > 0 ? ` · ${l.yearsLeft} yr${l.yearsLeft === 1 ? "" : "s"} left` : ""}
+                  {l.guaranteed > 0 ? ` · ${formatMoney(l.guaranteed)} guaranteed` : ""}
                   {l.injury ? ` · ${l.injury}` : ""}
                 </div>
               </li>

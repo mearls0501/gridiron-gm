@@ -1,13 +1,12 @@
 /**
  * What an incoming-offer review has to show, measured before the review exists.
  *
- * Cap: `checkTrade` and `executeTrade` price a departing contract differently.
- * The check charges the sender full `deadMoney` (uncharged bonus plus remaining
- * guaranteed base). `moveAsset` posts only the uncharged bonus, and the
- * receiver's copy has `guaranteedYears` 0, so the guaranteed base is charged
- * to nobody. The review must print what Accept actually does. These cases pin
- * both numbers and the gap; when the accounting is unified, flip the KNOWN GAP
- * assertions on purpose.
+ * Cap, per docs/nfl-reference.md "Trade cap accounting": the sender's
+ * uncharged signing bonus accelerates onto its cap (CBA Art. 13 §6(b)(ii));
+ * the receiver takes on base salary and the guarantee on it. `checkTrade`
+ * prices exactly what `executeTrade` posts. Until 2026-10-20 the check also
+ * charged the sender the guaranteed base while execution charged it to
+ * nobody; cases 1–3 are that gap, closed.
  *
  * Stale offers: an offer is priced when it is made and stores no injury or
  * cap snapshot, so the review reads the live player. At Accept the calling
@@ -104,7 +103,8 @@ function userCharge(user: Player, cpu: Player) {
   const guaranteedBase = deadMoney(uc) - Math.round(remainingBonusProration(uc));
   const incoming = cpu.contract!.baseSalary[0] ?? 0;
   return {
-    checked: deadMoney(uc) - capHit(uc) + incoming,
+    /** The old check: full deadMoney on the sender. */
+    oldChecked: deadMoney(uc) - capHit(uc) + incoming,
     actual: Math.round(remainingBonusProration(uc)) - capHit(uc) + incoming,
     guaranteedBase,
   };
@@ -149,44 +149,42 @@ for (const seed of [11, 42, 99]) {
   assert.ok(Math.abs(userDelta - want.actual) <= 2, `seed ${seed}: user space moved ${userDelta}, expected ${want.actual}`);
   assert.ok(Math.abs(cpuDelta - (cpuOut + cpuCheckedIn)) <= 2, `seed ${seed}: CPU space moved ${cpuDelta}`);
 
-  // KNOWN GAP: the check over-charges by exactly the guaranteed base.
-  assert.ok(Math.abs(want.checked - want.actual - want.guaranteedBase) <= 1, "gap is the guaranteed base");
-
-  // KNOWN GAP: the guaranteed base is posted to nobody.
+  // The sender posts the bonus only; the guarantee travels with the contract.
   const posted = (st.teams[st.userTeamId].deadCap ?? 0) - userDeadBefore;
   assert.ok(Math.abs(posted - userBonusLeft) <= 1, `seed ${seed}: sender posts bonus only (${posted} vs ${userBonusLeft})`);
   assert.equal(user.teamId, cpuTeamId, "player moved");
-  assert.equal(user.contract!.guaranteedYears, 0, "receiver holds no guarantee");
+  assert.equal(user.contract!.guaranteedYears, 2, "receiver holds the guarantee");
   assert.equal(user.contract!.signingBonus, 0, "receiver holds no bonus");
   assert.equal(capHit(user.contract), user.contract!.baseSalary[0], "receiver's hit is base only");
-  assert.equal(deadMoney(user.contract), 0, "receiver can cut him for free");
+  assert.equal(deadMoney(user.contract), want.guaranteedBase, "cutting him costs the receiver the guaranteed base");
   assert.equal((st.tradeOffers ?? []).length, 0, "accepted offer leaves the inbox");
 }
-ok("execution moves both caps by bonus acceleration and incoming base, not the guarantee");
+ok("execution: sender's bonus accelerates; receiver takes base and the guarantee");
 
-// (2) KNOWN GAP: the check refuses a deal that execution would fit.
+// (2) Closed gap: a deal that fits under the old check's over-charge now passes.
 for (const seed of [11, 42, 99]) {
   const { st, user, cpu, offer } = fixture(seed);
   const want = userCharge(user, cpu);
   setUserSpace(st, want.actual + Math.floor(want.guaranteedBase / 2));
+  assert.ok(teamCap(st, st.userTeamId).space < want.oldChecked, "the old check would have refused");
   const res = checkTrade(st, offer);
-  assert.equal(res.ok, false, `seed ${seed}: check refuses`);
-  assert.match(res.reason ?? "", /cannot fit the contracts/);
-  assert.ok(teamCap(st, st.userTeamId).space - want.actual > 0, "execution would leave room");
-  refusedUnchanged(st, offer.id, /cannot fit/, `seed ${seed} cap gap`);
+  assert.equal(res.ok, true, `seed ${seed}: check passes what execution fits (${res.reason})`);
+  assert.equal(acceptOffer(st, offer.id).ok, true);
+  assert.ok(teamCap(st, st.userTeamId).space >= 0, "and execution leaves the club legal");
 }
-ok("KNOWN GAP: check refuses a deal that would fit; refusal mutates nothing");
+ok("check passes what execution fits");
 
-// (3) Above and below the checked figure the check agrees with itself.
+// (3) The refusal boundary is the executed charge.
 {
   const { st, user, cpu, offer } = fixture(42);
   const want = userCharge(user, cpu);
-  setUserSpace(st, want.checked);
-  assert.equal(checkTrade(st, offer).ok, true, "exactly the checked charge fits");
-  setUserSpace(st, want.checked - 1);
+  setUserSpace(st, want.actual);
+  assert.equal(checkTrade(st, offer).ok, true, "exactly the executed charge fits");
+  setUserSpace(st, want.actual - 1);
   assert.equal(checkTrade(st, offer).ok, false, "one dollar short is refused");
+  refusedUnchanged(st, offer.id, /cannot fit/, "one dollar short");
 }
-ok("checked charge is the refusal boundary");
+ok("executed charge is the refusal boundary");
 
 // (4) Stale: injury after the offer. A short one is priced in and the deal stands.
 {

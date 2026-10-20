@@ -1,6 +1,6 @@
 import { playerName } from "../core/ratings";
 import {
-  capHit, formatMoney, isActiveRoster, remainingBonusProration, rosterCount, teamCap,
+  capHit, deadMoney, formatMoney, isActiveRoster, remainingBonusProration, rosterCount, teamCap,
 } from "../core/select";
 import { checkTrade, TradeCheck } from "../core/trades";
 import { GameState, ROSTER_LIMIT, TradeAsset, TradeOffer } from "../core/types";
@@ -15,11 +15,10 @@ import { draftPickDeskLabel, tradeBoardOvr } from "./tradeBoard";
  * reads the live save every time it is built: an injury, IR move or cap
  * change after the call shows up here.
  *
- * Cap follows what `executeTrade` posts, not `checkTrade`'s estimate. A
- * departing contract's uncharged bonus accelerates onto the sender; the
- * arriving player counts his base salary only. `check` is still the
- * engine's verdict and decides whether Confirm is live
- * (see lib/core/tradeReview.test.ts for where the two differ).
+ * Cap is what `executeTrade` posts, which `checkTrade` now prices the same
+ * way: a departing contract's uncharged bonus accelerates onto the sender;
+ * the arriving player counts his base salary, and his guarantee comes with
+ * him. `check` is the engine's verdict and decides whether Confirm is live.
  */
 
 export interface ReviewPlayer {
@@ -39,6 +38,8 @@ export interface ReviewPlayer {
   yearsLeft: number;
   /** Bonus that accelerates onto the sender when he leaves. */
   deadOnSender: number;
+  /** Remaining guaranteed base; it travels with the contract. */
+  guaranteed: number;
 }
 
 export interface ReviewPick {
@@ -92,6 +93,7 @@ function line(state: GameState, a: TradeAsset): ReviewLine {
     capNow: capHit(c),
     yearsLeft: c?.yearsRemaining ?? 0,
     deadOnSender: Math.round(remainingBonusProration(c)),
+    guaranteed: Math.max(0, deadMoney(c) - Math.round(remainingBonusProration(c))),
   };
 }
 
@@ -137,6 +139,10 @@ export function buildOfferReview(state: GameState, offer: TradeOffer): OfferRevi
     if (l.kind !== "player") continue;
     if (l.ir) warnings.push(`${l.name} is on injured reserve.`);
     else if (l.injury) warnings.push(`${l.name} is hurt — ${l.injury}.`);
+  }
+  const guaranteedIn = incoming.reduce((n, l) => n + (l.kind === "player" ? l.guaranteed : 0), 0);
+  if (guaranteedIn > 0) {
+    warnings.push(`You take on ${formatMoney(guaranteedIn)} of guaranteed salary. Cutting him later still costs it.`);
   }
   if (deadAdded > 0) {
     warnings.push(`You keep ${formatMoney(deadAdded)} of dead money from the bonus on contracts you send.`);

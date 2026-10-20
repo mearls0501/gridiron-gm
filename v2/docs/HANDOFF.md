@@ -1,5 +1,47 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-20 — Trade cap accounting, offer re-check at Accept, one trade id (#185)
+
+Follow-ups on draft PR #185, each asked for by Matt.
+
+### Guarantees travel with a traded contract (engine change, signed)
+
+The rule, with sources, is the new "Trade cap accounting" block in
+`docs/nfl-reference.md`. The sender's uncharged bonus accelerates (CBA Art. 13
+§6(b)(ii)), and the receiver takes on base salary and its guarantee.
+`moveAsset` no longer zeroes `guaranteedYears` on the receiver's copy, and
+`checkTrade` charges the sender only the bonus, which is exactly what execution
+posts. Before this, the guaranteed base was charged to nobody and the check
+over-charged the sender by it. The KNOWN GAP assertions in
+`lib/core/tradeReview.test.ts` are flipped to the rule. The review shows each
+player's remaining guarantee and warns when one arrives.
+
+**Seed-42 user-offers canary moved, signed by Matt 2026-10-20:** tag
+**1599887382 → 3967213056**, FA **2847491416 → 3639016065**. Seed 42 is
+identical through week 4. From week 5 the CPU trade list differs because cap
+legality changed: 33 trades to the tag step before, 31 after. No new parent
+draws. The inquiry-isolation assertions pass unchanged.
+
+### Incoming offers re-checked at Accept (`7a6f829`)
+
+`proposerStillWants` re-runs the calling club's own gain test at Accept, the
+way a physical would. A deal that no longer clears is withdrawn
+("BKN pulled the offer after X's physical"). Nobody moves, no cap moves, and
+only that offer leaves the inbox. 285 fresh offers over 8 seeds and 3 phases
+all survive the re-check. No RNG. Only the user's Accept calls it. The draft
+room's clock offers have their own Accept and are not covered.
+
+### One trade id per proposal (`7a6f829`)
+
+`/trades` Propose no longer bumps `nextTradeId` a second time after
+`executeTrade`. No harness or canary takes that path.
+
+### Validation
+
+Gate and paired-drift results for this entry follow in the next commit.
+
+---
+
 ## 2026-10-19 — Trade review before Accept and Propose (#185)
 
 Draft PR #185 on `claude/dazzling-pasteur-02nh3y`. UI, view model and tests
