@@ -31,7 +31,25 @@ and both gate tiers. Contract-adjacent suites pass (cap mechanics, contract
 office, retirement dead, waivers, psychology, tag, fifth-year option, tag
 extension, contract ceiling, roster status, trade review, trade window).
 
-Gate and paired-drift results follow in the next commit. Needs a Studio panel.
+`gate:serial -- --seeds 1` on `ef12286`: **GATE PASS**, 72 metrics within
+baseline, 348/348 verify, `useroffers` ok on the signed literals, `prorata`
+ok, `statcheck.rb5RushYds` **1256.04** (inside 1191 ±95). An earlier run that
+started before the literal update failed `useroffers` only, as expected.
+
+Paired `npx tsx scripts/drift.ts 10 12345`, trade valuation (`85ec3aa`) vs
+pro rata. One seed, direction only. Both: no P0 regressions.
+
+| metric | valuation | + pro rata | reference |
+|---|---|---|---|
+| `tradesPerSeason` | 88.9 | **92.3** | NFL ≈90 (target 60–120) |
+| `deadMoneyPct` | 5.44 | 5.67 | ~5–8% (OTC) |
+| `topCapPctMean` | 20.0 | 20.15 | lock 20.3 ±3 |
+| `medianPayrollPct` | 99.46 | 99.42 | lock 90.602 ±6 |
+| `irCapPctMean` | 5.96 | 6.17 | report-only |
+| `rotationRosterChurnWeeks` | 181.8 | 161.6 | report-only |
+
+Deadline deals cost buyers only the weeks left, so trade volume rises a
+little; everything stays inside its range. No tuning. Needs a Studio panel.
 
 ---
 
