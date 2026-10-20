@@ -31,8 +31,10 @@ direction only. Both: no P0 regressions.
 
 `gate:serial -- --seeds 1` before the literal update: **GATE FAIL 1**,
 `useroffers` only (the signed canary); 72 metrics within baseline,
-`statcheck.rb5RushYds` **1248.31** (inside 1191 ±95). Gate on the committed
-head follows in the next commit. Full tier needs the Mac Studio.
+`statcheck.rb5RushYds` **1248.31** (inside 1191 ±95). On the committed head
+(`85ec3aa`, signed literals): **GATE PASS**, 72 metrics within baseline,
+348/348 verify, `useroffers` ok, `rb5RushYds` 1248.31. Full tier needs the
+Mac Studio.
 
 Pro rata in-season salary was the other half of this item. The sim charges a
 full year's base to whoever holds a contract for every in-season transaction,
