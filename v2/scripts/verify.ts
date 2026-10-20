@@ -8,7 +8,7 @@ import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
 import { advanceOffseason, isOffseason } from "../lib/core/offseason";
 import { computeSeeds, leagueStandings } from "../lib/core/season/standings";
-import { rosterCount, teamCap, capHit, computeRecords } from "../lib/core/select";
+import { rosterCount, teamCap, annualCapHit, capHit, computeRecords } from "../lib/core/select";
 import { askingPrice } from "../lib/core/offseason/contracts";
 import { computeOvr, POSITION_WEIGHTS } from "../lib/core/ratings";
 import {
@@ -476,9 +476,10 @@ function checkNoMinimumBargains(st: GameState): void {
     if (p.contract.signedSeason !== st.season) continue;   // only fresh deals
     if (p.draftedRound !== null && p.contract.years === 4) continue; // rookie scale
     const asking = askingPrice(st, p);
-    if (asking > LEAGUE_MINIMUM * 3 && capHit(p.contract) < asking * 0.5) {
+    // Annual rate: a mid-season signing's pro-rata charge is not a bargain.
+    if (asking > LEAGUE_MINIMUM * 3 && annualCapHit(p.contract) < asking * 0.5) {
       bargains++;
-      worst = `${p.lastName} ${p.pos} ${p.ovr} OVR — asked $${(asking / 1e6).toFixed(1)}M, signed for $${(capHit(p.contract) / 1e6).toFixed(1)}M`;
+      worst = `${p.lastName} ${p.pos} ${p.ovr} OVR — asked $${(asking / 1e6).toFixed(1)}M, signed for $${(annualCapHit(p.contract) / 1e6).toFixed(1)}M`;
     }
   }
   check(bargains === 0, "no free agent signed for a fraction of his asking price",

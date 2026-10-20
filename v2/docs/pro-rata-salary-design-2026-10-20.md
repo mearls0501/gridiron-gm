@@ -1,8 +1,10 @@
 # In-season salary, pro rata — design note (2026-10-20)
 
-Docs only. No code, no gate, no baseline. Asked for by Matt after #185 and
-`claude/trade-valuation` (ROADMAP "Later — in-season salary is pro rata").
-Decisions for Matt are at the end.
+Asked for by Matt after #185 and `claude/trade-valuation` (ROADMAP "Later —
+in-season salary is pro rata"). **Decided 2026-10-20 (Matt):** termination
+pay left out; playoff signings start next league year; `topCapPctMean` reads
+the annual rate; one packet. Built on `claude/pro-rata-salary` — see "As
+built" at the end.
 
 ## The problem
 
@@ -161,3 +163,38 @@ Studio panel and a signed canary, same as #185 and `claude/trade-valuation`.
 4. **Scope.** One packet for every path above, or trades and cuts first,
    then signings? Doing trades alone recreates the inconsistency this note is
    about, so the recommendation is one packet.
+
+## Decided (Matt, 2026-10-20)
+
+1. Termination pay: **left out.**
+2. Playoff signings: **start next league year.** `Contract.startsNextLeagueYear`
+   charges nothing now; the year roll clears the flag instead of consuming a
+   year; such a deal is not "expiring" (tag, FA list, contract-year
+   psychology read `expiresAtRollover`).
+3. `topCapPctMean`: **annual rate** (`annualCapHit`, base + proration
+   regardless of weeks). `scripts/drift.ts` reads it.
+4. Scope: **one packet.**
+
+## As built
+
+- `select.ts`: `regularWeeksPaid`, `capHit` charges `(18 − weeksBefore)/18`
+  of base (0 for a deal starting next league year), `annualCapHit`,
+  `arrivingCapHit`, `departingPaidOut`, `settlePaidWeeks`,
+  `startContractNow`, `expiresAtRollover`; `deadMoney` counts only the
+  holder's share of this year's guarantee; `teamCap` carries `paidOut`;
+  `clearDeadCap` also drops `salaryPaidOut`.
+- `trades.ts`: `moveAsset` settles paid weeks before the bonus accelerates;
+  `checkTrade` prices the sender's paid weeks and the receiver's weeks left.
+  Trade valuation stays on annual rates (`annualCapHit` for a club's own
+  player, `acquiredCapHit` for a target), since it compares against an
+  annual asking price.
+- `contracts.ts`: `cutPlayer` settles paid weeks; every new contract goes
+  through `startContractNow` (a no-op out of season); extension books the
+  old deal's paid weeks and starts the new one now; restructure converts
+  only unpaid base; asking-price, tag and option reads use `annualCapHit`;
+  `expireContracts` handles both new fields.
+- `payroll()` and waivers' room include `salaryPaidOut`. The trade review and
+  the finances page show paid-out salary. `scripts/verify.ts`'s bargain check
+  reads the annual rate.
+- Tests: `lib/core/proRata.test.ts`, registered in `package.json` and both
+  gate tiers.

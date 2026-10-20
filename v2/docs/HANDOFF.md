@@ -1,5 +1,40 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-20 — In-season base salary is pro rata (`claude/pro-rata-salary`)
+
+Stacked on `claude/trade-valuation` (#186). Design, sources and Matt's four
+decisions: `docs/pro-rata-salary-design-2026-10-20.md`.
+
+Base salary is paid in 18 weekly installments (CBA Art. 26 §5). The sim used
+to charge a full year to whoever held a contract at any point. Now:
+
+- `capHit` charges the holder `(18 − weeksBefore)/18` of base. A trade or cut
+  books the weeks already paid on the club he leaves (`Team.salaryPaidOut`,
+  not dead money, wiped with `deadCap` at FA open). Every new contract in
+  season starts at the current week. A playoff signing starts next league
+  year (`startsNextLeagueYear`). The year roll resets both.
+- Extensions book the old deal's paid weeks; restructures convert only unpaid
+  base; a waiver clear charges only the guarantee still owed.
+- Prices stay annual: trade valuation, asking price, tag and option tenders,
+  `verify`'s bargain check, and `drift.topCapPct` read `annualCapHit`
+  (Matt's call on `topCapPctMean`).
+- Out of season nothing changes and no new field is written
+  (`proRata.test.ts` case 10).
+
+**Seed-42 user-offers canary moved, signed by Matt 2026-10-20:** tag
+**2282341061 → 1725353685**, FA **3785709883 → 2028992364**. Seed 42's first
+season to the tag step goes from 50 to 59 trades: deadline deals are cheaper
+for buyers.
+
+Tests: `lib/core/proRata.test.ts` (10 cases), registered in `package.json`
+and both gate tiers. Contract-adjacent suites pass (cap mechanics, contract
+office, retirement dead, waivers, psychology, tag, fifth-year option, tag
+extension, contract ceiling, roster status, trade review, trade window).
+
+Gate and paired-drift results follow in the next commit. Needs a Studio panel.
+
+---
+
 ## 2026-10-20 — CPU prices a trade at the acquiring club's cost (`claude/trade-valuation`)
 
 Stacked on #185. Asked for by Matt after #185's trade cap accounting.

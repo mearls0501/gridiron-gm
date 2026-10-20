@@ -313,7 +313,8 @@ export function payroll(state: GameState, teamId: number): number {
     if (p.teamId !== teamId || p.retired || p.prospect) continue;
     sum += capHit(p.contract);
   }
-  return sum + (state.teams[teamId]?.deadCap ?? 0);
+  const t = state.teams[teamId];
+  return sum + (t?.deadCap ?? 0) + (t?.salaryPaidOut ?? 0);
 }
 
 export function payrollPct(state: GameState, teamId: number): number {

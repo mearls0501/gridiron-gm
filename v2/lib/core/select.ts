@@ -1,6 +1,6 @@
 import {
   GameState, Player, Position, Team, TeamRecord, Contract,
-  ROSTER_LIMIT, rosterLimit, salaryCap,
+  REGULAR_SEASON_WEEKS, ROSTER_LIMIT, rosterLimit, salaryCap,
 } from "./types";
 
 /**
@@ -120,11 +120,99 @@ export function remainingBonusProration(c: Contract | null): number {
   return annualProration(c) * prorationYearsUncharged(c);
 }
 
-/** This season's cap charge for a contract: base salary + bonus proration. */
+/** Expires when this offseason's FA wave opens. A playoff signing has not started yet. */
+export function expiresAtRollover(c: Contract | null | undefined): boolean {
+  return !!c && c.yearsRemaining === 1 && !c.startsNextLeagueYear;
+}
+
+/** Share of this year's base the current holder carries: the weeks after `weeksBefore`. */
+function holderShare(c: Contract): number {
+  const before = Math.min(REGULAR_SEASON_WEEKS, Math.max(0, c.weeksBefore ?? 0));
+  return (REGULAR_SEASON_WEEKS - before) / REGULAR_SEASON_WEEKS;
+}
+
+/**
+ * This season's cap charge for a contract: the holder's share of base salary
+ * (pro rata by regular-season week) + bonus proration. A deal signed in the
+ * playoffs starts next league year and charges nothing now.
+ */
 export function capHit(c: Contract | null): number {
+  if (!c || c.yearsRemaining <= 0 || c.startsNextLeagueYear) return 0;
+  const base = (c.baseSalary[0] ?? 0) * holderShare(c);
+  return Math.round(base + (prorationYearsUncharged(c) > 0 ? annualProration(c) : 0));
+}
+
+/**
+ * The contract's annual rate: full base + bonus proration, ignoring who held
+ * it for which weeks. For prices and "highest contract" reads, not for room.
+ */
+export function annualCapHit(c: Contract | null): number {
   if (!c || c.yearsRemaining <= 0) return 0;
   const base = c.baseSalary[0] ?? 0;
   return Math.round(base + (prorationYearsUncharged(c) > 0 ? annualProration(c) : 0));
+}
+
+/**
+ * Regular-season weeks whose games are all final, 0–18. Not `state.week`: CPU
+ * trades run inside `simulateWeek` after week w's games with `week === w`,
+ * while the user acts between weeks with `week === w + 1`. Preseason and the
+ * offseason are 0; the playoffs are 18.
+ */
+export function regularWeeksPaid(state: GameState): number {
+  if (state.phase === "playoffs") return REGULAR_SEASON_WEEKS;
+  if (state.phase !== "regular") return 0;
+  const w = state.week;
+  const current = state.games.find(
+    (g) => g.season === state.season && g.playoffRound === null && g.week === w,
+  );
+  return Math.max(0, Math.min(REGULAR_SEASON_WEEKS, current?.played ? w : w - 1));
+}
+
+/** Base this holder has already been paid this league year. */
+function basePaidSoFar(c: Contract, weeksPaid: number): number {
+  const before = c.weeksBefore ?? 0;
+  if (c.startsNextLeagueYear || weeksPaid <= before) return 0;
+  return ((c.baseSalary[0] ?? 0) * (weeksPaid - before)) / REGULAR_SEASON_WEEKS;
+}
+
+/** What a club taking this contract on now would carry this season, bonus excluded. */
+export function arrivingCapHit(state: GameState, c: Contract | null): number {
+  if (!c || c.yearsRemaining <= 0 || c.startsNextLeagueYear) return 0;
+  const from = Math.max(c.weeksBefore ?? 0, regularWeeksPaid(state));
+  return Math.round(((c.baseSalary[0] ?? 0) * (REGULAR_SEASON_WEEKS - from)) / REGULAR_SEASON_WEEKS);
+}
+
+/** What leaving now books on the club he leaves: the weeks he was paid there. */
+export function departingPaidOut(state: GameState, c: Contract | null): number {
+  if (!c || c.yearsRemaining <= 0) return 0;
+  return Math.round(basePaidSoFar(c, regularWeeksPaid(state)));
+}
+
+/**
+ * He is leaving `teamId` (trade or cut): the weeks he was paid there stay on
+ * its books, and the contract now starts at this week for whoever is next.
+ */
+export function settlePaidWeeks(state: GameState, p: Player, teamId: number): void {
+  const c = p.contract;
+  if (!c || c.startsNextLeagueYear) return;
+  const paid = departingPaidOut(state, c);
+  const t = state.teams[teamId];
+  if (paid > 0 && t) t.salaryPaidOut = Math.round((t.salaryPaidOut ?? 0) + paid);
+  const w = regularWeeksPaid(state);
+  if (w > (c.weeksBefore ?? 0)) c.weeksBefore = w;
+}
+
+/**
+ * A contract signed now: in season it starts at this week; in the playoffs it
+ * starts next league year. A no-op in the offseason and preseason.
+ */
+export function startContractNow<C extends Contract>(state: GameState, c: C): C {
+  if (state.phase === "playoffs") c.startsNextLeagueYear = true;
+  else {
+    const w = regularWeeksPaid(state);
+    if (w > 0) c.weeksBefore = w;
+  }
+  return c;
 }
 
 /**
@@ -136,7 +224,10 @@ export function deadMoney(c: Contract | null): number {
   if (!c || c.yearsRemaining <= 0) return 0;
   let guaranteed = 0;
   for (let i = 0; i < Math.min(c.guaranteedYears, c.yearsRemaining); i++) {
-    guaranteed += c.baseSalary[i] ?? 0;
+    // This year's guarantee is only the holder's weeks; a deal that starts
+    // next league year owes its first year in full.
+    const share = i === 0 && !c.startsNextLeagueYear ? holderShare(c) : 1;
+    guaranteed += (c.baseSalary[i] ?? 0) * share;
   }
   return Math.round(remainingBonusProration(c) + guaranteed);
 }
@@ -150,6 +241,8 @@ export interface CapSummary {
   cap: number;
   committed: number;
   dead: number;
+  /** Base already paid this year to players since traded or cut. Not dead money. */
+  paidOut: number;
   space: number;
   players: number;
   /** Unused prior-year space added to this year's room. Missing team field = 0. */
@@ -166,13 +259,15 @@ export function teamCap(state: GameState, teamId: number): CapSummary {
     players++;
   }
   const dead = state.teams[teamId]?.deadCap ?? 0;
+  const paidOut = state.teams[teamId]?.salaryPaidOut ?? 0;
   const carryover = state.teams[teamId]?.capCarryover ?? 0;
   return {
     cap,
-    committed: committed + dead,
+    committed: committed + dead + paidOut,
     dead,
+    paidOut,
     carryover,
-    space: cap + carryover - committed - dead,
+    space: cap + carryover - committed - dead - paidOut,
     players,
   };
 }
@@ -209,8 +304,12 @@ export function addDeadCap(state: GameState, teamId: number, amount: number): vo
   if (t) t.deadCap = Math.round((t.deadCap ?? 0) + amount);
 }
 
+/** FA open: the closing league year's dead money and paid-out salary are done. */
 export function clearDeadCap(state: GameState): void {
-  for (const t of state.teams) t.deadCap = 0;
+  for (const t of state.teams) {
+    t.deadCap = 0;
+    if (t.salaryPaidOut !== undefined) delete t.salaryPaidOut;
+  }
 }
 
 export function startSeason(state: GameState): number {

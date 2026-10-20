@@ -152,6 +152,20 @@ export interface Contract {
    * Cap is MAX_VOID_YEARS (4). See `docs/nfl-reference.md` §4.
    */
   voidYears?: number;
+  /**
+   * Regular-season weeks of the current league year that belong to earlier
+   * holders, or passed before he signed. Base salary is paid in 18 weekly
+   * installments, so this holder carries `(18 - weeksBefore) / 18` of
+   * `baseSalary[0]`. Reset when the contract year rolls. Missing = 0.
+   * See `docs/pro-rata-salary-design-2026-10-20.md`.
+   */
+  weeksBefore?: number;
+  /**
+   * Signed during the playoffs: the deal starts next league year, so it
+   * carries no charge now and the year roll does not consume a year of it.
+   * Missing = false.
+   */
+  startsNextLeagueYear?: boolean;
 }
 
 export type PsychReason = "role" | "money" | "roleAndMoney";
@@ -422,6 +436,12 @@ export interface Team {
    * same dollars count on the new league year. Missing = 0.
    */
   retirementDeadPending?: number;
+  /**
+   * Base salary already paid this league year to players who have since been
+   * traded or cut: their earned weeks stay on this club's books. Not dead
+   * money. Wiped with `deadCap` at FA open. Missing = 0.
+   */
+  salaryPaidOut?: number;
   /**
    * IR return designations used this season (max 8). Missing = 0 so older
    * saves start the season with a full allotment.

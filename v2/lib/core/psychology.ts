@@ -1,7 +1,7 @@
 import { marketApy } from "./generate";
 import { playerName } from "./ratings";
 import { Rng } from "./rng";
-import { formatMoney, isActiveRoster, startSeason } from "./select";
+import { expiresAtRollover, formatMoney, isActiveRoster, startSeason } from "./select";
 import {
   GameState,
   Player,
@@ -131,7 +131,7 @@ export function payRatio(state: GameState, p: Player): number {
 }
 
 export function isContractYear(p: Player): boolean {
-  return !!p.contract && p.contract.yearsRemaining === 1 && !p.prospect && !p.retired;
+  return expiresAtRollover(p.contract) && !p.prospect && !p.retired;
 }
 
 export function onRookieScale(p: Player): boolean {

@@ -153,7 +153,8 @@ function spaceOf(state: GameState, bag: TeamBag, teamId: number): number {
   const cap = salaryCap(state.season, startSeason(state));
   let committed = 0;
   for (const p of bag.members) committed += capHit(p.contract);
-  return cap - committed - (state.teams[teamId]?.deadCap ?? 0);
+  const t = state.teams[teamId];
+  return cap - committed - (t?.deadCap ?? 0) - (t?.salaryPaidOut ?? 0);
 }
 
 function bagOutlook(state: GameState, teamId: number, bag: TeamBag): TeamOutlook {
