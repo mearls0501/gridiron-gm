@@ -1,5 +1,33 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-21 — Healthy players on IR: rule-driven, not preseason
+
+#189's paired drift showed `drift.healthyIrWeeks` 49.3 → 73.4 with preseason
+on (seed 12345, one run). Checked whether camp injuries were parking healed
+players on IR. They are not.
+
+Scratch probe (not committed): seeds 7 and 11, 4 seasons each, preseason on
+vs off (off = camp marked as already played). Every regular-season week,
+each healthy IR player is classed by why he is still there.
+
+| | healthy-IR player-weeks | IR placements in week 1 |
+|---|---|---|
+| preseason off | 199 / 166 | 49 / 47 |
+| preseason on | 176 / 212 | 37 / 46 |
+
+The sign flips by seed, and week-1 IR placements (where camp injuries would
+land) do not rise. Every healthy-IR week is one of two published rules
+(`lib/core/rosterStatus.ts`): healed inside the 4-game IR minimum (~55%), or
+the club has used its 8 return designations (~45%). No other cause appears.
+
+CPU clubs never use IR in camp: an injured player is carried through the cut
+and placed on IR in week 1, return-eligible. That matches what NFL clubs do
+the day after the cut. The NFL's cutdown-day "designated to return" rule
+(two players) only matters for players placed on IR before the cut, which
+the sim does not do. No change.
+
+---
+
 ## 2026-10-21 — Preseason games in camp, packet A (`claude/preseason-games`)
 
 Design, sources and Matt's decisions: `docs/preseason-games-design-2026-10-20.md`
