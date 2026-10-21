@@ -1,8 +1,9 @@
 # Gridiron GM — Roadmap
 
 Standing roadmap. Read after `AGENTS.md`, before `HANDOFF.md`. **Updated
-2026-10-20** against the #182 Studio panel (`a393ac9`, Mac Studio
-`npm run gate:full:serial`, 5 seeds) and draft PR #185. `HANDOFF.md` is the
+2026-10-21** against the #182 Studio panel (`a393ac9`, Mac Studio
+`npm run gate:full:serial`, 5 seeds) and `main` at `664d212` (#185–#189
+merged). `HANDOFF.md` is the
 record; this file is the plan. Dispatch rules for parallel agents are in
 `ORCHESTRATION.md`.
 
@@ -43,17 +44,29 @@ the changelog; each line has a dated `HANDOFF.md` entry.
   board. The solved line is closed (2026-09-15 audit).
 - **Roster rules.** Camp 90 → 53, IR + 16-man PS, gameday inactives, waiver
   wire with claim chains, QB ≤3 on the 53.
-- **Trades (#185, draft).** Review before Accept and Propose; the calling club
+- **Trades (#185, #186).** Review before Accept and Propose; the calling club
   re-checks an offer at Accept like a physical; guarantees travel with a traded
   contract and the check prices what execution posts (CBA Art. 13 §6(b)(ii)).
+  CPU clubs price an acquired player at the base salary they take on.
+- **Pro rata salary (#187).** In-season base salary is charged by the
+  regular-season week; weeks already paid stay with the club that paid them.
+- **Preseason (#189, packet A).** Three exhibition weeks in camp before the
+  cut, outside `state.games`; starters mostly sit; no camp nudge yet.
 - **Saves.** Storage identity separate from the league seed; legacy saves
   repair regular-season totals on load (#182).
 
 ### Gate status
 
 Latest Studio panel: #182 at `a393ac9`, **GATE FAIL 5**, all five decided by
-Matt 2026-10-18. Since then on a 4-core box: `gate:serial --seeds 1` **PASS**
-on #185 head `4d350f0` (72 metrics). #185's full tier has not been run.
+Matt 2026-10-18. **No Studio panel since**, so #185–#189 are unpanelled.
+
+On a 4-core box, 2026-10-21 (HANDOFF has the detail):
+- `gate:serial --seeds 1` **PASS** on each merge, preseason last.
+- Full tier on `main` `5b6d738`, split by step: determinism, verify,
+  leverage, sweep, calibrate, statcheck, rbpanel, tails, coherence, staff
+  and scout **PASS**. `conditions` **FAIL** on the default seed only
+  (`coldPointsDelta` −0.02); `GG_SEED=1..4` all inside the band.
+  `careers` and `drift` did not finish inside the 2-hour limit.
 
 | metric | reads | target | status | note |
 |---|---|---|---|---|
@@ -66,50 +79,32 @@ on #185 head `4d350f0` (72 metrics). #185's full tier has not been run.
 | `leverage.wrongSign` / `drift.p0Failures` / coherence | 0 / 0 / ok | 0 / 0 / ≥85 | **PASS** at `a393ac9` | Age guard replaced by the paired post-peak guard. |
 | `careers.survivalMae` | 5.94 (2026-08-31) | < 4 | open | R1–R3 over-survive. Not re-measured since. |
 | `careers.careerLenMae` | 0.57 (2026-08-31) | < 0.5 | open | R1/R2/R4 residue; must not be shortened. |
-| `conditions.coldPointsDelta` | −0.5 | −2.4 | unconfirmed | Single seed, 6 seasons. |
+| `conditions.coldPointsDelta` | −0.02 default seed; −2.37 / −2.18 / −3.00 / −2.05 on `GG_SEED=1..4` | −2.13 ±1.6 | default seed red, noise | Default seed moved −1.21 → −0.02 with #187's roster changes; other seeds in band (2026-10-21). |
+| `drift.healthyIrWeeks` | 49.3 → 73.4 with preseason (one seed) | report-only | explained | Rule-driven: healed inside the 4-game IR minimum (~55%) or club out of its 8 return designations (~45%). Preseason on vs off, 2 seeds × 4 seasons: no consistent change (2026-10-21). |
 | `drift.passRecordSeasons` | 0/20 | 1–3/20 | accepted limitation | Needs pass volume without touching the mix. |
 | QB availability 2nd moment | 41% at 16+ | 46% | accepted limitation | Needs a per-position duration table. |
 
 ## Finish order
 
-### Now — land #185
+### Now — a Studio panel on `main`
 
-Run `npm run gate:full:serial` on the Mac Studio against #185, post the GATE
-table to `HANDOFF.md`, click through `/trades`, merge. #185 changed which CPU
-trades clear (paired 10-season drift, seed 12345: trades 77.6 → 81.8,
-dead money 5.37% → 5.51%), so `drift` and `careers` must be read before merge.
+Run `npm run gate:full:serial` on the Mac Studio against `main` (`664d212`)
+and post the GATE table to `HANDOFF.md`. It is the first panel since #182 and
+covers five merges: trade review and cap accounting (#185), trade valuation
+(#186), pro rata salary (#187), the e2e fix (#188) and preseason packet A
+(#189). `careers` and `drift` have not been read on any of them; drift moved
+trades 77.6 → 92.3 across #185–#187 (NFL ≈90).
 
-### Next — CPU prices a trade at the acquiring club's cost (`claude/trade-valuation`)
+### Next — preseason packet B (the camp nudge)
 
-`playerTradeValue` priced a target at the sender's `capHit`, bonus proration
-included. Since #185 the receiver only takes on base salary (and the
-guarantee), so CPU clubs over-priced bonus-heavy players. The acquiring side
-now uses `acquiredCapHit` (base only); a club valuing its own player is
-unchanged. Paired 10-season drift (seed 12345): trades 81.8 → **88.9** (NFL
-≈90), dead money 5.51% → 5.44%. Seed-42 canary signed 2026-10-20. Stacked on
-#185; needs a Studio panel.
-
-### Next after that — in-season salary is pro rata (`claude/pro-rata-salary`, built)
-
-The sim charges a full year's base salary to whoever holds a contract, at any
-point in the season: a deadline trade, a mid-season street signing, a waiver
-claim and a cut all count the whole year. In the NFL base salary is paid
-weekly over the regular season, so each club carries only the weeks it held
-the player (`docs/nfl-reference.md`, "Trade cap accounting", not modelled).
-Doing it for trades alone would make trades the one transaction priced by the
-week. It needs one rule for every in-season transaction, and a separate
-bucket for salary already earned — booking it as dead money would inflate
-`drift.deadMoneyPct`, which is read against OTC's dead-money share. Primary
-source and design first, then a packet with its own panel. Design note:
-`docs/pro-rata-salary-design-2026-10-20.md`. Decided and built 2026-10-20
-(stacked on `claude/trade-valuation`); seed-42 canary signed. Needs a Studio
-panel.
+Let preseason play move who survives the cut. It acts on `careers` survival
+(R6–R7, UDFA), which is already open (R1–R3 over-survive), so it must be read
+on a Studio panel before it is turned on. Design:
+`docs/preseason-games-design-2026-10-20.md`.
 
 ### Then — the long tail (Phase 6, unchanged)
 
-Preseason games feeding camp battles into the cutdown (design and Matt's
-decisions: `docs/preseason-games-design-2026-10-20.md`; packet A built on
-`claude/preseason-games`, camp nudge is packet B). Onside kicks, blocked
+Onside kicks, blocked
 kicks and fair catches (none in the sim today). Benching a passer for bad
 play. Trick plays. A per-position injury duration table (closes the QB
 availability limitation). The 6-veteran PS cap and international PS slot.
