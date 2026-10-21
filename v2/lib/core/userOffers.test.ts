@@ -5,11 +5,12 @@
  *
  * A minimum-roster fixture forces the ordinary shop to exhaust its draw
  * budget, then verifies successful inquiries add no parent draws.
- * Seed 42, tag → FA. Trade cap accounting (guarantees travel, the check
- * prices what execution posts) changes which CPU trades clear from week 5,
- * so the canary moved again: tag 3967213056, FA 3639016065, signed by Matt
- * 2026-10-20 (was 1599887382 and 2847491416 after the end-of-half kick,
- * 823515333 and 1063212815 before it). Offer logic is unchanged.
+ * Seed 42, tag → FA. CPU clubs now price a player they would acquire at
+ * his base salary, not the sender's cap hit (the bonus stays behind), so
+ * more trades clear and the canary moved: tag 2282341061, FA 3785709883,
+ * signed by Matt 2026-10-20. Earlier: 3967213056 / 3639016065 (trade cap
+ * accounting), 1599887382 / 2847491416 (end-of-half kick), 823515333 /
+ * 1063212815 before that. Offer logic is unchanged.
  *
  * Run: npx tsx lib/core/userOffers.test.ts
  */
@@ -115,11 +116,11 @@ console.log("ok    userOffers — successful inquiries add no parent RNG draws (
     }
   }
   assert.equal(st.phase, "offseason-tag");
-  assert.equal(st.rngState, 3967213056);
+  assert.equal(st.rngState, 2282341061);
 
   advanceOffseason(st);
   assert.equal(st.phase, "offseason-fa");
-  assert.equal(st.rngState, 3639016065, "inquiry must not move the parent stream");
+  assert.equal(st.rngState, 3785709883, "inquiry must not move the parent stream");
 
   const offers = st.tradeOffers ?? [];
   assert.ok(offers.length >= 1, `free agency opened with no calls (${offers.length})`);

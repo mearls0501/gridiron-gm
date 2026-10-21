@@ -233,14 +233,21 @@ export function pickValue(
  * point in the cycle. The contract term is what stops a 30-year-old on a
  * maximum deal from being an asset.
  */
+/** This season's charge on a club that trades for him: base salary, no bonus. */
+export function acquiredCapHit(c: Player["contract"]): number {
+  return c && c.yearsRemaining > 0 ? c.baseSalary[0] ?? 0 : 0;
+}
+
 export function playerTradeValue(
   state: GameState, teamId: number, p: Player, posture: Posture
 ): number {
   const raw = evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]);
 
   // Price the deal: paying under market is an asset, over market is a burden.
+  // A club acquiring him pays base salary only; the bonus stays with the
+  // sender (docs/nfl-reference.md, "Trade cap accounting").
   const market = askingPrice(state, p);
-  const hit = capHit(p.contract);
+  const hit = p.teamId === teamId ? capHit(p.contract) : acquiredCapHit(p.contract);
   const surplus = (market - hit) / Math.max(1, teamCap(state, teamId).cap);
   const contractAdj = clamp(surplus * 340, -70, 45);
 
