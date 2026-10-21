@@ -18,6 +18,8 @@ import {
   checkTradeReview,
   checkUnsignedFaNumber,
   hubPhase,
+  saveClock,
+  waitForSaveClockChange,
   noteTagResignStep,
   pressFaRosterAutoFix,
   waitForHubPhaseChange,
@@ -190,14 +192,18 @@ for (let i = 0; i < 20; i++) {
   await page.waitForTimeout(200);
   const b = page.getByRole("button", { name: /^(Play Week|Advance Week)/ });
   if (!(await b.count())) break;
-  await b.click(); await page.waitForTimeout(750);
+  const before = await saveClock(page);
+  await b.click();
+  await waitForSaveClockChange(page, before);
 }
 await checkPhase1BoxScores(page, BASE, report);
 for (let i = 0; i < 5; i++) {
   await page.goto(BASE + "/", { waitUntil: "networkidle" }); await page.waitForTimeout(300);
   const b = page.getByRole("button", { name: /Sim .* Round/i });
   if (!(await b.count())) break;
-  await b.click(); await page.waitForTimeout(1100);
+  const before = await saveClock(page);
+  await b.click();
+  await waitForSaveClockChange(page, before);
 }
 // Advance the offseason to the draft — but never past it. "Finish the Draft"
 // auto-picks the whole class, which would leave nothing here to click and
@@ -220,12 +226,13 @@ for (let i = 0; i < 15; i++) {
     await noteTagResignStep(page, report);
   }
   const phaseBefore = await hubPhase(page);
+  const clockBefore = await saveClock(page);
   await b.click(); await page.waitForTimeout(250);
   const c = page.getByRole("button", { name: /^Confirm$/ }); if (await c.count()) await c.click();
   if (/Continue to the Draft/i.test(label) && phaseBefore) {
     await waitForHubPhaseChange(page, phaseBefore);
   } else {
-    await page.waitForTimeout(2200);
+    await waitForSaveClockChange(page, clockBefore);
   }
 }
 if (!reviewChecked) fail("never landed on Season Review to check awards / champion / waivers");
