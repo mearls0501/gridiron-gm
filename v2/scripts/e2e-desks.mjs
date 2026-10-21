@@ -768,3 +768,61 @@ export async function checkDraftBoard(page, base, { fail, ok }) {
   if (/\bComp\b/i.test(t)) ok("/draft shows a compensatory slot");
   else console.log("  note  no Comp label on the draft desk this seed");
 }
+
+/**
+ * /trades review before a trade commits. Propose sends the user's last own
+ * pick for nothing — a club always takes a free pick and no cap or roster
+ * rule can refuse it — so the review → Back → Confirm path runs on any save.
+ * An incoming offer, when one is waiting, is opened and backed out of only.
+ */
+export async function checkTradeReview(page, base, { fail, ok }) {
+  await page.goto(base + "/trades", { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+  if (/The trade window is closed/i.test(await pageText(page))) {
+    ok("/trades review skipped: window closed");
+    return;
+  }
+
+  const incoming = page.getByRole("button", { name: /^Accept$/ });
+  if (await incoming.count()) {
+    await incoming.first().click();
+    const t = await pageText(page);
+    if (!/Review before you accept/i.test(t) || !/Cap space now/i.test(t)) {
+      fail("/trades Accept did not open the review");
+    } else {
+      await page.getByRole("button", { name: /^Back$/ }).click();
+      if (!(await page.getByRole("button", { name: /^Accept$/ }).count())) {
+        fail("/trades Back on an incoming review dropped the offer");
+      } else ok("/trades incoming Accept opens the review; Back keeps the offer");
+    }
+  } else {
+    ok("/trades no incoming offer to review on this save");
+  }
+
+  const sendCard = page.locator("section").filter({ hasText: "— you send" });
+  const ownPicks = sendCard.getByRole("row").filter({ hasText: /Own$/ });
+  const n = await ownPicks.count();
+  if (!n) {
+    fail("/trades no own pick to propose");
+    return;
+  }
+  const picksBefore = Number((await page.getByText("Your Picks").locator("..").innerText()).match(/\d+/)?.[0]);
+  await ownPicks.nth(n - 1).click();
+  const propose = page.getByRole("button", { name: /^Propose trade$/ });
+  await propose.click();
+  let t = await pageText(page);
+  if (!/Review before you propose/i.test(t) || !/After the trade/i.test(t)) {
+    fail("/trades Propose did not open the review");
+    return;
+  }
+  await page.getByRole("button", { name: /^Back$/ }).click();
+  if (/Review before you propose/i.test(await pageText(page))) fail("/trades Back did not close the proposal review");
+  await propose.click();
+  await page.getByRole("button", { name: /^Confirm trade$/ }).dblclick();
+  await page.waitForTimeout(800);
+  t = await pageText(page);
+  const picksAfter = Number((await page.getByText("Your Picks").locator("..").innerText()).match(/\d+/)?.[0]);
+  if (/Review before you propose/i.test(t)) fail("/trades proposal review still open after Confirm");
+  else if (picksAfter !== picksBefore - 1) fail(`/trades Confirm moved picks ${picksBefore} → ${picksAfter}, expected one`);
+  else ok(`/trades Propose → review → Back → Confirm sent one pick (${picksBefore} → ${picksAfter})`);
+}

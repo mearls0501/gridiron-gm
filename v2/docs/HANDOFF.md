@@ -1,5 +1,173 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-20 — Trade cap accounting, offer re-check at Accept, one trade id (#185)
+
+Follow-ups on draft PR #185, each asked for by Matt.
+
+### Guarantees travel with a traded contract (engine change, signed)
+
+The rule, with sources, is the new "Trade cap accounting" block in
+`docs/nfl-reference.md`. The sender's uncharged bonus accelerates (CBA Art. 13
+§6(b)(ii)), and the receiver takes on base salary and its guarantee.
+`moveAsset` no longer zeroes `guaranteedYears` on the receiver's copy, and
+`checkTrade` charges the sender only the bonus, which is exactly what execution
+posts. Before this, the guaranteed base was charged to nobody and the check
+over-charged the sender by it. The KNOWN GAP assertions in
+`lib/core/tradeReview.test.ts` are flipped to the rule. The review shows each
+player's remaining guarantee and warns when one arrives.
+
+**Seed-42 user-offers canary moved, signed by Matt 2026-10-20:** tag
+**1599887382 → 3967213056**, FA **2847491416 → 3639016065**. Seed 42 is
+identical through week 4. From week 5 the CPU trade list differs because cap
+legality changed: 33 trades to the tag step before, 31 after. No new parent
+draws. The inquiry-isolation assertions pass unchanged.
+
+### Incoming offers re-checked at Accept (`7a6f829`)
+
+`proposerStillWants` re-runs the calling club's own gain test at Accept, the
+way a physical would. A deal that no longer clears is withdrawn
+("BKN pulled the offer after X's physical"). Nobody moves, no cap moves, and
+only that offer leaves the inbox. 285 fresh offers over 8 seeds and 3 phases
+all survive the re-check. No RNG. Only the user's Accept calls it. The draft
+room's clock offers have their own Accept and are not covered.
+
+### One trade id per proposal (`7a6f829`)
+
+`/trades` Propose no longer bumps `nextTradeId` a second time after
+`executeTrade`. No harness or canary takes that path.
+
+### Validation
+
+4 cores, `--seeds 1`. Full tier not run here: this box's 2-hour background
+limit cannot hold `gate:full:serial` (see the 2026-10-19 entry). **Run
+`gate:full:serial` on the Mac Studio before merge**, which covers `drift` and
+`careers` against baselines.
+
+- `7a6f829` (re-check + trade id): `gate:serial` **GATE PASS**, 72 metrics,
+  348/348 verify, `rb5RushYds` 1262.81.
+- `544e025` (guarantees): `gate:serial` **GATE FAIL 1**, `draftnight` only.
+  72 metrics within baseline. That was a false positive in the test's leak
+  check, which cut allowed numbers out as substrings: removing round "6" made
+  "#655" read "# 55", that kicker's pot. Item 4 changed seed 42's class order
+  and exposed it. Fixed in `4d350f0` (whole tokens); the old helper fails and
+  the new one passes on the same code.
+- `4d350f0`: `gate:serial` **GATE PASS**, 72 metrics within baseline, 348/348
+  verify, `draftnight` ok, `useroffers` ok on the signed literals.
+  `statcheck.rb5RushYds` **1255.68** (was 1262.81; trades differ; inside the
+  unchanged 1191 +/-95). Known `OT.sta` NO EFFECT only.
+- `docs/baselines.json` SHA-256 unchanged
+  (`12bcbcd2cd26d23f1f7e0ac8e598cb8165fe3e85cfb3a8e56fd59b52a987d74e`).
+
+Paired `npx tsx scripts/drift.ts 10 12345`, before (`7a6f829`) vs after
+(`544e025`). One seed, diverging from week 5 of year 1, so direction only.
+Both runs: no P0 regressions.
+
+| metric | before | after | reference |
+|---|---|---|---|
+| `tradesPerSeason` | 77.6 | 81.8 | NFL 60–120, floor 30 |
+| `deadMoneyPct` | 5.37 | 5.51 | ~5–8% (OTC) |
+| `topCapPctMean` | 20.18 | 20.60 | — |
+| `medianPayrollPct` | 99.27 | 99.15 | — |
+| `irCapPctMean` | 6.96 | 6.12 | — |
+| `hcFiresPerSeason` | 5.7 | 6.3 | report-only |
+| `holdoutsPerSeason` | 19.2 | 21.3 | report-only |
+
+Trade volume and dead money rose slightly in the expected direction (the check
+stops refusing deals that fit; a traded guarantee now costs the club that cuts
+him). No tuning; no band changes.
+
+---
+
+## 2026-10-19 — Trade review before Accept and Propose (#185)
+
+Draft PR #185 on `claude/dazzling-pasteur-02nh3y`. UI, view model and tests
+only. Trade valuation, CPU behavior, `trades.ts`, the RNG, simulation tuning
+and `docs/baselines.json` are unchanged.
+
+### The repro
+
+An incoming offer's card printed `Name (POS, OVR)` per asset and nothing else.
+`TradeOffer` stores no injury or cap snapshot, and `acceptOffer` re-runs only
+`checkTrade`, never `evaluateOffer`. A call that aged a week accepted blind: an
+injury or IR move after the call still went through, and no screen showed the
+cap effect. `lib/view/tradeReview.test.ts` case 1 pins the card.
+
+### What landed
+
+- `lib/view/tradeReview.ts` builds the review from the live save, from the
+  user's side, for an incoming offer or the user's own proposal. Per player:
+  injury ("Out 6 wks · Torn hamstring"), IR, age, years left. Arrivals show what
+  they cost on the user's cap; departures show today's hit. Cap space now and
+  after, dead money, roster before → after, and warnings for an injured or IR
+  arrival, dead money and an offseason roster over 53.
+- `/trades`: Accept and Propose trade open the review. Nothing commits until
+  Confirm trade. Confirm is disabled when `checkTrade` refuses (reason shown)
+  or, for a proposal, when the club would decline. Back closes it; editing the
+  proposal closes it. Building the review leaves the save byte-identical.
+- The review's cap is what `executeTrade` posts, not `checkTrade`'s estimate.
+
+### Finding — check and execution price a contract differently (not changed)
+
+`checkTrade` charges the sender full `deadMoney` (uncharged bonus plus
+remaining guaranteed base). `moveAsset` posts only the uncharged bonus, and
+the receiver's copy has `guaranteedYears` 0. The guaranteed base is charged
+to nobody, the receiver can cut him free, and the check refuses some deals
+execution would fit. `lib/core/tradeReview.test.ts` pins both numbers as
+KNOWN GAP assertions. Whether guarantees transfer, or the sender eats them, is
+Matt's call; either moves CPU cap behavior and the gates.
+
+Also left alone: the user's Propose path bumps `nextTradeId` twice
+(`executeTrade` sets `id+1`, then the page adds 1). Inquiry child streams key
+on `nextTradeId`, so fixing it would move the seed-42 user-offers canary.
+
+### Tests
+
+- `lib/core/tradeReview.test.ts`: execution cap on seeds 11/42/99; the
+  check-vs-execution gap and the refusal boundary; stale injury and IR still
+  execute (IR is off the 53, so a full roster refuses); released, retired,
+  closed window, cap, missing offer, used and moved picks refuse with the save
+  byte-identical and the offer still in the inbox.
+- `lib/view/tradeReview.test.ts`: the repro; live injury/IR; review cap and
+  roster equal the executed trade on three seeds for Accept and Propose;
+  read-only; refusals shown before Confirm; offseason over 53 is a note.
+- Both registered in `package.json` and `scripts/gate.ts` FAST and FULL
+  (the #47 convention).
+- `scripts/e2e-desks.mjs` `checkTradeReview`, called from `e2e-interact.mjs`:
+  proposes the user's last own pick for nothing, opens the review, Back,
+  then a double-clicked Confirm sends exactly one pick. An incoming offer,
+  when one is waiting, is opened and backed out of only.
+
+### Validation
+
+`npm test` PASS. Browser against `next start`:
+`PW_CHROMIUM=/opt/pw-browsers/chromium node scripts/e2e.mjs` printed
+**E2E PASSED**; `node scripts/e2e-interact.mjs` printed **INTERACTION TEST
+PASSED** with `/trades Propose → review → Back → Confirm sent one pick
+(21 → 20)`. A one-off seed-42 week-3 fixture checked the incoming review at
+1280 and 390 wide: injury, cap ($22.3M → $11.4M; $11.6M arriving base, $1.25M
+dead, $1.99M leaving), roster, no horizontal scroll, no page errors.
+
+Gates, 4 cores, both new steps registered:
+
+- `npm run gate:serial -- --seeds 1`: **GATE PASS**, 72 metrics within
+  baseline. `tradereview` and `tradereviewview` ok. 348/348 verify checks.
+  `statcheck.rb5RushYds` **1262.81** (unchanged). Known non-gating leverage
+  `OT.sta` NO EFFECT only.
+- `npm run gate:full:serial -- --seeds 1`: **NOT COMPLETED.** The cloud
+  session's 2-hour background limit stopped it inside `sweep`. Every step
+  before that passed, 61 in all: the unit suites including both new steps,
+  `determinism`, and `verify` (1063/1063 checks, 1295 s). `contractceiling`
+  alone took 1586 s. `sweep`, `calibrate`, `statcheck`, `leverage`, `tails`,
+  `conditions`, `coherence`, `drift`, `careers` and `staff` did not run in
+  the full tier. No non-test file under `lib/core/` changed; the diff is
+  `app/trades`, `lib/view/tradeReview.ts`, tests and the e2e script. Run
+  `gate:full:serial` on the Mac Studio before merge.
+
+`docs/baselines.json` SHA-256 is still
+`12bcbcd2cd26d23f1f7e0ac8e598cb8165fe3e85cfb3a8e56fd59b52a987d74e`.
+
+---
+
 ## 2026-10-18 — #182 finish signed
 
 Matt signed the #182 finish on 2026-10-18. The work stays on

@@ -5,7 +5,8 @@ import {
   Position, ROSTER_LIMIT, STARTERS, TRADE_DEADLINE_WEEK, TradeAsset, TradeOffer, isCampPhase,
 } from "./types";
 import {
-  addDeadCap, capHit, deadMoney, isActiveRoster, positionCount, rosterCount, teamCap, teamRoster,
+  addDeadCap, capHit, deadMoney, isActiveRoster, positionCount, remainingBonusProration, rosterCount,
+  teamCap, teamRoster,
 } from "./select";
 import { Posture, REPLACEMENT_OVR, evaluate, frontOffice, teamOutlook } from "./frontOffice";
 import { askingPrice } from "./offseason/contracts";
@@ -382,12 +383,14 @@ export function checkTrade(state: GameState, offer: TradeOffer): TradeCheck {
       }
     }
 
-    // Cap: the sender eats the dead money, the receiver takes on base salary.
+    // Cap, priced as `moveAsset` posts it: the sender's uncharged bonus
+    // accelerates (CBA Art. 13 §6(b)(ii)); the receiver takes on base salary.
+    // Guaranteed base travels with the contract, so it is not the sender's.
     let change = 0;
     for (const a of out) {
       if (a.kind !== "player") continue;
       const p = state.players.find((x) => x.id === a.playerId)!;
-      change += deadMoney(p.contract) - capHit(p.contract);
+      change += Math.round(remainingBonusProration(p.contract)) - capHit(p.contract);
     }
     for (const a of incoming) {
       if (a.kind !== "player") continue;
@@ -421,8 +424,9 @@ function moveAsset(state: GameState, a: TradeAsset, toTeamId: number): void {
   const proration = deadMoney(p.contract) - remainingGuaranteed(p);
   if (proration > 0) addDeadCap(state, from, Math.round(proration));
 
-  // The receiving club inherits base salary only.
-  p.contract = { ...p.contract, signingBonus: 0, bonusProrationYears: 0, guaranteedYears: 0 };
+  // The receiving club inherits base salary and whatever of it is guaranteed
+  // (docs/nfl-reference.md, "Trade cap accounting"); the bonus stays behind.
+  p.contract = { ...p.contract, signingBonus: 0, bonusProrationYears: 0 };
   p.teamId = toTeamId;
 }
 
@@ -1481,9 +1485,38 @@ export function generateUserOffers(state: GameState, rng: Rng, max = 2): TradeOf
   return state.tradeOffers;
 }
 
+/**
+ * The calling club's own test, run again when the user says yes. An offer can
+ * sit for a week; a real deal is still subject to a physical. Same strict
+ * gain-in-its-own-currency test the club ran when it made the call, so an
+ * unchanged league keeps the offer and an injury since the call is priced in.
+ */
+export function proposerStillWants(state: GameState, offer: TradeOffer): boolean {
+  const { posture } = teamOutlook(state, offer.fromTeamId);
+  return (
+    packageValue(state, offer.fromTeamId, offer.get, posture) >
+    packageValue(state, offer.fromTeamId, offer.give, posture)
+  );
+}
+
 export function acceptOffer(state: GameState, offerId: number): TradeCheck {
   const offer = (state.tradeOffers ?? []).find((o) => o.id === offerId);
   if (!offer) return { ok: false, reason: "That offer is no longer on the table." };
+  const check = checkTrade(state, offer);
+  if (!check.ok) return check;
+  if (!proposerStillWants(state, offer)) {
+    state.tradeOffers = (state.tradeOffers ?? []).filter((o) => o.id !== offerId);
+    const club = state.teams[offer.fromTeamId]?.abbr ?? "They";
+    const hurt = offer.get
+      .map((a) => (a.kind === "player" ? state.players.find((p) => p.id === a.playerId) : undefined))
+      .find((p) => p && (p.injuryWeeks > 0 || p.status === "ir"));
+    return {
+      ok: false,
+      reason: hurt
+        ? `${club} pulled the offer after ${hurt.firstName} ${hurt.lastName}'s physical.`
+        : `${club} pulled the offer. Their read on the deal has changed.`,
+    };
+  }
   const result = executeTrade(state, offer);
   if (result.ok) {
     state.tradeOffers = (state.tradeOffers ?? []).filter((o) => o.id !== offerId);

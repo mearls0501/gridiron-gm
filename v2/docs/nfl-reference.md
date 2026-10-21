@@ -759,6 +759,29 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   `drift.deadMoneyPct` reads), matching where void-year acceleration
   already lands. No June-1 split. Ungated. No band on
   `drift.deadMoneyPct`.
+- **Trade cap accounting.** Added 2026-10-20 (#185, Matt asked for the
+  real-NFL rule). Not in T/D/S/P. 2020 NFL-NFLPA CBA Article 13,
+  Section 6(b)(ii): a contract assigned to another club by trade or
+  waivers on or before June 1 has its unamortized signing bonus counted
+  in the assigning club's Team Salary for that League Year — the same
+  acceleration a release gets (text as hosted at
+  https://overthecap.com/collective-bargaining-agreement/article/13/section/6;
+  the hosted page was not reachable from the session that wrote this, so
+  the subsection was confirmed from search excerpts of that page). The
+  acquiring club assumes the contract's remaining obligations — base
+  salary, later bonuses, and the guarantees on them; the signing bonus
+  does not move. That half is from secondary cap explainers, not CBA
+  text: PFF's salary-cap terms guide
+  (https://www.pff.com/news/nfl-salary-cap-terms-tricks-to-know-ahead-of-nfl-free-agency-2021)
+  and CBS "Agent's Take" trade cap analyses. `moveAsset` posts the
+  uncharged bonus (void-year remainder included) on the sender and
+  keeps `guaranteedYears` on the receiver's copy; `checkTrade` prices
+  exactly that. Before this, the receiver's copy had `guaranteedYears`
+  0, so the guaranteed base was charged to nobody, while the check
+  charged it to the sender. Not modelled: the post-June 1 split (none
+  anywhere in this sim), the pro-rata in-season base after a deadline
+  deal, and salary retention by the trading club. Ungated published
+  rule — no band.
 - **Cap carryover (unused Room).** Added 2026-09-14 (Wave 3.8
   Packet 4, Matt SIGNED). Not in T/D/S/P. 2020 NFL-NFLPA CBA
   Article 13: unused Salary Cap Room from a League Year is added

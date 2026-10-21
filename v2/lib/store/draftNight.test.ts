@@ -72,12 +72,13 @@ function toDraft(seed: number): GameState {
 }
 
 function leaked(text: string, p: Player, allowed: string[]): string | null {
-  let rest = text;
-  for (const n of allowed) {
-    if (n) rest = rest.split(n).join(" ");
-  }
-  if (/\bOVR\b/i.test(rest) || /potential/i.test(rest)) return "word";
-  const tokens = rest.split(/\s+/);
+  if (/\bOVR\b/i.test(text) || /potential/i.test(text)) return "word";
+  // Whole tokens only. Cutting allowed numbers out as substrings turned
+  // "#655" into "# 55" once round 6 was removed, and 55 was that man's pot.
+  const tokens = text
+    .split(/\s+/)
+    .map((t) => t.replace(/^#/, ""))
+    .filter((t) => !allowed.includes(t));
   if (tokens.includes(String(p.ovr))) return "ovr";
   if (tokens.includes(String(p.pot))) return "pot";
   return null;

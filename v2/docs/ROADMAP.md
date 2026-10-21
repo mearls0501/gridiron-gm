@@ -1,205 +1,128 @@
 # Gridiron GM — Roadmap
 
-Standing roadmap. Read after `AGENTS.md`, before `HANDOFF.md`. Updated
-2026-09-13 against Wave 3.7 panel (Mac Studio,
-`npm run gate:full:serial` at `2752729` / #77). **Wave 3.7 panel
-posted** in `HANDOFF.md`. Packet 2 (baseline re-lock) awaits Matt
-sign. `capBustSeasons` **2.60** and `minPayrollSeasonsUnder55`
-**4.40** are findings — report, do not tune. **No feature lanes. No
-tuning. Do not edit `baselines.json`.** The engine is the mature
-half; the franchise half — people, contracts you can work, a game you
-can watch — is what remains. Dispatch rules for parallel agents are
-in `ORCHESTRATION.md`.
+Standing roadmap. Read after `AGENTS.md`, before `HANDOFF.md`. **Updated
+2026-10-20** against the #182 Studio panel (`a393ac9`, Mac Studio
+`npm run gate:full:serial`, 5 seeds) and draft PR #185. `HANDOFF.md` is the
+record; this file is the plan. Dispatch rules for parallel agents are in
+`ORCHESTRATION.md`.
+
+Standing rules, unchanged:
+
+- **CALIBRATION FREEZE** (Matt SIGNED 2026-10-08). No new metrics, bands or
+  re-locks unless a playtest finding needs one.
+- **Report, never tune.** Do not edit `docs/baselines.json` without a signed
+  re-lock. Every real-NFL number traces to `docs/nfl-reference.md`.
+- The serial runner is the measurement path. On a ≤4-core box use
+  `--seeds 1` or one harness; a cloud session's 2-hour background limit cannot
+  hold `gate:full:serial`.
 
 ## Where we are
 
-48 commits since 190cbd0, almost all 2026-08-30 → 09-04. ~40 of them
-touched the engine with no full-tier read. ~31k LOC ts/tsx, 22
-gate harnesses, 14 unit-test files, zero `TODO` markers.
+Phases 1–4 of the September plan have shipped. What follows is the shape, not
+the changelog; each line has a dated `HANDOFF.md` entry.
 
-Landed: live free-agency market (CPU counter-bids, `CONTENDER_PULL 0.16` /
-`GUARANTEE_PULL 0.25`), Poisson verdict for `milestonesOff`, CPU private
-scouting signal + quality scaling, calendar windows + 30 private visits
-replacing scouting points, veteran beliefs on the FA market, cutdown +
-deadline trade markets, late-round career fixes, Season Review, standings
-history, ROY rookies-only. Roster-rules cluster: 90-man camp + cut to 53,
-IR + 16-man PS, gameday inactives 47/48, waiver wire + claim-chain settle,
-call sheet + Play-the-Game, camp-90 fill, CPU IR replacements, franchise-tag
-phase, fifth-year option, July 15 extension. PRs #46–49: playtest-chain
-fixes (stale prior-year picks + inbox into tag window; defenders as
-receiving leaders; camp copy /53→/90; waiver-hundreds accepted as
-cap-stuck residue). `rb5RushYds` was **inside** on the last green panel
-(1254 vs 1191 ±95). Wave 3.7 records `rb5RushYds` **1301.80** (stream).
-Do not chase with `CARRY_SHARE`.
+- **Engine visible (Phase 1).** Text play-by-play, drive log and Drive Chart
+  (#53, #81, #83, P1/P3/P4 signed 2026-09-28). `/play` calls a situation,
+  stores the snap, and a finished `/play` game is the official result. Paced
+  draft night.
+- **People (Phase 2).** Seeded coaches and owners at `newGame` (#111); HC and
+  coordinator chairs, empty chairs, the coaching carousel on the tag hub; owner
+  heat window and two-season firing rule (no fire after a winning season or a
+  three-win jump); holdouts and trade requests; people counters and teeth.
+- **Contract office (Phase 3).** User extensions and restructures, void years,
+  cap carryover, contract ceilings, rookie slot scale, compensatory picks,
+  franchise tag window and tender ceiling, fifth-year option, July 15
+  extension, retirement acceleration, user re-sign step, FA bid premium
+  ceiling.
+- **History and identity (Phase 4).** Hall of Fame as a league event (with
+  postseason club history), jersey and retired numbers, franchise history,
+  the second scene (Darnold path, success band 7–16% pooled).
+- **Scouting.** Named scouts and a focus list, film / pro-day caps, risk grades
+  with consequences, public athletic testing, scheme-fit grades, CPU drafting
+  on believed fit, future classes alive before they are scouted, fogged trade
+  board. The solved line is closed (2026-09-15 audit).
+- **Roster rules.** Camp 90 → 53, IR + 16-man PS, gameday inactives, waiver
+  wire with claim chains, QB ≤3 on the 53.
+- **Trades (#185, draft).** Review before Accept and Propose; the calling club
+  re-checks an offer at Accept like a physical; guarantees travel with a traded
+  contract and the check prices what execution posts (CBA Art. 13 §6(b)(ii)).
+- **Saves.** Storage identity separate from the league seed; legacy saves
+  repair regular-season totals on load (#182).
 
 ### Gate status
 
-Wave 3.7 5-seed means (`2752729` / #77). Full table in `HANDOFF.md`.
+Latest Studio panel: #182 at `a393ac9`, **GATE FAIL 5**, all five decided by
+Matt 2026-10-18. Since then on a 4-core box: `gate:serial --seeds 1` **PASS**
+on #185 head `4d350f0` (72 metrics). #185's full tier has not been run.
 
 | metric | reads | target | status | note |
 |---|---|---|---|---|
-| `leverage.wrongSign` | 1 | ≤ 0 | non-defect | OT.sta knife-edge probe rounding to 0.0. Do not invent a leverage fix. |
-| `statcheck.wr10RecYds` | **1099.60** | 1208 ±97 | stream / record | Wave 3.7. Do not invent a receiving fix. |
-| `statcheck.rb5RushYds` | **1301.80** | 1191 ±95 | stream / record | Wave 3.7. Do not chase with `CARRY_SHARE`. |
-| `drift.tradesPerSeason` | **~64.8** | 40–70 | **PASS** | Wave 3.7: 62.7/64/67.7/64.0/65.8. #77 kept `Trade:` log rows. Packet 2 proposed today ≈65, min 30, drop internal ≤20 P0. |
-| `drift.franchiseTagsPerSeason` | **~14.0** | 8–16 | **PASS** | Wave 3.7: 15.1/13.8/12.3/14.3/14.4. Packet 2 proposed 14 ±4, nfl 10. |
-| `drift.p0Failures` | **4.40** | only stale trades≤20 | **FINDING** | More than the stale ceiling (age/cap/payroll/etc.). Report, do not tune. |
-| `drift.capBustSeasons` | **2.60** | 0–1 | **FINDING** | 2/1/4/4/2. Tag rules leak. Report, do not tune. |
-| `drift.minPayrollSeasonsUnder55` | **4.40** | not on expect table | **FINDING** | Report, do not tune. |
-| `drift.saveGrowthMbPerSeason` | **0.47** | ≤ 0.45 | expected red | Packet 2 proposed max 0.52. Do not move the lock here. |
-| `drift.saveMbAtEnd` | **12.10** | ≤ 10.5 | expected red | Packet 2 proposed max 13.1. Do not move the lock here. |
-| `drift.playerWeeksLost` | **~2621** | 2158 ±700 | **PASS** | Wave 3.7: 2618/2597/2600/2612/2677. |
-| `drift.ovrDrift` | **−1.70** | −0.52 ±1.5 | **PASS** | Seeds −1.55/−1.53/−1.80/−1.80/−1.80. Not in gate FAIL list. Packet 2 proposed −1.70 ±1.5. |
-| `careers.survivalMae` | 5.94 | < 4 | open | R1–R3 over-survive. Cannot close from a late-round hold. No new MAE claimed. |
-| `careers.careerLenMae` | 0.57 | < 0.5 | open | Residue is R1/R2/R4 one–two-season careers; must not be shortened. |
-| `conditions.coldPointsDelta` | −0.5 | −2.4 | unconfirmed | Single seed, 6 seasons. Check on a matched-seed baseline first. |
-| `tails.milestonesOff` | **19.60** | 0 | stream / KNOWN-HIGH | Wave 3.7 record. Max 16 already in `baselines.json`. Do not tune against the aggregate. |
-| `drift.passRecordSeasons` | 0/20 | 1–3/20 | accepted | Leader averages 4,742 vs 5,477 record. Reopen only with a pass-volume mechanism that leaves the mix alone. |
-| QB availability 2nd moment | 41% at 16+ | 46% | accepted | Needs a per-position duration table — design change. |
-
-**Standing prerequisite:** Wave 3.7 panel posted (2026-09-12 ~20:51 ET,
-Matt's Mac Studio, `npm run gate:full:serial` at `main@2752729` / #77).
-Wall ~19555 s (~5.4 h). EXIT 1. GATE FAIL — 9. `ovrDrift` −1.70,
-`playerWeeksLost` ~2621, `tradesPerSeason` ~64.8, tags ~14.0 are
-**PASS**. Save-size reds (`saveMbAtEnd` 12.10 / `saveGrowth` 0.47)
-await Packet 2 re-lock. `capBustSeasons` 2.60 and
-`minPayrollSeasonsUnder55` 4.40 are findings. Packet 2 awaits Matt
-sign. **No feature lanes / no tuning.** Do not edit `baselines.json`.
-Serial path stays the supported long-panel / Mac Studio measurement
-path (`#64`, `npm run gate:full:serial`; ratified in AGENTS.md). Use
-`--seeds 1` or a dedicated `npx tsx scripts/drift.ts 20` on 4-core
-boxes. Do not retry stock `Promise.all` `gate:full` on 4 cores. Do
-not merge #9 or #63.
-
-## What is missing
-
-**Phase 1 visibility is on `main`.** Text play-by-play and a drive log
-shipped with Lane A (#53), live resume (#81), and the liveGame tidy
-(#83). `/play` shows Last snap, a Drive Log, and Play by Play. `peek`
-returns the cached view; continue resumes the generator. `/game/[id]`
-shows a Drive Chart on every completed game and a snap log on user
-games. CPU boxes keep the chart and omit the snap log (save size).
-Contract, gaps, and the §7.2 bar:
-`docs/phase1-text-pbp-spec-2026-09-22.md`. Matt **SIGNED** §7.2
-(2026-09-28). Polish packets **P1 / P3 / P4** may go. Still outside
-that bar: formation tree and play art, a `/play` session that survives
-refresh, a live opening kick, and a full snap log on every CPU box
-(**P5** — save-size lead decision; not signed). Phase 5 below remains
-LLM narration.
-
-**No people.** Coaches are seven numbers on `Team`, generated once — no
-HC/OC/DC, contracts, hiring, firing, carousel. No owner, expectations, or job
-security (`firingEnabled` is wired to nothing and migrates off). No media or
-storylines. No player psychology — no morale, holdouts, trade requests,
-contract-year behavior, or personality beyond `coachability`.
-
-**The GM's desk is half empty.** No user extensions or restructures
-(`select.ts:280` and `briefing.ts:242` tell the user to "restructure at
-/finances" — there is no button there). No void years, no cap carryover;
-Finances is a read-only cap sheet. Rookie deals are per-round (pick 1 = pick
-32). No compensatory picks (224 vs real 254–262; `draft.ts:28`).
-`askingPrice` / `negotiatedApy` run on true OVR — an invertible leak.
-
-**The world is thin.** No preseason games (a phase, not games). No Hall of Fame
-or franchise-history page despite the data existing. Special teams: no onside
-kicks, blocks, fair catches, returner slots. No QB benched for bad play, no
-trick plays. The Darnold path is "not calibrated on purpose" — it has to be
-designed. No 6-vet PS cap, no international PS slot. Year-2 waiver desk reads
-267 names — mathematically correct, but a product problem.
+| `userOffers` seed-42 canary | tag 3967213056, FA 3639016065 | literal | signed 2026-10-20 | Moved with #185 trade cap accounting; no new parent draws. |
+| `staff.problems` | seed 2 `leagueOvrDelta` 1.31 | ≤ 1.2 per seed | reported red | Mean 0.58. Left reported 2026-10-18. Do not widen 1.2. |
+| `careers.path2BurnInTop10PrPct` | 7/116 = 6.03% | 7–16% pooled | reported red | k-of-n noise (P(k≤8)≈0.40). Left reported. |
+| `statcheck.rb5RushYds` | 1255.68 (100-seed, #185) | 1191 ±95 | **PASS** | Fixed 100-seed panel since 2026-10-18. |
+| `drift.playerWeeksLost` | 1638.95 | 2158 ±700 | PASS, not re-locked | Measurement changed to weekly injury/IR status (2026-10-16). |
+| `tails.milestonesOff` | 10.0 | ≤ 16 | **PASS** | Exact Poisson comparisons (2026-10-16). |
+| `leverage.wrongSign` / `drift.p0Failures` / coherence | 0 / 0 / ok | 0 / 0 / ≥85 | **PASS** at `a393ac9` | Age guard replaced by the paired post-peak guard. |
+| `careers.survivalMae` | 5.94 (2026-08-31) | < 4 | open | R1–R3 over-survive. Not re-measured since. |
+| `careers.careerLenMae` | 0.57 (2026-08-31) | < 0.5 | open | R1/R2/R4 residue; must not be shortened. |
+| `conditions.coldPointsDelta` | −0.5 | −2.4 | unconfirmed | Single seed, 6 seasons. |
+| `drift.passRecordSeasons` | 0/20 | 1–3/20 | accepted limitation | Needs pass volume without touching the mix. |
+| QB availability 2nd moment | 41% at 16+ | 46% | accepted limitation | Needs a per-position duration table. |
 
 ## Finish order
 
-Sequence matters more than the list. Each phase is one or more packets under
-the contract: one task, one branch, one file cluster, gate green, HANDOFF note.
+### Now — land #185
 
-### Phase 0 — recover the last green panel (NOW)
+Run `npm run gate:full:serial` on the Mac Studio against #185, post the GATE
+table to `HANDOFF.md`, click through `/trades`, merge. #185 changed which CPU
+trades clear (paired 10-season drift, seed 12345: trades 77.6 → 81.8,
+dead money 5.37% → 5.51%), so `drift` and `careers` must be read before merge.
 
-Wave 3.7 panel posted (`HANDOFF.md`). Packet 2 awaits Matt sign.
-`capBustSeasons` 2.60 and `minPayrollSeasonsUnder55` 4.40 are
-findings — report, do not tune. Save-size re-lock is Packet 2, not a
-worker edit. **No feature lanes. No tuning.** Do not edit
-`baselines.json`. Do not merge #9 or #63.
+### Next — trades cost what the NFL says they cost (engine; needs a panel)
 
-After the bisect reports: retire stale AGENTS.md rows. Then the published-rules
-leftovers: restructure advice text; rookie slot scale and the
-compensatory-pick formula (published CBA math, no calibration argument);
-`askingPrice` onto the club's belief. Year-2 waiver desk ~267 is the
-#41/#49 cap-stuck residue — product decision whether to age them to the
-street after the window; not a settle miss. Do not wipe as a "bug fix."
-The #64 serial runner and the #47 test-registration exception are
-ratified in AGENTS.md. ~~Re-run the scouting challenge audit: the
-solved line existed because CPU reads were noise; private signal +
-veteran beliefs were meant to fix that and nobody has measured whether
-they did.~~ **CLOSED 2026-09-15 (Wave 3.9 scout-audit).** Write-up:
-`v2/docs/scouting-challenge-audit-2026-09-14.md`. Verdict: **the
-solved line is closed** — information ceiling buys +0.1 true points
-per slot over auto-pick (+0.6 in R1–2), inside seed noise; the
-exploit arms have fewer starter-seasons per pick and twice the
-R1–2 bust rate. ~~Packets 7 (film/pro-day caps)~~ **SHIPPED
-2026-09-16 / SIGNED 2026-09-17 (Wave 4.0 Packet 4, #99 / #102)**:
-Matt SIGNED scout caps **2/1/1/1**. Packet 8 (risk-grade teeth)
-remains Phase 4 addendum — consequences, not tuning; none reopen
-the line. ~~+2 probe (was Packet 9)~~ **SHIPPED 2026-09-16 (Wave
-4.0 Packet 6).** Write-up: `v2/docs/plus2-probe-2026-09-16.md`.
-Report, do not tune. Studio 14×3 panel is the leftover lock-grade
-read. Wave 4.0 post-#97/#98 panel @ `6e3b7bf` (2026-09-16 Studio)
-is the first post-ceiling / people-counter read. ~~`topCapPctMean`
-20.3±3 is a **PROPOSAL** only~~ **Matt SIGNED 2026-09-19** —
-locked in `baselines.json` (Lead docs packet). Packet 8
-(risk-grade teeth, Wave 4.0 Packet 5 / PR #100) effect sizes
-also **SIGNED 2026-09-19**; #100 still merges solo with a Studio
-panel after.
+One rule, two halves, one sign-off:
 
-### Phase 1 — make the engine visible (after the panel is green)
+1. **CPU valuation uses the acquiring club's cost.** `playerTradeValue`
+   prices a target at the sender's `capHit`, bonus proration included. Since
+   #185 the receiver only takes on base salary (and the guarantee), so CPU
+   clubs over-price bonus-heavy players and pass on deals a real GM makes.
+2. **In-season base is pro rata.** After a deadline deal the acquiring club
+   pays only the remaining weeks of base salary, the sender the weeks played
+   (`docs/nfl-reference.md`, "Trade cap accounting", not modelled). Today the
+   receiver carries the full year.
 
-**Core shipped** (#53 / #81 / #83). Spec and leftovers:
-`docs/phase1-text-pbp-spec-2026-09-22.md`. Matt **SIGNED** §7.2
-(2026-09-28). **P1 / P3 / P4** may go. **P2** (optional `PlayEvent`
-fields) was not in that sign. **P5** (persist more CPU snap logs)
-waits on a save-size read.
+Moves trade volume and cap reads; expect the seed-42 canary to move again.
 
-Text play-by-play and a drive log generated from the events `game.ts` already
-produces. A real game page with a drive chart. Play-the-Game that shows the
-result of every snap you called, without re-simulating from a snapshot per
-peek. Zero outcome changes — gate metrics byte-identical to `main`.
+### Then — the long tail (Phase 6, unchanged)
 
-Highest-leverage item in the project once the panel is green: every hour of
-calibration becomes something the player can feel.
+Preseason games feeding camp battles into the cutdown (design and Matt's
+decisions: `docs/preseason-games-design-2026-10-20.md`; packet A after
+#185–#187 merge). Onside kicks, blocked
+kicks and fair catches (none in the sim today). Benching a passer for bad
+play. Trick plays. A per-position injury duration table (closes the QB
+availability limitation). The 6-veteran PS cap and international PS slot.
+Real, not urgent.
 
-### Phase 2 — the people layer, kept deterministic
+### Phase 1 leftovers
 
-HC + two coordinators as people with contracts and tendencies, feeding
-`effectiveCoach` and carrying the schemes; an offseason carousel where CPU
-clubs poach your OC. An owner with expectations from `teamOutlook` posture and
-a patience dial so `firingEnabled` finally bites. Minimal player psychology:
-contract-year effects, holdouts and trade requests driven by role vs rating vs
-money. No morale sliders. All on child RNG streams. Add a `peoplecheck`
-harness so turnover, firing rate, and holdout frequency are measured against
-real NFL rates.
-
-### Phase 3 — the contract office
-
-User extensions, restructures, void years, cap carryover. Finances becomes a
-desk. Cap gymnastics is half of what a real GM does.
-
-### Phase 4 — history and identity
-
-Hall of Fame, franchise-history page (`SeasonHistory` data exists), retired
-numbers, all-time timeline. Design the Darnold path: a change-of-scene
-development window at QB gated by scheme fit and real opportunity, with a
-`careers` metric so we know how often it fires.
+Formation tree and play art; a `/play` session that survives refresh; a live
+opening kick; **P5** (snap log on every CPU box — save-size lead decision, not
+signed); **P2** (optional `PlayEvent` fields, not signed).
 
 ### Phase 5 — narration
 
 The approved LLM use: scouting-report prose, season recaps, a press conference
 after a loss. Thin proxy so keys stay off the client; fully optional so offline
-play survives; never in a decision loop.
+play survives; never in a decision loop. Not started.
 
-### Phase 6 — the long tail
+### Small product items
 
-Preseason games feeding camp battles into the cutdown. Onside and blocked
-kicks. Benching a passer for bad play. Trick plays. Per-position injury
-duration for QB. Real, not urgent.
+- The draft room's on-the-clock offers accept in one click with no review and
+  no re-check (`acceptClockOffer`). Nearly always pick-for-pick, so low
+  priority.
+- Year-2 waiver desk (~267 names) is cap-stuck residue — product decision
+  whether to age them to the street after the window. Not a settle miss.
 
 ## The bar
 
