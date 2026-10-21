@@ -153,3 +153,8 @@ export function playPreseasonWeek(state: GameState): string {
   const word = us > them ? "beat" : us < them ? "lost to" : "tied";
   return `Preseason week ${week}: ${word} ${opp} ${us}-${them}`;
 }
+
+/** Play every preseason week still left this camp. */
+export function playOutPreseason(state: GameState): void {
+  while (preseasonWeeksLeft(state) > 0) playPreseasonWeek(state);
+}

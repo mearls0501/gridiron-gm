@@ -19,6 +19,7 @@ import {
 } from "./offseason/contracts";
 import { teamOutlook } from "./frontOffice";
 import { advanceOffseason, enterCampAfterDraft, enterDraft, simEntireDraft } from "./offseason";
+import { playOutPreseason } from "./preseason";
 
 function clubActive(st: ReturnType<typeof newGame>, teamId: number) {
   return st.players.filter((p) => p.teamId === teamId && !p.retired && !p.prospect && isActiveRoster(p));
@@ -137,6 +138,7 @@ function ok(label: string) { console.log("ok   ", label); }
   st.rngState = rng.state;
   assert.equal(st.phase, "offseason-final");
   assert.equal(tagExtensionPlayers(st, st.userTeamId).length, 0);
+  playOutPreseason(st);
   const msg = advanceOffseason(st);
   assert.equal(st.phase, "preseason", msg);
   ok("empty desk, camp advances");
@@ -224,6 +226,7 @@ function ok(label: string) { console.log("ok   ", label); }
   const msg4 = advanceOffseason(st);
   assert.equal(st.phase, "offseason-final", msg4);
   assert.equal((st.tagExtensions ?? []).some((e) => e.teamId === st.userTeamId), false);
+  playOutPreseason(st);
   const msg5 = advanceOffseason(st);
   assert.equal(st.phase, "preseason", msg5);
   ok("headless recap→camp reaches cutdown");

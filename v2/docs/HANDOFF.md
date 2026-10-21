@@ -1,5 +1,68 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-21 — Preseason games in camp, packet A (`claude/preseason-games`)
+
+Design, sources and Matt's decisions: `docs/preseason-games-design-2026-10-20.md`
+("As built — packet A").
+
+Three exhibition weeks in `offseason-final`, before the cut to 53:
+
+- Results and per-player camp lines live in `state.preseason`, never
+  `state.games`: no season stat, standing, record, milestone or harness total
+  counts them. Wiped at kickoff (`startRegularSeason`).
+- Each game draws from its own child stream (seed, season, week, game). The
+  parent `rngState` never moves.
+- Exhibition sims (`SimOpts.exhibition`) rotate whole units: starters per plan
+  (user picks sit / one series / first quarter; CPU plays one series), second
+  unit to the half, third unit after. No overtime; ties stand.
+- Injuries at the engine's own rates; `healWeek` after each preseason week.
+- No camp nudge on the cut (packet B).
+- Hub: **Play Preseason Week N**, plan picker, results, most snaps. Roster has
+  a Preseason column in camp; schedule shows results.
+
+Camp now takes four advances to reach the cut, not one. `fifthYearOption`,
+`tagExtension` and `psychology` tests assumed one; they now call
+`playOutPreseason` first. No engine change for that.
+
+Tests: `lib/core/preseason.test.ts` (7 cases) in both gate tiers. `e2e.mjs`
+walks all three weeks and checks each result on the hub (8 offseason steps,
+was 5); `e2e-interact.mjs` passes.
+
+Paired `npx tsx scripts/drift.ts 10 12345`, `main` (`5b6d738`) vs preseason.
+One seed, direction only. Both: no P0 regressions.
+
+| metric | main | + preseason |
+|---|---|---|
+| `tradesPerSeason` | 92.3 | 89.5 |
+| `deadMoneyPct` | 5.67 | 5.27 |
+| `topCapPctMean` | 20.15 | 19.21 |
+| `medianPayrollPct` | 99.42 | 99.30 |
+| `irCapPctMean` | 6.17 | 6.77 |
+| `injuredIrWeeks` | 973.5 | 1014.5 |
+| `healthyIrWeeks` | 49.3 | 73.4 |
+| `rotationRosterChurnWeeks` | 161.6 | 149.7 |
+
+Camp injuries carry into the season, so IR use rises a little. `healthyIrWeeks`
+(49 → 73) is the one to watch: players hurt in camp who heal while still on IR.
+Report-only; no tuning.
+
+### Full gate on `main` (`5b6d738` + #188's script-only change), 2026-10-21
+
+Split by step because `gate:full:serial` exceeds the 2-hour background limit.
+
+- determinism, verify, leverage: **PASS** (7 metrics)
+- sweep, calibrate, statcheck, rbpanel: **PASS** (55 metrics)
+- tails, coherence, staff, scout: **PASS**
+- conditions: **FAIL** on the default seed, `coldPointsDelta` **-0.02**
+  (band -2.13 ±1.6). Same seed before #187: -1.63 (#182), -1.54 (#185),
+  -1.21 (#186). `GG_SEED=1..4`: before #187 -2.26 / -2.30 / -2.06 / -1.30;
+  `main` -2.37 / -2.18 / -3.00 / -2.05. One-seed noise from roster changes,
+  not a cold-weather regression. Baselines untouched.
+- careers, drift: **not completed** (stopped at season 18 of 24 and 18 of 20,
+  no problems reported by then). Run on the Mac Studio.
+
+---
+
 ## 2026-10-20 — In-season base salary is pro rata (`claude/pro-rata-salary`)
 
 Stacked on `claude/trade-valuation` (#186). Design, sources and Matt's four
