@@ -20,6 +20,7 @@ import {
 } from "./offseason/contracts";
 import { teamOutlook } from "./frontOffice";
 import { advanceOffseason, enterCampAfterDraft, enterDraft, simEntireDraft } from "./offseason";
+import { playOutPreseason } from "./preseason";
 
 function clubActive(st: ReturnType<typeof newGame>, teamId: number) {
   return st.players.filter((p) => p.teamId === teamId && !p.retired && !p.prospect && isActiveRoster(p));
@@ -184,6 +185,7 @@ function plantRookieDeal(
   st.rngState = rng.state;
   assert.equal(st.phase, "offseason-final");
   assert.equal((st.fifthYearOptions ?? []).some((o) => o.teamId === st.userTeamId), false);
+  playOutPreseason(st);
   const msg = advanceOffseason(st);
   assert.equal(st.phase, "preseason", msg);
 }

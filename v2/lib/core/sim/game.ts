@@ -568,6 +568,71 @@ function* runGameSim(
     }
   };
 
+  // -------------------------------------------------------------------------
+  // Preseason usage (opts.exhibition only)
+  // -------------------------------------------------------------------------
+
+  /**
+   * In a preseason game each club's starters play per its plan, the second
+   * unit takes over until halftime and the third unit plays the second half.
+   * A swap is the in-game injury replacement done for a whole position: the
+   * unit arrays are what every selection path reads, snaps and fatigue follow
+   * whoever is in them, and coverage is re-pointed. Kickers and punters stay.
+   * Without `opts.exhibition` none of this runs and nothing is drawn.
+   */
+  const exhibition = opts?.exhibition;
+  const onString = new Map<Ctx, number>();
+  const planOf = (ctx: Ctx) => exhibition?.plans[ctx.team.id] ?? "series";
+  const depthPool = (ctx: Ctx, pos: Position): Player[] => {
+    const ok = (p: Player | undefined): p is Player =>
+      !!p && p.teamId === ctx.team.id && !p.retired && p.injuryWeeks <= 0 &&
+      p.status !== "ir" && p.status !== "ps" && !isSat(ctx.team, p.id) && !ctx.out.has(p.id);
+    const out: Player[] = [];
+    for (const id of ctx.team.depthChart[pos] ?? []) {
+      const p = byId.get(id);
+      if (ok(p) && !out.includes(p)) out.push(p);
+    }
+    for (const p of ctx.roster) if (p.pos === pos && ok(p) && !out.includes(p)) out.push(p);
+    return out;
+  };
+  /**
+   * String `n` at a position. A thin position fills from the bottom of the
+   * chart up, so the deepest men play and a starter comes back in only when
+   * nobody else is left.
+   */
+  const stringFor = (ctx: Ctx, pos: Position, n: number): Player[] => {
+    const need = ROTATION[pos];
+    const pool = depthPool(ctx, pos);
+    const unit = pool.slice(n * need, n * need + need);
+    for (let i = pool.length - 1; i >= 0 && unit.length < need; i--) {
+      if (!unit.includes(pool[i])) unit.push(pool[i]);
+    }
+    return unit;
+  };
+  const putOnString = (ctx: Ctx, n: number) => {
+    if ((onString.get(ctx) ?? 0) >= n) return;
+    for (const pos of Object.keys(ctx.starters) as Position[]) {
+      if (pos === "K" || pos === "P") continue;
+      const unit = stringFor(ctx, pos, n);
+      if (unit.length) ctx.starters[pos] = unit;
+    }
+    onString.set(ctx, n);
+    for (const c of [ctxHome, ctxAway]) c.coverage.clear();
+    assignCoverage(ctxHome, ctxAway);
+    assignCoverage(ctxAway, ctxHome);
+  };
+  const preseasonRotate = () => {
+    for (const c of [ctxHome, ctxAway]) {
+      if (quarter >= 3) putOnString(c, 2);
+      else if ((onString.get(c) ?? 0) === 0) {
+        const plan = planOf(c);
+        if (plan === "sit") putOnString(c, 1);
+        else if (plan === "series" && c.stats.possessions >= 2) putOnString(c, 1);
+        else if (plan === "quarter" && quarter >= 2) putOnString(c, 1);
+      }
+    }
+  };
+
   const INJURY_TIERS: { desc: string[]; min: number; max: number }[] = [
     { desc: ["Shaken up", "Had the wind knocked out of him", "Cramping", "Bruised"], min: 0, max: 0 },
     { desc: ["Ankle sprain", "Bruised ribs", "Hip pointer", "Concussion"], min: 1, max: 2 },
@@ -1664,9 +1729,12 @@ function* runGameSim(
   let guard = 0;
 
   while (guard++ < 500) {
+    if (exhibition) preseasonRotate();
     if (clock <= 0) {
       if (quarter >= 4 && !overtime) {
         if (homeScore !== awayScore) break;
+        // No preseason overtime: owners ended it in April 2021.
+        if (exhibition) break;
         overtime = true;
         quarter = 5;
         clock = 600;

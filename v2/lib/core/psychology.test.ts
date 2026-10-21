@@ -10,6 +10,7 @@ import { decodeSave, encodeSave } from "../store/codec";
 import { buildBriefing } from "./season/briefing";
 import { advance, startRegularSeason } from "./season/engine";
 import { advanceOffseason } from "./offseason";
+import { playOutPreseason } from "./preseason";
 import {
   CHARACTER_HOLDOUT,
   HOLDOUT_CAP,
@@ -197,6 +198,7 @@ function stripPsych(st: GameState): GameState {
   runPsychology(st);
   const first = st.psychTick!;
   st.phase = "offseason-final";
+  playOutPreseason(st);
   advanceOffseason(st);
   assert.equal(st.phase, "preseason");
   assert.equal(st.week, 0);

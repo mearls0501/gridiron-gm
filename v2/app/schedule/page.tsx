@@ -6,6 +6,7 @@ import { useGame } from "@/lib/store/game";
 import { Game, GameState, PlayoffRound, REGULAR_SEASON_WEEKS, weatherLabel } from "@/lib/core/types";
 import { computeRecords, recordString } from "@/lib/core/select";
 import { weekGames, userNextGame } from "@/lib/core/season/engine";
+import { preseasonFor } from "@/lib/core/preseason";
 import {
   Card, Cell, Empty, Pill, Row, Stat, Table, Tabs, TeamMark, cx,
 } from "@/components/ui";
@@ -117,6 +118,35 @@ export default function SchedulePage() {
           ]}
         />
       </div>
+
+      {(() => {
+        // Camp's preseason, before the season's slate exists. Results only; they do not count.
+        const ps = preseasonFor(state);
+        if (!ps || ps.games.length === 0) return null;
+        const rows = tab === "team"
+          ? ps.games.filter((g) => g.homeId === team.id || g.awayId === team.id)
+          : ps.games;
+        return (
+          <Card title="Preseason" subtitle={`${ps.week} of 3 weeks played · results do not count`} padded={false}>
+            <div className="divide-y divide-[var(--color-line-soft)]">
+              {[...rows].sort((a, b) => a.week - b.week || a.homeId - b.homeId).map((g, i) => {
+                const home = state.teams[g.homeId];
+                const away = state.teams[g.awayId];
+                return (
+                  <div key={i} className="flex items-center gap-2 px-4 py-2 text-sm tnum">
+                    <span className="w-14 shrink-0 text-xs text-[var(--color-muted)]">Week {g.week}</span>
+                    <TeamMark team={away} size={18} />
+                    <span className="min-w-0 truncate">{away.abbr} {g.awayScore}</span>
+                    <span className="text-[var(--color-faint)]">at</span>
+                    <TeamMark team={home} size={18} />
+                    <span className="min-w-0 truncate">{home.abbr} {g.homeScore}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        );
+      })()}
 
       {tab === "team" ? (
         <div className="space-y-4">

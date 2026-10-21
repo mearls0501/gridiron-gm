@@ -37,6 +37,8 @@ const TRADE_WEEK_WEIGHTS = [0.40, 0.18, 0.11, 0.07, 0.06, 0.05, 0.045, 0.04, 0.0
  */
 
 export function startRegularSeason(state: GameState): void {
+  // Camp's preseason results and camp lines are done once the season starts.
+  delete state.preseason;
   settleWaivers(state);
   const rng = new Rng(state.rngState);
   state.games = generateSchedule(state, rng);

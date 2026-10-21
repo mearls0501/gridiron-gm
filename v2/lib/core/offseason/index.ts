@@ -18,6 +18,7 @@ import { fireCpuHeadCoaches, runCoachCarousel, tickCoachContracts } from "../coa
 import { applyUserGmFiring, ensureOwners, stampSeasonExpectedWins } from "../owner";
 import { runHofInduction, tickHofCareerLabels } from "../hallOfFame";
 import { maybeRetireNumbersForHallOfFame } from "../jersey";
+import { playPreseasonWeek, preseasonWeeksLeft } from "../preseason";
 
 export * from "./contracts";
 export * from "./draft";
@@ -67,7 +68,7 @@ export const OFFSEASON_STEPS: Record<string, OffseasonStep> = {
   "offseason-final": {
     phase: "offseason-final",
     title: "Roster Cutdown",
-    description: "Fifth-year option and tagged-player extension on the desk. Camp may hold 90; Start the Season cuts to 53 and the cap.",
+    description: "Fifth-year option and tagged-player extension on the desk. Camp may hold 90 and plays three preseason games; then Start the Season cuts to 53 and the cap.",
     action: "Start the Season",
   },
 };
@@ -388,6 +389,8 @@ export function advanceOffseason(state: GameState): string {
     }
 
     case "offseason-final":
+      // Three preseason weeks in camp, then the cut (docs/preseason-games-design-2026-10-20.md).
+      if (preseasonWeeksLeft(state) > 0) return playPreseasonWeek(state);
       finalizeOffseason(state);
       runPsychology(state);
       return `${state.season} preseason begins`;

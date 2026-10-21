@@ -108,8 +108,8 @@ panel.
 ### Then — the long tail (Phase 6, unchanged)
 
 Preseason games feeding camp battles into the cutdown (design and Matt's
-decisions: `docs/preseason-games-design-2026-10-20.md`; packet A after
-#185–#187 merge). Onside kicks, blocked
+decisions: `docs/preseason-games-design-2026-10-20.md`; packet A built on
+`claude/preseason-games`, camp nudge is packet B). Onside kicks, blocked
 kicks and fair catches (none in the sim today). Benching a passer for bad
 play. Trick plays. A per-position injury duration table (closes the QB
 availability limitation). The 6-veteran PS cap and international PS slot.

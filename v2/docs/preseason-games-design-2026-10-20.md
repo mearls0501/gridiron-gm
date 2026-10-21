@@ -249,3 +249,35 @@ Read of `lib/core/sim/game.ts` on `claude/dazzling-pasteur-02nh3y`. Answer:
   - In-game injuries are logged with `week: game.week`. A preseason game
     should carry its own week label (or week 0) so the log does not read as
     regular-season weeks 1–3.
+
+## As built — packet A (2026-10-21, `claude/preseason-games`)
+
+- `types.ts`: `PRESEASON_WEEKS = 3`, `PreseasonPlan`, `PreseasonGame`,
+  `CampLine` (zero fields omitted), `PreseasonState`, optional
+  `GameState.preseason`. `SimOpts.exhibition` (`callSheet.ts`).
+- Engine (`sim/game.ts`): with `exhibition` set, `preseasonRotate` runs at the
+  top of the play loop. Each club goes to its second string per plan (`sit`
+  at kickoff, `series` once its second drive starts, `quarter` at the second
+  quarter) and to its third string at halftime; `stringFor` takes ROTATION
+  players per position from the depth chart then the roster, and a thin
+  position fills from the bottom up so a starter returns only if nobody else
+  is left. Kickers and punters stay. Coverage is cleared and re-assigned
+  after a swap. A tie ends after four quarters. Without `exhibition` the
+  engine takes no new branch and no new draw.
+- `lib/core/preseason.ts`: `playPreseasonWeek` pairs every club once
+  (avoiding a rematch), plays each game on its own child stream keyed (seed,
+  season, "preseason", week, game), folds box rows into camp lines, then
+  `healWeek`. CPU clubs play starters one series; the user's plan defaults to
+  the same. Games never enter `state.games`; no stat line, record, standing
+  or milestone. `startRegularSeason` deletes `state.preseason`.
+- Calendar: `advanceOffseason` in `offseason-final` plays the three weeks,
+  then makes the cut as before. The `preseason` phase is unchanged.
+- Screens: hub button "Play Preseason Week N", a Preseason card (plan choice,
+  results, most-snaps list), a Preseason column on `/roster` in camp, and a
+  Preseason section on `/schedule`.
+- Not in packet A: the camp nudge (packet B); `applyGameWear` (it draws from
+  the parent stream); last year's practice-squad players, who keep their PS
+  status until the cut and so do not play.
+- Tests: `lib/core/preseason.test.ts` (7 cases), registered in `package.json`
+  and both gate tiers. `e2e.mjs` walks the three weeks and checks each result
+  on the hub.
