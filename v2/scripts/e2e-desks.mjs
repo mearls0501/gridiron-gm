@@ -412,6 +412,45 @@ export async function waitForHubPhaseChange(page, before) {
   }, before, { timeout: 180000 });
 }
 
+/** The saved franchise's `phase:week`, read from IndexedDB. "" if none yet. */
+export async function saveClock(page) {
+  return page.evaluate(() => new Promise((resolve) => {
+    const req = indexedDB.open("gridiron-gm", 1);
+    req.onerror = () => resolve("");
+    req.onsuccess = () => {
+      const db = req.result;
+      const meta = db.transaction("meta", "readonly").objectStore("meta").get("lastSaveId");
+      meta.onerror = () => { db.close(); resolve(""); };
+      meta.onsuccess = () => {
+        if (!meta.result) { db.close(); resolve(""); return; }
+        const row = db.transaction("saves", "readonly").objectStore("saves").get(meta.result);
+        row.onerror = () => { db.close(); resolve(""); };
+        row.onsuccess = () => {
+          db.close();
+          const st = row.result;
+          resolve(st ? `${st.phase}:${st.week}` : "");
+        };
+      };
+    };
+  }));
+}
+
+/**
+ * Wait until the saved franchise has moved past `before`. A fixed sleep after
+ * Play Week / Sim Round / Continue raced the yielded sim under load: the next
+ * page load read the save before the step was written, a week was silently
+ * skipped, and the loop ran out before the draft.
+ */
+export async function waitForSaveClockChange(page, before, timeout = 180000) {
+  const until = Date.now() + timeout;
+  while (Date.now() < until) {
+    const now = await saveClock(page);
+    if (now && now !== before) return now;
+    await page.waitForTimeout(250);
+  }
+  throw new Error(`save never moved past ${before}`);
+}
+
 /**
  * Holdouts are seed/club dependent. If one surfaces, the briefing must
  * reach /finances. If not, note it — do not fail the suite.
