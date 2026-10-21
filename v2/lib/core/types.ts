@@ -904,6 +904,51 @@ export interface TradeOffer {
  */
 export const TRADE_DEADLINE_WEEK = 9;
 
+/**
+ * Preseason games per club, played in camp before the cut to 53. Three since
+ * 2021, when the regular season went to 17 games. See
+ * `docs/preseason-games-design-2026-10-20.md`.
+ */
+export const PRESEASON_WEEKS = 3;
+
+/**
+ * How long a club's starters play in a preseason game: not at all, one
+ * series, or the first quarter. The second unit plays to halftime and the
+ * third unit plays the second half.
+ */
+export type PreseasonPlan = "sit" | "series" | "quarter";
+
+/** A preseason result. Kept apart from `state.games`: it never reaches stats, standings or records. */
+export interface PreseasonGame {
+  week: number;
+  homeId: number;
+  awayId: number;
+  homeScore: number;
+  awayScore: number;
+}
+
+/** One player's preseason production, summed over the camp's games. Zero fields are omitted. */
+export interface CampLine {
+  snaps?: number;
+  passAtt?: number; passCmp?: number; passYds?: number; passTd?: number; passInt?: number;
+  rushAtt?: number; rushYds?: number; rushTd?: number;
+  rec?: number; recYds?: number; recTd?: number;
+  tackles?: number; sacks?: number; ints?: number; passDef?: number;
+  fgm?: number; fga?: number;
+}
+
+/** Camp's preseason: three weeks before the cut. Wiped when the regular season starts. */
+export interface PreseasonState {
+  /** The league year the games belong to (the one about to start). */
+  season: number;
+  /** Preseason weeks played, 0..PRESEASON_WEEKS. */
+  week: number;
+  games: PreseasonGame[];
+  camp: Record<number, CampLine>;
+  /** How long the user's starters play in the next preseason game. */
+  userPlan: PreseasonPlan;
+}
+
 export interface DraftState {
   season: number;
   picks: DraftPick[];
@@ -1423,6 +1468,8 @@ export interface GameState {
   pickOwners?: PickOwnership[];
   /** Offers currently sitting in front of the user. */
   tradeOffers?: TradeOffer[];
+  /** Camp's preseason games and camp lines. Present only from camp to week 1. */
+  preseason?: PreseasonState;
   nextTradeId?: number;
   /**
    * Unemployed coaches. Missing = none, so older saves load.

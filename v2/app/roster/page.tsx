@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { preseasonFor } from "@/lib/core/preseason";
+import { campLineText } from "@/lib/view/preseasonView";
 import { useGame } from "@/lib/store/game";
 import {
   capHit,
@@ -187,6 +189,9 @@ export default function RosterPage() {
     setConfirmId(null);
   }
 
+  // Camp's preseason lines, shown beside the cut controls (information only).
+  const camp = state ? preseasonFor(state)?.camp ?? null : null;
+  const showCamp = !!camp && Object.keys(camp).length > 0;
   const head = [
     <SortHead key="name" label="Player" k="name" active={sortKey} dir={sortDir} onSort={toggleSort} />,
     <SortHead key="pos" label="Pos" k="pos" active={sortKey} dir={sortDir} onSort={toggleSort} />,
@@ -196,6 +201,7 @@ export default function RosterPage() {
     <SortHead key="pot" label="POT" k="pot" active={sortKey} dir={sortDir} onSort={toggleSort} />,
     <SortHead key="cap" label="Cap Hit" k="cap" active={sortKey} dir={sortDir} onSort={toggleSort} />,
     <SortHead key="years" label="Yrs Left" k="years" active={sortKey} dir={sortDir} onSort={toggleSort} />,
+    ...(showCamp ? ["Preseason"] : []),
     <SortHead key="status" label="Status" k="status" active={sortKey} dir={sortDir} onSort={toggleSort} />,
     "",
   ];
@@ -454,6 +460,11 @@ export default function RosterPage() {
                   </Cell>
                   <Cell>{p.contract ? formatMoney(capHit(p.contract)) : "—"}</Cell>
                   <Cell>{p.contract ? yearsLeft(p) : "—"}</Cell>
+                  {showCamp && (
+                    <Cell className="text-xs text-[var(--color-muted)] max-w-[16rem] truncate">
+                      {camp?.[p.id]?.snaps ? `${camp[p.id].snaps} snaps · ${campLineText(camp[p.id])}` : "Did not play"}
+                    </Cell>
+                  )}
                   <Cell>
                     {p.injuryWeeks > 0 ? (
                       <Pill tone="bad">

@@ -389,7 +389,7 @@ async function main() {
     }
     await pressFaRosterAutoFix(page);
     const btn = page
-      .getByRole("button", { name: /Continue to|Finish the Draft|Start the Season|Roster Cutdown|Continue$/i })
+      .getByRole("button", { name: /Continue to|Finish the Draft|Play Preseason Week|Start the Season|Roster Cutdown|Continue$/i })
       .first();
     if (!(await btn.count())) break;
     if (!(await btn.isEnabled())) {
@@ -407,16 +407,26 @@ async function main() {
     await page.waitForTimeout(250);
     const confirm = page.getByRole("button", { name: /^Confirm$/ });
     if (await confirm.count()) await confirm.click();
+    const preseasonWeek = /Play Preseason Week (\d)/i.exec(label)?.[1];
     if (yielded && phaseBefore) {
       await waitForHubPhaseChange(page, phaseBefore);
+    } else if (preseasonWeek) {
+      // The user's result for that week appears on the hub's Preseason card.
+      const row = new RegExp(`Week ${preseasonWeek} · (vs|at) [A-Z]{2,4} · \\d+-\\d+`);
+      try {
+        await page.waitForFunction((src) => new RegExp(src).test(document.body.innerText), row.source, { timeout: 60000 });
+        report.ok(`preseason week ${preseasonWeek} played and shown on the hub`);
+      } catch {
+        fail(`preseason week ${preseasonWeek}: no result on the hub`);
+      }
     } else {
       await page.waitForTimeout(2500);
     }
     await checkPage(`[offseason step ${i + 1}] /`);
     steps++;
     await visitAll(`[offseason ${i + 1}]`);
-    const body = await page.evaluate(() => document.body.innerText);
-    if (/Preseason/i.test(body) && i >= 2) break;
+    // The hub's phase label, not page text: camp now shows a Preseason card.
+    if ((await hubPhase(page)) === "Preseason" && i >= 2) break;
   }
   console.log(`  ok    completed ${steps} offseason steps`);
   if (steps < 4) fail(`only ${steps} offseason steps — expected 4`);

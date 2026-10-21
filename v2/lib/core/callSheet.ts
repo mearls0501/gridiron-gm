@@ -1,5 +1,5 @@
 import { peopleCoachDials, sameCoachDials } from "./coaches";
-import { BoxScore, CallSheet, Coach, Game, GameState, SnapCall, Team } from "./types";
+import { BoxScore, CallSheet, Coach, Game, GameState, PreseasonPlan, SnapCall, Team } from "./types";
 
 /**
  * This-week call sheet and Play-the-Game snap list.
@@ -37,6 +37,13 @@ export interface SimOpts {
    * Bulk-sim never sets this.
    */
   live?: boolean;
+  /**
+   * A preseason game: each club's starters play per its plan, the second unit
+   * to halftime and the third unit after it, and a tie stands (no preseason
+   * overtime since 2021). Absent for every regular-season and playoff game,
+   * where the engine takes no new branch and no new draw.
+   */
+  exhibition?: { plans: Record<number, PreseasonPlan> };
 }
 
 export function effectiveCoach(team: Team): Coach {

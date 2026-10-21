@@ -26,6 +26,9 @@ import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weath
 import { SeasonReviewPanels } from "@/components/SeasonReview";
 import { presentSeasonReview } from "@/lib/view/seasonReview";
 import { hubCampCutdownCopy, hubCampFloorCopy, rosterCapView } from "@/lib/view/rosterCap";
+import { PRESEASON_PLAN_LABEL, preseasonView } from "@/lib/view/preseasonView";
+import { setUserPreseasonPlan } from "@/lib/core/preseason";
+import { PreseasonPlan } from "@/lib/core/types";
 import { hubResignWalkWarning, resignPot, resignStepRows } from "@/lib/view/resignStep";
 import { coachingCarouselMoves, splitCoachingCarousel } from "@/lib/view/coachingCarousel";
 import { teamLeaders } from "@/lib/view/teamLeaders";
@@ -147,8 +150,10 @@ export default function Hub() {
     : null;
   const userSeasonGames = recap?.userGames ?? [];
 
+  const camp = preseasonView(state);
   const primaryLabel = (() => {
     if (state.phase === "preseason") return "Start the Season";
+    if (state.phase === "offseason-final" && camp?.nextWeek) return `Play Preseason Week ${camp.nextWeek}`;
     if (state.phase === "regular") return bye ? `Advance Week ${state.week} (Bye)` : `Play Week ${state.week}`;
     if (state.phase === "playoffs") {
       return state.playoffs?.complete ? "Continue to the Offseason" : `Sim ${state.playoffs?.round ?? ""} Round`;
@@ -284,6 +289,59 @@ export default function Hub() {
           </div>
         )}
       </Card>
+
+      {camp && (camp.weeksLeft > 0 || camp.results.length > 0) && (
+        <Card
+          title="Preseason"
+          subtitle={
+            camp.nextWeek
+              ? `Week ${camp.nextWeek} of 3 next. Results inform the cut; they do not count.`
+              : "Three games played. Results do not count toward the season."
+          }
+        >
+          <div className="space-y-3">
+            {camp.weeksLeft > 0 && (
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Starters' playing time">
+                {(Object.keys(PRESEASON_PLAN_LABEL) as PreseasonPlan[]).map((plan) => (
+                  <Button
+                    key={plan}
+                    size="sm"
+                    variant={camp.userPlan === plan ? "primary" : "default"}
+                    onClick={() => apply((s) => { setUserPreseasonPlan(s, plan); return PRESEASON_PLAN_LABEL[plan]; })}
+                  >
+                    {PRESEASON_PLAN_LABEL[plan]}
+                  </Button>
+                ))}
+              </div>
+            )}
+            {camp.results.length > 0 && (
+              <ul className="text-sm space-y-1">
+                {camp.results.map((r) => (
+                  <li key={r.week} className="flex items-center gap-2 tnum">
+                    <Pill tone={r.outcome === "W" ? "good" : r.outcome === "L" ? "bad" : "default"}>{r.outcome}</Pill>
+                    <span>Week {r.week} · {r.home ? "vs" : "at"} {r.opp} · {r.us}-{r.them}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {camp.leaders.length > 0 && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1">Most preseason snaps</div>
+                <ul className="text-xs space-y-0.5">
+                  {camp.leaders.map((l) => (
+                    <li key={l.playerId} className="flex gap-2 tnum">
+                      <span className="w-8 shrink-0 text-[var(--color-muted)]">{l.pos}</span>
+                      <span className="font-medium min-w-0 truncate">{l.name}</span>
+                      <span className="text-[var(--color-muted)] shrink-0">{l.snaps} snaps</span>
+                      <span className="text-[var(--color-muted)] min-w-0 truncate">{l.line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       {state.phase === "offseason-tag" && (() => {
         const moves = coachingCarouselMoves(state) ?? [];
