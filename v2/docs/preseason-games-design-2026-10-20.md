@@ -202,3 +202,50 @@ Both need a Studio panel and a signed canary.
 First build step for packet A: read whether the engine can swap whole units
 within a game through `onField`; if not, simulate each game in segments with a
 temporary depth chart per segment.
+
+## Engine check (2026-10-21)
+
+Read of `lib/core/sim/game.ts` on `claude/dazzling-pasteur-02nh3y`. Answer:
+**whole-unit rotation fits the engine as it is; no segmenting needed.**
+
+- **Units are live, mutable arrays.** `mkCtx` builds `ctx.starters` once per
+  club at kickoff (`buildStarters`, ROTATION players per position), and every
+  selection path reads it by index during play. The engine already changes
+  who is on the field mid-game: an in-game injury calls `removeFromUnits`,
+  which splices the man out and pushes `nextAvailable` from the depth chart,
+  then `repointCoverage` fixes the coverage map. A unit swap is the same
+  operation for a whole position at once.
+- **Snaps and fatigue follow automatically.** `creditSnaps` credits
+  `SNAP_SHARE` by slot to whoever is in each unit on that play, and
+  `fatigueMult` reads each player's own snap count, so a fresh second unit
+  plays fresh. In-game injury rolls land on the players actually in the
+  collision, so backups carry the risk when they play.
+- **What a swap must refresh.** Three things are fixed at kickoff:
+  - coverage assignments (`assignCoverage`, keyed by receiver id) — re-run it
+    for both sides after a swap;
+  - the per-player game script (`script.targetBoost`) — readers already
+    default a missing id to 1, so newcomers play at baseline unless the swap
+    draws them a value;
+  - `openers` (who counts as a starter) — irrelevant here, since preseason
+    lines never reach season stats.
+- **Where to swap.** The play loop has clean boundaries: the quarter change
+  (`quarter++`, with the second-half kickoff at `quarter === 3`) and
+  `startDrive`. "Sit", "one series" and "first quarter" map to swapping at
+  kickoff, after the club's first drive, or at the end of the first quarter;
+  second unit to third unit at halftime.
+- **Shape of the change.** One optional exhibition setting on the sim options
+  (per-club usage plan), read only by preseason games. With it absent the
+  engine takes no new branch and no new random draw, so every regular-season
+  and playoff game stays byte-identical — the gate and the seed-42 canary
+  would show it. `assignCoverage` draws from the game's rng, and a preseason
+  game's rng is its own hash-keyed child stream, so a re-run costs the parent
+  nothing.
+- **Two details for the build.**
+  - The engine plays overtime when tied after four quarters
+    (`game.playoffRound === null` only stops a second period). The NFL has
+    played preseason games without overtime since 2021 — to be confirmed
+    against a primary source before the build; the exhibition setting would
+    end a tied game after the fourth quarter.
+  - In-game injuries are logged with `week: game.week`. A preseason game
+    should carry its own week label (or week 0) so the log does not read as
+    regular-season weeks 1–3.
