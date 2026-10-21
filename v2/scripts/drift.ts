@@ -17,7 +17,7 @@ import { advance } from "../lib/core/season/engine";
 import { advanceOffseason, isOffseason } from "../lib/core/offseason";
 import { leagueStandings } from "../lib/core/season/standings";
 import { payroll } from "../lib/core/frontOffice";
-import { capHit, isActiveRoster } from "../lib/core/select";
+import { annualCapHit, capHit, isActiveRoster } from "../lib/core/select";
 import { GameState, Player, Position, salaryCap } from "../lib/core/types";
 import { encodeSave } from "../lib/store/codec";
 import { schemeFit, schemeFor } from "../lib/core/staff";
@@ -129,7 +129,9 @@ function runOne(seed: number): Snapshot[] {
     const payrolls = st.teams
       .filter((t) => t.id !== st.userTeamId)
       .map((t) => payroll(st, t.id));
-    const topCap = Math.max(...A.map((p) => capHit(p.contract)));
+    // Annual rate, not this season's pro-rata charge: a mid-season arrival is
+    // still the contract he signed (Matt, 2026-10-20).
+    const topCap = Math.max(...A.map((p) => annualCapHit(p.contract)));
     let irHits = 0;
     for (const p of st.players) {
       if (p.teamId === null || p.retired || p.prospect || p.status !== "ir") continue;

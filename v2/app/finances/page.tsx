@@ -220,6 +220,18 @@ export default function FinancesPage() {
                 {cap.cap > 0 ? `${((cap.dead / cap.cap) * 100).toFixed(1)}%` : "0.0%"} · —
               </div>
             </div>
+            {cap.paidOut > 0 && (
+              <div className="flex items-center gap-3" title="Base salary already paid this season to players since traded or released">
+                <div className="w-10 shrink-0 text-xs font-semibold">Paid</div>
+                <div className="flex-1 min-w-0">
+                  <Bar value={cap.paidOut} max={maxGroup || 1} />
+                </div>
+                <div className="w-20 shrink-0 text-right text-xs tnum">{formatMoney(cap.paidOut)}</div>
+                <div className="w-24 shrink-0 text-right text-xs tnum text-[var(--color-faint)]">
+                  {cap.cap > 0 ? `${((cap.paidOut / cap.cap) * 100).toFixed(1)}%` : "0.0%"} · —
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Card>

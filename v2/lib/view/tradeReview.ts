@@ -1,6 +1,7 @@
 import { playerName } from "../core/ratings";
 import {
-  capHit, deadMoney, formatMoney, isActiveRoster, remainingBonusProration, rosterCount, teamCap,
+  arrivingCapHit, capHit, deadMoney, departingPaidOut, formatMoney, isActiveRoster,
+  remainingBonusProration, rosterCount, teamCap,
 } from "../core/select";
 import { checkTrade, TradeCheck } from "../core/trades";
 import { GameState, ROSTER_LIMIT, TradeAsset, TradeOffer } from "../core/types";
@@ -38,6 +39,8 @@ export interface ReviewPlayer {
   yearsLeft: number;
   /** Bonus that accelerates onto the sender when he leaves. */
   deadOnSender: number;
+  /** Base already paid this season by the club he leaves; it stays on its books. */
+  paidOnSender: number;
   /** Remaining guaranteed base; it travels with the contract. */
   guaranteed: number;
 }
@@ -89,10 +92,11 @@ function line(state: GameState, a: TradeAsset): ReviewLine {
     ovr: tradeBoardOvr(state, p),
     injury: injuryLine(p.injuryWeeks, p.injuryDesc),
     ir: p.status === "ir",
-    capAfter: c && c.yearsRemaining > 0 ? c.baseSalary[0] ?? 0 : 0,
+    capAfter: arrivingCapHit(state, c),
     capNow: capHit(c),
     yearsLeft: c?.yearsRemaining ?? 0,
     deadOnSender: Math.round(remainingBonusProration(c)),
+    paidOnSender: departingPaidOut(state, c),
     guaranteed: Math.max(0, deadMoney(c) - Math.round(remainingBonusProration(c))),
   };
 }
@@ -123,7 +127,7 @@ export function buildOfferReview(state: GameState, offer: TradeOffer): OfferRevi
   let deadAdded = 0;
   for (const l of outgoing) {
     if (l.kind !== "player") continue;
-    change += l.deadOnSender - l.capNow;
+    change += l.deadOnSender + l.paidOnSender - l.capNow;
     deadAdded += l.deadOnSender;
   }
   for (const l of incoming) {

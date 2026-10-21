@@ -5,8 +5,8 @@ import {
   Position, ROSTER_LIMIT, STARTERS, TRADE_DEADLINE_WEEK, TradeAsset, TradeOffer, isCampPhase,
 } from "./types";
 import {
-  addDeadCap, capHit, deadMoney, isActiveRoster, positionCount, remainingBonusProration, rosterCount,
-  teamCap, teamRoster,
+  addDeadCap, annualCapHit, arrivingCapHit, capHit, departingPaidOut, isActiveRoster, positionCount,
+  remainingBonusProration, rosterCount, settlePaidWeeks, teamCap, teamRoster,
 } from "./select";
 import { Posture, REPLACEMENT_OVR, evaluate, frontOffice, teamOutlook } from "./frontOffice";
 import { askingPrice } from "./offseason/contracts";
@@ -233,7 +233,11 @@ export function pickValue(
  * point in the cycle. The contract term is what stops a 30-year-old on a
  * maximum deal from being an asset.
  */
-/** This season's charge on a club that trades for him: base salary, no bonus. */
+/**
+ * His annual cost to a club that trades for him: base salary, no bonus. An
+ * annual rate, compared against an annual asking price; the weeks left this
+ * season are `arrivingCapHit`.
+ */
 export function acquiredCapHit(c: Player["contract"]): number {
   return c && c.yearsRemaining > 0 ? c.baseSalary[0] ?? 0 : 0;
 }
@@ -247,7 +251,7 @@ export function playerTradeValue(
   // A club acquiring him pays base salary only; the bonus stays with the
   // sender (docs/nfl-reference.md, "Trade cap accounting").
   const market = askingPrice(state, p);
-  const hit = p.teamId === teamId ? capHit(p.contract) : acquiredCapHit(p.contract);
+  const hit = p.teamId === teamId ? annualCapHit(p.contract) : acquiredCapHit(p.contract);
   const surplus = (market - hit) / Math.max(1, teamCap(state, teamId).cap);
   const contractAdj = clamp(surplus * 340, -70, 45);
 
@@ -391,18 +395,20 @@ export function checkTrade(state: GameState, offer: TradeOffer): TradeCheck {
     }
 
     // Cap, priced as `moveAsset` posts it: the sender's uncharged bonus
-    // accelerates (CBA Art. 13 §6(b)(ii)); the receiver takes on base salary.
-    // Guaranteed base travels with the contract, so it is not the sender's.
+    // accelerates (CBA Art. 13 §6(b)(ii)) and the base it already paid stays
+    // on its books; the receiver takes on base for the weeks left. Guaranteed
+    // base travels with the contract, so it is not the sender's.
     let change = 0;
     for (const a of out) {
       if (a.kind !== "player") continue;
       const p = state.players.find((x) => x.id === a.playerId)!;
-      change += Math.round(remainingBonusProration(p.contract)) - capHit(p.contract);
+      change += Math.round(remainingBonusProration(p.contract)) + departingPaidOut(state, p.contract)
+        - capHit(p.contract);
     }
     for (const a of incoming) {
       if (a.kind !== "player") continue;
       const p = state.players.find((x) => x.id === a.playerId)!;
-      change += p.contract?.baseSalary[0] ?? 0;
+      change += arrivingCapHit(state, p.contract);
     }
     if (teamCap(state, teamId).space - change < 0) {
       return { ok: false, reason: `${state.teams[teamId].abbr} cannot fit the contracts.` };
@@ -426,10 +432,12 @@ function moveAsset(state: GameState, a: TradeAsset, toTeamId: number): void {
   const p = state.players.find((x) => x.id === a.playerId);
   if (!p || p.teamId === null || !p.contract) return;
 
-  // The club that paid the signing bonus keeps what is left of it.
+  // The club that paid the signing bonus keeps what is left of it, and the
+  // weeks of base it already paid.
   const from = p.teamId;
-  const proration = deadMoney(p.contract) - remainingGuaranteed(p);
-  if (proration > 0) addDeadCap(state, from, Math.round(proration));
+  settlePaidWeeks(state, p, from);
+  const proration = Math.round(remainingBonusProration(p.contract));
+  if (proration > 0) addDeadCap(state, from, proration);
 
   // The receiving club inherits base salary and whatever of it is guaranteed
   // (docs/nfl-reference.md, "Trade cap accounting"); the bonus stays behind.
@@ -450,14 +458,6 @@ function syncLiveDraftOwners(state: GameState): void {
     if (pk.playerId !== null) continue;
     pk.teamId = owners.get(`${pk.round}:${pk.originalTeamId}`) ?? pk.originalTeamId;
   }
-}
-
-function remainingGuaranteed(p: Player): number {
-  const c = p.contract;
-  if (!c) return 0;
-  let g = 0;
-  for (let i = 0; i < Math.min(c.guaranteedYears, c.yearsRemaining); i++) g += c.baseSalary[i] ?? 0;
-  return g;
 }
 
 /**

@@ -2,9 +2,14 @@ import { Rng, clamp } from "../rng";
 import { defaultGuaranteedYears, makeContract, makePlayer, marketApy, positionalCeiling } from "../generate";
 import {
   CAMP_ROSTER_LIMIT, FranchiseTagSnapshot, GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player,
-  PRACTICE_SQUAD_LIMIT, ROSTER_LIMIT, Position, POSITION_MIN, POSITIONS, rosterLimit,
+  PRACTICE_SQUAD_LIMIT, REGULAR_SEASON_WEEKS, ROSTER_LIMIT, Position, POSITION_MIN, POSITIONS, rosterLimit,
 } from "../types";
-import { addDeadCap, capHit, deadMoney, formatMoney, isActiveRoster, isOnWaivers, positionCount, practiceSquadCount, remainingBonusProration, rosterCount, startSeason, teamCap } from "../select";
+import {
+  addDeadCap, annualCapHit, capHit, deadMoney, departingPaidOut, expiresAtRollover, formatMoney,
+  isActiveRoster, isOnWaivers,
+  positionCount, practiceSquadCount, regularWeeksPaid, remainingBonusProration, rosterCount,
+  settlePaidWeeks, startContractNow, startSeason, teamCap,
+} from "../select";
 import { resolveDemand } from "../psychology";
 import { clearRosterSlot } from "../rosterStatus";
 import { POSITION_VALUE } from "../ratings";
@@ -37,6 +42,7 @@ const CAP_TO_VALUE = 340;
 
 export function contractYearsRemainingAfterRollover(p: Player): number {
   if (!p.contract) return 0;
+  if (p.contract.startsNextLeagueYear) return p.contract.yearsRemaining;
   return Math.max(0, p.contract.yearsRemaining - 1);
 }
 
@@ -45,7 +51,7 @@ export function expiringPlayers(state: GameState, teamId: number): Player[] {
   const out: Player[] = [];
   for (const p of state.players) {
     if (p.teamId !== teamId || p.retired || p.prospect || !p.contract) continue;
-    if (p.contract.yearsRemaining !== 1) continue;
+    if (!expiresAtRollover(p.contract)) continue;
     out.push(p);
   }
   return out;
@@ -70,7 +76,7 @@ function liveTopFiveAverage(state: GameState, pos: Position): number | null {
   const hits: number[] = [];
   for (const x of state.players) {
     if (x.retired || x.prospect || x.pos !== pos || !x.contract) continue;
-    const h = capHit(x.contract);
+    const h = annualCapHit(x.contract);
     if (h > 0) hits.push(h);
   }
   hits.sort((a, b) => b - a);
@@ -123,7 +129,7 @@ export function previousConsecutiveTags(state: GameState, teamId: number, player
  * See `docs/nfl-reference.md` §4.
  */
 export function franchiseTagSalary(state: GameState, p: Player): number {
-  const lastYear = p.contract ? capHit(p.contract) : LEAGUE_MINIMUM;
+  const lastYear = p.contract ? annualCapHit(p.contract) : LEAGUE_MINIMUM;
   const prev = p.teamId === null ? 0 : previousConsecutiveTags(state, p.teamId, p.id);
   const n = prev + 1;
   if (n === 2) {
@@ -147,7 +153,7 @@ export function applyFranchiseTag(
   if (!p) return { ok: false, reason: "No such player" };
   if (p.retired) return { ok: false, reason: "Player has retired" };
   if (p.teamId !== teamId) return { ok: false, reason: "Player is not on this roster" };
-  if (!p.contract || p.contract.yearsRemaining !== 1) {
+  if (!p.contract || !expiresAtRollover(p.contract)) {
     return { ok: false, reason: "Only a player entering free agency can be tagged." };
   }
   const consecutive = previousConsecutiveTags(state, teamId, playerId) + 1;
@@ -158,7 +164,7 @@ export function applyFranchiseTag(
   ensureFranchiseTagSnapshot(state);
   const currentHit = capHit(p.contract);
   const apy = franchiseTagSalary(state, p);
-  const contract = makeContract(rng, apy, 1, state.season, defaultGuaranteedYears(apy, 1));
+  const contract = startContractNow(state, makeContract(rng, apy, 1, state.season, defaultGuaranteedYears(apy, 1)));
   const hit = capHit(contract);
   const cap = teamCap(state, teamId);
   const available = cap.space + currentHit;
@@ -185,6 +191,8 @@ export function applyFranchiseTag(
 
 /** Cap hit after one expire step. Expiring deals (1 year left) are $0. */
 function nextSeasonCapHit(c: NonNullable<Player["contract"]> | null): number {
+  // A playoff signing's first year is next season.
+  if (c?.startsNextLeagueYear) return annualCapHit(c);
   if (!c || c.yearsRemaining <= 1) return 0;
   const nextBase = c.baseSalary[1] ?? 0;
   const elapsed = Math.max(0, c.years - c.yearsRemaining);
@@ -321,11 +329,11 @@ export function fifthYearOptionPlayers(state: GameState, teamId: number): Player
  * See `docs/nfl-reference.md` §4.
  */
 export function fifthYearOptionSalary(state: GameState, p: Player): number {
-  const lastYear = p.contract ? capHit(p.contract) : LEAGUE_MINIMUM;
+  const lastYear = p.contract ? annualCapHit(p.contract) : LEAGUE_MINIMUM;
   const hits: number[] = [];
   for (const x of state.players) {
     if (x.retired || x.prospect || x.pos !== p.pos || !x.contract) continue;
-    const h = capHit(x.contract);
+    const h = annualCapHit(x.contract);
     if (h > 0) hits.push(h);
   }
   hits.sort((a, b) => b - a);
@@ -483,7 +491,7 @@ export function applyTagExtension(
 
   const currentHit = capHit(p.contract);
   const { years: yrs, apy } = tagExtensionTerms(state, teamId, p);
-  const contract = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
+  const contract = startContractNow(state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)));
   const hit = capHit(contract);
   const cap = teamCap(state, teamId);
   const available = cap.space + currentHit;
@@ -559,9 +567,15 @@ export function expireContracts(state: GameState): Player[] {
   for (const p of state.players) {
     if (p.retired || p.prospect || !p.contract) continue;
     if (isFranchiseTagged(state, p.id)) continue;
+    // A playoff signing starts now: this roll is its first league year.
+    if (p.contract.startsNextLeagueYear) {
+      delete p.contract.startsNextLeagueYear;
+      continue;
+    }
 
     p.contract.yearsRemaining -= 1;
     p.contract.baseSalary = p.contract.baseSalary.slice(1);
+    if (p.contract.weeksBefore !== undefined) delete p.contract.weeksBefore;
     // bonusProrationYears is the TERM of the proration, fixed at signing. How
     // much of it is left is derived from `years - yearsRemaining`; decrementing
     // it here made the annual bonus charge grow every season.
@@ -596,6 +610,8 @@ export function cutPlayer(state: GameState, playerId: number): CutResult {
   if (p.teamId === null) return { ok: false, reason: "Player is not on a roster", dead: 0, savings: 0 };
 
   const teamId = p.teamId;
+  // The weeks he was paid here stay here; whoever is next starts at this week.
+  settlePaidWeeks(state, p, teamId);
   const dead = deadMoney(p.contract);
   const savings = capHit(p.contract) - dead;
 
@@ -653,7 +669,7 @@ export function signPlayer(
     };
   }
 
-  const contract = makeContract(rng, offer, yrs, state.season, defaultGuaranteedYears(offer, yrs));
+  const contract = startContractNow(state, makeContract(rng, offer, yrs, state.season, defaultGuaranteedYears(offer, yrs)));
   const hit = capHit(contract);
   const cap = teamCap(state, teamId);
   if (hit > cap.space) {
@@ -849,12 +865,15 @@ export function applyOfficeExtension(
     };
   }
 
-  const contract = makeContract(
+  // In season the old deal's paid weeks stay booked at its rate; the new deal
+  // pays the weeks left.
+  const paidOld = departingPaidOut(state, p.contract);
+  const contract = startContractNow(state, makeContract(
     contractOfficeChildRng(state), apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)
-  );
+  ));
   const hit = capHit(contract);
   const cap = teamCap(state, teamId);
-  const available = cap.space + currentHit;
+  const available = cap.space + currentHit - paidOld;
   if (hit > available) {
     return {
       ok: false,
@@ -862,6 +881,7 @@ export function applyOfficeExtension(
     };
   }
 
+  settlePaidWeeks(state, p, teamId);
   p.contract = contract;
   if (p.psychology?.holdout) resolveDemand(state, p.id);
   state.log.push({
@@ -900,6 +920,24 @@ export function submitOfficeOffer(
  * `capHit` / `deadMoney` math — no new Contract fields. Needs 2+ years left
  * or there is nowhere to push the charge.
  */
+/**
+ * How much of this year's base a restructure can turn into bonus. Only base
+ * not yet paid converts: in season, the excess over the minimum for the weeks
+ * left. `newBase` is the annual figure that lowers this holder's charge by
+ * exactly `convert`. Out of season it is the whole excess, as before.
+ */
+function restructureConversion(
+  state: GameState, c: NonNullable<Player["contract"]>
+): { convert: number; newBase: number } {
+  const base = c.baseSalary[0] ?? 0;
+  const before = c.weeksBefore ?? 0;
+  const left = REGULAR_SEASON_WEEKS - Math.max(before, regularWeeksPaid(state));
+  if (left <= 0 || c.startsNextLeagueYear) return { convert: 0, newBase: base };
+  const convert = Math.round(Math.max(0, base - LEAGUE_MINIMUM) * left / REGULAR_SEASON_WEEKS);
+  const newBase = Math.round(base - convert * REGULAR_SEASON_WEEKS / (REGULAR_SEASON_WEEKS - before));
+  return { convert, newBase };
+}
+
 export function restructurePreview(
   state: GameState, teamId: number, p: Player
 ): { ok: boolean; reason?: string; convert: number; savings: number; oldHit: number; newHit: number } {
@@ -914,15 +952,18 @@ export function restructurePreview(
   if (c.yearsRemaining < 2) {
     return { ok: false, reason: "Need at least two years left to restructure.", ...empty };
   }
-  const convert = Math.max(0, (c.baseSalary[0] ?? 0) - LEAGUE_MINIMUM);
+  const { convert, newBase } = restructureConversion(state, c);
   if (convert <= 0) {
-    return { ok: false, reason: "This year's base is already at the league minimum.", ...empty };
+    return { ok: false, reason: "This year's unpaid base is already at the league minimum.", ...empty };
   }
   const oldHit = capHit(c);
   const leftover = remainingBonus(c);
   const voids = c.voidYears ?? 0;
   const spread = Math.min(c.yearsRemaining, 5) + voids;
-  const newHit = Math.round((c.baseSalary[0] - convert) + (leftover + convert) / spread);
+  const newHit = Math.round(
+    capHit({ ...c, baseSalary: [newBase, ...c.baseSalary.slice(1)], signingBonus: 0 })
+    + (leftover + convert) / spread,
+  );
   return { ok: true, convert, savings: oldHit - newHit, oldHit, newHit };
 }
 
@@ -945,7 +986,7 @@ export function applyRestructure(
   const newBonusPool = leftover + convert;
   const newProrationYears = elapsed + spread;
 
-  c.baseSalary[0] = (c.baseSalary[0] ?? 0) - convert;
+  c.baseSalary[0] = restructureConversion(state, c).newBase;
   c.signingBonus = Math.round(newBonusPool * newProrationYears / spread);
   c.bonusProrationYears = newProrationYears;
 
@@ -1090,7 +1131,7 @@ export function cpuResign(state: GameState, teamId: number, candidates: Player[]
     // Clubs pay a premium to keep their own — that is what "loyalty" buys.
     const apy = negotiatedApy(state, teamId, p, 0.94 + fo.loyalty * 0.12);
     const yrs = suggestedYears(p);
-    const probe = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
+    const probe = startContractNow(state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)));
     const hit = capHit(probe);
     if (hit > cap.space * 0.55) continue;
     if (cap.committed + hit > budget) continue;
@@ -1181,7 +1222,7 @@ function signAtMarket(state: GameState, teamId: number, p: Player, rng: Rng): vo
   const apy = negotiatedApy(state, teamId, p, 1);
   const yrs = apy <= LEAGUE_MINIMUM * 1.25 ? 1 : suggestedYears(p);
   p.teamId = teamId;
-  p.contract = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
+  p.contract = startContractNow(state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)));
   clearRosterSlot(p);
 }
 
@@ -1458,7 +1499,7 @@ export function spendToFloor(state: GameState, teamId: number, rng: Rng): void {
 
       const apy = negotiatedApy(state, teamId, fa, overpay);
       const yrs = suggestedYears(fa);
-      const probe = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
+      const probe = startContractNow(state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)));
       // The upgrade has to fit once the outgoing player's hit comes off.
       if (capHit(probe) - capHit(out.contract) + deadMoney(out.contract) > space) continue;
 
@@ -1480,7 +1521,7 @@ export function spendToFloor(state: GameState, teamId: number, rng: Rng): void {
     const apy = negotiatedApy(state, teamId, best, overpay);
     const yrs = suggestedYears(best);
     best.teamId = teamId;
-    best.contract = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
+    best.contract = startContractNow(state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)));
     state.log.push({
       season: state.season, week: state.week, kind: "transaction",
       text: `${state.teams[teamId].abbr} signed ${best.firstName} ${best.lastName} (${best.pos}, ${best.ovr} OVR) — ${yrs}yr / $${(apy / 1e6).toFixed(1)}M per year`,
@@ -1600,7 +1641,7 @@ export function upgradeRoster(state: GameState, teamId: number, rng: Rng): numbe
 
       const apy = negotiatedApy(state, teamId, fa, 1);
       const yrs = suggestedYears(fa);
-      const probe = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
+      const probe = startContractNow(state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)));
       // Has to fit once the outgoing man's hit comes off and his dead money on.
       if (capHit(probe) - capHit(out.contract) + deadMoney(out.contract) > space) continue;
 
@@ -1615,7 +1656,7 @@ export function upgradeRoster(state: GameState, teamId: number, rng: Rng): numbe
     const apy = negotiatedApy(state, teamId, best, 1);
     const yrs = suggestedYears(best);
     best.teamId = teamId;
-    best.contract = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
+    best.contract = startContractNow(state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)));
     swaps++;
   }
 
@@ -1639,7 +1680,7 @@ function extendOwnPlayer(
   for (const p of roster) {
     // A club that must spend pays its own above the market too.
     const market = askingPrice(state, p) * overpay;
-    const gap = market - capHit(p.contract);
+    const gap = market - annualCapHit(p.contract);
     if (gap <= LEAGUE_MINIMUM || gap <= bestGap) continue;
     if (gap > space) continue;
     target = p;
@@ -1649,7 +1690,7 @@ function extendOwnPlayer(
 
   const apy = negotiatedApy(state, teamId, target, overpay);
   const yrs = clamp(suggestedYears(target) + 1, 1, 6);
-  target.contract = makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs));
+  target.contract = startContractNow(state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)));
   state.log.push({
     season: state.season, week: state.week, kind: "transaction",
     text: `${state.teams[teamId].abbr} extended ${target.firstName} ${target.lastName} (${target.pos}, ${target.ovr} OVR) — ${yrs}yr / $${(apy / 1e6).toFixed(1)}M per year`,
@@ -1717,7 +1758,7 @@ export function reconcileRoster(
     // escape hatch that guarantees a legal team, but it is a 95% haircut the
     // player never agreed to, so it must never happen silently.
     const was = capHit(target.contract);
-    target.contract = makeContract(rng, LEAGUE_MINIMUM, 1, state.season, 0);
+    target.contract = startContractNow(state, makeContract(rng, LEAGUE_MINIMUM, 1, state.season, 0));
     state.log.push({
       season: state.season, week: state.week, kind: "transaction",
       text: `${state.teams[teamId].abbr} restructured ${target.firstName} ${target.lastName} (${target.pos}) to the league minimum — forced by the cap, was $${(was / 1e6).toFixed(1)}M`,
