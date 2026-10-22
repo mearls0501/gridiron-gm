@@ -248,6 +248,22 @@ if (await simTo.count()) {
     await simTo.click();
     await page.waitForTimeout(1500);
   }
+  // A trade-down offer for the user's pick opens a review; Back leaves the pick alone.
+  const phones = page.locator("div", { hasText: "The phones are ringing" }).last();
+  const review = page.getByRole("button", { name: /^Review$/ }).first();
+  if ((await phones.count()) && (await review.count())) {
+    await review.click();
+    await page.waitForTimeout(400);
+    const t = await text();
+    if (/Trade down from #\d+/.test(t) && /your next pick/i.test(t) && /Confirm and move down/.test(t)) {
+      ok("trade-down offer opens a review before it commits");
+    } else fail("Review did not open the trade-down panel");
+    await page.getByRole("button", { name: /^Back$/ }).first().click();
+    await page.waitForTimeout(300);
+    if (/Confirm and move down/.test(await text())) fail("Back did not close the trade-down review");
+  } else {
+    console.log("  note  no trade-down offer on the user's clock this run");
+  }
   const draftBtn = page.getByRole("button", { name: /^Draft$/i }).first();
   if (await draftBtn.count()) {
     const enabled = await draftBtn.isEnabled();
