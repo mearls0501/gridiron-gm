@@ -10,6 +10,7 @@ import { ensureScoutStaff } from "../core/scoutStaff";
 import { catchUpFutureClasses } from "../core/futureClass";
 import { pruneStaleTradeInbox } from "../core/trades";
 import { decodeSave, encodeSave, EncodedSave } from "./codec";
+import { ensureCurrentRoundGames } from "../core/season/playoffs";
 import { rebuildRegularSeasonStats } from "../core/season/stats";
 
 /**
@@ -282,6 +283,10 @@ export function migrate(state: GameState): GameState {
   if (typeof state.seasonCounters.holdoutGamesMissedLast !== "number") {
     state.seasonCounters.holdoutGamesMissedLast = 0;
   }
+
+  // A playoff round that opened before its games were stored. Weather
+  // reads rngState and does not write it.
+  ensureCurrentRoundGames(state);
 
   if (state.version === STATE_VERSION) return state;
   state.version = STATE_VERSION;

@@ -1,4 +1,4 @@
-import { OwnerJobView } from "../core/owner";
+import { OwnerJobView, OwnerSeat } from "../core/owner";
 import { computeRecords } from "../core/select";
 import { GAMES_PER_TEAM, GameState } from "../core/types";
 
@@ -84,4 +84,49 @@ export function ownerCardPace(
 export function ownerMarginSub(job: OwnerJobView, pace: OwnerCardPace): string {
   const line = `bar ${job.bar.toFixed(1)} · margin ${pace.margin.toFixed(1)}`;
   return pace.label ? `${line} · ${pace.label}` : line;
+}
+
+/**
+ * Weeks 2–5 are a handful of games. A raw win total that small trips the
+ * full-season firing line, and the card used to say the season was over.
+ * Five games played is the last sample that stays early (a week-5 club
+ * has played at most five). This does not call `ownerJudgment` and does
+ * not change `job.wouldFire`.
+ */
+export const EARLY_VERDICT_GAMES = 5;
+
+export function earlySeasonSample(state: GameState, teamId: number): boolean {
+  if (state.phase !== "regular") return false;
+  if (state.history.some((h) => h.season === state.season)) return false;
+  const rec = computeRecords(state, state.season).get(teamId);
+  if (!rec) return false;
+  const played = rec.w + rec.l + rec.t;
+  return played > 0 && played <= EARLY_VERDICT_GAMES;
+}
+
+export interface OwnerCardVerdict {
+  /** Printed in the Would fire stat. `early` is withheld, not a yes. */
+  wouldFire: "yes" | "no" | "early";
+  /** Seat pill. `early` stands in for `fired` while the sample is short. */
+  seat: OwnerSeat | "early";
+  line: string;
+}
+
+export function ownerCardVerdict(
+  state: GameState,
+  teamId: number,
+  job: OwnerJobView,
+): OwnerCardVerdict {
+  if (!job.wouldFire || !earlySeasonSample(state, teamId)) {
+    return {
+      wouldFire: job.wouldFire ? "yes" : "no",
+      seat: job.seat,
+      line: job.line,
+    };
+  }
+  return {
+    wouldFire: "early",
+    seat: "early",
+    line: `${job.owner.name} reads a firing verdict after more than five games. This sample is still early.`,
+  };
 }

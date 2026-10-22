@@ -17,7 +17,7 @@ import {
   staffSlot,
 } from "@/lib/core/coaches";
 import { ensureOwners, isPendingForcedMove, ownerJobView, patienceScaleLabel } from "@/lib/core/owner";
-import { ownerCardPace, ownerMarginSub } from "@/lib/view/ownerPace";
+import { ownerCardPace, ownerCardVerdict, ownerMarginSub } from "@/lib/view/ownerPace";
 import { schemeById } from "@/lib/core/staff";
 import { coachTermLabel, staffCardFields } from "@/lib/view/staffDesk";
 import {
@@ -133,6 +133,7 @@ export default function StaffPage() {
   const mine = teamId === state?.userTeamId;
   const job = state ? ownerJobView(state, teamId) : null;
   const pace = state && job ? ownerCardPace(state, teamId, job) : null;
+  const verdict = state && job ? ownerCardVerdict(state, teamId, job) : null;
 
   const market = useMemo(() => {
     if (!state || !hiring) return [];
@@ -144,8 +145,15 @@ export default function StaffPage() {
   if (!state || !team) return null;
   void rev;
 
+  const cardSeat = verdict?.seat ?? job?.seat;
   const seatTone =
-    job?.seat === "fired" ? "bad" : job?.seat === "hot" ? "warn" : job?.seat === "watched" ? "accent" : "good";
+    cardSeat === "fired" ? "bad" : cardSeat === "hot" ? "warn" : cardSeat === "early" || cardSeat === "watched" ? "accent" : "good";
+  const seatStatTone =
+    !job?.firingEnabled ? "good" as const
+    : cardSeat === "safe" ? "good" as const
+    : cardSeat === "fired" ? "bad" as const
+    : cardSeat === "early" ? undefined
+    : "warn" as const;
 
   return (
     <div className="space-y-4">
@@ -179,8 +187,8 @@ export default function StaffPage() {
           <Stat label="Owner" value={team.owner?.name ?? "—"} />
           <Stat
             label="Job security"
-            value={job ? (job.firingEnabled ? job.seat : "guaranteed") : "—"}
-            tone={job?.firingEnabled ? (job.seat === "safe" ? "good" : job.seat === "fired" ? "bad" : "warn") : "good"}
+            value={job ? (job.firingEnabled ? cardSeat : "guaranteed") : "—"}
+            tone={seatStatTone}
           />
         </div>
       </div>
@@ -189,7 +197,7 @@ export default function StaffPage() {
         <Card
           title={`Owner · ${job.owner.name}`}
           subtitle={`${job.posture} club · expects about ${job.expectedWins} wins`}
-          actions={<Pill tone={seatTone}>{job.firingEnabled ? job.seat : "firing off"}</Pill>}
+          actions={<Pill tone={seatTone}>{job.firingEnabled ? cardSeat : "firing off"}</Pill>}
         >
           <div className="grid gap-2 sm:grid-cols-4 mb-3">
             <Stat label="Patience" value={job.owner.patience.toFixed(2)} sub={patienceScaleLabel()} />
@@ -205,11 +213,12 @@ export default function StaffPage() {
             />
             <Stat
               label="Would fire"
-              value={job.wouldFire ? "yes" : "no"}
-              tone={job.wouldFire ? "bad" : "good"}
+              value={verdict?.wouldFire ?? "—"}
+              sub={verdict?.wouldFire === "early" ? "after five games" : undefined}
+              tone={verdict?.wouldFire === "yes" ? "bad" : verdict?.wouldFire === "no" ? "good" : undefined}
             />
           </div>
-          <p className="text-sm text-[var(--color-muted)]">{job.line}</p>
+          <p className="text-sm text-[var(--color-muted)]">{verdict?.line}</p>
           {isPendingForcedMove(state) && (
             <p className="text-sm text-[var(--color-bad)] mt-2">
               Forced move is on the desk — <a className="underline" href="/forced-move">take an open chair or retire</a>.

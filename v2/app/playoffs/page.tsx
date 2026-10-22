@@ -111,7 +111,7 @@ export default function PlayoffsPage() {
           isUser
             ? "border-[var(--color-accent)] bg-[var(--color-accent-dim)]/30"
             : "border-[var(--color-line-soft)] bg-[var(--color-surface-2)]",
-          g.played && "hover:bg-[var(--color-surface-3)]"
+          (g.played || isUser) && "hover:bg-[var(--color-surface-3)]"
         )}
       >
         {side(g.awayId, g.awayScore, awayWon)}
@@ -123,19 +123,27 @@ export default function PlayoffsPage() {
               : `${state!.teams[g.homeId].abbr} hosts`}
           </span>
           <span className="text-[10px] text-[var(--color-accent)]">
-            {g.played ? "Box score →" : "Not played"}
+            {g.played ? "Box score →" : isUser ? "Call plays →" : "Not played"}
           </span>
         </div>
       </div>
     );
 
-    return g.played ? (
-      <Link href={`/game/${g.id}`} className="block">
-        {body}
-      </Link>
-    ) : (
-      body
-    );
+    if (g.played) {
+      return (
+        <Link href={`/game/${g.id}`} className="block">
+          {body}
+        </Link>
+      );
+    }
+    if (isUser) {
+      return (
+        <Link href="/play" className="block">
+          {body}
+        </Link>
+      );
+    }
+    return body;
   }
 
   function SeedTable({ conf }: { conf: Conference }) {

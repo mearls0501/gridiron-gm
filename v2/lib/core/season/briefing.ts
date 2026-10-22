@@ -407,7 +407,8 @@ export function buildBriefing(state: GameState): Briefing {
     headlines: lastWeek >= 1 ? buildHeadlines(state, lastWeek) : [],
     actionItems: action,
     reviewItems: review,
-    opponent: state.phase === "regular" || state.phase === "preseason" ? buildOpponent(state) : null,
+    opponent: state.phase === "regular" || state.phase === "preseason" || state.phase === "playoffs"
+      ? buildOpponent(state) : null,
     onBye: state.phase === "regular" && isOnBye(state, state.userTeamId),
     injuries,
   };
