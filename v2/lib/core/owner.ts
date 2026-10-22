@@ -1,4 +1,5 @@
 import { teamOutlook, type Posture } from "./frontOffice";
+import { runCpuFranchiseTags } from "./offseason/contracts";
 import { makeCoachName } from "./names";
 import { dedupeOwnerAndCoachNames } from "./peopleNames";
 import { Rng, clamp } from "./rng";
@@ -493,11 +494,17 @@ export function acceptGmChair(
   const team = state.teams[teamId];
   if (!team) return { ok: false, reason: "No such club." };
   const start = nextSeasonCoaching(state);
+  const fromTeamId = state.forcedMove!.fromTeamId;
   state.userTeamId = teamId;
   team.gmHiredSeason = start;
   team.forcedRebuildUntil = start + 1;
   state.forcedMove!.resolved = true;
   state.forcedMove!.toTeamId = teamId;
+  // The chair he took was held out of the CPU pass. Tag the other open
+  // chairs now. The club he left stays untagged, same as a headless run.
+  if (state.phase === "offseason-tag" || state.phase === "offseason-recap") {
+    runCpuFranchiseTags(state, new Rng(state.rngState), [fromTeamId]);
+  }
   state.log.push({
     season: state.season,
     week: state.week,
@@ -513,6 +520,9 @@ export function retireFromLeague(state: GameState): { ok: boolean; reason?: stri
   }
   state.forcedMove!.resolved = true;
   state.forcedMove!.retired = true;
+  if (state.phase === "offseason-tag" || state.phase === "offseason-recap") {
+    runCpuFranchiseTags(state, new Rng(state.rngState));
+  }
   const from = state.teams[state.forcedMove!.fromTeamId];
   state.log.push({
     season: state.season,

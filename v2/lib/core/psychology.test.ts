@@ -110,6 +110,18 @@ function stripPsych(st: GameState): GameState {
 }
 
 {
+  const st = newGame({ seed: 19 });
+  const club = st.players.filter((p) => p.teamId === st.userTeamId && !p.prospect && !p.retired);
+  assert.ok(club.length >= 4, "need four rostered players");
+  for (const p of club.slice(0, 4)) plantDemand(st, p.id, "holdout", "money");
+  const hold = buildBriefing(st).actionItems.find((a) => /holdout/i.test(a.label));
+  assert.ok(hold);
+  assert.match(hold!.label, /^4 holdouts/);
+  assert.match(hold!.detail, /and 1 more/, "the card names the holdouts it did not list");
+  ok("holdout card count matches the names it shows");
+}
+
+{
   const st = newGame({ seed: 21 });
   const p = st.players.find((x) => x.teamId === st.userTeamId && x.contract && !x.prospect)!;
   plantDemand(st, p.id, "tradeRequest", "role");

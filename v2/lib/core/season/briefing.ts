@@ -201,10 +201,12 @@ function buildActionItems(state: GameState): { action: ActionItem[]; review: str
 
   const psych = psychologyView(state, state.userTeamId);
   if (psych.holdouts.length > 0) {
-    const names = psych.holdouts.slice(0, 3).map((p) => playerName(p));
+    const shown = psych.holdouts.slice(0, 3).map((p) => playerName(p));
+    const rest = psych.holdouts.length - shown.length;
+    const names = rest > 0 ? `${shown.join(", ")} and ${rest} more` : shown.join(", ");
     action.push({
       label: `${psych.holdouts.length} holdout${psych.holdouts.length > 1 ? "s" : ""} — inactive`,
-      detail: `${names.join(", ")} — inactive until extended, traded, or the 4-week report. ${psych.holdouts.length === 1 ? holdoutDetail(state, psych.holdouts[0]) : ""}`.trim(),
+      detail: `${names} — inactive until extended, traded, or the 4-week report. ${psych.holdouts.length === 1 ? holdoutDetail(state, psych.holdouts[0]) : ""}`.trim(),
       href: "/finances",
       urgent: true,
     });

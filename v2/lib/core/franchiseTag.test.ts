@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { makeContract } from "./generate";
 import { Rng } from "./rng";
-import { capHit, freeAgents, isActiveRoster, rosterCount, teamCap } from "./select";
+import { blankRecord, capHit, freeAgents, isActiveRoster, rosterCount, teamCap } from "./select";
 import { LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player, ROSTER_LIMIT } from "./types";
 import {
   applyFranchiseTag, clubFranchiseTaggedPlayer, clubHasFranchiseTag, cpuResign,
@@ -21,6 +21,7 @@ import {
 import { evaluate, teamOutlook } from "./frontOffice";
 import { POSITION_VALUE } from "./ratings";
 import { advanceOffseason, faPool } from "./offseason";
+import { acceptGmChair, isPendingForcedMove } from "./owner";
 
 function clubActive(st: ReturnType<typeof newGame>, teamId: number) {
   return st.players.filter((p) => p.teamId === teamId && !p.retired && !p.prospect && isActiveRoster(p));
@@ -504,4 +505,66 @@ function plantTaggableEdge(st: ReturnType<typeof newGame>, teamId: number): Play
     "CPU still tags an expiring EDGE when nobody busts the ceiling",
   );
   ok("EDGE-only club still tags the EDGE");
+}
+
+// A fired GM picks a chair after CPU tags. Open chairs stay untagged until
+// he takes one or the window closes without a move.
+{
+  const st = newGame({ seed: 55 });
+  st.settings = { ...(st.settings!), firingEnabled: true };
+  st.teams[st.userTeamId].owner!.patience = 0.35;
+  st.teams[st.userTeamId].gmHiredSeason = st.season - 2;
+  for (const season of [st.season - 2, st.season - 1]) {
+    st.history.push({
+      season,
+      championId: st.userTeamId === 0 ? 1 : 0,
+      runnerUpId: 2,
+      standings: st.teams.map((t) => {
+        const w = t.id === st.userTeamId ? 3 : 12;
+        const r = blankRecord(t.id);
+        r.w = w;
+        r.l = 17 - w;
+        r.expectedWins = 10;
+        return r;
+      }),
+      awards: { mvp: null, opoy: null, dpoy: null, roy: null },
+      leaders: { passYds: null, rushYds: null, recYds: null, sacks: null },
+    });
+  }
+  st.phase = "offseason-recap";
+  advanceOffseason(st);
+  assert.equal(st.phase, "offseason-tag");
+  assert.equal(isPendingForcedMove(st), true);
+  const chairs = st.forcedMove?.openChairs ?? [];
+  assert.ok(chairs.length >= 2, "open chairs");
+  for (const id of chairs) {
+    assert.equal(clubHasFranchiseTag(st, id), false, `${st.teams[id].abbr} was tagged before the GM picked a chair`);
+  }
+  const opened = JSON.parse(JSON.stringify(st)) as typeof st;
+  const headless = JSON.parse(JSON.stringify(st)) as typeof st;
+  const tagsAtOpen = (opened.franchiseTags ?? []).length;
+  advanceOffseason(headless);
+  assert.ok(
+    (headless.franchiseTags ?? []).length > tagsAtOpen,
+    "closing the window without a move still tags the held chairs",
+  );
+  const taken = chairs[1];
+  assert.equal(clubHasFranchiseTag(headless, taken), true, `${st.teams[taken].abbr} is tagged when the GM does not take it`);
+  const from = opened.forcedMove!.fromTeamId;
+  assert.equal(acceptGmChair(opened, taken).ok, true);
+  assert.equal(opened.userTeamId, taken);
+  assert.equal(clubHasFranchiseTag(opened, taken), false, "the chair he took still has its tag");
+  assert.equal(clubHasFranchiseTag(opened, from), false, "the club he left is not tagged for him");
+  advanceOffseason(opened);
+  assert.equal(clubHasFranchiseTag(opened, taken), false, "CPU does not spend the new club's tag when the window closes");
+  assert.equal(clubHasFranchiseTag(opened, from), false, "the old club stays untagged, same as headless");
+  for (const t of opened.teams) {
+    if (t.id === taken || t.id === from) continue;
+    assert.equal(
+      clubHasFranchiseTag(opened, t.id),
+      clubHasFranchiseTag(headless, t.id),
+      `${t.abbr} tag matches a run that never changed chairs`,
+    );
+  }
+  ok("open chairs keep their tag until the fired GM picks");
 }

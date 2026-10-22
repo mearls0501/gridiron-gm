@@ -9,8 +9,9 @@ import { GameState, Player } from "../core/types";
  *
  * The rows are the contract office: asking price is `extensionAskingApy`,
  * and Offer / Meet asking go through `submitOfficeOffer`. A player who
- * meets the ask leaves this list. A franchise tag is not a re-sign and
- * does not walk when Continue closes the window.
+ * re-signs leaves this list. A franchise tag is not a re-sign: he is not
+ * on this list, and he does not walk when Continue closes the window.
+ * His multi-year extension is the July 15 desk in camp.
  */
 
 export interface ResignStepRow {
@@ -21,6 +22,7 @@ export interface ResignStepRow {
 
 export function resignStepRows(state: GameState, teamId = state.userTeamId): ResignStepRow[] {
   return expiringPlayers(state, teamId)
+    .filter((p) => !isFranchiseTagged(state, p.id))
     .slice()
     .sort((a, b) => presentedOvr(b.pos, b.ovr) - presentedOvr(a.pos, a.ovr) || a.id - b.id)
     .map((player) => ({

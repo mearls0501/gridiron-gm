@@ -406,6 +406,7 @@ export default function Hub() {
               <p className="text-sm">
                 {taggedPlayer.firstName} {taggedPlayer.lastName} ({taggedPlayer.pos}) is
                 tagged — {formatMoney(capHit(taggedPlayer.contract))} this year.
+                The multi-year extension is the July 15 desk in camp, after the draft.
                 Continue to open free agency.
               </p>
             ) : names.length === 0 ? (
@@ -501,8 +502,8 @@ export default function Hub() {
                             disabled={!row.offerable}
                             title={
                               terms
-                                ? `Club offer ${terms.years}yr / ${formatMoney(terms.apy)} — they want ${formatMoney(row.asking)}`
-                                : "A tagged tender is extended on the Hub."
+                                ? `Club offer ${terms.years}yr / ${formatMoney(terms.apy)} per year. Meet asking pays ${formatMoney(row.asking)}.`
+                                : "A tagged tender is extended on the July 15 desk in camp."
                             }
                             onClick={() =>
                               apply((s) => submitOfficeOffer(s, s.userTeamId, p.id, false).message)
