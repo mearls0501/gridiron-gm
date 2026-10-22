@@ -64,6 +64,14 @@ export const COACH_CONTRACT = {
 const MARKET_SIZE = 8;
 const FIRST_COACH_ID = 1000;
 
+/**
+ * Unemployed coordinators the desk keeps available to hire.
+ * CPU fill either takes a market body or mints one straight onto the
+ * chair. Once unemployed head coaches fill `MARKET_SIZE`, the old
+ * length check never opens again, so a role that hits zero stays there.
+ */
+const COORDINATOR_MARKET_FLOOR = 2;
+
 export function coachesChildRng(state: GameState): Rng {
   return childRng(state.seed, state.season, state.week, "coaches");
 }
@@ -292,6 +300,35 @@ export function emptyCoordinatorFlags(team: Team): CoordinatorChairFlag[] {
   return flags;
 }
 
+export interface StaffChairFlag {
+  role: CoachRole;
+  message: string;
+  detail: string;
+  href: "/staff";
+}
+
+/**
+ * Hub notice for a vacant head coach. Coordinator flags do not include
+ * this chair, and the carousel does not fill it for the user's club.
+ */
+export function emptyHeadCoachFlag(team: Team): StaffChairFlag | null {
+  if (!team.coaches || team.coaches.hc) return null;
+  return {
+    role: "hc",
+    message: "Head coach chair is empty",
+    detail: "Hire a head coach from the market.",
+    href: "/staff",
+  };
+}
+
+/** Head coach first, then empty coordinator chairs. */
+export function staffChairFlags(team: Team): StaffChairFlag[] {
+  const hc = emptyHeadCoachFlag(team);
+  const flags: StaffChairFlag[] = hc ? [hc] : [];
+  for (const flag of emptyCoordinatorFlags(team)) flags.push(flag);
+  return flags;
+}
+
 export function sameCoachDials(a: Coach, b: Coach): boolean {
   return (
     a.offense === b.offense &&
@@ -309,6 +346,37 @@ function restockMarket(state: GameState, rng: Rng): void {
     const role = rng.pick(COACH_ROLES);
     state.coachMarket.push(makeMarketCoach(state, role, rng));
   }
+}
+
+function countMarketRole(state: GameState, role: CoachRole): number {
+  let n = 0;
+  for (const coach of state.coachMarket ?? []) if (coach.role === role) n++;
+  return n;
+}
+
+/**
+ * Child stream keyed with `nextCoachId` so a later top-up in the same
+ * week does not redraw the coaches this call just added.
+ */
+function marketTopUpRng(state: GameState): Rng {
+  const tag = `coach-market-${state.nextCoachId ?? FIRST_COACH_ID}`;
+  return childRng(state.seed, state.season, state.week, tag);
+}
+
+function topUpCoordinatorMarket(state: GameState): void {
+  if (state.nextCoachId == null) state.nextCoachId = FIRST_COACH_ID;
+  if (!state.coachMarket) state.coachMarket = [];
+  const rng = marketTopUpRng(state);
+  let added = false;
+  for (const role of COORDINATOR_ROLES) {
+    let have = countMarketRole(state, role);
+    while (have < COORDINATOR_MARKET_FLOOR) {
+      state.coachMarket.push(makeMarketCoach(state, role, rng));
+      have++;
+      added = true;
+    }
+  }
+  if (added) dedupeOwnerAndCoachNames(state);
 }
 
 export function ensureCoaches(state: GameState): void {
@@ -342,6 +410,7 @@ export function ensureCoaches(state: GameState): void {
 export function ensureCoachMarket(state: GameState): void {
   if (state.nextCoachId == null) state.nextCoachId = FIRST_COACH_ID;
   restockMarket(state, coachesChildRng(state));
+  topUpCoordinatorMarket(state);
   dedupeOwnerAndCoachNames(state);
 }
 
@@ -578,6 +647,9 @@ export function runCoachCarousel(state: GameState): CarouselEvent[] {
     }
   }
 
+  // After CPU chairs are filled. Same-tick hires keep the coaches they
+  // already took; the user's desk still has coordinators to hire.
+  topUpCoordinatorMarket(state);
   return events;
 }
 

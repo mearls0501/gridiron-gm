@@ -5,6 +5,7 @@
  * Run: npx tsx lib/core/coaches.test.ts
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { newGame } from "./newGame";
 import { decodeSave, encodeSave } from "../store/codec";
 import { effectiveCoach, setCallSheet } from "./callSheet";
@@ -18,6 +19,8 @@ import {
   STC_PUNT_YARDS_PER_POINT,
   coordinatorPlayYards,
   emptyCoordinatorFlags,
+  emptyHeadCoachFlag,
+  ensureCoachMarket,
   ensureCoaches,
   setPlayedShadow,
   zeroPlayedShadow,
@@ -27,6 +30,7 @@ import {
   peopleCoachDials,
   runCoachCarousel,
   specialTeamsRating,
+  staffChairFlags,
   staffSlot,
   tickCoachContracts,
   vacantDcYards,
@@ -419,6 +423,84 @@ function stripPeople(st: GameState): GameState {
   assert.equal(st.teams[3].coaches!.dc!.name, taken, "only the new person is renamed");
   assert.equal(st.rngState, mid);
   ok("owners and coaches do not share a full name, and the parent stream stays put");
+}
+
+function marketRoleCount(st: GameState, role: CoachRole): number {
+  let n = 0;
+  for (const coach of st.coachMarket ?? []) if (coach.role === role) n++;
+  return n;
+}
+
+{
+  // Seed 42's opening draw stocks no offensive coordinator. CPU fill
+  // then hires or mints coordinators straight onto chairs, and a pool
+  // already full of head coaches never restocks that role.
+  const st = newGame({ seed: 42 });
+  assert.equal(marketRoleCount(st, "oc"), 0, "fixture opens with no offensive coordinator");
+  const user = st.userTeamId;
+  for (let i = 0; i < 3; i++) {
+    for (const team of st.teams) {
+      for (const role of COACH_ROLES) {
+        const person = team.coaches?.[role];
+        if (person && person.yearsRemaining > 1) person.yearsRemaining = 1;
+      }
+    }
+    const parent = st.rngState;
+    tickCoachContracts(st);
+    runCoachCarousel(st);
+    assert.equal(st.rngState, parent, "coordinator top-up does not move the parent stream");
+    for (const role of COORDINATOR_ROLES) {
+      assert.ok(
+        marketRoleCount(st, role) >= 2,
+        `offseason ${i + 1} keeps ${role} on the desk (have ${marketRoleCount(st, role)})`,
+      );
+    }
+    for (const team of st.teams) {
+      if (team.id === user) continue;
+      assert.ok(team.coaches?.oc, `${team.abbr} CPU OC is filled`);
+    }
+  }
+  for (const coach of st.coachMarket ?? []) coach.role = "hc";
+  const before = st.rngState;
+  ensureCoachMarket(st);
+  assert.equal(st.rngState, before, "opening the desk does not move the parent stream");
+  assert.ok(marketRoleCount(st, "oc") >= 2, "an all-head-coach pool still gains offensive coordinators");
+  const ids = (st.coachMarket ?? []).map((c) => c.id).join(",");
+  ensureCoachMarket(st);
+  assert.equal((st.coachMarket ?? []).map((c) => c.id).join(","), ids, "a second top-up in the same week adds nobody");
+  ok("the staff market keeps offensive coordinators");
+}
+
+{
+  const st = newGame({ seed: 42 });
+  const user = st.teams[st.userTeamId];
+  assert.equal(emptyHeadCoachFlag(user), null, "a filled head coach chair is not flagged");
+  const name = user.coaches!.hc!.name;
+  const id = user.coaches!.hc!.id;
+  user.coaches!.hc!.yearsRemaining = 1;
+  tickCoachContracts(st);
+  assert.equal(user.coaches?.hc, undefined, "the user's head coach contract expires");
+  assert.ok(
+    st.log.some((e) => e.text.includes(`let head coach ${name}'s contract expire`)),
+    "the expiry is on the log",
+  );
+  runCoachCarousel(st);
+  const departed =
+    (st.coachMarket ?? []).find((c) => c.id === id)
+    ?? st.teams.map((t) => t.coaches?.hc).find((c) => c?.id === id);
+  assert.equal(departed?.name, name, "the departed head coach keeps the name on the expiry log");
+  assert.equal(user.coaches?.hc, undefined, "the carousel leaves the user's head coach chair empty");
+  const flag = emptyHeadCoachFlag(user);
+  assert.ok(flag, "an empty head coach chair raises a flag");
+  assert.equal(flag!.role, "hc");
+  assert.equal(flag!.message, "Head coach chair is empty");
+  assert.equal(flag!.detail, "Hire a head coach from the market.");
+  assert.equal(flag!.href, "/staff");
+  assert.equal(staffChairFlags(user)[0]?.role, "hc", "the head coach flag leads the hub list");
+  const hub = readFileSync(new URL("../../app/page.tsx", import.meta.url), "utf8");
+  assert.match(hub, /staffChairFlags/);
+  assert.match(hub, /f\.role === "hc" \? "Hire"/);
+  ok("an empty head coach chair is a hub notice with a hire prompt");
 }
 
 console.log("ok    coaches people layer");

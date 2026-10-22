@@ -42,7 +42,11 @@ function claim(name: string, used: Set<string>): string {
 
 function eachNamedPerson(state: GameState, visit: (person: { name: string }) => void): void {
   const teams = state.teams.slice().sort((a, b) => a.id - b.id);
-  for (const team of teams) visit(team.coach);
+  for (const team of teams) {
+    const hc = team.coaches?.hc;
+    // The dial mirror is that head coach only while he still carries it.
+    if (hc && hc.name === team.coach.name) visit(team.coach);
+  }
   for (const team of teams) {
     for (const role of ROLES) {
       const person = team.coaches?.[role];
@@ -74,19 +78,19 @@ export function uniquifyPersonName(state: GameState, person: { name: string }): 
  * Walk the league in a stable order and suffix duplicate full names.
  * Coaches are claimed before owners, so a later owner does not rename
  * a coach. A head coach who still carries `team.coach.name` is that
- * same person and keeps one name. Idempotent.
+ * same person and keeps one name. After he leaves, that mirror is not
+ * a second person and does not suffix him. Idempotent.
  */
 export function dedupeOwnerAndCoachNames(state: GameState): void {
   const used = new Set<string>();
   const teams = state.teams.slice().sort((a, b) => a.id - b.id);
 
   for (const team of teams) {
-    const raw = team.coach.name;
     const hc = team.coaches?.hc;
-    const samePerson = !!hc && hc.name === raw;
-    const next = claim(raw, used);
+    if (!hc || hc.name !== team.coach.name) continue;
+    const next = claim(team.coach.name, used);
     team.coach.name = next;
-    if (hc && samePerson) hc.name = next;
+    hc.name = next;
   }
 
   for (const team of teams) {
