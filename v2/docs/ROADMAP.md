@@ -95,12 +95,13 @@ covers five merges: trade review and cap accounting (#185), trade valuation
 (#189). `careers` and `drift` have not been read on any of them; drift moved
 trades 77.6 → 92.3 across #185–#187 (NFL ≈90).
 
-### Next — preseason packet B (the camp nudge)
+### Next — turn on preseason packet B (the camp nudge)?
 
-Let preseason play move who survives the cut. It acts on `careers` survival
-(R6–R7, UDFA), which is already open (R1–R3 over-survive), so it must be read
-on a Studio panel before it is turned on. Design:
-`docs/preseason-games-design-2026-10-20.md`.
+Built and shipped **off** (`lib/core/campGrade.ts`). Let preseason play move
+who survives the cut. It acts on `careers` survival (R6–R7, UDFA), which is
+already open (R1–R3 over-survive), so read a Studio panel with
+`GG_CAMP_NUDGE=1` against one without before turning it on. Design and
+as-built: `docs/preseason-games-design-2026-10-20.md`.
 
 ### Then — the long tail (Phase 6, unchanged)
 
