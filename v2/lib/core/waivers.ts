@@ -1,4 +1,4 @@
-import { GameState, Player, POSITION_MIN, PRACTICE_SQUAD_LIMIT, rosterLimit, salaryCap, WaiverClaim } from "./types";
+import { GameState, Player, POSITION_ACTIVE_MAX, POSITION_MIN, PRACTICE_SQUAD_LIMIT, rosterLimit, salaryCap, WaiverClaim } from "./types";
 import { addDeadCap, capHit, deadMoney, getPlayer, isActiveRoster, rosterCount, startSeason } from "./select";
 import { placeOnPs, clearRosterSlot } from "./rosterStatus";
 import { compareTeamsCore, leagueStandings } from "./season/standings";
@@ -183,6 +183,9 @@ function cpuWants(state: GameState, idx: WaiverIdx, teamId: number, p: Player): 
   const hold = rosterLimit(state.phase);
   const bag = idx.bags[teamId];
   if (rosterN(bag) < hold) {
+    // A short club still does not add a fifth punter or a seventh quarterback.
+    // A full club may swap a worse body at the same position; that does not grow the count.
+    if (posN(bag, p.pos) >= POSITION_ACTIVE_MAX[p.pos]) return false;
     if (posN(bag, p.pos) < POSITION_MIN[p.pos]) return true;
     return bodyWorth(state, teamId, p, bagOutlook(state, teamId, bag)) > 0;
   }
@@ -239,6 +242,10 @@ function stashOrFreeAgent(state: GameState, idx: WaiverIdx, p: Player, originalT
       insertMember(idx, originalTeamId, p);
       return;
     }
+    // The squad rejected him after he was marked active. Put him back on
+    // the wire. Leaving teamId set counted him on the 53 and on waivers.
+    p.teamId = null;
+    clearRosterSlot(p);
   }
   const dead = deadMoney(p.contract);
   if (space >= dead) {

@@ -46,6 +46,17 @@ export const POSITION_TARGET: Record<Position, number> = {
   EDGE: 5, DT: 4, LB: 5, CB: 6, S: 4, K: 1, P: 2,
 };
 
+/**
+ * Active-roster sanity ceiling. Above the generation target, under a pile.
+ * The any-position filler used to spend open 53 spots on cheap high-overall
+ * specialists; this stops that. It is not a generation dial and it does not
+ * change who wins a camp cut.
+ */
+export const POSITION_ACTIVE_MAX: Record<Position, number> = {
+  QB: 3, RB: 6, WR: 8, TE: 5, OT: 7, OG: 6, C: 4,
+  EDGE: 7, DT: 6, LB: 7, CB: 8, S: 6, K: 2, P: 2,
+};
+
 /** How many of each position are on the field for a normal snap. */
 export const STARTERS: Record<Position, number> = {
   QB: 1, RB: 1, WR: 3, TE: 1, OT: 2, OG: 2, C: 1,
@@ -398,8 +409,14 @@ export interface Team {
 
   /** Ordered player ids per position; index 0 is the starter. */
   depthChart: Record<Position, number[]>;
-  /** True when the user has hand-edited; disables auto-sort. */
+  /** True when the user has hand-edited at least one position. */
   depthChartManual: boolean;
+  /**
+   * Positions whose relative order the user set. Missing on older saves:
+   * a manual chart with no list keeps that order and slots newcomers by
+   * rating instead of freezing every position.
+   */
+  depthChartManualAt?: Position[];
 
   coach: Coach;
   /** Optional so saves written before front offices existed still load. */

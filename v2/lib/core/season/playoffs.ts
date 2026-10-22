@@ -10,7 +10,8 @@ import { applyGameStats } from "./stats";
 import { recordGame } from "./records";
 import { applyGameWear, healWeek, healthySet } from "./injuries";
 import { fillCpuIrReplacements } from "../irFill";
-import { freeActiveSlot } from "../offseason/contracts";
+import { dressEmergencyQuarterbacks } from "../emergencyQb";
+import { fillCpuRosterShortfall, freeActiveSlot, trimCpuRosterSanity } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
 import { clearCallSheets, userSimOpts } from "../callSheet";
@@ -150,6 +151,10 @@ export function ensureCurrentRoundGames(state: GameState): Game[] {
 
 export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   resolveWaivers(state);
+  if (trimCpuRosterSanity(state)) {
+    const fillRng = new Rng(rng.int(1, 0x7ffffffe));
+    fillCpuRosterShortfall(state, fillRng);
+  }
   const ps = state.playoffs;
   if (!ps || ps.complete) return;
 
@@ -173,6 +178,7 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
     dressing.add(g.awayId);
   }
   declareGamedayInactives(state, dressing);
+  dressEmergencyQuarterbacks(state, dressing);
 
   for (const g of games) {
     if (g.played) continue;
@@ -243,6 +249,7 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   fillCpuIrReplacements(state, fillRng);
   tickIrGames(state, played);
   autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
+  if (trimCpuRosterSanity(state)) fillCpuRosterShortfall(state, fillRng);
   clearInactives(state);
   clearCallSheets(state);
   clearSealedLive(state);

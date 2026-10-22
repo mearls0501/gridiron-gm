@@ -470,10 +470,13 @@ function starterIds(st: ReturnType<typeof newGame>, teamId: number): number[] {
   cpu.injuryDesc = null;
   cpu.irGames = IR_MIN_GAMES;
   const psBefore = practiceSquadCount(st, cpuId);
+  const wireBefore = (st.waivers ?? []).map((w) => w.playerId).sort((a, b) => a - b).join(",");
   autoActivateFromIr(st, (id) => freeActiveSlot(st, id));
   assert.equal(isActiveRoster(cpu), true);
   assert.equal(rosterCount(st, cpuId), ROSTER_LIMIT);
-  assert.ok(practiceSquadCount(st, cpuId) >= psBefore, "return parks the extra on PS first");
+  assert.equal(practiceSquadCount(st, cpuId), psBefore + 1, "return parks the extra on PS first");
+  const wireAfter = (st.waivers ?? []).map((w) => w.playerId).sort((a, b) => a - b).join(",");
+  assert.equal(wireAfter, wireBefore, "the extra body is parked, not waived");
 }
 
 // simulateWeek: CPU 4+ week injury ends at 53 (replacement + IR). User designate stays open.

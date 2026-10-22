@@ -9,6 +9,7 @@ import { MAX_SCRIMMAGE_SECONDS, takeLastKick } from "./clock";
 import { CLEAR, HOME_FIELD, restEffect, weatherEffects } from "../weather";
 import { blankPlayerGameStat, blankTeamGameStats } from "../season/stats";
 import { isSat } from "../inactives";
+import { emergencyQuarterback } from "../emergencyQb";
 import { effectiveCoach, type SimOpts, type SnapInfo } from "../callSheet";
 import { coordinatorPlayYards, vacantStcFgDelta, vacantStcPuntDelta } from "../coaches";
 
@@ -130,7 +131,19 @@ function buildStarters(
         if (chosen.length >= need) break;
       }
     }
-    if (chosen.length < need) {
+    // A sat or practice-squad quarterback is for an empty room. Do not unsit
+    // a quarterback the club already benched behind a healthy one, and do not
+    // put a punter in the second quarterback slot once a quarterback is dressed.
+    if (chosen.length === 0 && posKey === "QB") {
+      const skip = new Set<number>();
+      while (chosen.length < need) {
+        const qb = emergencyQuarterback(state, team, skip);
+        if (!qb) break;
+        chosen.push(qb);
+        skip.add(qb.id);
+      }
+    }
+    if (chosen.length < need && (posKey !== "QB" || chosen.length === 0)) {
       for (const p of healthyRoster
         .filter((x) => !chosen.includes(x))
         .sort((a, b) => b.ovr - a.ovr)) {
@@ -529,6 +542,15 @@ function* runGameSim(
       if (usable(p)) return p;
     }
     for (const p of ctx.roster) if (p.pos === pos && usable(p)) return p;
+    if (pos === "QB") {
+      const skip = new Set<number>(ctx.out);
+      for (const p of unit) skip.add(p.id);
+      const qb = emergencyQuarterback(state, ctx.team, skip);
+      if (qb) {
+        if (!ctx.roster.includes(qb)) ctx.roster.push(qb);
+        return qb;
+      }
+    }
     for (const p of ctx.roster) if (usable(p)) return p;
     return undefined;
   };
@@ -593,6 +615,10 @@ function* runGameSim(
       if (ok(p) && !out.includes(p)) out.push(p);
     }
     for (const p of ctx.roster) if (p.pos === pos && ok(p) && !out.includes(p)) out.push(p);
+    if (pos === "QB" && out.length === 0) {
+      const qb = emergencyQuarterback(state, ctx.team, ctx.out);
+      if (qb) out.push(qb);
+    }
     return out;
   };
   /**

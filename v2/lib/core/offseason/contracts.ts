@@ -3,7 +3,8 @@ import { Rng, clamp } from "../rng";
 import { defaultGuaranteedYears, makeContract, makePlayer, marketApy, positionalCeiling } from "../generate";
 import {
   CAMP_ROSTER_LIMIT, FranchiseTagSnapshot, GameState, LEAGUE_MINIMUM, MAX_CONTRACT_SHARE, Player,
-  PRACTICE_SQUAD_LIMIT, REGULAR_SEASON_WEEKS, ROSTER_LIMIT, Position, POSITION_MIN, POSITIONS, rosterLimit,
+  PRACTICE_SQUAD_LIMIT, REGULAR_SEASON_WEEKS, ROSTER_LIMIT, Position,
+  POSITION_ACTIVE_MAX, POSITION_MIN, POSITION_TARGET, POSITIONS, rosterLimit,
 } from "../types";
 import {
   addDeadCap, annualCapHit, capHit, deadMoney, departingPaidOut, expiresAtRollover, formatMoney,
@@ -12,7 +13,7 @@ import {
   settlePaidWeeks, startContractNow, startSeason, teamCap,
 } from "../select";
 import { resolveDemand } from "../psychology";
-import { clearRosterSlot } from "../rosterStatus";
+import { clearRosterSlot, placeOnPs } from "../rosterStatus";
 import { POSITION_VALUE } from "../ratings";
 import { evaluate, frontOffice, targetSpend, teamOutlook, SPEND_FLOOR, payroll } from "../frontOffice";
 import { cpuVeteranView } from "../scouting";
@@ -1200,8 +1201,28 @@ export function cpuResign(state: GameState, teamId: number, candidates: Player[]
  * A reserve is held back for the roster spots still unfilled, otherwise one
  * star would eat the whole budget and strand the team at 40 players.
  */
+function atActiveMax(state: GameState, teamId: number, pos: Position): boolean {
+  return positionCount(state, teamId, pos) >= POSITION_ACTIVE_MAX[pos];
+}
+
+/** Position with the most room under the sanity ceiling, or null when every spot is capped. */
+function positionUnderMax(state: GameState, teamId: number, exclude: Position | null = null): Position | null {
+  let best: Position | null = null;
+  let room = 0;
+  for (const pos of POSITIONS) {
+    if (pos === exclude) continue;
+    const gap = POSITION_ACTIVE_MAX[pos] - positionCount(state, teamId, pos);
+    if (gap > room) {
+      room = gap;
+      best = pos;
+    }
+  }
+  return best;
+}
+
 function bestAffordable(
   state: GameState, teamId: number, pos: Position | null, exclude: Position | null = null,
+  respectMax = false,
 ): Player | null {
   const space = teamCap(state, teamId).space;
   const slotsLeft = Math.max(0, ROSTER_LIMIT - rosterCount(state, teamId));
@@ -1213,6 +1234,7 @@ function bestAffordable(
     if (p.teamId !== null || p.retired || p.prospect || isOnWaivers(state, p.id)) continue;
     if (pos !== null && p.pos !== pos) continue;
     if (exclude !== null && p.pos === exclude) continue;
+    if (respectMax && atActiveMax(state, teamId, p.pos)) continue;
     if (best && p.ovr <= best.ovr) continue;
     if (trueAskingPrice(state, p) > budget) continue;
     best = p;
@@ -1220,8 +1242,13 @@ function bestAffordable(
   return best;
 }
 
-/** Sign at the going rate, on a term appropriate to what he costs. */
-function signAtMarket(state: GameState, teamId: number, p: Player, rng: Rng): void {
+/**
+ * Sign at the going rate, on a term appropriate to what he costs.
+ * Refuses when the phase roster is already full so an in-season caller
+ * cannot grow a club past 53 (90 in camp).
+ */
+function signAtMarket(state: GameState, teamId: number, p: Player, rng: Rng): boolean {
+  if (p.teamId !== null || rosterCount(state, teamId) >= rosterLimit(state.phase)) return false;
   // Through the same ceiling as every other path. This one went straight to
   // `askingPrice` and bypassed it, which is how a contract reached 30% of the
   // cap while `negotiatedApy` was capping everything else at 22% — the comment
@@ -1232,6 +1259,7 @@ function signAtMarket(state: GameState, teamId: number, p: Player, rng: Rng): vo
   p.teamId = teamId;
   p.contract = startContractNow(state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)));
   clearRosterSlot(p);
+  return true;
 }
 
 export function fillRoster(
@@ -1247,20 +1275,23 @@ export function fillRoster(
       }
       // Generate a replacement-level body rather than leave the unit empty.
       const pick = bestAffordable(state, teamId, pos) ?? generateReplacement(state, pos, rng);
-      signAtMarket(state, teamId, pick, rng);
+      if (!signAtMarket(state, teamId, pick, rng)) break;
     }
   }
 
   // 2. Season floor. Generate only here — a short club still needs 53,
-  // even in camp. The board cap of 4 is not this floor.
+  // even in camp. The board cap of 4 is not this floor. Open spots stay
+  // under the position ceiling so a cheap punter cannot fill every hole.
   let guard = 0;
   while (rosterCount(state, teamId) < ROSTER_LIMIT && guard++ < 120) {
-    let pick = bestAffordable(state, teamId, null);
+    let pick = bestAffordable(state, teamId, null, null, true);
     if (!pick) {
-      const pos = (Object.keys(POSITION_MIN) as Position[])[guard % 14];
+      const pos = positionUnderMax(state, teamId);
+      if (!pos) break;
       pick = generateReplacement(state, pos, rng);
     }
-    signAtMarket(state, teamId, pick, rng);
+    if (atActiveMax(state, teamId, pick.pos)) break;
+    if (!signAtMarket(state, teamId, pick, rng)) break;
   }
 
   // 3. Camp extras: fill toward the phase ceiling from the street. Do not
@@ -1270,7 +1301,7 @@ export function fillRoster(
     while (rosterCount(state, teamId) < limit && guard++ < 200) {
       const pick = bestAffordable(state, teamId, null);
       if (!pick) break;
-      signAtMarket(state, teamId, pick, rng);
+      if (!signAtMarket(state, teamId, pick, rng)) break;
     }
   }
 
@@ -1312,7 +1343,7 @@ export function fillCampRosters(state: GameState, rng: Rng): void {
       if (rosterCount(state, teamId) >= CAMP_ROSTER_LIMIT) continue;
       const pick = bestAffordable(state, teamId, null);
       if (!pick) continue;
-      signAtMarket(state, teamId, pick, rng);
+      if (!signAtMarket(state, teamId, pick, rng)) continue;
       any = true;
     }
     if (!any) break;
@@ -1355,8 +1386,6 @@ function cutWorstSurplus(state: GameState, teamId: number, protectPos: Position 
  */
 export const QB_53_MAX = 3;
 
-const FILL_BESIDES_QB: Position[] = (Object.keys(POSITION_MIN) as Position[]).filter((pos) => pos !== "QB");
-
 /** Worth the cutdown already uses. Lowest active QB above the cap is waived. */
 function quarterbackKeepWorth(state: GameState, teamId: number, p: Player): number {
   const { posture } = teamOutlook(state, teamId);
@@ -1390,19 +1419,136 @@ function capQuarterbacksOn53(state: GameState, teamId: number, rng: Rng): void {
   }
   guard = 0;
   while (rosterCount(state, teamId) < ROSTER_LIMIT && guard++ < 16) {
-    const pos = FILL_BESIDES_QB[guard % FILL_BESIDES_QB.length];
-    const pick = bestAffordable(state, teamId, null, "QB") ?? generateReplacement(state, pos, rng);
-    if (pick.pos === "QB") break;
-    signAtMarket(state, teamId, pick, rng);
+    const pos = positionUnderMax(state, teamId, "QB");
+    const pick = (pos ? bestAffordable(state, teamId, null, "QB", true) : null)
+      ?? (pos ? generateReplacement(state, pos, rng) : null);
+    if (!pick || pick.pos === "QB" || atActiveMax(state, teamId, pick.pos)) break;
+    if (!signAtMarket(state, teamId, pick, rng)) break;
   }
 }
 
-/** Open one active slot so a CPU return from IR can land. PS first, then cut. */
+/**
+ * Open one active slot so a CPU return from IR can land.
+ * Practice squad first. Cutting is the fallback when the squad is full,
+ * so a claim is not waived back onto the wire the same week.
+ */
 export function freeActiveSlot(state: GameState, teamId: number): boolean {
   if (practiceSquadCount(state, teamId) < PRACTICE_SQUAD_LIMIT) {
-    if (moveWorstSurplus(state, teamId, null, "ps")) return true;
+    const target = worstSurplus(state, teamId, null);
+    if (target && placeOnPs(state, target.id).ok) return true;
   }
   return cutWorstSurplus(state, teamId, null);
+}
+
+function inSeasonRosterPhase(state: GameState): boolean {
+  return state.phase === "regular" || state.phase === "playoffs";
+}
+
+/**
+ * CPU clubs only. Drop active bodies past the phase limit, then past the
+ * position ceiling. Does not draw. Returns true when a CPU club is left
+ * short of the limit and needs a fill. The user seat is never cut.
+ */
+export function trimCpuRosterSanity(state: GameState): boolean {
+  if (!inSeasonRosterPhase(state)) return false;
+  const hold = rosterLimit(state.phase);
+  let short = false;
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    let guard = 0;
+    while (rosterCount(state, t.id) > hold && guard++ < 80) {
+      if (!cutWorstSurplus(state, t.id, null)) break;
+    }
+    for (const pos of POSITIONS) {
+      while (positionCount(state, t.id, pos) > POSITION_ACTIVE_MAX[pos] && guard++ < 120) {
+        if (!cutWorstActiveAt(state, t.id, pos)) break;
+      }
+    }
+    if (rosterCount(state, t.id) < hold) short = true;
+  }
+  return short;
+}
+
+/** Sign into CPU clubs that a sanity trim left short. No-op when nobody is short. */
+export function fillCpuRosterShortfall(state: GameState, rng: Rng): void {
+  if (!inSeasonRosterPhase(state)) return;
+  const hold = rosterLimit(state.phase);
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    if (rosterCount(state, t.id) < hold) fillOpenActiveSlots(state, t.id, rng);
+  }
+}
+
+const USER_FILL_OVR = 66;
+
+function userFillPosition(state: GameState, teamId: number): Position | null {
+  let best: Position | null = null;
+  let bestScore = 0;
+  for (const pos of POSITIONS) {
+    const n = positionCount(state, teamId, pos);
+    const room = POSITION_ACTIVE_MAX[pos] - n;
+    if (room <= 0) continue;
+    const minGap = Math.max(0, POSITION_MIN[pos] - n);
+    const targetGap = Math.max(0, POSITION_TARGET[pos] - n);
+    const score = minGap * 1000 + targetGap * 50 + room;
+    if (score > bestScore) {
+      bestScore = score;
+      best = pos;
+    }
+  }
+  return best;
+}
+
+function minimumFreeAgent(state: GameState, pos: Position): Player | null {
+  let best: Player | null = null;
+  for (const p of state.players) {
+    if (p.teamId !== null || p.retired || p.prospect || isOnWaivers(state, p.id)) continue;
+    if (p.pos !== pos || p.ovr > USER_FILL_OVR) continue;
+    if (best && (p.ovr < best.ovr || (p.ovr === best.ovr && p.id > best.id))) continue;
+    best = p;
+  }
+  return best;
+}
+
+function signMinimum(state: GameState, teamId: number, p: Player, rng: Rng): number {
+  if (rosterCount(state, teamId) >= rosterLimit(state.phase)) return 0;
+  if (atActiveMax(state, teamId, p.pos)) return 0;
+  const contract = startContractNow(state, makeContract(rng, LEAGUE_MINIMUM, 1, state.season, 0));
+  const hit = capHit(contract);
+  if (hit > teamCap(state, teamId).space) return 0;
+  p.teamId = teamId;
+  p.contract = contract;
+  clearRosterSlot(p);
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "transaction",
+    text: `${state.teams[teamId].abbr} signed ${p.firstName} ${p.lastName} (${p.pos}) — 1yr league minimum`,
+  });
+  return hit;
+}
+
+/**
+ * User auto-fill. One-year league-minimum deals at the positions the club
+ * is short, never past the position ceiling, and never a cut. A star on
+ * the street is left there — this button does not spend the cap.
+ */
+export function fillUserMinimum(
+  state: GameState, teamId: number, rng: Rng,
+): { signed: number; spent: number } {
+  let signed = 0;
+  let spent = 0;
+  let guard = 0;
+  while (rosterCount(state, teamId) < rosterLimit(state.phase) && guard++ < 90) {
+    const pos = userFillPosition(state, teamId);
+    if (!pos) break;
+    const pick = minimumFreeAgent(state, pos) ?? generateReplacement(state, pos, rng);
+    const hit = signMinimum(state, teamId, pick, rng);
+    if (hit <= 0) break;
+    signed++;
+    spent += hit;
+  }
+  return { signed, spent };
 }
 
 /**
@@ -1415,23 +1561,29 @@ export function fillOpenActiveSlots(state: GameState, teamId: number, rng: Rng):
     while (positionCount(state, teamId, pos) < POSITION_MIN[pos]) {
       if (rosterCount(state, teamId) >= hold) break;
       const pick = bestAffordable(state, teamId, pos) ?? generateReplacement(state, pos, rng);
-      signAtMarket(state, teamId, pick, rng);
+      if (!signAtMarket(state, teamId, pick, rng)) break;
     }
   }
   let guard = 0;
   while (rosterCount(state, teamId) < ROSTER_LIMIT && rosterCount(state, teamId) < hold && guard++ < 120) {
-    let pick = bestAffordable(state, teamId, null);
+    let pick = bestAffordable(state, teamId, null, null, true);
     if (!pick) {
-      const pos = (Object.keys(POSITION_MIN) as Position[])[guard % 14];
+      const pos = positionUnderMax(state, teamId);
+      if (!pos) break;
       pick = generateReplacement(state, pos, rng);
     }
-    signAtMarket(state, teamId, pick, rng);
+    if (atActiveMax(state, teamId, pick.pos)) break;
+    if (!signAtMarket(state, teamId, pick, rng)) break;
   }
 }
 
-function moveWorstSurplus(
-  state: GameState, teamId: number, protectPos: Position | null, dest: "cut" | "ps"
-): boolean {
+function surplusWorth(state: GameState, teamId: number, p: Player): number {
+  const { posture } = teamOutlook(state, teamId);
+  return evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season)
+    + campNudge(state, p);
+}
+
+function worstSurplus(state: GameState, teamId: number, protectPos: Position | null): Player | null {
   const roster = state.players.filter(
     (p) => p.teamId === teamId && !p.retired && !p.prospect && isActiveRoster(p)
   );
@@ -1439,11 +1591,27 @@ function moveWorstSurplus(
     if (protectPos && p.pos === protectPos) return false;
     return positionCount(state, teamId, p.pos) > POSITION_MIN[p.pos];
   });
-  const { posture } = teamOutlook(state, teamId);
-  const worth = (p: Player) =>
-    evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season)
-    + campNudge(state, p);
-  const target = candidates.sort((a, b) => worth(a) - worth(b))[0];
+  candidates.sort((a, b) => surplusWorth(state, teamId, a) - surplusWorth(state, teamId, b) || a.id - b.id);
+  return candidates[0] ?? null;
+}
+
+function cutWorstActiveAt(state: GameState, teamId: number, pos: Position): boolean {
+  const roster = state.players.filter(
+    (p) => p.teamId === teamId && p.pos === pos && !p.retired && !p.prospect && isActiveRoster(p)
+  );
+  if (roster.length <= POSITION_ACTIVE_MAX[pos]) return false;
+  roster.sort((a, b) => surplusWorth(state, teamId, a) - surplusWorth(state, teamId, b) || a.id - b.id);
+  return cutPlayer(state, roster[0].id).ok;
+}
+
+function moveWorstSurplus(
+  state: GameState, teamId: number, protectPos: Position | null, dest: "cut" | "ps"
+): boolean {
+  // `dest` stays in the signature because cutdown asks for a practice-squad
+  // park. Doing that here would skip waivers on the camp cut. The in-season
+  // slot free parks on its own; this path still waives.
+  void dest;
+  const target = worstSurplus(state, teamId, protectPos);
   if (!target) return false;
   cutPlayer(state, target.id);
   return true;

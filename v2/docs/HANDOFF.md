@@ -25,6 +25,35 @@ tiers.
 
 ---
 
+## 2026-10-22 — In-season 53 and the punter-at-QB fallback
+
+Headless CPU play (seeds 7, 42, 20261022, through 2029) never put an active
+roster above 53. Houston 58 / 25-of-32 / Pittsburgh 59 was not reproduced as
+`rosterCount`. Active + IR, or a depth chart that still listed departed ids,
+can read that high. The camp cut order was not changed. `surplusWorth` is still
+evaluate plus `draftCapitalHold` plus `campNudge` (0 unless `GG_CAMP_NUDGE=1`),
+and `upgradeRoster` is untouched.
+
+What did grow on a legal 53: punter and quarterback piles. `fillRoster`'s
+any-position signing (including the refill after the 3-QB cap) takes the
+highest affordable overall, and specialists store a high overall on a small
+deal. In-season, a short club claimed any positive-worth body. The ceiling is
+on that signing choice and on CPU claims, plus a CPU-only trim in the regular
+season and playoffs when a club is already over. It does not fire a roster
+change when every CPU club is already legal, and it does not cut the user.
+
+Same-week claim-then-waive was `freeActiveSlot` ignoring the practice-squad
+destination and waiving the worst surplus. `settleWaivers` did not cycle on
+the seeds probed. The large leftover wire is the existing cap-carryover
+`spaceOf` residue, not fixed here.
+
+A 93 punter played quarterback because `buildStarters` / `nextAvailable`,
+with no healthy active quarterback, took the best healthy body at any
+position. A sat or practice-squad quarterback is used first. CPU clubs
+elevate that practice-squad quarterback before kickoff, freeing a slot when
+the 53 is full. The user club is not cut to do it. The lineup still fields
+his practice-squad quarterback for the game.
+
 ## 2026-10-21 — Healthy players on IR: rule-driven, not preseason
 
 #189's paired drift showed `drift.healthyIrWeeks` 49.3 → 73.4 with preseason

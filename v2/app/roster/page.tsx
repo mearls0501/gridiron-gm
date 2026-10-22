@@ -14,14 +14,14 @@ import {
   teamCap,
   teamRoster,
 } from "@/lib/core/select";
-import { cutPlayer, reconcileRoster } from "@/lib/core/offseason/contracts";
+import { cutPlayer, fillUserMinimum } from "@/lib/core/offseason/contracts";
 import {
   submitWaiverClaim, waiverWindowLabel, waiverWire, withdrawWaiverClaim,
 } from "@/lib/core/waivers";
 import {
   visibleWaiverRows, waiverDesk, waiverDeskHiddenCopy,
 } from "@/lib/view/waiverDesk";
-import { autoSortDepthChart } from "@/lib/core/generate";
+import { refreshTeamDepthChart } from "@/lib/core/generate";
 import { Rng } from "@/lib/core/rng";
 import { playerName, presentedOvr, presentedPot } from "@/lib/core/ratings";
 import {
@@ -29,6 +29,7 @@ import {
   POSITION_GROUP,
   POSITIONS,
   Player,
+  rosterLimit,
 } from "@/lib/core/types";
 import { isActiveRoster } from "@/lib/core/select";
 import {
@@ -154,7 +155,7 @@ export default function RosterPage() {
       const res = cutPlayer(s, p.id);
       if (!res.ok) return res.reason ?? "That player could not be released.";
       const t = s.teams[s.userTeamId];
-      if (!t.depthChartManual) autoSortDepthChart(s, t);
+      refreshTeamDepthChart(s, t);
       return `Waived ${name} — other clubs may claim him before this club can stash him`;
     });
     setConfirmId(null);
@@ -165,7 +166,7 @@ export default function RosterPage() {
       const res = fn(s);
       if (!res.ok) return res.reason ?? "That move could not be completed.";
       const t = s.teams[s.userTeamId];
-      if (!t.depthChartManual) autoSortDepthChart(s, t);
+      refreshTeamDepthChart(s, t);
       return ok;
     });
   }
@@ -174,17 +175,20 @@ export default function RosterPage() {
     apply((s) => {
       const before = rosterCount(s, s.userTeamId);
       const rng = new Rng(s.rngState);
-      // reconcileRoster, not fillRoster: filling alone signs players without
-      // checking the cap and can leave the team over it. reconcile solves the
-      // roster count and the cap together.
-      reconcileRoster(s, s.userTeamId, rng);
+      const filled = fillUserMinimum(s, s.userTeamId, rng);
       s.rngState = rng.state;
       const t = s.teams[s.userTeamId];
-      if (!t.depthChartManual) autoSortDepthChart(s, t);
+      refreshTeamDepthChart(s, t);
       const after = rosterCount(s, s.userTeamId);
-      const capNow = rosterCapView(s, s.userTeamId);
-      if (after === before) return `Roster already at ${after}/${capNow.cap}`;
-      return `Roster filled: ${before} → ${after}/${capNow.cap}`;
+      const limit = rosterLimit(s.phase);
+      if (filled.signed === 0) {
+        return after >= limit
+          ? `Roster already at ${after}/${limit}`
+          : `No minimum deal fits. Roster stays ${after}/${limit}`;
+      }
+      const money = (filled.spent / 1e6).toFixed(1);
+      const deals = filled.signed === 1 ? "deal" : "deals";
+      return `Signed ${filled.signed} minimum ${deals} ($${money}M). Roster ${before} → ${after}/${limit}`;
     });
     setConfirmId(null);
   }
@@ -373,7 +377,7 @@ export default function RosterPage() {
         title={`${team.city} ${team.name} Active Roster`}
         subtitle={`${rows.length} of ${active.length} active shown · ${clip.label}`}
         actions={
-          <Button variant="primary" size="sm" onClick={autoFill} title="Sign the best available free agents until the roster is legal">
+          <Button variant="primary" size="sm" onClick={autoFill} title="Sign 1-year league-minimum deals at positions you're short, up to the roster limit. Does not cut anyone.">
             Auto-fill roster
           </Button>
         }
@@ -408,7 +412,7 @@ export default function RosterPage() {
         {active.length === 0 ? (
           <Empty
             title="No players on the roster"
-            hint={`Every player has been released or the franchise has not been stocked yet. Auto-fill signs the best available free agents up to the ${clip.cap}-man limit.`}
+            hint={`Every player has been released or the franchise has not been stocked yet. Auto-fill signs 1-year minimum deals at positions you're short, up to the ${clip.cap}-man limit.`}
             action={<Button variant="primary" onClick={autoFill}>Auto-fill roster</Button>}
           />
         ) : rows.length === 0 ? (

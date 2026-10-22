@@ -9,7 +9,8 @@ import { ensureCurrentRoundGames, initPlayoffs, simulatePlayoffRound } from "./p
 import { applyGameWear, healWeek, healthySet, rollWeeklyInjuries } from "./injuries";
 import { generateUserOffers, pruneStaleTradeInbox, runCpuTrades } from "../trades";
 import { fillCpuIrReplacements } from "../irFill";
-import { freeActiveSlot } from "../offseason/contracts";
+import { dressEmergencyQuarterbacks } from "../emergencyQb";
+import { fillCpuRosterShortfall, freeActiveSlot, trimCpuRosterSanity } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
 import { clearCallSheets, userSimOpts } from "../callSheet";
@@ -64,6 +65,12 @@ export function simulateWeek(state: GameState, onKickoff?: RegularKickoffObserve
   resolveWaivers(state);
   const rng = new Rng(state.rngState);
   refreshDepthCharts(state);
+  // Cuts do not draw. A child stream is opened only when a club is actually
+  // short, so a legal week does not move the parent RNG.
+  if (trimCpuRosterSanity(state)) {
+    const fillRng = new Rng(rng.int(1, 0x7ffffffe));
+    fillCpuRosterShortfall(state, fillRng);
+  }
 
   const games = state.games.filter(
     (g) => g.season === state.season && g.week === state.week && !g.played && g.playoffRound === null
@@ -75,6 +82,7 @@ export function simulateWeek(state: GameState, onKickoff?: RegularKickoffObserve
     dressing.add(g.awayId);
   }
   declareGamedayInactives(state, dressing);
+  dressEmergencyQuarterbacks(state, dressing);
   onKickoff?.(state, games);
 
   // Who was fit at kickoff, so anything that turns serious during the games can
@@ -265,4 +273,5 @@ function applyCpuIrAndFill(state: GameState, rng: Rng, played?: Set<number>): vo
   fillCpuIrReplacements(state, rng);
   if (played) tickIrGames(state, played);
   autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
+  if (trimCpuRosterSanity(state)) fillCpuRosterShortfall(state, rng);
 }

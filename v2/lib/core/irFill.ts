@@ -1,7 +1,7 @@
 import { fillOpenActiveSlots } from "./offseason/contracts";
 import { canElevateFromPs, elevateFromPs } from "./rosterStatus";
 import { positionCount, rosterCount } from "./select";
-import { GameState, POSITION_MIN, Position, rosterLimit } from "./types";
+import { GameState, POSITION_ACTIVE_MAX, POSITION_MIN, Position, rosterLimit } from "./types";
 import { Rng } from "./rng";
 
 /**
@@ -16,7 +16,9 @@ function elevateBestPs(state: GameState, teamId: number): boolean {
   const need = (Object.keys(POSITION_MIN) as Position[]).find(
     (pos) => positionCount(state, teamId, pos) < POSITION_MIN[pos]
   );
-  const pool = state.players.filter((p) => canElevateFromPs(state, p) && p.teamId === teamId);
+  const pool = state.players.filter(
+    (p) => canElevateFromPs(state, p) && p.teamId === teamId && positionCount(state, teamId, p.pos) < POSITION_ACTIVE_MAX[p.pos],
+  );
   if (pool.length === 0) return false;
   pool.sort((a, b) => {
     const aNeed = need && a.pos === need ? 1 : 0;
