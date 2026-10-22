@@ -20,6 +20,7 @@ import {
   userPicks,
 } from "@/lib/core/offseason/draft";
 import { enterCampAfterDraft } from "@/lib/core/offseason";
+import { buildClockOfferReview } from "@/lib/view/clockOfferReview";
 import {
   METHOD_LABEL,
   PRIVATE_VISIT_CAP,
@@ -63,7 +64,7 @@ import { athleticClass, athleticSheet, boardTesting, ordinal } from "@/lib/view/
 import { enterDraft } from "@/lib/core/offseason";
 import { capHit, formatMoney, playerMap } from "@/lib/core/select";
 import { DRAFT_PACE_OPTIONS, tickerPickText, type DraftPace } from "@/lib/view/draftNight";
-import { POSITIONS, Player, Position, ScoutingMethod } from "@/lib/core/types";
+import { POSITIONS, Player, Position, ScoutingMethod, TradeOffer } from "@/lib/core/types";
 import { rosterCapView } from "@/lib/view/rosterCap";
 import { liveDraftGradePool, recentPickSlots } from "@/lib/view/scoutFog";
 import {
@@ -152,6 +153,7 @@ export default function DraftPage() {
   const [focusId, setFocusId] = useState<number | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [moveUpQuote, setMoveUpQuote] = useState<string | null>(null);
+  const [reviewOfferId, setReviewOfferId] = useState<number | null>(null);
   const [futureSeason, setFutureSeason] = useState<number | null>(null);
   const [showFutureAll, setShowFutureAll] = useState(false);
   const [pace, setPace] = useState<DraftPace>("fast");
@@ -332,6 +334,7 @@ export default function DraftPage() {
   }
 
   function acceptOffer(offerId: number) {
+    setReviewOfferId(null);
     apply((s) => {
       const rng = new Rng(s.rngState);
       const ok = acceptClockOffer(s, offerId, rng);
@@ -346,6 +349,7 @@ export default function DraftPage() {
   }
 
   function declineOffers() {
+    setReviewOfferId(null);
     apply((s) => {
       if (s.draft) s.draft.clockOffers = [];
       return "Offers declined. Your pick.";
@@ -820,24 +824,32 @@ export default function DraftPage() {
         >
           <div className="space-y-2">
             {(d.clockOffers ?? []).map((o) => (
-              <div
-                key={o.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--color-line-soft)] px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <div className="text-sm font-medium flex items-center gap-2">
-                    <TeamMark team={state.teams[o.fromTeamId]} size={20} />
-                    {state.teams[o.fromTeamId].city} {state.teams[o.fromTeamId].name}
+              <div key={o.id} className="rounded-lg border border-[var(--color-line-soft)] px-3 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium flex items-center gap-2">
+                      <TeamMark team={state.teams[o.fromTeamId]} size={20} />
+                      {state.teams[o.fromTeamId].city} {state.teams[o.fromTeamId].name}
+                    </div>
+                    <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                      They send: {o.give.map((a) => tradeBoardAssetLabel(state, a)).join(" + ")} · for
+                      your pick #{onClock?.pick}
+                    </div>
+                    <div className="text-[10px] text-[var(--color-faint)] mt-0.5">{o.rationale}</div>
                   </div>
-                  <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                    They send: {o.give.map((a) => tradeBoardAssetLabel(state, a)).join(" + ")} · for
-                    your pick #{onClock?.pick}
-                  </div>
-                  <div className="text-[10px] text-[var(--color-faint)] mt-0.5">{o.rationale}</div>
+                  {reviewOfferId !== o.id && (
+                    <Button size="sm" variant="primary" onClick={() => setReviewOfferId(o.id)}>
+                      Review
+                    </Button>
+                  )}
                 </div>
-                <Button size="sm" variant="primary" onClick={() => acceptOffer(o.id)}>
-                  Accept and move down
-                </Button>
+                {reviewOfferId === o.id && (
+                  <ClockOfferPanel
+                    offer={o}
+                    onConfirm={() => acceptOffer(o.id)}
+                    onBack={() => setReviewOfferId(null)}
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -1567,6 +1579,78 @@ export default function DraftPage() {
           )}
         </Card>
       )}
+    </div>
+  );
+}
+
+/** Review a trade-down before it commits: what goes, what comes back, where you pick next. */
+function ClockOfferPanel({
+  offer,
+  onConfirm,
+  onBack,
+}: {
+  offer: TradeOffer;
+  onConfirm: () => void;
+  onBack: () => void;
+}) {
+  const state = useGame((s) => s.state);
+  useGame((s) => s.rev);
+  if (!state) return null;
+  const view = buildClockOfferReview(state, offer);
+  if (!view) return null;
+  const { review, givingPick, nextPick, picksLeft } = view;
+  const partner = state.teams[review.partnerTeamId];
+  const label = (l: (typeof review.incoming)[number]) =>
+    l.kind === "player" ? `${l.name} (${l.pos})` : l.label;
+  return (
+    <div className="mt-2 border border-[var(--color-accent)] rounded-lg p-3 space-y-3 bg-[var(--color-surface-2)]">
+      <div className="text-sm font-semibold">
+        Trade down{givingPick != null ? ` from #${givingPick}` : ""} with {partner?.abbr ?? "?"}
+      </div>
+      <div className="grid sm:grid-cols-2 gap-3 text-sm">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">You receive</div>
+          <ul className="mt-1 space-y-0.5">
+            {review.incoming.map((l, i) => <li key={i}>{label(l)}</li>)}
+          </ul>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">{partner?.abbr ?? "They"} receive</div>
+          <ul className="mt-1 space-y-0.5">
+            {review.outgoing.map((l, i) => <li key={i}>{label(l)}</li>)}
+          </ul>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-sm tnum">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Your next pick</div>
+          {nextPick ? `#${nextPick.pick} (round ${nextPick.round})` : "None left this draft"}
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Picks this draft</div>
+          {picksLeft.before} → {picksLeft.after}
+        </div>
+      </div>
+      {!review.check.ok && (
+        <p className="flex items-center gap-2 text-xs">
+          <Pill tone="bad">Can&rsquo;t complete</Pill>
+          <span className="text-[var(--color-bad)]">{review.check.reason ?? "That trade cannot be made."}</span>
+        </p>
+      )}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={onBack}>
+          Back
+        </Button>
+        <Button
+          size="sm"
+          variant={review.check.ok ? "primary" : "default"}
+          onClick={onConfirm}
+          disabled={!review.check.ok}
+          className={!review.check.ok ? "opacity-40 cursor-not-allowed" : undefined}
+        >
+          Confirm and move down
+        </Button>
+      </div>
     </div>
   );
 }
