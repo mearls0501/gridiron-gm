@@ -8,6 +8,10 @@
  * 2026-09-04: prior-year pick assets must not advertise as live, and
  * leftover inbox must not survive year rollover into Recap / tag.
  *
+ * 2026-10-22: a call still on the table after Week 9 was listed and looked
+ * actionable. Rolling past the deadline drops it. Accept cannot complete
+ * one, and the desk does not list it.
+ *
  * Run: npx tsx lib/view/tradeWindow.test.ts
  */
 import assert from "node:assert/strict";
@@ -18,13 +22,15 @@ import {
   checkTrade,
   describeAsset,
   generateUserOffers,
+  incomingOffersOnTheTable,
   isSpentPick,
   picksOwnedBy,
+  pruneStaleTradeInbox,
   rejectOffer,
   tradeWindowOpen,
 } from "../core/trades";
 import { defaultSettings, TRADE_DEADLINE_WEEK, TradeAsset, TradeOffer } from "../core/types";
-import { startRegularSeason } from "../core/season/engine";
+import { advance, startRegularSeason } from "../core/season/engine";
 import { Rng } from "../core/rng";
 import { runSimTo } from "../store/simTo";
 import {
@@ -146,6 +152,7 @@ assert.match(
   assert.equal(st.players.find((p) => p.id === incomingId)!.teamId, beforeIn);
   assert.equal(st.players.find((p) => p.id === outgoingId)!.teamId, beforeOut);
   assert.equal(st.tradeOffers?.some((o) => o.id === offer.id), true, "failed Accept leaves the offer");
+  assert.equal(incomingOffersOnTheTable(st).length, 0, "the desk does not list a post-deadline call");
 
   rejectOffer(st, offer.id);
   assert.equal(st.tradeOffers?.some((o) => o.id === offer.id), false, "Reject clears the stale offer");
@@ -170,8 +177,8 @@ function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
   };
 }
 
-// After week 9, generateUserOffers must not grow the inbox. Leftover stays
-// for Reject — do not auto-delete it here.
+// After week 9, generateUserOffers must not grow the inbox, and the
+// leftover from the deadline week comes off the table.
 {
   const st = newGame({ seed: 1 });
   st.phase = "regular";
@@ -180,9 +187,11 @@ function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
   const before = (st.tradeOffers ?? []).length;
   assert.equal(before, 1);
   generateUserOffers(st, new Rng(1), 2);
-  assert.equal((st.tradeOffers ?? []).length, before, "closed window must not append incoming offers");
-  assert.equal(st.tradeOffers?.some((o) => o.id === offer.id), true, "leftover stays for Reject");
-  assert.equal(incomingOfferPausesSim(st, before), false, "leftover is not a new Accept-able call");
+  assert.equal((st.tradeOffers ?? []).length, 0, "closed window drops leftover calls and does not add any");
+  assert.equal(st.tradeOffers?.some((o) => o.id === offer.id), false, "deadline leftover is not still offered");
+  assert.equal(incomingOffersOnTheTable(st).length, 0);
+  assert.equal(acceptOffer(st, offer.id).ok, false);
+  assert.equal(incomingOfferPausesSim(st, before), false, "a cleared inbox is not a new Accept-able call");
   assert.equal(incomingOfferPausesSim(st, 0), false, "even a length bump after the deadline does not pause");
 }
 
@@ -197,8 +206,8 @@ function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
   assert.equal(incomingOfferPausesSim(st, 0), true, "new offer during the window still pauses");
 }
 
-// Week 10 leftover + simTo seasonEnd: do not stop for that leftover, and
-// do not wipe the inbox. Accept stays dead; Reject still clears.
+// Week 10 leftover + simTo seasonEnd: do not stop for that leftover.
+// Playing the week takes it off the table. Accept stays dead.
 {
   const st = newGame({ seed: 1 });
   startRegularSeason(st);
@@ -206,6 +215,7 @@ function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
   tradeOnlyPause(st);
   const { offer } = plantIncoming(st);
   assert.equal(st.week, 10);
+  assert.equal(incomingOffersOnTheTable(st).length, 0, "week 10 does not list the call before the week is played");
   assert.equal(incomingOfferPausesSim(st, (st.tradeOffers ?? []).length), false);
 
   const seasonEnd = runSimTo(st, "seasonEnd");
@@ -216,19 +226,14 @@ function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
   assert.equal(st.phase, "playoffs", "seasonEnd lands on the playoff field");
   assert.equal(
     st.tradeOffers?.some((o) => o.id === offer.id),
-    true,
-    "bulk sim must leave the leftover on the table",
+    false,
+    "bulk sim clears a post-deadline leftover",
   );
+  assert.equal(incomingOffersOnTheTable(st).length, 0);
   const accept = incomingOfferAccept(tradeWindowOpen(st));
   assert.equal(accept.enabled, false, "Accept stays dead after the deadline");
   const closed = acceptOffer(st, offer.id);
   assert.equal(closed.ok, false);
-  rejectOffer(st, offer.id);
-  assert.equal(
-    st.tradeOffers?.some((o) => o.id === offer.id),
-    false,
-    "Reject still clears the leftover",
-  );
 }
 
 {
@@ -299,8 +304,39 @@ console.log("ok    tradeWindow — leftover after deadline does not pause bulk s
   assert.ok(!/used|invalid/i.test(currentLabel));
 }
 
-// Recap → tag rollover clears a week-10 leftover. Same-season Reject path
-// is covered above; do not invent a mid-season auto-expire.
+// Playing the deadline week closes the inbox before Week 10 is on screen.
+// The deadline week itself still keeps a live call.
+{
+  const open = newGame({ seed: 1 });
+  open.phase = "regular";
+  open.week = TRADE_DEADLINE_WEEK;
+  const live = plantIncoming(open);
+  pruneStaleTradeInbox(open);
+  assert.equal(open.tradeOffers?.some((o) => o.id === live.offer.id), true, "deadline week does not drop the call");
+  assert.equal(incomingOffersOnTheTable(open).length, 1);
+
+  const st = newGame({ seed: 1 });
+  startRegularSeason(st);
+  st.week = TRADE_DEADLINE_WEEK;
+  const { offer } = plantIncoming(st);
+  assert.equal(tradeWindowOpen(st), true);
+  advance(st);
+  assert.equal(st.week, TRADE_DEADLINE_WEEK + 1, "the deadline week advances to week 10");
+  assert.equal(tradeWindowOpen(st), false);
+  assert.equal(
+    st.tradeOffers?.some((o) => o.id === offer.id),
+    false,
+    "rolling past the deadline takes the call off the table",
+  );
+  assert.equal(incomingOffersOnTheTable(st).length, 0);
+  const res = acceptOffer(st, offer.id);
+  assert.equal(res.ok, false);
+  assert.match(res.reason ?? "", /no longer on the table|closed/i);
+}
+
+console.log("ok    tradeWindow — deadline roll clears incoming offers");
+
+// Recap → tag rollover clears a week-10 leftover.
 {
   const st = newGame({ seed: 1 });
   st.phase = "offseason-recap";

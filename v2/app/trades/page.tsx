@@ -8,6 +8,7 @@ import {
   acceptOffer,
   assetValue,
   executeTrade,
+  incomingOffersOnTheTable,
   liveDraftSlot,
   picksOwnedBy,
   proposeFromUser,
@@ -25,6 +26,7 @@ import {
 import { rosterCapView } from "@/lib/view/rosterCap";
 import { draftYearLabel } from "@/lib/view/draftYear";
 import {
+  pickSlotFromLabel,
   tradeBoardAssetLabel,
   tradeBoardOvr,
   tradeBoardOvrSort,
@@ -134,7 +136,7 @@ export default function TradesPage() {
   const userTeam = state.teams[userId];
   const other = partnerId === null ? null : state.teams[partnerId];
   const open = tradeWindowOpen(state);
-  const offers: TradeOffer[] = state.tradeOffers ?? [];
+  const offers: TradeOffer[] = incomingOffersOnTheTable(state);
 
   const closedReason =
     state.phase === "playoffs"
@@ -266,16 +268,22 @@ export default function TradesPage() {
       <Card
         title="Offers on the table"
         subtitle={
-          offers.length === 0
-            ? "Clubs come to you when they need what you have"
-            : `${offers.length} club${offers.length === 1 ? "" : "s"} want to do business`
+          !open
+            ? "The window is closed"
+            : offers.length === 0
+              ? "Clubs come to you when they need what you have"
+              : `${offers.length} club${offers.length === 1 ? "" : "s"} want to do business`
         }
         padded={false}
       >
         {offers.length === 0 ? (
           <Empty
-            title="No offers right now"
-            hint="Other clubs make offers as the season and the offseason move on. They come looking when they have a hole you can fill."
+            title={open ? "No offers right now" : "No offers on the table"}
+            hint={
+              open
+                ? "Other clubs make offers as the season and the offseason move on. They come looking when they have a hole you can fill."
+                : "Calls from before the deadline are off the table. Nothing new arrives until the window reopens."
+            }
           />
         ) : (
           <div className="divide-y divide-[var(--color-line-soft)]">
@@ -774,7 +782,7 @@ function SidePanel({
             {picks.map((pk) => {
               const a = pickAsset(pk);
               const on = keys.has(assetKey(a));
-              const origin = state.teams[pk.originalTeamId];
+              const slotFrom = pickSlotFromLabel(state, pk, teamId);
               const slot = liveDraftSlot(state, pk);
               const year = draftYearLabel(pk.season);
               const label = slot && slot.playerId === null
@@ -801,10 +809,10 @@ function SidePanel({
                   </Cell>
                   <Cell>{pk.round}</Cell>
                   <Cell>
-                    {pk.originalTeamId === teamId ? (
+                    {slotFrom === "Own" ? (
                       <span className="text-[var(--color-faint)]">Own</span>
                     ) : (
-                      origin.abbr
+                      slotFrom
                     )}
                   </Cell>
                 </Row>

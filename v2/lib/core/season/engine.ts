@@ -149,11 +149,16 @@ export function simulateWeek(state: GameState, onKickoff?: RegularKickoffObserve
     if (tradeRng.next() < Math.min(1, 3.6 * weight)) {
       generateUserOffers(state, tradeRng, 2);
     }
-  } else if (state.week === TRADE_DEADLINE_WEEK + 1) {
-    state.log.push({
-      season: state.season, week: state.week, kind: "system",
-      text: "The trade deadline has passed.",
-    });
+  } else if (state.week > TRADE_DEADLINE_WEEK) {
+    if (state.week === TRADE_DEADLINE_WEEK + 1) {
+      state.log.push({
+        season: state.season, week: state.week, kind: "system",
+        text: "The trade deadline has passed.",
+      });
+    }
+    // A save already sitting past the deadline still has the old inbox
+    // until this week is played. Drop it before anything else reads it.
+    pruneStaleTradeInbox(state);
   }
 
   state.rngState = rng.state;
@@ -182,10 +187,14 @@ export function advance(state: GameState, onRegularKickoff?: RegularKickoffObser
         state.phase = "playoffs";
         state.playoffs = initPlayoffs(state);
         state.week = 19;
+        pruneStaleTradeInbox(state);
         runPsychology(state);
         return "Regular season complete — playoff field set";
       }
       state.week += 1;
+      // The deadline week itself still trades. The inbox closes as soon as
+      // that week is over, before the GM is looking at the next one.
+      if (state.week > TRADE_DEADLINE_WEEK) pruneStaleTradeInbox(state);
       runPsychology(state);
       return `Week ${state.week - 1} complete`;
     }
