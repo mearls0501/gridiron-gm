@@ -128,8 +128,11 @@ play survives; never in a decision loop. Not started.
 - The draft room's on-the-clock offers accept in one click with no review and
   no re-check (`acceptClockOffer`). Nearly always pick-for-pick, so low
   priority.
-- Year-2 waiver desk (~267 names) is cap-stuck residue — product decision
-  whether to age them to the street after the window. Not a settle miss.
+- Waiver limbo (the year-2 desk residue) is a cap leak, not a product
+  choice: a cut frees the whole hit but dead money is booked only at
+  clearing, so clubs re-spend the room and the player is re-listed forever.
+  Claims also move the signing bonus to the claiming club. Design and
+  decisions: `docs/waiver-clearing-design-2026-10-23.md`.
 
 ## The bar
 
