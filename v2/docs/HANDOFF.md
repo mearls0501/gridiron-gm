@@ -1,5 +1,30 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-22 — Camp nudge on the cut, packet B (ships off)
+
+Design and as-built: `docs/preseason-games-design-2026-10-20.md`, "As built —
+packet B". `lib/core/campGrade.ts` grades each player's preseason camp
+(production per snap against his position, capped ±2 SD, scaled to ±1, shrunk
+by snaps/(snaps+30); line and punters 0) and adds `grade × 3` to a club's own
+players in the cut valuations (`moveWorstSurplus`, `quarterbackKeepWorth`,
+`upgradeRoster`).
+
+**Off by default**: only `GG_CAMP_NUDGE=1` turns it on. Off, the cut never
+reads the camp (identical 53s and `rngState` with the camp lines emptied), so
+no baseline, canary or harness can move. On, one season then camp: 15 and 19
+of ~1,730 active spots change (seeds 42, 11); undrafted rookies net +2 to +3.
+
+To turn it on: a Studio panel `GG_CAMP_NUDGE=1 npm run gate:full:serial`
+read against the same commit without it (`careers` R6–R7 / UDFA survival,
+`survivalMae`, `careerLenMae`), then Matt's sign-off. `CAMP_NUDGE_MAX` is a
+design dial, not an NFL rate (no published study of how much preseason play
+moves the 53).
+
+Tests: `lib/core/campGrade.test.ts` (5 cases) in `package.json` and both gate
+tiers.
+
+---
+
 ## 2026-10-21 — Healthy players on IR: rule-driven, not preseason
 
 #189's paired drift showed `drift.healthyIrWeeks` 49.3 → 73.4 with preseason

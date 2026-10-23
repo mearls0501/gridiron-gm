@@ -1,3 +1,4 @@
+import { campNudge } from "../campGrade";
 import { Rng, clamp } from "../rng";
 import { defaultGuaranteedYears, makeContract, makePlayer, marketApy, positionalCeiling } from "../generate";
 import {
@@ -1352,7 +1353,8 @@ const FILL_BESIDES_QB: Position[] = (Object.keys(POSITION_MIN) as Position[]).fi
 /** Worth the cutdown already uses. Lowest active QB above the cap is waived. */
 function quarterbackKeepWorth(state: GameState, teamId: number, p: Player): number {
   const { posture } = teamOutlook(state, teamId);
-  return evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season);
+  return evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season)
+    + campNudge(state, p);
 }
 
 function cutWorstActiveQuarterback(state: GameState, teamId: number): boolean {
@@ -1432,7 +1434,8 @@ function moveWorstSurplus(
   });
   const { posture } = teamOutlook(state, teamId);
   const worth = (p: Player) =>
-    evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season);
+    evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season)
+    + campNudge(state, p);
   const target = candidates.sort((a, b) => worth(a) - worth(b))[0];
   if (!target) return false;
   cutPlayer(state, target.id);
@@ -1610,8 +1613,11 @@ const ROOKIE_HOLD_YEARS = 4;
 export function upgradeRoster(state: GameState, teamId: number, rng: Rng): number {
   const { posture } = teamOutlook(state, teamId);
   const val = (p: Player) => evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]);
-  /** The club's own men are priced with the draft capital already spent on them. */
-  const held = (p: Player) => val(p) + draftCapitalHold(p, state.season);
+  /**
+   * The club's own men are priced with the draft capital already spent on
+   * them, and (packet B, off by default) how their camp went.
+   */
+  const held = (p: Player) => val(p) + draftCapitalHold(p, state.season) + campNudge(state, p);
   let swaps = 0;
 
   while (swaps < MAX_UPGRADES) {

@@ -281,3 +281,32 @@ Read of `lib/core/sim/game.ts` on `claude/dazzling-pasteur-02nh3y`. Answer:
 - Tests: `lib/core/preseason.test.ts` (7 cases), registered in `package.json`
   and both gate tiers. `e2e.mjs` walks the three weeks and checks each result
   on the hub.
+
+## As built — packet B, the camp nudge (2026-10-22, ships off)
+
+- `lib/core/campGrade.ts`. A camp grade per player: box production per snap
+  in one currency per position family (passing, rushing, receiving, defense,
+  kicking), against his position's snap-weighted camp mean, in standard
+  deviations capped at ±2 and scaled to ±1, then shrunk by
+  `snaps / (snaps + 30)`. The cap comes before the shrink so a fluke cannot
+  reach the clamp: ten snaps grade at most 0.25. The offensive line and
+  punters grade 0 (no production line in the box). Zero outside
+  `offseason-final` and before the first preseason week.
+- The nudge is `grade × CAMP_NUDGE_MAX` (3 `evaluate` units, a design dial;
+  a seventh-rounder's draft-capital hold is 2–10 on the same scale). It is
+  added to a club's own players in the three cut valuations:
+  `moveWorstSurplus`, `quarterbackKeepWorth` and `upgradeRoster`'s `held`.
+  Free agents on the street have no camp line and are unchanged.
+- **Off by default.** `campNudgeOn()` reads `GG_CAMP_NUDGE=1`, so a Studio
+  panel can run `GG_CAMP_NUDGE=1 npm run gate:full:serial` against the same
+  commit. Off, the cut never reads the camp (test: identical 53s and
+  `rngState` with the camp lines emptied). No new draw either way.
+- Size, one season then camp, nudge on vs off: 15 and 19 of about 1,730
+  active spots change (seeds 42, 11). Undrafted rookies net +2 to +3;
+  late-round rookies and veterans swap at the edge. In a fresh league with no
+  rookie class, 1–2 of 1,696.
+- Tests: `lib/core/campGrade.test.ts` (5 cases), in `package.json` and both
+  gate tiers.
+- Needs before it is turned on: a Studio panel with `GG_CAMP_NUDGE=1` read
+  against one without (`careers` R6–R7 and UDFA survival, `survivalMae`,
+  `careerLenMae`, cutdown trade and waiver markets), and Matt's sign-off.
