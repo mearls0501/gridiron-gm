@@ -5,7 +5,7 @@ import { generateSchedule } from "../schedule";
 import { Game, GameState, Player, REGULAR_SEASON_WEEKS, TRADE_DEADLINE_WEEK } from "../types";
 import { applyGameStats } from "./stats";
 import { recordGame } from "./records";
-import { initPlayoffs, simulatePlayoffRound } from "./playoffs";
+import { ensureCurrentRoundGames, initPlayoffs, simulatePlayoffRound } from "./playoffs";
 import { applyGameWear, healWeek, healthySet, rollWeeklyInjuries } from "./injuries";
 import { generateUserOffers, pruneStaleTradeInbox, runCpuTrades } from "../trades";
 import { fillCpuIrReplacements } from "../irFill";
@@ -187,6 +187,8 @@ export function advance(state: GameState, onRegularKickoff?: RegularKickoffObser
         state.phase = "playoffs";
         state.playoffs = initPlayoffs(state);
         state.week = 19;
+        // Same rng state the first playoff Sim used to roll weather.
+        ensureCurrentRoundGames(state);
         pruneStaleTradeInbox(state);
         runPsychology(state);
         return "Regular season complete — playoff field set";
@@ -211,6 +213,9 @@ export function advance(state: GameState, onRegularKickoff?: RegularKickoffObser
         return "Champion crowned";
       }
       state.week += 1;
+      // Next round's weather uses the rng state just saved, which is
+      // what the following Sim would have rolled at kickoff.
+      ensureCurrentRoundGames(state);
       runPsychology(state);
       return `${before} round complete`;
     }

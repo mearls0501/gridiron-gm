@@ -874,7 +874,7 @@ export default function Hub() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center justify-center gap-2">
-                    {state.phase === "regular" && (
+                    {(state.phase === "regular" || state.phase === "playoffs") && (
                       <Link href="/play">
                         <Button size="sm" variant="primary">Play the Game</Button>
                       </Link>

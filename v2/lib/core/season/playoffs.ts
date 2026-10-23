@@ -128,6 +128,26 @@ export function buildRoundGames(state: GameState): Game[] {
   return games;
 }
 
+/**
+ * Draw the open round if it has no games yet. Called when the round
+ * opens (end of the regular season, or the moment the previous round
+ * finishes), so the bracket, the hub, and /play can see it before Sim.
+ * Weather reads `state.rngState` and does not write it. A round that
+ * already has games is left alone.
+ */
+export function ensureCurrentRoundGames(state: GameState): Game[] {
+  const ps = state.playoffs;
+  if (!ps || ps.complete || state.phase !== "playoffs") return [];
+  const existing = state.games.filter(
+    (g) => g.season === state.season && g.playoffRound === ps.round,
+  );
+  if (existing.length > 0) return existing;
+  const games = buildRoundGames(state);
+  if (games.length === 0) return [];
+  state.games.push(...games);
+  return games;
+}
+
 export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   resolveWaivers(state);
   const ps = state.playoffs;
@@ -138,8 +158,8 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   );
 
   if (games.length === 0) {
-    games = buildRoundGames(state);
-    state.games.push(...games);
+    // A save that reached Sim with the round still undrawn.
+    games = ensureCurrentRoundGames(state);
   }
 
   // The postseason used to have neither injuries nor healing: nobody got hurt
