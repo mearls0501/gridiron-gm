@@ -435,34 +435,95 @@ function makeRosterForTeam(
 // Depth chart
 // ---------------------------------------------------------------------------
 
-export function autoSortDepthChart(state: GameState, team: Team): void {
-  const byPos: Record<string, Player[]> = {};
-  for (const pos of POSITIONS) byPos[pos] = [];
-
-  for (const p of state.players) {
-    if (p.teamId === team.id && !p.retired) byPos[p.pos].push(p);
-  }
-
-  for (const pos of POSITIONS) {
-    byPos[pos].sort((a, b) => {
-      // Injured, IR, and PS fall to the bottom but stay on the chart.
-      const slot = (p: Player) =>
-        p.status === "ir" || p.status === "ps" ? 2 : p.injuryWeeks > 0 ? 1 : 0;
-      const ai = slot(a);
-      const bi = slot(b);
-      if (ai !== bi) return ai - bi;
-      if (b.ovr !== a.ovr) return b.ovr - a.ovr;
-      return a.id - b.id; // stable
-    });
-    team.depthChart[pos] = byPos[pos].map((p) => p.id);
-  }
+function depthSlot(p: Player): number {
+  return p.status === "ir" || p.status === "ps" ? 2 : p.injuryWeeks > 0 ? 1 : 0;
 }
 
-/** Re-sort every team that hasn't been hand-edited by the user. */
-export function refreshDepthCharts(state: GameState, force = false): void {
-  for (const t of state.teams) {
-    if (force || !t.depthChartManual) autoSortDepthChart(state, t);
+/** Injured, IR, and PS fall to the bottom. Rating breaks the rest. Id is stable. */
+function compareDepth(a: Player, b: Player): number {
+  const as = depthSlot(a);
+  const bs = depthSlot(b);
+  if (as !== bs) return as - bs;
+  if (a.ovr !== b.ovr) return b.ovr - a.ovr;
+  return a.id - b.id;
+}
+
+function rosterAt(state: GameState, team: Team, pos: Position): Player[] {
+  return state.players.filter((p) => p.teamId === team.id && !p.retired && p.pos === pos);
+}
+
+function sortedAt(state: GameState, team: Team, pos: Position): Player[] {
+  return rosterAt(state, team, pos).sort(compareDepth);
+}
+
+/**
+ * Keep the stored relative order. Drop anyone who left the position.
+ * Slot players the chart has not heard about by the same health-then-rating
+ * order, so a new starter is not glued to the bottom.
+ */
+function reconciledAt(state: GameState, team: Team, pos: Position): Player[] {
+  const roster = rosterAt(state, team, pos);
+  const byId = new Map(roster.map((p) => [p.id, p]));
+  const seen = new Set<number>();
+  const kept: Player[] = [];
+  for (const id of team.depthChart[pos] ?? []) {
+    const p = byId.get(id);
+    if (p && !seen.has(id)) {
+      kept.push(p);
+      seen.add(id);
+    }
   }
+  const newcomers = roster.filter((p) => !seen.has(p.id)).sort(compareDepth);
+  for (const incoming of newcomers) {
+    let i = 0;
+    while (i < kept.length && compareDepth(kept[i], incoming) <= 0) i++;
+    kept.splice(i, 0, incoming);
+  }
+  return kept;
+}
+
+/**
+ * A legacy manual flag with no position list freezes every position's
+ * relative order. A list freezes only the positions the user moved.
+ */
+function positionIsManual(team: Team, pos: Position): boolean {
+  if (!team.depthChartManual) return false;
+  const listed = team.depthChartManualAt;
+  if (!listed || listed.length === 0) return true;
+  return listed.includes(pos);
+}
+
+/** Chart order the screen and the weekly refresh both use. */
+export function depthList(state: GameState, team: Team, pos: Position): Player[] {
+  if (positionIsManual(team, pos)) return reconciledAt(state, team, pos);
+  return sortedAt(state, team, pos);
+}
+
+export function markDepthManual(team: Team, pos: Position): void {
+  team.depthChartManual = true;
+  const list = team.depthChartManualAt ? team.depthChartManualAt.slice() : [];
+  if (!list.includes(pos)) list.push(pos);
+  team.depthChartManualAt = list;
+}
+
+export function autoSortDepthChart(state: GameState, team: Team): void {
+  for (const pos of POSITIONS) team.depthChart[pos] = sortedAt(state, team, pos).map((p) => p.id);
+  team.depthChartManual = false;
+  delete team.depthChartManualAt;
+}
+
+/** Re-sort untouched positions. Edited positions keep their order and slot newcomers. */
+export function refreshTeamDepthChart(state: GameState, team: Team, force = false): void {
+  if (force || !team.depthChartManual) {
+    autoSortDepthChart(state, team);
+    return;
+  }
+  for (const pos of POSITIONS) team.depthChart[pos] = depthList(state, team, pos).map((p) => p.id);
+}
+
+/** Re-sort every team that hasn't been hand-edited. Edited charts are reconciled. */
+export function refreshDepthCharts(state: GameState, force = false): void {
+  for (const t of state.teams) refreshTeamDepthChart(state, t, force);
 }
 
 function emptyDepthChart(): Record<Position, number[]> {

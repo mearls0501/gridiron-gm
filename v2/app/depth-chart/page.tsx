@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useGame } from "@/lib/store/game";
-import { autoSortDepthChart } from "@/lib/core/generate";
+import { autoSortDepthChart, depthList, markDepthManual } from "@/lib/core/generate";
 import {
   DEFENSE,
   GameState,
@@ -47,30 +47,12 @@ const SIDE_OPTIONS: { value: Side; label: string }[] = [
 ];
 
 /**
- * The chart as it should be read: stored order first (skipping ids for players
- * who are no longer on the roster), then any rostered player the chart has not
- * heard about yet. Pure and deterministic, so the index a button sees on screen
- * is the same index the mutation resolves.
+ * The chart as the weekly refresh will write it. Edited positions keep their
+ * relative order and slot newcomers by rating. The index a button sees is the
+ * index the mutation writes.
  */
 function orderedFor(state: GameState, team: Team, pos: Position): Player[] {
-  const roster = state.players.filter(
-    (p) => p.teamId === team.id && !p.retired && !p.prospect && p.pos === pos
-  );
-  const byId = new Map(roster.map((p) => [p.id, p]));
-  const seen = new Set<number>();
-  const out: Player[] = [];
-
-  for (const id of team.depthChart[pos] ?? []) {
-    const p = byId.get(id);
-    if (p && !seen.has(id)) {
-      out.push(p);
-      seen.add(id);
-    }
-  }
-  for (const p of roster) {
-    if (!seen.has(p.id)) out.push(p);
-  }
-  return out;
+  return depthList(state, team, pos).filter((p) => !p.prospect);
 }
 
 export default function DepthChartPage() {
@@ -105,7 +87,7 @@ export default function DepthChartPage() {
       order[index] = order[j];
       order[j] = moved;
       t.depthChart[pos] = order;
-      t.depthChartManual = true;
+      markDepthManual(t, pos);
       const p = s.players.find((x) => x.id === moved);
       return p ? `${p.lastName} moved to ${pos}${j + 1}` : `${pos} depth chart updated`;
     });
@@ -124,7 +106,7 @@ export default function DepthChartPage() {
     <div className="space-y-4">
       <Card
         title="Depth Chart"
-        subtitle={`${team.city} ${team.name} — ${team.depthChartManual ? "manually ordered" : "auto-sorted by rating"}`}
+        subtitle={`${team.city} ${team.name} — ${team.depthChartManual ? "your order at edited positions" : "auto-sorted by rating"}`}
         actions={
           <Button
             variant="primary"
@@ -147,7 +129,9 @@ export default function DepthChartPage() {
               <>
                 <Pill tone="warn">Manual</Pill>
                 <span className="text-xs text-[var(--color-muted)]">
-                  Weekly auto-sorting is off until you auto-sort again.
+                  {team.depthChartManualAt && team.depthChartManualAt.length > 0
+                    ? `Your order is kept at ${team.depthChartManualAt.join(", ")}. New players slot in by rating. Every other position still auto-sorts each week.`
+                    : "Your order is kept. New players slot in by rating instead of sitting at the bottom."}
                 </span>
               </>
             )}
