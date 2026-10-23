@@ -156,3 +156,38 @@ So it needs a Studio panel and a signed canary, like the camp nudge.
    charge it on load?
 5. **Claim rate.** Leave the ~55% claim rate for a separate note, as
    proposed, or look at it in the same packet?
+
+## Decided (Matt, 2026-10-23)
+
+All five as recommended: bonus at the cut; claims split like a trade;
+unaffordable cuts refused; the existing pile released with no charge; the
+claim rate left for a separate note.
+
+## As built
+
+- `cutPlayer` books `remainingBonusProration` on the waiving club and strips
+  the bonus from the contract (`signingBonus` and `bonusProrationYears` to 0,
+  the same copy `moveAsset` makes for a trade). The entry is written with
+  `bookedAtCut: true`.
+- `awardClaim`: the claimant takes that copy, base and guarantee only. The
+  claim-cut it may make to open a slot now prices that player's dead money.
+- `stashOrFreeAgent`: practice squad as before, otherwise free agent always.
+  An entry with `bookedAtCut` books what is left (`deadMoney` of the stripped
+  copy, the guarantee); an entry without it is the old pile and clears with
+  no charge. The re-list path is gone.
+- Backstop: at the end of every `resolveWaivers`, a CPU club over the cap
+  runs `enforceCap` (cuts only players whose release saves room). The user's
+  club is never cut for; an over-cap user still sees the existing roster
+  issue.
+- `cutAffordable` / `cutRefusal` (`offseason/contracts.ts`): a cut is allowed
+  when it saves room or its dead money fits the room left. CPU cut pickers
+  (`worstSurplus`, the position ceiling, the QB cap) take the worst
+  affordable player and fall back to the worst only when none is affordable,
+  so a club can still reach 53; the backstop then covers the cap. The
+  `/roster` Release and Place on PS buttons refuse with the reason.
+- Not changed: camp. CPU clubs carry 90 in camp and sit over the cap until
+  the cut on `main` too (19 of 31 on seed 42); the NFL counts the top 51 in
+  the offseason. Separate item.
+- Tests: `lib/core/waiverClearing.test.ts` (5 cases), in `package.json` and
+  both gate tiers. `waivers`, `proRata` and `retirementDead` cases that
+  asserted the old timing now assert the signed one.

@@ -14,7 +14,7 @@ import {
   teamCap,
   teamRoster,
 } from "@/lib/core/select";
-import { cutPlayer, fillUserMinimum } from "@/lib/core/offseason/contracts";
+import { cutPlayer, cutRefusal, fillUserMinimum } from "@/lib/core/offseason/contracts";
 import {
   submitWaiverClaim, waiverWindowLabel, waiverWire, withdrawWaiverClaim,
 } from "@/lib/core/waivers";
@@ -152,6 +152,9 @@ export default function RosterPage() {
   function release(p: Player) {
     const name = playerName(p);
     apply((s) => {
+      const live = s.players.find((x) => x.id === p.id);
+      const refused = live ? cutRefusal(s, live) : null;
+      if (refused) return refused;
       const res = cutPlayer(s, p.id);
       if (!res.ok) return res.reason ?? "That player could not be released.";
       const t = s.teams[s.userTeamId];
@@ -489,9 +492,15 @@ export default function RosterPage() {
                             {formatMoney(savings)}
                           </span>
                         </span>
-                        <Button size="sm" variant="danger" onClick={() => release(p)}>
-                          Confirm
-                        </Button>
+                        {cutRefusal(state, p) ? (
+                          <span className="text-[11px] text-[var(--color-bad)] whitespace-normal max-w-[16rem]">
+                            {cutRefusal(state, p)}
+                          </span>
+                        ) : (
+                          <Button size="sm" variant="danger" onClick={() => release(p)}>
+                            Confirm
+                          </Button>
+                        )}
                         <Button size="sm" variant="ghost" onClick={() => setConfirmId(null)}>
                           Cancel
                         </Button>
@@ -512,6 +521,9 @@ export default function RosterPage() {
                             size="sm"
                             variant="ghost"
                             onClick={() => move((s) => {
+                              const live = s.players.find((x) => x.id === p.id);
+                              const refused = live ? cutRefusal(s, live) : null;
+                              if (refused) return { ok: false, reason: refused };
                               const res = cutPlayer(s, p.id);
                               return res.ok ? { ok: true } : { ok: false, reason: res.reason };
                             }, `Waived ${playerName(p)} — if unclaimed he can land on this club's practice squad`)}

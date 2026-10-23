@@ -140,12 +140,13 @@ ok("a player traded twice splits the year three ways");
   const res = cutPlayer(st, user.id);
   assert.equal(res.ok, true);
   near(st.teams[st.userTeamId].salaryPaidOut ?? 0, B * 11 / W, "11 paid weeks stay on the club");
-  assert.equal(st.teams[st.userTeamId].deadCap, 0, "paid weeks are not dead money");
-  // A claimant takes the contract as it stands: 7 weeks of base.
-  near(capHit({ ...user.contract!, signingBonus: 0 }), B * 7 / W, "claimant's base share is 7/18");
-  // A clear charges the guaranteed remainder: 7/18 of this year, all of next, plus the bonus.
+  // The bonus accelerates at the cut (CBA Art. 13 §6(b)(ii)); paid weeks are not dead money.
+  near(st.teams[st.userTeamId].deadCap, bonus, "only the bonus books at the cut");
+  // A claimant takes the contract as it stands, bonus gone: 7 weeks of base.
+  near(capHit(user.contract), B * 7 / W, "claimant's base share is 7/18");
+  // A clear charges the guaranteed remainder: 7/18 of this year and all of next.
   const next = user.contract!.baseSalary[1];
-  near(deadMoney(user.contract), bonus + B * 7 / W + next, "a clear charges what is still owed");
+  near(deadMoney(user.contract), B * 7 / W + next, "a clear charges the guarantee still owed");
 }
 ok("a week-11 cut keeps 11 weeks and passes on 7");
 
