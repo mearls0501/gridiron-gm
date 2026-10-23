@@ -295,8 +295,10 @@ export default function FinancesPage() {
                         disabled={!canExtend}
                         title={
                           ext && ask
-                            ? `Club offer ${ext.years}yr / ${formatMoney(ext.apy)} — they want ${formatMoney(ask)}`
-                            : "A tagged tender is extended on the Hub."
+                            ? `Club offer ${ext.years}yr / ${formatMoney(ext.apy)} per year. Meet asking pays ${formatMoney(ask)}.`
+                            : state.phase === "offseason-final"
+                              ? "A tagged tender is extended on the Hub."
+                              : "A tagged tender is extended on the July 15 desk in camp."
                         }
                         onClick={() => extend(p, false)}
                       >

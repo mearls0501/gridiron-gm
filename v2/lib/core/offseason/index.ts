@@ -15,7 +15,7 @@ import { runHousekeeping } from "../housekeeping";
 import { refreshCpuStaff } from "../staff";
 import { runPsychology } from "../psychology";
 import { fireCpuHeadCoaches, runCoachCarousel, tickCoachContracts } from "../coaches";
-import { applyUserGmFiring, ensureOwners, stampSeasonExpectedWins } from "../owner";
+import { applyUserGmFiring, ensureOwners, isPendingForcedMove, stampSeasonExpectedWins } from "../owner";
 import { runHofInduction, tickHofCareerLabels } from "../hallOfFame";
 import { maybeRetireNumbersForHallOfFame } from "../jersey";
 import { playPreseasonWeek, preseasonWeeksLeft } from "../preseason";
@@ -360,16 +360,21 @@ export function advanceOffseason(state: GameState): string {
     case "offseason-recap": {
       const rng = new Rng(state.rngState);
       runRecap(state);
-      runCpuFranchiseTags(state, rng);
+      const hold = isPendingForcedMove(state) ? state.forcedMove?.openChairs : undefined;
+      runCpuFranchiseTags(state, rng, hold);
       state.rngState = rng.state;
       return "Season review complete — franchise tag window is open";
     }
 
-    case "offseason-tag":
+    case "offseason-tag": {
+      const left = state.forcedMove?.fromTeamId;
+      const skip = left !== undefined && left !== state.userTeamId ? [left] : undefined;
+      runCpuFranchiseTags(state, new Rng(state.rngState), skip);
       runFreeAgencyOpen(state);
       runOffseasonTrades(state);
       openFaBidding(state);
       return "Franchise tag window closed — free agency is open";
+    }
 
     case "offseason-fa":
       runAllFaWaves(state);

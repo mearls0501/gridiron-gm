@@ -264,11 +264,14 @@ function featureChildRng(state: GameState, feature: string): Rng {
  * candidate's tender is above MAX_CONTRACT_SHARE, that club tags
  * nobody this window (extend or walk) — do not tag a lesser man.
  */
-export function runCpuFranchiseTags(state: GameState, _rng: Rng): void {
+export function runCpuFranchiseTags(
+  state: GameState, _rng: Rng, skipTeamIds?: readonly number[],
+): void {
   ensureFranchiseTagSnapshot(state);
+  const skip = new Set(skipTeamIds ?? []);
   const rng = featureChildRng(state, "franchiseTags");
   for (const t of state.teams) {
-    if (t.id === state.userTeamId) continue;
+    if (t.id === state.userTeamId || skip.has(t.id)) continue;
     if (clubHasFranchiseTag(state, t.id)) continue;
     const { posture } = teamOutlook(state, t.id);
     if (posture === "rebuild") continue;
@@ -827,7 +830,10 @@ export function isOfficeExtensionEligible(state: GameState, p: Player): boolean 
   return p.contract.yearsRemaining >= 1;
 }
 
-/** Player ask over market. Club market offer refuses; meeting this accepts. */
+/**
+ * Premium Meet asking pays over the club's market number.
+ * Offer sends that market number and is accepted. Anything under it refuses.
+ */
 export const EXTENSION_ASK_PREMIUM = 1.08;
 
 export function officeExtensionTerms(
@@ -858,11 +864,12 @@ export function applyOfficeExtension(
   const currentHit = capHit(p.contract);
   const { years: yrs, apy: clubOffer } = officeExtensionTerms(state, teamId, p);
   const apy = offeredApy ?? clubOffer;
-  const ask = extensionAskingApy(state, teamId, p);
-  if (apy < ask) {
+  // The club number is market. Meet asking pays the premium on top.
+  // Refusing every market offer made the Offer button a dead click.
+  if (apy < clubOffer) {
     return {
       ok: false,
-      reason: `${p.lastName} wants ${formatMoney(ask)} per year and turned down ${formatMoney(apy)}.`,
+      reason: `${p.lastName} turned down ${formatMoney(apy)}. The offer has to be at least ${formatMoney(clubOffer)} per year.`,
     };
   }
 
@@ -895,9 +902,9 @@ export function applyOfficeExtension(
 }
 
 /**
- * /finances Offer and Meet asking. Offer sends the club number.
- * Meet asking sends `extensionAskingApy`. Same acceptance as
- * `applyOfficeExtension` — under the ask is a refusal. Not a second desk.
+ * /finances Offer and Meet asking. Offer sends the club's market number.
+ * Meet asking sends the premium (`extensionAskingApy`), which is never
+ * under that number. Under the club number is a refusal. Not a second desk.
  */
 export function submitOfficeOffer(
   state: GameState, teamId: number, playerId: number, meetAsk: boolean,
@@ -906,7 +913,7 @@ export function submitOfficeOffer(
   if (!p) return { ok: false, message: "No such player" };
   const terms = officeExtensionTerms(state, teamId, p);
   const ask = extensionAskingApy(state, teamId, p);
-  const apy = meetAsk ? ask : terms.apy;
+  const apy = meetAsk ? Math.max(ask, terms.apy) : terms.apy;
   const r = applyOfficeExtension(state, teamId, p.id, apy);
   if (!r.ok) return { ok: false, message: r.reason ?? "That extension was turned down." };
   return {

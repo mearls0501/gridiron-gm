@@ -13,8 +13,8 @@ import { newGame } from "../core/newGame";
 import { Rng } from "../core/rng";
 import { LEAGUE_MINIMUM, Player } from "../core/types";
 import {
-  applyFranchiseTag, expiringPlayers, extensionAskingApy, isFranchiseTagged,
-  submitOfficeOffer,
+  applyFranchiseTag, applyOfficeExtension, expiringPlayers, extensionAskingApy,
+  isFranchiseTagged, officeExtensionTerms, submitOfficeOffer,
 } from "../core/offseason/contracts";
 import { runFreeAgencyOpen } from "../core/offseason";
 import { hubResignWalkWarning, resignPot, resignStepRows, resignWalkCount } from "./resignStep";
@@ -67,27 +67,37 @@ function ok(label: string) { console.log("ok   ", label); }
   ok("every user expiring player appears with an asking price");
 }
 
-// (2) Meet asking re-signs. Offer is the same desk and stays under the ask.
+// (2) Offer is the club's market number and re-signs. Under that number refuses.
+//     Meet asking pays the premium and also re-signs.
 {
   const st = newGame({ seed: 22 });
   st.phase = "offseason-tag";
   const p = plantExpiring(st, st.userTeamId, 74);
+  const other = plantExpiring(st, st.userTeamId, 71);
+  assert.notEqual(other.id, p.id);
   assert.equal(expiringPlayers(st, st.userTeamId).some((x) => x.id === p.id), true);
   const beforeRng = st.rngState;
-  const offer = submitOfficeOffer(st, st.userTeamId, p.id, false);
-  assert.equal(offer.ok, false, offer.message);
-  assert.match(offer.message, /turned down|wants/i);
-  assert.equal(p.contract?.yearsRemaining, 1, "a refused Offer does not re-sign");
-  assert.equal(st.rngState, beforeRng, "office must not touch the parent stream");
+  const terms = officeExtensionTerms(st, st.userTeamId, p);
+  const under = applyOfficeExtension(st, st.userTeamId, p.id, terms.apy - 1);
+  assert.equal(under.ok, false, under.reason ?? "under");
+  assert.match(under.reason ?? "", /turned down/i);
+  assert.equal(p.contract?.yearsRemaining, 1, "a below-market offer does not re-sign");
 
-  const meet = submitOfficeOffer(st, st.userTeamId, p.id, true);
-  assert.equal(meet.ok, true, meet.message);
+  const offer = submitOfficeOffer(st, st.userTeamId, p.id, false);
+  assert.equal(offer.ok, true, offer.message);
   assert.equal(p.teamId, st.userTeamId);
   assert.ok(p.contract);
-  assert.ok(p.contract.yearsRemaining > 1, "Meet asking replaces the expiring year");
+  assert.ok(p.contract.yearsRemaining > 1, "Offer replaces the expiring year");
   assert.equal(expiringPlayers(st, st.userTeamId).some((x) => x.id === p.id), false);
+  assert.equal(st.rngState, beforeRng, "Offer must not touch the parent stream");
+
+  const meet = submitOfficeOffer(st, st.userTeamId, other.id, true);
+  assert.equal(meet.ok, true, meet.message);
+  assert.ok(other.contract);
+  assert.ok(other.contract.yearsRemaining > 1, "Meet asking replaces the expiring year");
+  assert.equal(expiringPlayers(st, st.userTeamId).some((x) => x.id === other.id), false);
   assert.equal(st.rngState, beforeRng, "Meet asking must not touch the parent stream");
-  ok("Meet asking re-signs the player");
+  ok("Offer and Meet asking both re-sign");
 }
 
 // (3) Hub walk count equals the expiring players not yet re-signed.
@@ -129,6 +139,11 @@ function ok(label: string) { console.log("ok   ", label); }
   const rng = new Rng(st.rngState);
   assert.equal(applyFranchiseTag(st, st.userTeamId, still.id, rng).ok, true);
   assert.equal(isFranchiseTagged(st, still.id), true);
+  assert.equal(
+    resignStepRows(st).some((r) => r.player.id === still.id),
+    false,
+    "a tagged player is not on the re-sign list",
+  );
   assert.equal(
     resignWalkCount(st),
     expiringPlayers(st, st.userTeamId).filter((p) => !isFranchiseTagged(st, p.id)).length,
