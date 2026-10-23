@@ -215,6 +215,7 @@ function userGame(st: GameState) {
 }
 
 // Practice squad full and the club cannot eat the dead money: he stays off the active roster.
+// He clears to free agency (docs/waiver-clearing-design-2026-10-23.md), not back on the wire.
 {
   const st = newGame({ seed: 8 });
   st.phase = "regular";
@@ -236,7 +237,8 @@ function userGame(st: GameState) {
   resolveWaivers(st);
   assert.equal(victim.teamId, null);
   assert.equal(isActiveRoster(victim) && victim.teamId === tid, false);
-  assert.equal(isOnWaivers(st, victim.id), true, "left on the wire instead of activated");
+  assert.equal(isOnWaivers(st, victim.id), false, "cleared, not re-listed");
+  assert.equal(victim.contract, null, "a free agent, not activated");
   assert.equal(rosterCount(st, tid), activeBefore - 1);
 }
 
