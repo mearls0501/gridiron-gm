@@ -609,6 +609,32 @@ export interface CutResult {
   savings: number;
 }
 
+/**
+ * A club cannot make a move that leaves it over the cap. A cut that saves
+ * room is always allowed (it is how a club over the cap gets back under);
+ * one whose dead money exceeds his hit must fit the room left once he is off
+ * the books. Prices the worst case: he clears, and the bonus and the
+ * guarantee both land here. docs/waiver-clearing-design-2026-10-23.md
+ */
+export function cutAffordable(state: GameState, p: Player): boolean {
+  if (p.teamId === null || !p.contract) return true;
+  const savings = capHit(p.contract) - deadMoney(p.contract);
+  return savings >= 0 || teamCap(state, p.teamId).space + savings >= 0;
+}
+
+/** Why the user cannot cut him, or null. */
+export function cutRefusal(state: GameState, p: Player): string | null {
+  if (cutAffordable(state, p)) return null;
+  const room = teamCap(state, p.teamId!).space + capHit(p.contract);
+  return `Cutting him costs ${formatMoney(deadMoney(p.contract))} of dead money, and you would have ` +
+    `${formatMoney(Math.max(0, room))} of room. Clear cap space first.`;
+}
+
+/** The first player in `sorted` (worst first) the club can afford to cut, else the first. */
+function firstAffordable(state: GameState, sorted: Player[]): Player | undefined {
+  return sorted.find((p) => cutAffordable(state, p)) ?? sorted[0];
+}
+
 export function cutPlayer(state: GameState, playerId: number): CutResult {
   const p = state.players.find((x) => x.id === playerId);
   if (!p) return { ok: false, reason: "No such player", dead: 0, savings: 0 };
@@ -620,12 +646,23 @@ export function cutPlayer(state: GameState, playerId: number): CutResult {
   const dead = deadMoney(p.contract);
   const savings = capHit(p.contract) - dead;
 
+  // The unamortized signing bonus accelerates on the waiving club now,
+  // claimed or not (CBA Art. 13 §6(b)(ii)), the same split a trade makes.
+  // A claiming club takes base and guarantee; if he clears, the guarantee
+  // lands here too (`stashOrFreeAgent`).
+  // docs/waiver-clearing-design-2026-10-23.md
+  if (p.contract) {
+    const proration = Math.round(remainingBonusProration(p.contract));
+    if (proration > 0) addDeadCap(state, teamId, proration);
+    p.contract = { ...p.contract, signingBonus: 0, bonusProrationYears: 0 };
+  }
+
   p.teamId = null;
   p.waivedSeason = state.season;
   clearRosterSlot(p);
   if (!state.waivers) state.waivers = [];
   if (!state.waivers.some((w) => w.playerId === p.id)) {
-    state.waivers.push({ playerId: p.id, originalTeamId: teamId });
+    state.waivers.push({ playerId: p.id, originalTeamId: teamId, bookedAtCut: true });
   }
 
   state.log.push({
@@ -1398,9 +1435,9 @@ function cutWorstActiveQuarterback(state: GameState, teamId: number): boolean {
     (p) => p.teamId === teamId && p.pos === "QB" && !p.retired && !p.prospect && isActiveRoster(p),
   );
   if (qbs.length <= QB_53_MAX) return false;
-  const worst = qbs.slice().sort(
+  const worst = firstAffordable(state, qbs.slice().sort(
     (a, b) => quarterbackKeepWorth(state, teamId, a) - quarterbackKeepWorth(state, teamId, b) || a.id - b.id,
-  )[0];
+  ));
   if (!worst) return false;
   return cutPlayer(state, worst.id).ok;
 }
@@ -1592,7 +1629,7 @@ function worstSurplus(state: GameState, teamId: number, protectPos: Position | n
     return positionCount(state, teamId, p.pos) > POSITION_MIN[p.pos];
   });
   candidates.sort((a, b) => surplusWorth(state, teamId, a) - surplusWorth(state, teamId, b) || a.id - b.id);
-  return candidates[0] ?? null;
+  return firstAffordable(state, candidates) ?? null;
 }
 
 function cutWorstActiveAt(state: GameState, teamId: number, pos: Position): boolean {
@@ -1601,7 +1638,7 @@ function cutWorstActiveAt(state: GameState, teamId: number, pos: Position): bool
   );
   if (roster.length <= POSITION_ACTIVE_MAX[pos]) return false;
   roster.sort((a, b) => surplusWorth(state, teamId, a) - surplusWorth(state, teamId, b) || a.id - b.id);
-  return cutPlayer(state, roster[0].id).ok;
+  return cutPlayer(state, firstAffordable(state, roster)!.id).ok;
 }
 
 function moveWorstSurplus(

@@ -1,10 +1,10 @@
 import { GameState, Player, POSITION_ACTIVE_MAX, POSITION_MIN, PRACTICE_SQUAD_LIMIT, rosterLimit, salaryCap, WaiverClaim } from "./types";
-import { addDeadCap, capHit, deadMoney, getPlayer, isActiveRoster, rosterCount, startSeason } from "./select";
+import { addDeadCap, capHit, deadMoney, getPlayer, isActiveRoster, rosterCount, startSeason, teamCap } from "./select";
 import { placeOnPs, clearRosterSlot } from "./rosterStatus";
 import { compareTeamsCore, leagueStandings } from "./season/standings";
 import { evaluate, teamOutlook, TeamOutlook } from "./frontOffice";
 import { POSITION_VALUE } from "./ratings";
-import { cutPlayer, draftCapitalHold } from "./offseason/contracts";
+import { cutPlayer, draftCapitalHold, enforceCap } from "./offseason/contracts";
 
 const TIME = typeof process !== "undefined" && process.env.WAIVER_TIME === "1";
 let resolvePass = 0;
@@ -206,9 +206,9 @@ function awardClaim(state: GameState, idx: WaiverIdx, teamId: number, p: Player)
     if (teamId === state.userTeamId) return false;
     const worse = worseSurplus(state, idx, teamId, p);
     if (!worse) return false;
-    // Cut first, then the incoming hit must still fit. Dead money on the
-    // cut lands when he clears, not here.
-    if (spaceOf(state, bag, teamId) + capHit(worse.contract) < incoming) return false;
+    // Cut first, then the incoming hit must still fit once the cut's dead
+    // money (bonus now, guarantee if he clears) is on the books.
+    if (spaceOf(state, bag, teamId) + capHit(worse.contract) - deadMoney(worse.contract) < incoming) return false;
     cutPlayer(state, worse.id);
     removeMember(idx, teamId, worse.id);
   } else if (teamId !== state.userTeamId && spaceOf(state, bag, teamId) < incoming) {
@@ -227,7 +227,15 @@ function awardClaim(state: GameState, idx: WaiverIdx, teamId: number, p: Player)
   return true;
 }
 
-function stashOrFreeAgent(state: GameState, idx: WaiverIdx, p: Player, originalTeamId: number): void {
+/**
+ * Unclaimed after one window: his old club may park him on its practice
+ * squad; otherwise he is a free agent, always (NFL waiver overview), and the
+ * guarantee left on his deal lands on that club. An entry from before the
+ * bonus was booked at the cut clears with no charge, once.
+ * docs/waiver-clearing-design-2026-10-23.md
+ */
+function stashOrFreeAgent(state: GameState, idx: WaiverIdx, p: Player, entry: WaiverClaim): void {
+  const originalTeamId = entry.originalTeamId;
   const hit = capHit(p.contract);
   const bag = idx.bags[originalTeamId];
   const space = spaceOf(state, bag, originalTeamId);
@@ -247,28 +255,18 @@ function stashOrFreeAgent(state: GameState, idx: WaiverIdx, p: Player, originalT
     p.teamId = null;
     clearRosterSlot(p);
   }
-  const dead = deadMoney(p.contract);
-  if (space >= dead) {
-    addDeadCap(state, originalTeamId, dead);
-    p.contract = null;
-    p.teamId = null;
-    clearRosterSlot(p);
-    state.log.push({
-      season: state.season,
-      week: state.week,
-      kind: "transaction",
-      text: `${p.firstName} ${p.lastName} (${p.pos}) cleared waivers and became a free agent` +
-        (dead > 0 ? ` — $${(dead / 1e6).toFixed(1)}M dead money` : ""),
-    });
-    return;
-  }
-  // Cannot stash or eat the dead money. Leave him on the next window so
-  // the club stays legal. Settle stops when this set stops moving.
-  if (p.teamId === originalTeamId) insertMember(idx, originalTeamId, p);
-  if (!state.waivers) state.waivers = [];
-  if (!state.waivers.some((w) => w.playerId === p.id)) {
-    state.waivers.push({ playerId: p.id, originalTeamId });
-  }
+  const dead = entry.bookedAtCut ? deadMoney(p.contract) : 0;
+  if (dead > 0) addDeadCap(state, originalTeamId, dead);
+  p.contract = null;
+  p.teamId = null;
+  clearRosterSlot(p);
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "transaction",
+    text: `${p.firstName} ${p.lastName} (${p.pos}) cleared waivers and became a free agent` +
+      (dead > 0 ? ` — $${(dead / 1e6).toFixed(1)}M dead money` : ""),
+  });
 }
 
 /**
@@ -300,7 +298,14 @@ export function resolveWaivers(state: GameState): boolean {
         break;
       }
     }
-    if (!taken) stashOrFreeAgent(state, idx, p, entry.originalTeamId);
+    if (!taken) stashOrFreeAgent(state, idx, p, entry);
+  }
+
+  // Backstop: a guarantee landing at clearing can tip a CPU club over. It
+  // cuts until it is back under; those cuts go on the next window.
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    if (teamCap(state, t.id).space < 0) enforceCap(state, t.id);
   }
 
   if ((state.waivers ?? []).length === 0) delete state.waivers;

@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { Rng } from "./rng";
-import { clearDeadCap, deadMoney } from "./select";
+import { clearDeadCap, deadMoney, remainingBonusProration } from "./select";
 import { Contract, Player, PRACTICE_SQUAD_LIMIT } from "./types";
 import { applyVoidYears, cutPlayer, expireContracts } from "./offseason/contracts";
 import { runFreeAgencyOpen } from "./offseason";
@@ -286,11 +286,13 @@ function fatDeal(): Contract {
   const expected = deadMoney(p.contract);
   st.teams[teamId].deadCap = 0;
   st.teams[teamId].retirementDeadPending = 0;
+  const bonus = Math.round(remainingBonusProration(p.contract));
+  assert.ok(bonus > 0, "fixture carries a bonus");
   assert.equal(cutPlayer(st, p.id).ok, true);
-  assert.equal(st.teams[teamId].deadCap, 0, "a cut does not charge until he clears");
+  assert.equal(st.teams[teamId].deadCap, bonus, "the bonus books at the cut");
   resolveWaivers(st);
   assert.equal(p.contract, null);
-  assert.equal(st.teams[teamId].deadCap, expected);
+  assert.ok(Math.abs(st.teams[teamId].deadCap - expected) <= 2, `bonus at the cut + guarantee at the clear = deadMoney (${st.teams[teamId].deadCap} vs ${expected})`);
   assert.equal(st.teams[teamId].retirementDeadPending ?? 0, 0);
   ok("waiver clear still charges deadMoney and does not take the retirement path");
 }

@@ -13,7 +13,7 @@ import { makeContract } from "./generate";
 import { cutPlayer, reconcileRoster } from "./offseason/contracts";
 import { designateIr, placeOnPs } from "./rosterStatus";
 import { Rng } from "./rng";
-import { freeAgents, isOnWaivers, practiceSquadCount, rosterCount, teamCap } from "./select";
+import { deadMoney, freeAgents, isOnWaivers, practiceSquadCount, remainingBonusProration, rosterCount, teamCap } from "./select";
 import { LEAGUE_MINIMUM, Player, PRACTICE_SQUAD_LIMIT, ROSTER_LIMIT } from "./types";
 import { startRegularSeason } from "./season/engine";
 import { enterCampAfterDraft, enterDraft, finalizeOffseason, simEntireDraft } from "./offseason";
@@ -41,7 +41,8 @@ function makeUnclaimable(p: Player): void {
   p.draftedRound = null;
 }
 
-// Cut → on waivers, not FA. Contract stays. Old saves missing the list load.
+// Cut → on waivers, not FA. The bonus books on the waiving club now and leaves
+// the contract; base and guarantee stay on it. Old saves missing the list load.
 {
   const st = newGame({ seed: 1 });
   assert.ok(!("waivers" in st) || st.waivers === undefined);
@@ -53,16 +54,19 @@ function makeUnclaimable(p: Player): void {
   const contract = p.contract;
   assert.ok(contract);
   const beforeDead = st.teams[st.userTeamId].deadCap ?? 0;
+  const bonus = Math.round(remainingBonusProration(contract));
   const cut = cutPlayer(st, p.id);
   assert.equal(cut.ok, true, cut.reason ?? "cut");
   assert.equal(p.teamId, null);
   assert.equal(p.status, undefined);
-  assert.equal(p.contract, contract);
+  assert.deepEqual(p.contract!.baseSalary, contract!.baseSalary);
+  assert.equal(p.contract!.guaranteedYears, contract!.guaranteedYears);
+  assert.equal(remainingBonusProration(p.contract), 0, "the bonus left the contract");
   assert.equal(isOnWaivers(st, p.id), true);
   assert.equal(freeAgents(st).some((x) => x.id === p.id), false);
-  assert.equal(st.teams[st.userTeamId].deadCap ?? 0, beforeDead);
+  assert.equal(st.teams[st.userTeamId].deadCap ?? 0, beforeDead + bonus, "the bonus books at the cut");
   assert.equal(rosterCount(st, st.userTeamId), ROSTER_LIMIT - 1);
-  assert.equal((st.waivers ?? []).some((w) => w.playerId === p.id && w.originalTeamId === st.userTeamId), true);
+  assert.equal((st.waivers ?? []).some((w) => w.playerId === p.id && w.originalTeamId === st.userTeamId && w.bookedAtCut), true);
 
   const trip = JSON.parse(JSON.stringify(st)) as typeof st;
   assert.equal(trip.waivers?.length, 1);
@@ -96,7 +100,8 @@ function makeUnclaimable(p: Player): void {
   assert.equal(st.waivers, undefined);
 }
 
-// Claim moves him to the claiming club's 53, contract as-is. No cash fee.
+// Claim moves him to the claiming club's 53 with base and guarantee; the bonus
+// stayed with the waiving club (CBA Art. 13 §6(b)(ii)). No cash fee.
 {
   const st = newGame({ seed: 4 });
   const cpuId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
@@ -116,7 +121,9 @@ function makeUnclaimable(p: Player): void {
   resolveWaivers(st);
   assert.equal(p.teamId, st.userTeamId);
   assert.equal(p.status, undefined);
-  assert.equal(p.contract, kept);
+  assert.deepEqual(p.contract!.baseSalary, kept!.baseSalary);
+  assert.equal(p.contract!.guaranteedYears, kept!.guaranteedYears);
+  assert.equal(remainingBonusProration(p.contract), 0, "no bonus travels with a claim");
   assert.equal(isOnWaivers(st, p.id), false);
   assert.equal(rosterCount(st, st.userTeamId), ROSTER_LIMIT);
 }
@@ -141,7 +148,7 @@ function makeUnclaimable(p: Player): void {
   assert.notEqual(q.teamId, st.userTeamId);
 }
 
-// Unclaimed and PS full → FA. Dead money then, not at the waive.
+// Unclaimed and PS full → FA. The bonus booked at the waive; the guarantee at the clear.
 {
   const st = newGame({ seed: 6 });
   const extras = clubPlayers(st, st.userTeamId).filter((p) => !p.status);
@@ -153,15 +160,17 @@ function makeUnclaimable(p: Player): void {
   const p = extras[PRACTICE_SQUAD_LIMIT];
   makeUnclaimable(p);
   const beforeDead = st.teams[st.userTeamId].deadCap ?? 0;
+  const owed = deadMoney(p.contract);
+  const bonus = Math.round(remainingBonusProration(p.contract));
   assert.equal(cutPlayer(st, p.id).ok, true);
   assert.ok(p.contract);
-  assert.equal(st.teams[st.userTeamId].deadCap ?? 0, beforeDead);
+  assert.equal(st.teams[st.userTeamId].deadCap ?? 0, beforeDead + bonus);
   resolveWaivers(st);
   assert.equal(p.teamId, null);
   assert.equal(p.contract, null);
   assert.equal(isOnWaivers(st, p.id), false);
   assert.ok(freeAgents(st).some((x) => x.id === p.id));
-  assert.ok((st.teams[st.userTeamId].deadCap ?? 0) >= beforeDead);
+  assert.ok(Math.abs((st.teams[st.userTeamId].deadCap ?? 0) - (beforeDead + owed)) <= 2, "bonus + guarantee = deadMoney at the cut");
 }
 
 // Inverse standings: worse record claims first. CPU with a slot takes him.
@@ -182,7 +191,7 @@ function makeUnclaimable(p: Player): void {
   designateIr(st, hole.id);
   resolveWaivers(st);
   assert.equal(user.teamId, firstCpu);
-  assert.equal(user.contract, kept);
+  assert.deepEqual(user.contract!.baseSalary, kept!.baseSalary);
 }
 
 // Cutdown extras go to waivers, not straight to PS or FA. Resolve stashes

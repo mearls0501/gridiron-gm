@@ -634,13 +634,20 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   wall-clock; Play Week is one claim window. Start the Season (cutdown)
   and the preseason→season advance close the current window and keep
   resolving claim-cut windows in that same advance until the chain
-  settles or the remaining names cannot be claimed, stashed, or released
-  without putting a club over the cap — leftover stays on the desk
-  rather than blowing the books. The desk is not the whole camp dump
-  (~32 clubs × extras). Cutdown extras still pass waivers before PS or
-  FA. Unclaimed: original club may PS-stash if under 16 and the hit
-  fits, else FA if the dead money fits, else leftover on the next
-  window. Claiming club gets the contract as-is. Ungated.
+  settles. The desk is not the whole camp dump (~32 clubs × extras).
+  Cutdown extras still pass waivers before PS or FA. **Changed
+  2026-10-23 (Matt signed, `docs/waiver-clearing-design-2026-10-23.md`):**
+  the waiving club books the unamortized signing bonus at the cut,
+  claimed or not (2020 CBA Article 13 §6(b)(ii), same as a trade); a
+  claiming club gets base salary and guarantee only. Unclaimed after one
+  window: practice squad if under 16 and the hit fits, otherwise a free
+  agent, always (NFL Football Operations, "NFL Waiver System Overview",
+  https://operations.nfl.com/updates/the-players/nfl-waiver-system-overview),
+  with the remaining guarantee booked on the waiving club. A cut must save
+  room or fit its dead money. The old "leftover on the next window" path
+  let clubs re-spend the freed hit and never book the dead money (99–389
+  players at week 1 on seeds 42 and 11). Not modelled: the vested-veteran
+  exemption before the trade deadline. Ungated.
 - **Gameday actives (47, or 48 with 8 OL).** Added 2026-09-02. Not in T/D/S/P.
   Same calendar source as the 90-man camp and PS 16 notes
   (`docs/front-office-design-2026-07-28.md` Part 5). Regular-season and

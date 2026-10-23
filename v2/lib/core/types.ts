@@ -1308,6 +1308,12 @@ export interface WaiverClaim {
   originalTeamId: number;
   /** Clubs that have submitted a claim. Missing = none. */
   claims?: number[];
+  /**
+   * The waiving club booked the signing bonus when it cut him, so it owes the
+   * guarantee if he clears. Missing = an entry from before that rule
+   * (`docs/waiver-clearing-design-2026-10-23.md`): it clears with no charge.
+   */
+  bookedAtCut?: boolean;
 }
 
 /**
