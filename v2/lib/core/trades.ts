@@ -117,13 +117,19 @@ export function isSpentPick(
 }
 
 /**
- * Closed-window leftover is for Reject during the same regular season
- * (and through the playoffs). Year rollover — Recap / tag / FA / camp /
- * next preseason — drops those in-season offers so they cannot reopen.
+ * Once the deadline week is over, in-season calls are off the table.
+ * They are not listed, not acceptable, and not left as a Reject chore
+ * through the rest of the regular season and the playoffs.
+ * Offseason still drops a prior deadline leftover (week <= deadline)
+ * so it cannot reopen in the new league year.
  */
 export function pruneStaleTradeInbox(state: GameState): void {
   if (!state.tradeOffers?.length) return;
-  if (state.phase === "regular" || state.phase === "playoffs") return;
+  if (state.phase === "regular" && state.week <= TRADE_DEADLINE_WEEK) return;
+  if (state.phase === "regular" || state.phase === "playoffs") {
+    state.tradeOffers = [];
+    return;
+  }
   state.tradeOffers = state.tradeOffers.filter((o) => o.week > TRADE_DEADLINE_WEEK);
 }
 
@@ -306,6 +312,13 @@ export function tradeWindowOpen(state: GameState): boolean {
   if (state.phase === "regular") return state.week <= TRADE_DEADLINE_WEEK;
   if (state.phase === "preseason") return true;
   return state.phase.startsWith("offseason");
+}
+
+/** Calls the desk, hub, and briefing may list. Closed-window leftovers are not among them. */
+export function incomingOffersOnTheTable(state: GameState): TradeOffer[] {
+  const offers = state.tradeOffers ?? [];
+  if ((state.phase === "regular" || state.phase === "playoffs") && !tradeWindowOpen(state)) return [];
+  return offers;
 }
 
 /**

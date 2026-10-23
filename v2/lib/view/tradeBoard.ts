@@ -5,6 +5,28 @@ import { GameState, Player, TradeAsset } from "../core/types";
 import { draftYearLabel } from "./draftYear";
 
 /**
+ * Compensatory rows are not a club. `originalTeamId` starts at 1000
+ * (`COMP_PICK_ORIGIN` in the draft). Reading `teams[id].abbr` crashes
+ * the desk whenever one of those picks is on the board.
+ */
+const COMP_PICK_ORIGIN = 1000;
+
+export function isCompPick(pick: { originalTeamId: number; compensatory?: boolean }): boolean {
+  return pick.compensatory === true || pick.originalTeamId >= COMP_PICK_ORIGIN;
+}
+
+/** "Slot from" on the desk. Compensatory picks are "Comp", never a club abbr. */
+export function pickSlotFromLabel(
+  state: GameState,
+  pick: { originalTeamId: number; compensatory?: boolean },
+  teamId: number,
+): string {
+  if (isCompPick(pick)) return "Comp";
+  if (pick.originalTeamId === teamId) return "Own";
+  return state.teams[pick.originalTeamId]?.abbr ?? "—";
+}
+
+/**
  * /trades OVR column and package labels. Display only.
  *
  * A rival badge is `visibleOvr` — the same string the player page prints
@@ -34,7 +56,7 @@ export function tradeBoardOvrSort(state: GameState, p: Player): number {
  */
 export function draftPickDeskLabel(state: GameState, a: Extract<TradeAsset, { kind: "pick" }>): string {
   const owner = state.teams[a.originalTeamId];
-  const origin = owner ? ` (${owner.abbr})` : "";
+  const origin = isCompPick(a) ? " (Comp)" : owner ? ` (${owner.abbr})` : "";
   const year = draftYearLabel(a.season);
   if (isSpentPick(state, a)) return `${year} R${a.round}${origin} (used)`;
   const slot = liveDraftSlot(state, a);

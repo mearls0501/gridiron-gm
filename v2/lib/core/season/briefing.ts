@@ -12,6 +12,7 @@ import { gamedayInactiveView } from "../inactives";
 import {
   demandNearDeadline, holdoutDetail, psychologyView, tradeRequestDetail,
 } from "../psychology";
+import { incomingOffersOnTheTable } from "../trades";
 
 /**
  * The weekly briefing: one deterministic digest of what just happened and
@@ -225,7 +226,7 @@ function buildActionItems(state: GameState): { action: ActionItem[]; review: str
     );
   }
 
-  const offers = state.tradeOffers ?? [];
+  const offers = incomingOffersOnTheTable(state);
   if (offers.length > 0) {
     const nearDeadline = state.phase === "regular" && state.week >= TRADE_DEADLINE_WEEK - 1;
     action.push({

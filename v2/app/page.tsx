@@ -21,6 +21,7 @@ import {
   skipTagExtension, submitOfficeOffer, tagExtensionPlayers, tagExtensionTerms,
 } from "@/lib/core/offseason";
 import { Rng } from "@/lib/core/rng";
+import { incomingOffersOnTheTable } from "@/lib/core/trades";
 import { tradeBoardAssetLabel } from "@/lib/view/tradeBoard";
 import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weatherLabel, type GameState } from "@/lib/core/types";
 import { SeasonReviewPanels } from "@/components/SeasonReview";
@@ -139,7 +140,7 @@ export default function Hub() {
   if (!state || !derived) return null;
   const { team, rec, cap, next, bye, injured, onIr, issues, chairFlags, clip, divRank, roster, topPerformers } = derived;
   const cal = calendarView(state);
-  const offers = state.tradeOffers ?? [];
+  const offers = incomingOffersOnTheTable(state);
   const filmNews = focusFilmLines(state);
 
   const isOffseason = state.phase.startsWith("offseason");

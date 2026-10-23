@@ -8,16 +8,19 @@
  * Run: npx tsx lib/view/tradeBoard.test.ts
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { newGame } from "../core/newGame";
+import { COMP_PICK_ORIGIN } from "../core/offseason/draft";
 import { teamRoster } from "../core/select";
 import { presentedOvr } from "../core/ratings";
 import { knowsTrueRatings, userVeteranView, visibleOvr } from "../core/scouting";
-import { describeAsset } from "../core/trades";
+import { describeAsset, picksOwnedBy } from "../core/trades";
 import { Player, TradeAsset } from "../core/types";
 import { draftYearLabel, presentNewsText } from "./draftYear";
 import { OVERPAYING_LINE, readOfMargin } from "./tradeRead";
 import {
   draftPickDeskLabel,
+  pickSlotFromLabel,
   tradeBoardAssetLabel,
   tradeBoardOvr,
   tradeBoardOvrSort,
@@ -122,3 +125,53 @@ assert.equal(tradeBoardAssetLabel(st, missing), "a player");
 }
 
 console.log("ok    tradeBoard — rival OVR matches the scouted player page");
+
+// Compensatory picks use originalTeamId >= 1000. The desk used to read
+// teams[id].abbr and crash /trades for the whole draft.
+{
+  const page = readFileSync(new URL("../../app/trades/page.tsx", import.meta.url), "utf8");
+  assert.equal(page.includes("origin.abbr"), false, "the pick list must not read abbr off a missing club");
+  assert.ok(page.includes("pickSlotFromLabel"), "the pick list labels compensatory rows through the helper");
+
+  if (!st.pickOwners) st.pickOwners = [];
+  st.pickOwners.push({
+    season: st.season,
+    round: 3,
+    originalTeamId: COMP_PICK_ORIGIN,
+    teamId: st.userTeamId,
+    compensatory: true,
+  });
+  const owned = picksOwnedBy(st, st.userTeamId);
+  const comp = owned.find((p) => p.originalTeamId === COMP_PICK_ORIGIN);
+  assert.ok(comp, "a compensatory pick is tradeable inventory");
+  assert.equal(st.teams[COMP_PICK_ORIGIN], undefined, "comp origin is not a club");
+  assert.equal(pickSlotFromLabel(st, comp!, st.userTeamId), "Comp");
+  assert.equal(pickSlotFromLabel(st, { originalTeamId: COMP_PICK_ORIGIN }, rivalId), "Comp");
+  assert.equal(
+    pickSlotFromLabel(st, { originalTeamId: st.userTeamId, compensatory: true }, st.userTeamId),
+    "Comp",
+    "the compensatory flag wins over Own",
+  );
+
+  const asset: TradeAsset = {
+    kind: "pick",
+    season: st.season,
+    round: 3,
+    originalTeamId: COMP_PICK_ORIGIN,
+  };
+  const desk = draftPickDeskLabel(st, asset);
+  assert.match(desk, /\(Comp\)/, `desk labels a comp pick, got ${desk}`);
+  assert.equal(desk.includes("undefined"), false);
+  const truth = describeAsset(st, asset);
+  assert.equal(truth.includes("undefined"), false, "the trade log must not throw or print undefined");
+  assert.equal(tradeBoardAssetLabel(st, asset), desk);
+
+  const own = (st.pickOwners ?? []).find((p) => p.teamId === st.userTeamId && p.originalTeamId === st.userTeamId);
+  assert.ok(own);
+  assert.equal(pickSlotFromLabel(st, own!, st.userTeamId), "Own");
+  const rivalPick = (st.pickOwners ?? []).find((p) => p.originalTeamId === rivalId);
+  assert.ok(rivalPick);
+  assert.equal(pickSlotFromLabel(st, rivalPick!, st.userTeamId), st.teams[rivalId].abbr);
+}
+
+console.log("ok    tradeBoard — compensatory pick labels as Comp and does not crash");
