@@ -37,7 +37,7 @@ import { presentedOvr } from "@/lib/core/ratings";
 import { presentNewsText } from "@/lib/view/draftYear";
 import { PRIVATE_VISIT_CAP, calendarView } from "@/lib/core/scouting";
 import { focusFilmLines } from "@/lib/core/scoutStaff";
-import { emptyCoordinatorFlags } from "@/lib/core/coaches";
+import { staffChairFlags } from "@/lib/core/coaches";
 
 /** Live label while Hub simTo yields between weeks. */
 function hubSimLabel(state: GameState): string {
@@ -123,7 +123,7 @@ export default function Hub() {
     const injured = injuredPlayers(state, team.id);
     const onIr = irCount(state, team.id);
     const issues = rosterIssues(state, team.id);
-    const chairFlags = emptyCoordinatorFlags(team);
+    const chairFlags = staffChairFlags(team);
     const clip = rosterCapView(state, team.id);
     const div = divisionStandings(state, team.division);
     const divRank = seasonHasResults(state)
@@ -739,7 +739,7 @@ export default function Hub() {
                   </div>
                 </div>
                 <Link href={f.href} className="ml-auto shrink-0">
-                  <Button size="sm" variant="ghost">Staff</Button>
+                  <Button size="sm" variant="ghost">{f.role === "hc" ? "Hire" : "Staff"}</Button>
                 </Link>
               </div>
             ))}

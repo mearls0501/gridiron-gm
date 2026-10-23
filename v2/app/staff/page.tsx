@@ -93,7 +93,7 @@ function CoachCard({
       }
     >
       {!person || !term ? (
-        <Empty title="This chair is empty" hint="Hire from the market, or wait for the offseason carousel to run." />
+        <Empty title="This chair is empty" hint="Hire from the market." />
       ) : (
         <div className="space-y-3">
           <div className={fields.scheme ? "grid gap-2 sm:grid-cols-3" : "grid gap-2 sm:grid-cols-2"}>
