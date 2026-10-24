@@ -12,7 +12,7 @@ import { applyGameWear, healWeek, healthySet } from "./injuries";
 import { fillCpuIrReplacements } from "../irFill";
 import { dressEmergencyQuarterbacks } from "../emergencyQb";
 import { fillCpuRosterShortfall, freeActiveSlot, trimCpuRosterSanity } from "../offseason/contracts";
-import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
+import { autoActivateFromIr, autoDesignateIr, revertGamedayElevations, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
 import { clearCallSheets, userSimOpts } from "../callSheet";
 import { applySealedLive, clearSealedLive } from "../liveGame";
@@ -237,6 +237,7 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   // non-contact injuries — only fourteen clubs are playing and the rest of the
   // league is already home.
   applyGameWear(state, healthyBefore, rng);
+  revertGamedayElevations(state);
   healWeek(state);
   const played = new Set<number>();
   for (const g of games) {

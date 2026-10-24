@@ -22,7 +22,7 @@ import { Rng } from "./rng";
 import { simulateGame } from "./sim/game";
 import { advance, startRegularSeason } from "./season/engine";
 import { resolveWaivers } from "./waivers";
-import { placeOnPs } from "./rosterStatus";
+import { placeOnPs, revertGamedayElevations } from "./rosterStatus";
 import {
   capHit, deadMoney, isActiveRoster, isOnWaivers, positionCount, practiceSquadCount, rosterCount,
 } from "./select";
@@ -256,6 +256,7 @@ function userGame(st: GameState) {
 }
 
 // Both quarterbacks hurt, a 99 punter on the 53, a practice-squad quarterback: the quarterback throws.
+// He is dressed before kickoff on a game-day elevation (the user's 53 is full) and reverts after.
 {
   const st = newGame({ seed: 10 });
   startRegularSeason(st);
@@ -271,10 +272,16 @@ function userGame(st: GameState) {
   const psQb = addBody(st, tid, "QB", 72);
   assert.equal(placeOnPs(st, psQb.id).ok, true, "park the emergency quarterback");
   assert.equal(psQb.status, "ps");
+  dressEmergencyQuarterbacks(st, [tid]);
+  assert.equal(psQb.gamedayElevation, true, "game-day elevation before kickoff");
+  assert.equal(psQb.status, undefined);
   const rng = new Rng(st.rngState);
   const result = simulateGame(st, g, rng);
   const row = result.box.players.find((s) => s.playerId === psQb.id);
   assert.ok(row && row.passAtt > 0, "practice-squad quarterback takes the snaps");
+  revertGamedayElevations(st);
+  assert.equal(psQb.status, "ps", "back on the practice squad after the game");
+  assert.equal(psQb.gamedayElevation, undefined);
   const punterRow = result.box.players.find((s) => s.playerId === punter.id);
   assert.ok(!punterRow || (punterRow.passAtt ?? 0) === 0, "punter does not throw");
   for (const s of result.box.players) {
@@ -284,7 +291,8 @@ function userGame(st: GameState) {
   }
 }
 
-// CPU kickoff elevates the practice-squad quarterback. The user club is not cut to do it.
+// CPU kickoff elevates the practice-squad quarterback. The user club is not cut to do it:
+// its full 53 uses a game-day elevation instead.
 {
   const st = newGame({ seed: 11 });
   st.phase = "regular";
@@ -301,10 +309,14 @@ function userGame(st: GameState) {
   assert.equal(cpuQb.status, undefined, "CPU practice-squad quarterback is elevated");
   assert.equal(isActiveRoster(cpuQb), true);
   assert.equal(rosterCount(st, cpu), ROSTER_LIMIT);
-  assert.equal(userQb.status, "ps", "user is not cut to open a spot");
+  assert.equal(userQb.gamedayElevation, true, "user's quarterback dresses on a game-day elevation");
+  assert.equal(isActiveRoster(userQb), true);
   for (const id of userActive) {
-    assert.equal(st.players.find((p) => p.id === id)?.teamId, st.userTeamId);
+    assert.equal(st.players.find((p) => p.id === id)?.teamId, st.userTeamId, "user is not cut to open a spot");
   }
+  revertGamedayElevations(st);
+  assert.equal(userQb.status, "ps");
+  assert.equal(cpuQb.status, undefined, "a regular elevation stays on the 53");
 }
 
 console.log("ok    roster management");

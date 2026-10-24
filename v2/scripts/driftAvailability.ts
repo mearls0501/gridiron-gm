@@ -64,6 +64,7 @@ interface KickoffPlayer {
   readonly injuryWeeks: number;
   readonly sat: boolean;
   readonly holdout: boolean;
+  readonly pos: string;
 }
 interface KickoffWeek {
   readonly games: ReadonlySet<number>;
@@ -117,6 +118,7 @@ export class RegularAvailabilityTracker {
         teamId: p.teamId, status: p.status ?? "active", injuryWeeks: p.injuryWeeks,
         sat: p.teamId !== null && !!state.teams[p.teamId].inactives?.includes(p.id),
         holdout: isHoldoutInactive(state, p),
+        pos: p.pos,
       }));
     }
     this.weeks.set(state.week, { games: gameIds, teams, players });
@@ -136,8 +138,11 @@ export class RegularAvailabilityTracker {
       const appeared = appearances.get(g.week)!;
       for (const row of g.boxScore!.players) {
         const p = kickoff.players.get(row.playerId);
+        // An inactive quarterback on the 53 may enter once the first two are out
+        // (NFL emergency third quarterback, 2023; kept by the 2024 NFLPA veto).
+        const emergencyQb = !!p && p.sat && p.pos === "QB" && p.status === "active" && p.injuryWeeks <= 0;
         if (!p || p.teamId !== row.teamId || ![g.homeId, g.awayId].includes(row.teamId) ||
-            p.status === "ps" || p.status === "ir" || p.injuryWeeks > 0 || p.sat) {
+            p.status === "ps" || p.status === "ir" || p.injuryWeeks > 0 || (p.sat && !emergencyQb)) {
           throw new Error(`unavailable player ${row.playerId} appeared in game ${g.id}`);
         }
         if (appeared.has(row.playerId)) throw new Error(`duplicate weekly appearance for player ${row.playerId}`);

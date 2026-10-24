@@ -1,6 +1,6 @@
 import { activateFromInactive, isSat } from "./inactives";
 import { freeActiveSlot } from "./offseason/contracts";
-import { elevationsLeft, elevateFromPs } from "./rosterStatus";
+import { elevationsLeft, elevateForGameday, elevateFromPs } from "./rosterStatus";
 import { isActiveRoster, rosterCount } from "./select";
 import { GameState, Player, Team, rosterLimit } from "./types";
 
@@ -8,11 +8,13 @@ import { GameState, Player, Team, rosterLimit } from "./types";
  * Quarterback emergency.
  *
  * A hurt quarterback room used to hand the snaps to the highest-overall
- * healthy body, which is a punter. An available quarterback plays first:
- * a sat healthy quarterback is unsat, then a practice-squad quarterback.
- * Elevation happens when the roster has an open slot. This does not cut.
- * When it cannot elevate, it still returns the practice-squad quarterback
- * so the lineup can field him for this game.
+ * healthy body, which is a punter. An available quarterback plays first.
+ *
+ * NFL rule (2023 emergency third quarterback, kept by the 2024 NFLPA veto):
+ * an inactive quarterback on the 53 may enter once the first two are out, so
+ * a sat healthy quarterback is unsat, in the game too. A practice-squad
+ * quarterback plays only if he was elevated before kickoff
+ * (`dressEmergencyQuarterbacks`); nobody is elevated mid-game.
  */
 
 function healthyQuarterback(p: Player, teamId: number, skip: ReadonlySet<number>): boolean {
@@ -31,21 +33,7 @@ export function emergencyQuarterback(
     .filter((p) => healthyQuarterback(p, team.id, skip) && isActiveRoster(p) && isSat(team, p.id))
     .sort(byOvr);
   if (sat[0] && activateFromInactive(state, sat[0].id).ok) return sat[0];
-
-  const squad = state.players
-    .filter((p) => healthyQuarterback(p, team.id, skip) && p.status === "ps")
-    .sort((a, b) => {
-      const ae = elevationsLeft(a) > 0 ? 1 : 0;
-      const be = elevationsLeft(b) > 0 ? 1 : 0;
-      if (ae !== be) return be - ae;
-      return byOvr(a, b);
-    });
-  const qb = squad[0];
-  if (!qb) return null;
-  if (elevationsLeft(qb) > 0 && rosterCount(state, team.id) < rosterLimit(state.phase)) {
-    if (elevateFromPs(state, qb.id).ok) return qb;
-  }
-  return qb;
+  return null;
 }
 
 function hasHealthyActiveQuarterback(state: GameState, team: Team): boolean {
@@ -56,8 +44,9 @@ function hasHealthyActiveQuarterback(state: GameState, team: Team): boolean {
 
 /**
  * Before kickoff. CPU clubs free a roster spot when that is what it takes
- * to elevate a practice-squad quarterback. The user club is never cut;
- * the lineup fallback still fields his practice-squad quarterback.
+ * to elevate a practice-squad quarterback. The user club is never cut: a
+ * full 53 uses a game-day elevation instead, which reverts after the games
+ * (`revertGamedayElevations`). So does a CPU club that cannot free a spot.
  */
 export function dressEmergencyQuarterbacks(state: GameState, teamIds: Iterable<number>): void {
   for (const teamId of teamIds) {
@@ -73,8 +62,10 @@ export function dressEmergencyQuarterbacks(state: GameState, teamIds: Iterable<n
       .sort(byOvr)[0];
     if (!qb) continue;
     if (rosterCount(state, teamId) >= rosterLimit(state.phase)) {
-      if (teamId === state.userTeamId) continue;
-      if (!freeActiveSlot(state, teamId)) continue;
+      if (teamId === state.userTeamId || !freeActiveSlot(state, teamId)) {
+        elevateForGameday(state, qb.id);
+        continue;
+      }
     }
     elevateFromPs(state, qb.id);
   }

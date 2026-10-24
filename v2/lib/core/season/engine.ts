@@ -11,7 +11,7 @@ import { generateUserOffers, pruneStaleTradeInbox, runCpuTrades } from "../trade
 import { fillCpuIrReplacements } from "../irFill";
 import { dressEmergencyQuarterbacks } from "../emergencyQb";
 import { fillCpuRosterShortfall, freeActiveSlot, trimCpuRosterSanity } from "../offseason/contracts";
-import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
+import { autoActivateFromIr, autoDesignateIr, revertGamedayElevations, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
 import { clearCallSheets, userSimOpts } from "../callSheet";
 import { applySealedLive, clearSealedLive } from "../liveGame";
@@ -116,6 +116,8 @@ export function simulateWeek(state: GameState, onKickoff?: RegularKickoffObserve
       text: `Week ${state.week}: You ${verb} ${opp.city} ${opp.name} ${us}-${them}`,
     });
   }
+
+  revertGamedayElevations(state);
 
   // Heal first: everyone carrying an injury has now missed this week's game.
   // Then take the durability hit for anything serious that happened in it, and

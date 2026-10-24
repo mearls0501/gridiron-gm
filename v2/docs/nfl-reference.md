@@ -648,6 +648,20 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   let clubs re-spend the freed hit and never book the dead money (99–389
   players at week 1 on seeds 42 and 11). Not modelled: the vested-veteran
   exemption before the trade deadline. Ungated.
+- **Emergency quarterback.** Added 2026-10-24 (Matt asked to fix the #197
+  drift crash). Not in T/D/S/P. 2023 emergency third quarterback rule, kept
+  in its 2023 form when the NFLPA vetoed the owners' 2024 expansion
+  (NFL.com, https://www.nfl.com/news/nflpa-vetoes-emergency-third-qb-rule-change;
+  CBS Sports, https://www.cbssports.com/nfl/news/nflpa-vetoes-quarterback-rule-change-emergency-qb-still-must-be-on-53-man-roster):
+  the emergency quarterback must be on the 53 (he may be inactive and enter
+  once the first two are out) or be one of the two standard game-day
+  practice-squad elevations, which count toward the 55-man game-day roster.
+  `emergencyQb.ts` unsits an inactive quarterback, in the game too, and
+  elevates a practice-squad quarterback only before kickoff: a regular
+  elevation when a 53 slot opens, otherwise a game-day elevation that reverts
+  after the games (`elevateForGameday` / `revertGamedayElevations`). No
+  mid-game elevation. The 2/3 elevation counts are the existing
+  `PS_ELEVATIONS_PER_PLAYER` and a new per-game cap of 2. Ungated.
 - **Gameday actives (47, or 48 with 8 OL).** Added 2026-09-02. Not in T/D/S/P.
   Same calendar source as the 90-man camp and PS 16 notes
   (`docs/front-office-design-2026-07-28.md` Part 5). Regular-season and
