@@ -305,6 +305,12 @@ export interface Player {
   irGames?: number;
   /** Practice-squad elevations used this season (max 3). Missing = 0. */
   psElevations?: number;
+  /**
+   * Elevated for this week's game only, past a full 53 (one of the NFL's two
+   * standard game-day elevations); back to the practice squad after the
+   * games. Never set between weeks. Missing = false.
+   */
+  gamedayElevation?: boolean;
 
   stats: SeasonStatLine[];
   /** Playing time and last club, kept separately from regular-season production. */

@@ -143,6 +143,43 @@ export function elevateFromPs(state: GameState, playerId: number): RosterMoveRes
   return { ok: true };
 }
 
+/**
+ * Standard game-day elevation: a practice-squad player dresses for this
+ * week's game without taking a 53 slot, and reverts after it. The NFL allows
+ * two a game (2023 emergency-QB rule; the 2024 NFLPA veto kept it). Used for
+ * the quarterback emergency only.
+ */
+export const GAMEDAY_ELEVATIONS_PER_GAME = 2;
+
+export function elevateForGameday(state: GameState, playerId: number): RosterMoveResult {
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p || p.teamId === null || p.status !== "ps") return { ok: false, reason: "Player is not on the practice squad." };
+  if (elevationsLeft(p) <= 0) {
+    return { ok: false, reason: `Already elevated ${PS_ELEVATIONS_PER_PLAYER} times this season.` };
+  }
+  const used = state.players.filter((x) => x.teamId === p.teamId && x.gamedayElevation).length;
+  if (used >= GAMEDAY_ELEVATIONS_PER_GAME) return { ok: false, reason: "Both game-day elevations are used." };
+  p.psElevations = (p.psElevations ?? 0) + 1;
+  clearRosterSlot(p);
+  p.gamedayElevation = true;
+  state.log.push({
+    season: state.season,
+    week: state.week,
+    kind: "transaction",
+    text: `${state.teams[p.teamId].abbr} elevated ${p.firstName} ${p.lastName} (${p.pos}) from the practice squad for this week's game`,
+  });
+  return { ok: true };
+}
+
+/** After the games: game-day elevations go back to the practice squad. */
+export function revertGamedayElevations(state: GameState): void {
+  for (const p of state.players) {
+    if (!p.gamedayElevation) continue;
+    delete p.gamedayElevation;
+    if (p.teamId !== null && !p.retired) p.status = "ps";
+  }
+}
+
 /** Last year's PS compete for the 53; leftovers are re-stashed at cutdown. */
 export function foldPracticeSquad(state: GameState, teamId: number): void {
   for (const p of state.players) {
