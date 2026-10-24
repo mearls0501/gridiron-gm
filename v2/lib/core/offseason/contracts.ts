@@ -1516,6 +1516,31 @@ export function fillCpuRosterShortfall(state: GameState, rng: Rng): void {
   }
 }
 
+/**
+ * Preseason desk, after settleWaivers. CPU clubs only.
+ *
+ * `enforceCap` cuts until cap space is positive and does not refill, so a
+ * club can sit at 45–52 with room left. The in-season ceiling trim does not
+ * run in preseason, so an extra punter, tight end, or safety can sit on that
+ * 53 too. Trim the ceiling, then the same reconcile the negative-space
+ * legalize already uses — including when space is already non-negative.
+ * The user seat is not refilled and not trimmed.
+ */
+export function refillCpuRostersAfterWaivers(state: GameState, rng: Rng): void {
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    let guard = 0;
+    for (const pos of POSITIONS) {
+      while (positionCount(state, t.id, pos) > POSITION_ACTIVE_MAX[pos] && guard++ < 120) {
+        if (!cutWorstActiveAt(state, t.id, pos)) break;
+      }
+    }
+    if (rosterCount(state, t.id) < ROSTER_LIMIT || teamCap(state, t.id).space < 0) {
+      reconcileRoster(state, t.id, rng, ROSTER_LIMIT, true);
+    }
+  }
+}
+
 const USER_FILL_OVR = 66;
 
 function userFillPosition(state: GameState, teamId: number): Position | null {
