@@ -1,5 +1,38 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-24 — Emergency quarterback follows the NFL rule; drift and sweep fixed (#200)
+
+**Drift crash.** Since #197, stock `drift.ts` died by season 3 on `main`: the
+availability guard threw when a practice-squad or inactive quarterback
+played. NFL rule (2023 emergency third quarterback, kept in its 2023 form by
+the 2024 NFLPA veto; `docs/nfl-reference.md`, "Emergency quarterback"): the
+emergency QB is on the 53 (inactive allowed, enters once the first two are
+out) or one of two game-day practice-squad elevations made before the game.
+So the guard was wrong about the inactive case and the engine about the
+practice-squad case.
+
+- `emergencyQuarterback` no longer hands a practice-squad QB the ball mid-game;
+  it still unsits an inactive one.
+- `dressEmergencyQuarterbacks`: a full 53 (the user's, or a CPU club that
+  cannot free a slot) uses `elevateForGameday` (max 2 a game);
+  `revertGamedayElevations` sends him back after the week's or round's games.
+- `scripts/driftAvailability.ts` records position at kickoff and accepts an
+  inactive QB who entered as the emergency third QB (Matt asked for the fix).
+
+Stock `drift.ts 10 12345` now completes, no P0.
+
+**Sweep, from #198.** A cleared cutdown player's guarantee could tip a CPU club
+over the cap; the waiver backstop then cut it under 53, and the post-cut
+legalize pass only checked the cap. `sweep.ts` (30 x 2): **ALL CLEAN** on
+`d46e132` (before #198), **25 problem seeds** on `b49350d`. The pass now also
+reconciles a club short of 53. Fast-tier sweep (5 x 2) on the fix: ALL CLEAN.
+
+Tests: `lib/core/emergencyQb.test.ts` (2 cases) in `package.json` and both
+gate tiers; the two `rosterManagement` emergency cases dress before kickoff
+and check the revert. Seed-42 canary unchanged (979873515 / 651676524).
+
+---
+
 ## 2026-10-23 — Waiver clearing: the bonus at the cut, no limbo (`claude/dazzling-pasteur-02nh3y`)
 
 Design, measurements and Matt's five decisions (all signed 2026-10-23):
@@ -29,9 +62,12 @@ signed rule.
 
 Validation:
 - `gate:serial -- --seeds 1`: the full run hit the 2-hour background limit
-  after 71 of 74 steps; all 71 exited 0 except `useroffers` (canary, since
-  re-locked) and `rostermgmt` (since updated), and their 53 baselined metrics
-  are inside bounds. The rest (`useroffers`, `rostermgmt`, `rbpanel`,
+  after 71 of 74 steps. **Correction (2026-10-24):** this line first said
+  all 71 exited 0 apart from `useroffers` and `rostermgmt`. `sweep` also
+  failed (bad rosters after the cut) and was missed; it was #198's, fixed in
+  #200 (entry above). `useroffers` (canary, since re-locked) and `rostermgmt`
+  (since updated) were the other two; the 53 baselined metrics that emitted
+  were inside bounds. The rest (`useroffers`, `rostermgmt`, `rbpanel`,
   `leverage`, `scout`) then ran as one filtered gate: **GATE PASS**, 11
   metrics.
 - `e2e.mjs` and `e2e-interact.mjs` pass on a fresh build (0 console errors).
