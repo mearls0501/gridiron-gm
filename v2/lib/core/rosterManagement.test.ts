@@ -14,7 +14,8 @@ import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { makeContract, makePlayer, autoSortDepthChart, markDepthManual, refreshDepthCharts } from "./generate";
 import {
-  fillCpuRosterShortfall, fillOpenActiveSlots, fillUserMinimum, freeActiveSlot, trimCpuRosterSanity,
+  enforceCap, fillCpuRosterShortfall, fillOpenActiveSlots, fillUserMinimum, freeActiveSlot,
+  refillCpuRostersAfterWaivers, trimCpuRosterSanity,
 } from "./offseason/contracts";
 import { cutPlayer } from "./offseason/contracts";
 import { dressEmergencyQuarterbacks } from "./emergencyQb";
@@ -24,11 +25,11 @@ import { advance, startRegularSeason } from "./season/engine";
 import { resolveWaivers } from "./waivers";
 import { placeOnPs } from "./rosterStatus";
 import {
-  capHit, deadMoney, isActiveRoster, isOnWaivers, positionCount, practiceSquadCount, rosterCount,
+  capHit, deadMoney, isActiveRoster, isOnWaivers, positionCount, practiceSquadCount, rosterCount, teamCap,
 } from "./select";
 import {
   LEAGUE_MINIMUM, POSITION_ACTIVE_MAX, POSITION_MIN, POSITIONS, PRACTICE_SQUAD_LIMIT, ROSTER_LIMIT,
-  type GameState, type Player, type Position,
+  type Contract, type GameState, type Player, type Position,
 } from "./types";
 
 function clubActive(st: GameState, teamId: number): Player[] {
@@ -305,6 +306,110 @@ function userGame(st: GameState) {
   for (const id of userActive) {
     assert.equal(st.players.find((p) => p.id === id)?.teamId, st.userTeamId);
   }
+}
+
+// Post-waiver checkpoint. enforceCap can leave a CPU club under 53 with
+// space already positive; that club is refilled to 53. The position ceiling
+// is applied there too. The user club is not refilled and not trimmed.
+// Cap space stays non-negative.
+{
+  const st = newGame({ seed: 12 });
+  st.phase = "preseason";
+  const user = st.userTeamId;
+  const cpus = st.teams.map((t) => t.id).filter((id) => id !== user);
+  const cpuShort = cpus[0];
+  const cpuCeil = cpus[1];
+
+  function unguaranteed(apy: number): Contract {
+    return {
+      years: 1,
+      yearsRemaining: 1,
+      baseSalary: [apy],
+      signingBonus: 0,
+      bonusProrationYears: 0,
+      signedSeason: st.season,
+      guaranteedYears: 0,
+    };
+  }
+
+  const surplus = clubActive(st, cpuShort)
+    .filter((p) => positionCount(st, cpuShort, p.pos) > POSITION_MIN[p.pos])
+    .sort((a, b) => a.ovr - b.ovr || a.id - b.id);
+  assert.ok(surplus.length >= 4, "need surplus bodies enforceCap can cut");
+  const hit = 10_000_000;
+  for (const p of surplus.slice(0, 6)) p.contract = unguaranteed(hit);
+  const spaceNow = teamCap(st, cpuShort).space;
+  const target = -(hit * 2 + hit / 2);
+  const deadPush = spaceNow - target;
+  if (deadPush > 0) {
+    st.teams[cpuShort].deadCap = (st.teams[cpuShort].deadCap ?? 0) + deadPush;
+  }
+  assert.ok(teamCap(st, cpuShort).space < 0, "enforceCap has a hole to cut");
+  enforceCap(st, cpuShort);
+  const shortCount = rosterCount(st, cpuShort);
+  assert.ok(shortCount < ROSTER_LIMIT, `enforceCap left ${shortCount}`);
+  assert.ok(teamCap(st, cpuShort).space >= 0, "enforceCap stops once space is positive");
+
+  assert.equal(rosterCount(st, cpuCeil), ROSTER_LIMIT);
+  while (positionCount(st, cpuCeil, "P") <= POSITION_ACTIVE_MAX.P) {
+    const donor = clubActive(st, cpuCeil)
+      .filter((p) => p.pos !== "P" && positionCount(st, cpuCeil, p.pos) > POSITION_MIN[p.pos])
+      .sort((a, b) => a.ovr - b.ovr || a.id - b.id)[0];
+    assert.ok(donor, "need a surplus body to make an extra punter");
+    donor.pos = "P";
+  }
+  for (const p of clubActive(st, cpuCeil)) {
+    if (p.pos === "P") p.contract = unguaranteed(LEAGUE_MINIMUM);
+  }
+  assert.ok(positionCount(st, cpuCeil, "P") > POSITION_ACTIVE_MAX.P);
+  assert.equal(rosterCount(st, cpuCeil), ROSTER_LIMIT);
+  assert.ok(teamCap(st, cpuCeil).space >= 0, "ceiling club still has room");
+
+  let opened = 0;
+  for (const p of clubActive(st, user).slice().sort((a, b) => a.ovr - b.ovr || a.id - b.id)) {
+    if (opened >= 3) break;
+    if (positionCount(st, user, p.pos) <= POSITION_MIN[p.pos]) continue;
+    assert.equal(cutPlayer(st, p.id).ok, true);
+    opened++;
+  }
+  assert.equal(opened, 3);
+  while (positionCount(st, user, "P") <= POSITION_ACTIVE_MAX.P) {
+    const donor = clubActive(st, user)
+      .filter((p) => p.pos !== "P" && positionCount(st, user, p.pos) > POSITION_MIN[p.pos])
+      .sort((a, b) => a.ovr - b.ovr || a.id - b.id)[0];
+    assert.ok(donor, "need a surplus user body to make an extra punter");
+    donor.pos = "P";
+  }
+  const userCount = rosterCount(st, user);
+  const userPunters = positionCount(st, user, "P");
+  const userSpace = teamCap(st, user).space;
+  const userIds = clubActive(st, user).map((p) => p.id).sort((a, b) => a - b);
+  assert.ok(userCount < ROSTER_LIMIT, "user is short so a refill would show");
+  assert.ok(userPunters > POSITION_ACTIVE_MAX.P, "user is over the ceiling so a trim would show");
+
+  refillCpuRostersAfterWaivers(st, new Rng(st.rngState));
+
+  assert.equal(rosterCount(st, cpuShort), ROSTER_LIMIT, "short CPU club refilled to 53");
+  assert.ok(teamCap(st, cpuShort).space >= 0, "short CPU club stayed under the cap");
+  for (const pos of POSITIONS) {
+    assert.ok(positionCount(st, cpuShort, pos) <= POSITION_ACTIVE_MAX[pos], `${pos} over the ceiling after refill`);
+  }
+
+  assert.equal(rosterCount(st, cpuCeil), ROSTER_LIMIT, "ceiling cut was refilled");
+  assert.ok(positionCount(st, cpuCeil, "P") <= POSITION_ACTIVE_MAX.P, "punter ceiling applied");
+  assert.ok(teamCap(st, cpuCeil).space >= 0, "ceiling club stayed under the cap");
+  for (const pos of POSITIONS) {
+    assert.ok(positionCount(st, cpuCeil, pos) <= POSITION_ACTIVE_MAX[pos], `${pos} over the ceiling`);
+  }
+
+  assert.equal(rosterCount(st, user), userCount, "user club was not refilled");
+  assert.equal(positionCount(st, user, "P"), userPunters, "user club was not trimmed");
+  assert.equal(teamCap(st, user).space, userSpace, "user cap was not touched");
+  assert.deepEqual(
+    clubActive(st, user).map((p) => p.id).sort((a, b) => a - b),
+    userIds,
+    "user roster was not touched",
+  );
 }
 
 console.log("ok    roster management");

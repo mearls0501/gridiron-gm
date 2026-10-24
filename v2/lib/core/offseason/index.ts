@@ -5,7 +5,7 @@ import { GameState, Phase, ROSTER_LIMIT } from "../types";
 import { foldPracticeSquad, resetSeasonRosterFlags } from "../rosterStatus";
 import { settleWaivers } from "../waivers";
 import { recordSeasonHistory, reapplyRetirementDead, runProgression, OffseasonReport } from "./progression";
-import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, runCpuFifthYearOptions, runCpuFranchiseTags, runCpuTagExtensions, runCpuVoidYears, spendToFloor, upgradeRoster } from "./contracts";
+import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, refillCpuRostersAfterWaivers, runCpuFifthYearOptions, runCpuFranchiseTags, runCpuTagExtensions, runCpuVoidYears, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase } from "./draft";
 import { ensureFutureClasses, promoteDraftClass } from "../futureClass";
@@ -340,6 +340,10 @@ export function finalizeOffseason(state: GameState): void {
       reconcileRoster(state, t.id, rng, ROSTER_LIMIT, true);
     }
   }
+  // That legalize does not see a CPU club enforceCap already returned to
+  // non-negative space. Refill those short rosters, and apply the active
+  // ceiling, without touching the user's club.
+  refillCpuRostersAfterWaivers(state, rng);
   state.rngState = rng.state;
   if (TIME) console.timeEnd("finalizeOffseason");
 }
