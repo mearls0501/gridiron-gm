@@ -1,5 +1,73 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-23 — Waiver clearing: the bonus at the cut, no limbo (`claude/dazzling-pasteur-02nh3y`)
+
+Design, measurements and Matt's five decisions (all signed 2026-10-23):
+`docs/waiver-clearing-design-2026-10-23.md`.
+
+A cut freed the whole cap hit but booked dead money only when the player
+cleared; a club that had re-spent the room re-listed him every window. On
+`d46e132`, seeds 42 and 11: 99–389 players in limbo at week 1, 0.5–1.5% of
+league cap never booked, 27–54 of them 58+ OVR. Claims also moved the
+signing bonus to the claiming club ($177.9M over three seasons, seed 42).
+
+Now: the bonus books on the waiving club at the cut (CBA Art. 13
+§6(b)(ii)), a claim carries base and guarantee only, an unclaimed player
+always clears to free agency with the guarantee booked then, a cut must
+save room or fit its dead money (CPU pickers take the worst affordable
+player; `/roster` refuses with the reason), and a CPU club over the cap
+after a window runs `enforceCap`. Old saves: the existing pile clears once
+with no charge.
+
+**Seed-42 user-offers canary moved, signed by Matt 2026-10-23:** tag
+**2875380525 → 979873515**, FA **3306901598 → 651676524**.
+
+Tests: `lib/core/waiverClearing.test.ts` (5 cases) in `package.json` and both
+gate tiers. Cases in `waivers`, `proRata`, `retirementDead` and
+`rosterManagement` that asserted the old timing or the limbo now assert the
+signed rule.
+
+Validation:
+- `gate:serial -- --seeds 1`: the full run hit the 2-hour background limit
+  after 71 of 74 steps; all 71 exited 0 except `useroffers` (canary, since
+  re-locked) and `rostermgmt` (since updated), and their 53 baselined metrics
+  are inside bounds. The rest (`useroffers`, `rostermgmt`, `rbpanel`,
+  `leverage`, `scout`) then ran as one filtered gate: **GATE PASS**, 11
+  metrics.
+- `e2e.mjs` and `e2e-interact.mjs` pass on a fresh build (0 console errors).
+- Paired `drift.ts 10 12345`, `main` (`d46e132`) vs this branch, both through
+  a scratch copy of the harness (see the finding below). Both: no P0.
+
+| metric | main | waiver clearing | reference |
+|---|---|---|---|
+| `deadMoneyPct` | 4.93 | **6.84** | ~5–8% (OTC) |
+| `tradesPerSeason` | 92.2 | 94.8 | NFL ≈90 |
+| `topCapPctMean` | 20.17 | 20.14 | lock 20.3 ±3 |
+| `medianPayrollPct` | 99.86 | 99.48 | lock 90.602 ±6 (both over; pre-existing, 99.42 at #187) |
+| `irCapPctMean` | 6.61 | 6.29 | report-only |
+| `rotationRosterChurnWeeks` | 168.0 | 190.8 | report-only |
+| `playerWeeksLost` | 1568.1 | 1599.1 | 2158 ±700 |
+| `saveMbAtEnd` | 8.66 | 8.60 | max 15.89 |
+
+### Finding — `drift` crashes on `main` since #197 (not changed here)
+
+`scripts/driftAvailability.ts` throws "unavailable player … appeared in
+game" when a practice-squad or inactive quarterback plays. #197's
+`emergencyQuarterback` does exactly that by design (the user club with a
+full 53 fields an unelevated practice-squad QB; a CPU club un-sits an
+inactive QB mid-game). Stock `drift.ts 10 12345` on `d46e132` dies in season
+3, so the full gate's `drift` step fails on `main`. The paired numbers above
+come from a scratch copy that counts those appearances (7 on `main`, 9 here,
+all QBs) instead of throwing. Fix is Matt's call: elevate or activate the
+emergency QB before kickoff, or let the guard accept that one case.
+
+### Not changed
+
+Camp: CPU clubs carry 90 and sit over the cap until the cut (19 of 31 on
+seed 42, on `main` too); the NFL counts the top 51 in the offseason.
+
+---
+
 ## 2026-10-22 — Camp nudge on the cut, packet B (ships off)
 
 Design and as-built: `docs/preseason-games-design-2026-10-20.md`, "As built —
