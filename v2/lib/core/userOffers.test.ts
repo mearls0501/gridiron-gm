@@ -7,9 +7,13 @@
  * budget, then verifies successful inquiries add no parent draws.
  * Seed 42, tag → FA. Waiver clearing (the bonus books at the cut, an
  * unclaimed player always clears; docs/waiver-clearing-design-2026-10-23.md)
- * changes which players and dollars clubs carry, so the canary moved:
- * tag 979873515, FA 651676524, signed by Matt 2026-10-23.
- * Earlier: 2875380525 / 3306901598 (roster sanity, #197, 2026-10-23),
+ * changes which players and dollars clubs carry, so the canary moved.
+ * The empty-room emergency quarterback fix moves the sim again. Measured
+ * after rebasing onto #201 (12d437f): tag 1777473079, FA 3280841901. That
+ * pair equals the fingerprint Matt signed on 86e7716 plus this fix
+ * (2026-10-24). #201 did not move it.
+ * Earlier: 979873515 / 651676524 (waiver clearing, signed 2026-10-23),
+ * 2875380525 / 3306901598 (roster sanity, #197, 2026-10-23),
  * 1725353685 / 2028992364 (pro-rata salary, 2026-10-20),
  * 2282341061 / 3785709883 (trade valuation), 3967213056 / 3639016065
  * (trade cap accounting), 1599887382 / 2847491416 (end-of-half kick),
@@ -119,11 +123,11 @@ console.log("ok    userOffers — successful inquiries add no parent RNG draws (
     }
   }
   assert.equal(st.phase, "offseason-tag");
-  assert.equal(st.rngState, 979873515);
+  assert.equal(st.rngState, 1777473079);
 
   advanceOffseason(st);
   assert.equal(st.phase, "offseason-fa");
-  assert.equal(st.rngState, 651676524, "inquiry must not move the parent stream");
+  assert.equal(st.rngState, 3280841901, "inquiry must not move the parent stream");
 
   const offers = st.tradeOffers ?? [];
   assert.ok(offers.length >= 1, `free agency opened with no calls (${offers.length})`);

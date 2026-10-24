@@ -8,7 +8,7 @@ Signed fix from the 86e7716 investigation (`v2/docs/gate-fail-86e7716-investigat
 
 **Disagreement, not applied.** `buildStarters` also refuses to fill a short quarterback unit with another position once any quarterback is dressed (`game.ts`, `posKey !== "QB" || chosen.length === 0`). `nextAvailable`'s trailing any-position fallback does not have that guard. The signed text only gates the emergency helper, so the fallback is unchanged. After this fix, injuring one of two dressed quarterbacks skips the emergency helper and then takes the first other healthy body into the second slot. Decided-game attempts can land on that body instead of staying with the healthy quarterback already in the unit. I would gate the fallback the same way `buildStarters` does.
 
-Seed-42 user-offer canary moved with the sim and was **not** re-locked. On this branch: tag `1777473079` (signed `979873515`), FA `3280841901` (signed `651676524`). `userOffers.test.ts` still expects the signed pair, so that one test fails.
+Seed-42 user-offer canary re-locked after the rebase onto #201 (`12d437f`). Post-rebase fingerprint: tag `1777473079`, FA `3280841901`. That pair **equals** the values Matt signed for this fix (measured on `86e7716` plus the empty-room change). #201 did not move it. Previous signed pair was tag `979873515`, FA `651676524`. Nothing else in `docs/baselines.json` was touched.
 
 ## 2026-10-23 — Waiver clearing: the bonus at the cut, no limbo (`claude/dazzling-pasteur-02nh3y`)
 
