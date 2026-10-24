@@ -7,6 +7,8 @@
  * An IR return parks on the practice squad when there is room.
  * A healthy quarterback, including a practice-squad quarterback, plays
  * before a punter.
+ * A mid-game exit leaves the other healthy quarterback in. The emergency
+ * quarterback comes in only when that room is empty.
  *
  * Run: npx tsx lib/core/rosterManagement.test.ts
  */
@@ -19,6 +21,7 @@ import {
 } from "./offseason/contracts";
 import { cutPlayer } from "./offseason/contracts";
 import { dressEmergencyQuarterbacks } from "./emergencyQb";
+import { sitPlayer, isSat } from "./inactives";
 import { Rng } from "./rng";
 import { simulateGame } from "./sim/game";
 import { advance, startRegularSeason } from "./season/engine";
@@ -410,6 +413,150 @@ function userGame(st: GameState) {
     userIds,
     "user roster was not touched",
   );
+}
+
+function reachUserGame(st: GameState) {
+  let guard = 0;
+  while (!userGame(st) && guard++ < 18) advance(st);
+  const g = userGame(st);
+  assert.ok(g);
+  return g;
+}
+
+/** The two quarterbacks buildStarters will dress, and nobody else healthy at the position. */
+function dressTwoQuarterbacks(st: GameState): [Player, Player] {
+  const tid = st.userTeamId;
+  const team = st.teams[tid];
+  const active = clubActive(st, tid).filter((p) => p.pos === "QB" && p.injuryWeeks <= 0 && !isSat(team, p.id));
+  assert.ok(active.length >= 2, "club has two healthy quarterbacks");
+  const onChart = (team.depthChart.QB ?? [])
+    .map((id) => active.find((p) => p.id === id))
+    .filter((p): p is Player => !!p);
+  const dressed = [...onChart, ...active.filter((p) => !onChart.includes(p))].slice(0, 2);
+  assert.equal(dressed.length, 2);
+  for (const p of clubActive(st, tid)) {
+    if (p.pos === "QB" && !dressed.includes(p)) p.injuryWeeks = 8;
+  }
+  team.depthChart.QB = [dressed[0].id, dressed[1].id];
+  return [dressed[0], dressed[1]];
+}
+
+/** User passes become sacks so a dressed quarterback actually leaves the game. */
+function crushUserPassProtection(st: GameState): void {
+  const tid = st.userTeamId;
+  for (const p of st.players) {
+    if (p.teamId === tid && (p.pos === "OT" || p.pos === "OG" || p.pos === "C")) {
+      p.attrs.pbk = 1;
+      p.attrs.str = 1;
+    }
+    if (p.teamId === tid && p.pos === "QB" && p.injuryWeeks <= 0 && p.status !== "ps") {
+      p.attrs.awr = 1;
+      p.attrs.agi = 1;
+      p.attrs.acc = 1;
+      p.attrs.spd = 1;
+      p.durability = 99;
+    }
+    if (p.teamId !== tid && (p.pos === "EDGE" || p.pos === "DT")) {
+      p.attrs.prs = 99;
+      p.attrs.acc = 99;
+    }
+  }
+}
+
+/**
+ * `nextAvailable` is inside the game. Force the sack check on user passes,
+ * then the injury roll, until the requested dressed quarterbacks have left.
+ * Any other injury roll is a no-op so the quarterback still in the unit stays.
+ */
+class ForceQuarterbackExits extends Rng {
+  readonly gone = new Set<number>();
+  constructor(seed: number, private readonly ids: readonly number[], private readonly stopAfter: number) {
+    super(seed);
+  }
+  private from(fn: string): boolean {
+    return (new Error().stack ?? "").includes(fn);
+  }
+  override chance(p: number): boolean {
+    if (this.from("rollInGameInjury")) return this.gone.size < this.stopAfter;
+    if (this.gone.size < this.stopAfter && this.from("passPlay")) {
+      if (p <= 0) return false;
+      // Crushed protection puts the sack check just under 0.29. Escape is 0.
+      if (p > 0.2 && p <= 0.7) return true;
+    }
+    return super.chance(p);
+  }
+  override weighted<T>(items: readonly T[], weight: (item: T, i: number) => number): T {
+    if (this.from("rollInGameInjury") && this.gone.size < this.stopAfter) {
+      const rows = items as readonly { p?: Player; risk?: number }[];
+      const hit = rows.find((c) => c?.p && typeof c.risk === "number" && this.ids.includes(c.p.id) && !this.gone.has(c.p.id));
+      if (hit?.p) {
+        this.gone.add(hit.p.id);
+        return hit as T;
+      }
+      return { p: { id: -1 }, ctx: { out: { has: (id: number) => id === -1 } } } as T;
+    }
+    return super.weighted(items, weight);
+  }
+}
+
+function attemptsOf(box: { players: { playerId: number; passAtt?: number; snaps: number }[] }, id: number) {
+  return box.players.find((s) => s.playerId === id);
+}
+
+// One dressed quarterback leaves. The healthy one still in the unit stays the quarterback.
+{
+  const st = newGame({ seed: 12 });
+  startRegularSeason(st);
+  const g = reachUserGame(st);
+  const tid = st.userTeamId;
+  const team = st.teams[tid];
+  const [starter, backup] = dressTwoQuarterbacks(st);
+  const psQb = addBody(st, tid, "QB", 70);
+  assert.equal(placeOnPs(st, psQb.id).ok, true);
+  const satQb = addBody(st, tid, "QB", 68);
+  assert.equal(sitPlayer(st, satQb.id).ok, true);
+  crushUserPassProtection(st);
+  const rng = new ForceQuarterbackExits(st.rngState, [starter.id, backup.id], 1);
+  const result = simulateGame(st, g, rng, { playCaller: () => "pass" });
+  assert.equal(rng.gone.size, 1, "one dressed quarterback left");
+  const stayed = rng.gone.has(starter.id) ? backup : starter;
+  const stayedLine = attemptsOf(result.box, stayed.id);
+  assert.ok(stayedLine && ((stayedLine.passAtt ?? 0) > 0 || stayedLine.snaps > 0), "the healthy quarterback still plays");
+  assert.equal(stayed.injuryWeeks, 0);
+  assert.equal(psQb.status, "ps", "practice-squad quarterback stays down");
+  assert.equal(isSat(team, satQb.id), true, "sat quarterback stays sat");
+  for (const id of [psQb.id, satQb.id]) {
+    const line = attemptsOf(result.box, id);
+    assert.ok(!line || ((line.passAtt ?? 0) === 0 && line.snaps === 0), "emergency quarterback does not play");
+  }
+}
+
+// The last healthy quarterback leaves. The empty room still uses the practice-squad quarterback.
+{
+  const st = newGame({ seed: 13 });
+  startRegularSeason(st);
+  const g = reachUserGame(st);
+  const tid = st.userTeamId;
+  const [starter, other] = dressTwoQuarterbacks(st);
+  other.injuryWeeks = 8;
+  const punter = clubActive(st, tid).find((p) => p.pos === "P");
+  assert.ok(punter);
+  punter.ovr = 99;
+  const psQb = addBody(st, tid, "QB", 72);
+  assert.equal(placeOnPs(st, psQb.id).ok, true);
+  crushUserPassProtection(st);
+  const rng = new ForceQuarterbackExits(st.rngState, [starter.id], 1);
+  const result = simulateGame(st, g, rng, { playCaller: () => "pass" });
+  assert.equal(rng.gone.size, 1, "the quarterback room went empty");
+  const row = attemptsOf(result.box, psQb.id);
+  assert.ok(row && (row.passAtt ?? 0) > 0, "practice-squad quarterback takes the snaps");
+  const punterRow = attemptsOf(result.box, punter.id);
+  assert.ok(!punterRow || (punterRow.passAtt ?? 0) === 0, "punter does not throw");
+  for (const s of result.box.players) {
+    if ((s.passAtt ?? 0) <= 0 || s.teamId !== tid) continue;
+    const p = st.players.find((x) => x.id === s.playerId);
+    assert.equal(p?.pos, "QB");
+  }
 }
 
 console.log("ok    roster management");

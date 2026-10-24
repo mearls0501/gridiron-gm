@@ -164,6 +164,72 @@ hurtGame.boxScore!.players.push({ ...blankPlayerGameStat(hurt.id, 0, true), snap
 assert.throws(() => tracker.finish(impossible), /unavailable player/);
 assert.throws(() => tracker.observeKickoff(weekly, weekly.games.slice(0, 1)), /before games/);
 
+// Empty-room emergency quarterbacks are the one appearance the ledger allows.
+// IR, injury, a team mismatch, and every other position still throw.
+{
+  const league = newGame({ seed: 91 });
+  startRegularSeason(league);
+  const ids = league.players.filter((p) => p.teamId === 0).slice(0, 7);
+  const [anchor, irQb, hurtQb, psQb, satQb, satPunter, psWr] = ids;
+  league.players = ids;
+  for (const p of ids) {
+    p.retired = false; p.prospect = false; p.status = undefined; p.injuryWeeks = 0;
+    p.teamId = 0;
+    delete p.psychology;
+  }
+  anchor.pos = "QB";
+  irQb.pos = "QB"; irQb.status = "ir";
+  hurtQb.pos = "QB"; hurtQb.injuryWeeks = 4;
+  psQb.pos = "QB"; psQb.status = "ps";
+  satQb.pos = "QB";
+  satPunter.pos = "P";
+  psWr.pos = "WR"; psWr.status = "ps";
+  const narrow = new RegularAvailabilityTracker(league.season);
+  for (let week = 1; week <= 18; week++) {
+    league.week = week;
+    const games = league.games.filter((g) => g.week === week);
+    const own = games.find((g) => g.homeId === 0 || g.awayId === 0);
+    league.teams[0].inactives = [satQb.id, satPunter.id];
+    hurtQb.injuryWeeks = 4;
+    narrow.observeKickoff(league, games);
+    for (const game of games) {
+      game.played = true;
+      game.boxScore = {
+        home: blankTeamGameStats(), away: blankTeamGameStats(),
+        quarters: { home: [], away: [] }, scoringPlays: [], players: [],
+      };
+    }
+    if (own) own.boxScore!.players.push({ ...blankPlayerGameStat(anchor.id, 0, own.homeId === 0), snaps: 60 });
+  }
+  league.phase = "playoffs";
+  const clean = narrow.finish(league);
+  assert.equal(clean.observedWeeks, 18);
+
+  function withRow(playerId: number, teamId: number, inactives?: number[]) {
+    const copy = structuredClone(league);
+    const game = copy.games.find((g) => g.boxScore!.players.some((s) => s.playerId === anchor.id))!;
+    game.boxScore!.players.push({ ...blankPlayerGameStat(playerId, teamId, false), snaps: 3, passAtt: 1 });
+    if (inactives) game.boxScore!.inactives = inactives;
+    return copy;
+  }
+
+  assert.equal(narrow.finish(withRow(psQb.id, 0)).observedWeeks, 18, "practice-squad quarterback from an empty room");
+  assert.equal(narrow.finish(withRow(satQb.id, 0)).observedWeeks, 18, "sat quarterback who was activated");
+  assert.throws(() => narrow.finish(withRow(satQb.id, 0, [satQb.id])), new RegExp(`unavailable player ${satQb.id}`),
+    "sat quarterback still inactive");
+  assert.throws(() => narrow.finish(withRow(irQb.id, 0)), new RegExp(`unavailable player ${irQb.id}`));
+  assert.throws(() => narrow.finish(withRow(hurtQb.id, 0)), new RegExp(`unavailable player ${hurtQb.id}`));
+  assert.throws(() => narrow.finish(withRow(satPunter.id, 0)), new RegExp(`unavailable player ${satPunter.id}`),
+    "sat non-quarterback");
+  assert.throws(() => narrow.finish(withRow(psWr.id, 0)), new RegExp(`unavailable player ${psWr.id}`),
+    "practice-squad non-quarterback");
+  const mismatch = structuredClone(league);
+  const mismatched = mismatch.games.find((g) => g.boxScore!.players.some((s) => s.playerId === anchor.id))!;
+  const opponent = mismatched.homeId === 0 ? mismatched.awayId : mismatched.homeId;
+  mismatched.boxScore!.players[0].teamId = opponent;
+  assert.throws(() => narrow.finish(mismatch), new RegExp(`unavailable player ${anchor.id}`), "team mismatch");
+}
+
 // Exercise the real engine path: observation consumes no draws and changes no save bytes.
 const unobserved = newGame({ seed: 12345 });
 const observed = structuredClone(unobserved);

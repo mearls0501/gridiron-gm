@@ -542,10 +542,10 @@ function* runGameSim(
       if (usable(p)) return p;
     }
     for (const p of ctx.roster) if (p.pos === pos && usable(p)) return p;
-    if (pos === "QB") {
-      const skip = new Set<number>(ctx.out);
-      for (const p of unit) skip.add(p.id);
-      const qb = emergencyQuarterback(state, ctx.team, skip);
+    // A sat or practice-squad quarterback is for an empty room, same as
+    // buildStarters. Do not unsit one while a healthy quarterback is still up.
+    if (pos === "QB" && unit.length === 0) {
+      const qb = emergencyQuarterback(state, ctx.team, ctx.out);
       if (qb) {
         if (!ctx.roster.includes(qb)) ctx.roster.push(qb);
         return qb;

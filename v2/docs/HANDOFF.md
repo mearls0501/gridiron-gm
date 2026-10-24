@@ -1,5 +1,15 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-24 — Drift crash: emergency quarterback only on an empty room
+
+Signed fix from the 86e7716 investigation (`v2/docs/gate-fail-86e7716-investigation.md` on `cursor/gate-fail-86e7716-report-a2c7`, `fc5df99`). Built as written. That doc is not in this branch.
+
+`nextAvailable` calls `emergencyQuarterback` only when the quarterback unit is empty, the same condition `buildStarters` already uses. The signed empty-room path is unchanged: a practice-squad quarterback throws instead of the punter (`rosterManagement.test.ts`). The drift availability tracker allows a quarterback whose only kickoff flag is sat or practice squad, and a sat one only when he is no longer on the box inactive list. IR, injury, a team mismatch, a missing kickoff row, and sat or practice squad at every other position still throw.
+
+**Disagreement, not applied.** `buildStarters` also refuses to fill a short quarterback unit with another position once any quarterback is dressed (`game.ts`, `posKey !== "QB" || chosen.length === 0`). `nextAvailable`'s trailing any-position fallback does not have that guard. The signed text only gates the emergency helper, so the fallback is unchanged. After this fix, injuring one of two dressed quarterbacks skips the emergency helper and then takes the first other healthy body into the second slot. Decided-game attempts can land on that body instead of staying with the healthy quarterback already in the unit. I would gate the fallback the same way `buildStarters` does.
+
+Seed-42 user-offer canary moved with the sim and was **not** re-locked. On this branch: tag `1777473079` (signed `979873515`), FA `3280841901` (signed `651676524`). `userOffers.test.ts` still expects the signed pair, so that one test fails.
+
 ## 2026-10-23 — Waiver clearing: the bonus at the cut, no limbo (`claude/dazzling-pasteur-02nh3y`)
 
 Design, measurements and Matt's five decisions (all signed 2026-10-23):
