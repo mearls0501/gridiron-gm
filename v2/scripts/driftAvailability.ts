@@ -1,6 +1,6 @@
 import { isActiveRoster } from "../lib/core/select";
 import { isHoldoutInactive } from "../lib/core/psychology";
-import { Game, GameState } from "../lib/core/types";
+import { Game, GameState, Position } from "../lib/core/types";
 
 export interface RotationAvailability {
   readonly playerId: number;
@@ -60,11 +60,34 @@ export function captureRotationNonappearance(state: GameState) {
 
 interface KickoffPlayer {
   readonly teamId: number | null;
+  readonly pos: Position;
   readonly status: string;
   readonly injuryWeeks: number;
   readonly sat: boolean;
   readonly holdout: boolean;
 }
+
+/**
+ * Empty-room emergency quarterback. He was only sat or on the practice squad
+ * at kickoff, and a sat one is not still on the box inactive list — that unsit
+ * is the empty-room path. IR, an injury, a team mismatch, and every other
+ * position stay unavailable.
+ */
+function emptyRoomEmergencyQuarterback(
+  kickoff: KickoffPlayer | undefined,
+  row: { playerId: number; teamId: number },
+  game: Game,
+): boolean {
+  if (!kickoff || kickoff.pos !== "QB") return false;
+  if (kickoff.teamId !== row.teamId) return false;
+  if (row.teamId !== game.homeId && row.teamId !== game.awayId) return false;
+  if (kickoff.injuryWeeks > 0 || kickoff.status === "ir") return false;
+  const practiceSquad = kickoff.status === "ps";
+  if (!practiceSquad && !(kickoff.sat && kickoff.status === "active")) return false;
+  if (kickoff.sat && game.boxScore?.inactives?.includes(row.playerId)) return false;
+  return true;
+}
+
 interface KickoffWeek {
   readonly games: ReadonlySet<number>;
   readonly teams: ReadonlySet<number>;
@@ -114,7 +137,7 @@ export class RegularAvailabilityTracker {
         throw new Error(`invalid availability player ${p.id}`);
       }
       players.set(p.id, Object.freeze({
-        teamId: p.teamId, status: p.status ?? "active", injuryWeeks: p.injuryWeeks,
+        teamId: p.teamId, pos: p.pos, status: p.status ?? "active", injuryWeeks: p.injuryWeeks,
         sat: p.teamId !== null && !!state.teams[p.teamId].inactives?.includes(p.id),
         holdout: isHoldoutInactive(state, p),
       }));
@@ -136,8 +159,9 @@ export class RegularAvailabilityTracker {
       const appeared = appearances.get(g.week)!;
       for (const row of g.boxScore!.players) {
         const p = kickoff.players.get(row.playerId);
-        if (!p || p.teamId !== row.teamId || ![g.homeId, g.awayId].includes(row.teamId) ||
-            p.status === "ps" || p.status === "ir" || p.injuryWeeks > 0 || p.sat) {
+        if (!emptyRoomEmergencyQuarterback(p, row, g) &&
+            (!p || p.teamId !== row.teamId || ![g.homeId, g.awayId].includes(row.teamId) ||
+              p.status === "ps" || p.status === "ir" || p.injuryWeeks > 0 || p.sat)) {
           throw new Error(`unavailable player ${row.playerId} appeared in game ${g.id}`);
         }
         if (appeared.has(row.playerId)) throw new Error(`duplicate weekly appearance for player ${row.playerId}`);
