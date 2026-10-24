@@ -1,6 +1,6 @@
 import { Rng } from "../rng";
 import { refreshDepthCharts } from "../generate";
-import { applyCapCarryover, captureCapCarryover, clearDeadCap, teamCap } from "../select";
+import { applyCapCarryover, captureCapCarryover, clearDeadCap, rosterCount, teamCap } from "../select";
 import { GameState, Phase, ROSTER_LIMIT } from "../types";
 import { foldPracticeSquad, resetSeasonRosterFlags } from "../rosterStatus";
 import { settleWaivers } from "../waivers";
@@ -334,9 +334,10 @@ export function finalizeOffseason(state: GameState): void {
   // whole camp dump. Play Week stays one window.
   settleWaivers(state);
   // Carryover enlarges room for the claim-cut chain; a rounded hit can
-  // land a club a few thousand over. Legalize before the desk opens.
+  // land a club a few thousand over. A cleared cut's guarantee can too, and
+  // the waiver backstop then cuts below 53. Legalize before the desk opens.
   for (const t of state.teams) {
-    if (teamCap(state, t.id).space < 0) {
+    if (teamCap(state, t.id).space < 0 || rosterCount(state, t.id) < ROSTER_LIMIT) {
       reconcileRoster(state, t.id, rng, ROSTER_LIMIT, true);
     }
   }
