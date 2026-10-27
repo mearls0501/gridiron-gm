@@ -1,5 +1,25 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-27 — A short quarterback unit does not take another position
+
+Signed packet, Matt, 2026-10-27. Built as written. The seed-4 coherence miss on `89bca4d` (outlierExplainedPct 82.0, floor 85) is the leftover from #202. The write-up is `docs/gate-fail-89bca4d-investigation.md` on `cursor/gate-fail-89bca4d-investigation-0202` (draft PR #203). Staff seed 3 is the same noise already left red on `a393ac9`. Not touched.
+
+`nextAvailable` already called `emergencyQuarterback` only when the quarterback unit was empty. `ROTATION.QB` is still 2, so injuring one of two dressed quarterbacks left the unit short and the next line took the first other healthy body. In a decided game `onField` steps to that slot. The new guard returns before that fallback while `unit.length > 0`. The empty-room emergency path is the same call it was. The pre-#202 unsit is not restored. No other position's fallback changed.
+
+`rosterManagement.test.ts` dresses two quarterbacks, injures one, and plays a decided game. The highest other healthy body does not throw, and every passer on that club is a quarterback. The empty room still uses the practice-squad quarterback.
+
+No `baselines.json` edit. No re-lock. The 85 floor, the z lines, and the 2.5-point front and secondary lines are unchanged. No 5-seed panel.
+
+**No disagreement with the signed scope.** The 2026-10-24 note on this file is the change that was applied. A return to 87.10 is not the test; that figure is the unsit series.
+
+Validation on this VM (filled in after the runs):
+
+- `npx tsx lib/core/rosterManagement.test.ts` — pass. Without the guard the new case fails on "the other body does not fill the quarterback slot".
+- `npm run gate:serial -- --seeds 1` — pending
+- `GG_SEED=4 npx tsx scripts/coherence.ts 5` — pending (`coherence.outlierExplainedPct`)
+- `npx tsx scripts/drift.ts 20` — pending (no throw at the availability check that was `driftAvailability.ts:141` before #202)
+- Seed-42 user-offer canary — pending. Not re-locked if it moves. Signed pair remains tag `1777473079`, FA `3280841901`.
+
 ## 2026-10-24 — Drift crash: emergency quarterback only on an empty room
 
 Signed fix from the 86e7716 investigation (`v2/docs/gate-fail-86e7716-investigation.md` on `cursor/gate-fail-86e7716-report-a2c7`, `fc5df99`). Built as written. That doc is not in this branch.

@@ -7,8 +7,10 @@
  * An IR return parks on the practice squad when there is room.
  * A healthy quarterback, including a practice-squad quarterback, plays
  * before a punter.
- * A mid-game exit leaves the other healthy quarterback in. The emergency
- * quarterback comes in only when that room is empty.
+ * A mid-game exit leaves the other healthy quarterback in. While one is
+ * still dressed, the open slot stays empty: a decided game does not hand
+ * attempts to another position. The emergency quarterback comes in only
+ * when that room is empty.
  *
  * Run: npx tsx lib/core/rosterManagement.test.ts
  */
@@ -528,6 +530,47 @@ function attemptsOf(box: { players: { playerId: number; passAtt?: number; snaps:
   for (const id of [psQb.id, satQb.id]) {
     const line = attemptsOf(result.box, id);
     assert.ok(!line || ((line.passAtt ?? 0) === 0 && line.snaps === 0), "emergency quarterback does not play");
+  }
+}
+
+// Two quarterbacks are dressed and one leaves. The open slot stays empty, so a
+// decided game does not hand attempts to the highest other healthy body.
+{
+  const st = newGame({ seed: 14 });
+  startRegularSeason(st);
+  const g = reachUserGame(st);
+  const tid = st.userTeamId;
+  const opp = g.homeId === tid ? g.awayId : g.homeId;
+  const [starter, backup] = dressTwoQuarterbacks(st);
+  const others = clubActive(st, tid).filter((p) => p.pos !== "QB");
+  const plant = others[0];
+  assert.ok(plant, "club has a non-quarterback");
+  plant.ovr = 100;
+  for (const p of others) if (p !== plant && p.ovr >= plant.ovr) p.ovr = 99;
+  for (const p of st.players) {
+    if (p.teamId === tid) {
+      for (const k of Object.keys(p.attrs) as (keyof Player["attrs"])[]) p.attrs[k] = 1;
+      if (p.pos === "QB" && p.injuryWeeks <= 0) p.durability = 99;
+    } else if (p.teamId === opp) {
+      for (const k of Object.keys(p.attrs) as (keyof Player["attrs"])[]) p.attrs[k] = 99;
+    }
+  }
+  const rng = new ForceQuarterbackExits(st.rngState, [starter.id, backup.id], 1);
+  const result = simulateGame(st, g, rng, { playCaller: () => "pass" });
+  assert.equal(rng.gone.size, 1, "one dressed quarterback left");
+  const stayed = rng.gone.has(starter.id) ? backup : starter;
+  const userHome = g.homeId === tid;
+  const userScore = userHome ? result.homeScore : result.awayScore;
+  const oppScore = userHome ? result.awayScore : result.homeScore;
+  assert.ok(oppScore - userScore >= 31, "the game is decided, so a filled second slot would throw");
+  const stayedLine = attemptsOf(result.box, stayed.id);
+  assert.ok(stayedLine && (stayedLine.passAtt ?? 0) > 0, "the healthy quarterback still throws");
+  const plantLine = result.box.players.find((s) => s.playerId === plant.id);
+  assert.ok(!plantLine || ((plantLine.passAtt ?? 0) === 0 && (plantLine.sacked ?? 0) === 0), "the other body does not fill the quarterback slot");
+  for (const s of result.box.players) {
+    if (s.teamId !== tid || ((s.passAtt ?? 0) <= 0 && (s.sacked ?? 0) <= 0)) continue;
+    const p = st.players.find((x) => x.id === s.playerId);
+    assert.equal(p?.pos, "QB", "no non-quarterback fills a quarterback slot");
   }
 }
 
