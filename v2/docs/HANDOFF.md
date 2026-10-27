@@ -12,13 +12,13 @@ No `baselines.json` edit. No re-lock. The 85 floor, the z lines, and the 2.5-poi
 
 **No disagreement with the signed scope.** The 2026-10-24 note on this file is the change that was applied. A return to 87.10 is not the test; that figure is the unsit series.
 
-Validation on this VM (filled in after the runs):
+Validation on this VM:
 
-- `npx tsx lib/core/rosterManagement.test.ts` — pass. Without the guard the new case fails on "the other body does not fill the quarterback slot".
-- `npm run gate:serial -- --seeds 1` — pending
-- `GG_SEED=4 npx tsx scripts/coherence.ts 5` — pending (`coherence.outlierExplainedPct`)
-- `npx tsx scripts/drift.ts 20` — pending (no throw at the availability check that was `driftAvailability.ts:141` before #202)
-- Seed-42 user-offer canary — pending. Not re-locked if it moves. Signed pair remains tag `1777473079`, FA `3280841901`.
+- `npx tsx lib/core/rosterManagement.test.ts` — pass. Without the guard the new case fails on "the other body does not fill the quarterback slot". The empty-room case still passes.
+- `npm run gate:serial -- --seeds 1` — **GATE PASS**, 72 metrics, exit 0. No FAIL line.
+- `GG_SEED=4 npx tsx scripts/coherence.ts 5` — `coherence.outlierExplainedPct` **86.428571** (printed 86.4%, 121 of 140; receiving 13 at 100%, rushing 87 at 83%, passing 40 at 90%). Exit 0, `COHERENT`. It was 82.014 on `89bca4d`. It is not 87.10. `coherence.eliteCbSidesDrop` −0.156 and `coherence.eliteCbShadowDrop` 2.361, the same seed-4 lines as the investigation.
+- `npx tsx scripts/drift.ts 20` — one seed, the harness default `12345`, 20 seasons. Finished. No throw from the availability check that was `driftAvailability.ts:141` before #202. `drift.p0Failures` 0. Exit 0, "no P0 regressions".
+- Seed-42 user-offer canary did **not** move. `useroffers` exited 0 against the signed pair tag `1777473079`, FA `3280841901`. Not re-locked. Nothing in `docs/baselines.json` was touched.
 
 ## 2026-10-24 — Drift crash: emergency quarterback only on an empty room
 
