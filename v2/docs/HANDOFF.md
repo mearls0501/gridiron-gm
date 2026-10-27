@@ -20,6 +20,20 @@ Validation on this VM:
 - `npx tsx scripts/drift.ts 20` — one seed, the harness default `12345`, 20 seasons. Finished. No throw from the availability check that was `driftAvailability.ts:141` before #202. `drift.p0Failures` 0. Exit 0, "no P0 regressions".
 - Seed-42 user-offer canary did **not** move. `useroffers` exited 0 against the signed pair tag `1777473079`, FA `3280841901`. Not re-locked. Nothing in `docs/baselines.json` was touched.
 
+## 2026-10-27 — Staff league OVR delta: the 1.2 cap is the panel mean
+
+Signed packet (Matt, 2026-10-27). Built as written. Context is the Staff section of `v2/docs/gate-fail-89bca4d-investigation.md` on `cursor/gate-fail-89bca4d-investigation-0202` (draft PR #203). That doc is not in this branch.
+
+The signed lock is the panel mean of `staff.leagueOvrDelta`, max **1.2**. `scripts/gate.ts` already averages each `##M` line across the seed panel (`run`, the mean of the finite values) and `checkBound` fails when that mean is over `max`. `docs/baselines.json` already locks `staff.leagueOvrDelta` at max 1.2. No aggregation change. A per-seed copy of the same 1.2 in `staffcheck.ts` incremented `problems`, so seed 3 at 1.377 on the 89bca4d panel (mean 0.973) exited 1 and the pooled `staff.problems` was 0.20.
+
+Now a seed's delta is still printed, still emitted as `staff.leagueOvrDelta`, and still noted when it sits outside the old per-seed line (`Math.abs(delta) < 1.2`, which included exactly 1.2). `seedLeagueOvrDeltaProblemCount` adds 0 to `staff.problems`. Focus, the wall (`overPotential`), and the scheme checks stay per seed. Ceiling was already a printed metric, not its own assertion, and it still is.
+
+The removed line was two-sided. The signed cap is one-sided, the same `value > max` rule the gate already uses. Exactly 1.2 passes. A negative panel mean stays inside the existing max. I did not add an absolute-value cap on the mean. That would be a different lock.
+
+`staff.problems` max stays 0. Not re-locked. The baseline note still lists "no inflation" among the four checks inside that counter. Inflation is now only the panel mean of `staff.leagueOvrDelta`. `baselines.json` was not edited, so that sentence is stale on purpose. `developmentMultiplier` and the rest of `staff.ts` were not touched. 1.2 was not widened.
+
+`scripts/staffLeagueOvrDelta.test.ts` is the harness. The 89bca4d series (0.761 / 0.626 / 1.377 / 0.928 / 1.175) has one seed over 1.2, a mean of 0.9734, and a problem count of 0. The old per-seed copy of that series is problems 0.20, which still fails `staff.problems` max 0. A panel of 1.3s fails the mean. Exactly 1.2 does not. Registered in `package.json` and both gate tiers (`staffpanel`), the #47 pair. No 5-seed panel.
+
 ## 2026-10-24 — Drift crash: emergency quarterback only on an empty room
 
 Signed fix from the 86e7716 investigation (`v2/docs/gate-fail-86e7716-investigation.md` on `cursor/gate-fail-86e7716-report-a2c7`, `fc5df99`). Built as written. That doc is not in this branch.
