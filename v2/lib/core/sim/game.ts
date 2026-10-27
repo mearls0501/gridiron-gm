@@ -543,7 +543,8 @@ function* runGameSim(
     }
     for (const p of ctx.roster) if (p.pos === pos && usable(p)) return p;
     // A sat or practice-squad quarterback is for an empty room, same as
-    // buildStarters. Do not unsit one while a healthy quarterback is still up.
+    // buildStarters. Do not unsit one while a healthy quarterback is still up,
+    // and do not fill the open slot with another position while one is dressed.
     if (pos === "QB" && unit.length === 0) {
       const qb = emergencyQuarterback(state, ctx.team, ctx.out);
       if (qb) {
@@ -551,6 +552,7 @@ function* runGameSim(
         return qb;
       }
     }
+    if (pos === "QB" && unit.length > 0) return undefined;
     for (const p of ctx.roster) if (usable(p)) return p;
     return undefined;
   };
