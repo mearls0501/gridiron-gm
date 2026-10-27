@@ -34,6 +34,12 @@ The removed line was two-sided. The signed cap is one-sided, the same `value > m
 
 `scripts/staffLeagueOvrDelta.test.ts` is the harness. The 89bca4d series (0.761 / 0.626 / 1.377 / 0.928 / 1.175) has one seed over 1.2, a mean of 0.9734, and a problem count of 0. The old per-seed copy of that series is problems 0.20, which still fails `staff.problems` max 0. A panel of 1.3s fails the mean. Exactly 1.2 does not. Registered in `package.json` and both gate tiers (`staffpanel`), the #47 pair. No 5-seed panel.
 
+Validation on this branch:
+
+- `npx tsx scripts/staffLeagueOvrDelta.test.ts` — pass. `staffpanel` inside the fast gate also passed.
+- `npm run gate:serial -- --seeds 1` — **GATE PASS** (72 metrics). The fast tier does not run the staff harness. That is why seed 3 is a separate run.
+- `GG_SEED=3 npx tsx scripts/staffcheck.ts 8` — exit 0. Seed 1520860546. Neutral 63.72, specialised 64.46, delta **0.74** (`##M staff.leagueOvrDelta` 0.7371638777888734). `staff.problems` 0. Focus 4.40, ceiling 3.792275098684803, scheme scoring −0.06315789473684319, over-potential 0, sample 15. The wall and the scheme checks passed. This is the clean rerun from the investigation, not the Studio log's 1.377, so the "outside 1.2" note did not print. The delta line and the `##M` line did. No 5-seed panel.
+
 ## 2026-10-24 — Drift crash: emergency quarterback only on an empty room
 
 Signed fix from the 86e7716 investigation (`v2/docs/gate-fail-86e7716-investigation.md` on `cursor/gate-fail-86e7716-report-a2c7`, `fc5df99`). Built as written. That doc is not in this branch.
