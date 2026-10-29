@@ -14,7 +14,7 @@ import { ownerJobView, ownerJudgment } from "../core/owner";
 import { blankRecord } from "../core/select";
 import { GAMES_PER_TEAM, GameState } from "../core/types";
 import {
-  EARLY_VERDICT_GAMES, earlySeasonSample, ownerCardPace, ownerCardVerdict, ownerMarginSub,
+  EARLY_VERDICT_GAMES, archivedPriorWins, earlySeasonSample, ownerCardPace, ownerCardVerdict, ownerMarginSub,
   paceLabel, roundPace, winPace,
 } from "./ownerPace";
 
@@ -218,6 +218,10 @@ function plantYear(st: GameState, season: number, wins: number, expected: number
   assert.match(staff, /ownerCardVerdict/);
   assert.equal(staff.includes("job.margin.toFixed"), false, "the card prints the pace margin, not the raw one");
   assert.equal(staff.includes('job.wouldFire ? "yes"'), false, "the card does not print the raw firing verdict");
+  assert.match(staff, /lastSeasonWins/);
+  assert.match(staff, /archivedPriorWins/);
+  const lastSeasonSlice = staff.slice(staff.indexOf('label="Last season"'), staff.indexOf('label="Would fire"'));
+  assert.equal(lastSeasonSlice.includes("job.recentWins"), false, "Last season does not read the live partial");
   const paceSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "ownerPace.ts"), "utf8");
   assert.equal(/ownerJudgment\s*\(/.test(paceSrc), false, "the card path does not call ownerJudgment");
   ok("the staff card prints the pace margin and its label");
@@ -277,9 +281,10 @@ function earlyClub(seed: number, wins: number, losses: number, week: number, pha
   assert.equal(jobSix.wouldFire, ownerJudgment(0.55, [1], [8], true).wouldFire);
   assert.equal(jobSix.wouldFire, true);
   const cardSix = ownerCardVerdict(six, six.userTeamId, jobSix);
-  assert.equal(cardSix.wouldFire, "yes", "the sixth game prints the live verdict");
+  assert.equal(cardSix.wouldFire, "yes", "the sixth game prints the pace verdict");
   assert.equal(cardSix.seat, "fired");
-  assert.match(cardSix.line, /The season is over/);
+  assert.equal(cardSix.line.includes("The season is over"), false);
+  assert.equal(cardSix.line.includes("open chair"), false);
 
   const hotStart = earlyClub(505, 4, 0, 4);
   const hotJob = ownerJobView(hotStart, hotStart.userTeamId)!;
@@ -308,6 +313,73 @@ function earlyClub(seed: number, wins: number, losses: number, week: number, pha
   assert.equal(reviewJob.wouldFire, ownerJudgment(0.55, [3], [8], true).wouldFire);
   assert.equal(ownerCardVerdict(review, review.userTeamId, reviewJob).wouldFire, reviewJob.wouldFire ? "yes" : "no");
   ok("early-season card withholds WOULD FIRE; the decision stays on the raw wins");
+}
+
+{
+  // Playtest 1028 finding 1. 2030 W8 at 5-2, patience 0.50, prior 13, bar 8.7.
+  const st = newGame({ seed: 509 });
+  st.settings = { ...(st.settings!), firingEnabled: true };
+  const team = st.teams[st.userTeamId];
+  team.owner!.patience = 0.50;
+  team.gmHiredSeason = st.season - 1;
+  team.seasonExpectedWins = 10;
+  plantYear(st, st.season - 1, 13, 10);
+  st.phase = "regular";
+  st.week = 8;
+  plantLive(st, st.userTeamId, 5, 2);
+  const parent = st.rngState;
+  const job = ownerJobView(st, st.userTeamId)!;
+  assert.equal(job.recentWins, 5, "the view still holds the partial");
+  assert.equal(job.wouldFire, true, "the raw completed-season read still fires");
+  assert.match(job.line, /The season is over/);
+  const pace = ownerCardPace(st, st.userTeamId, job);
+  close(pace.pace!, (5 * 17) / 7, "5-2 is on pace for 12.1");
+  const card = ownerCardVerdict(st, st.userTeamId, job);
+  assert.equal(card.wouldFire, "no");
+  assert.equal(card.seat, "safe");
+  assert.equal(card.line.includes("The season is over"), false);
+  assert.equal(card.line.includes("open chair"), false);
+  assert.equal(archivedPriorWins(st, st.userTeamId), 13);
+  assert.equal(st.rngState, parent, "the card read does not draw");
+
+  // Prior 10, 6-3: the 2029 window. Pace margin is about +2.1, so watched, not fired.
+  const y2029 = newGame({ seed: 510 });
+  y2029.settings = { ...(y2029.settings!), firingEnabled: true };
+  const club = y2029.teams[y2029.userTeamId];
+  club.owner!.patience = 0.50;
+  club.gmHiredSeason = y2029.season - 1;
+  club.seasonExpectedWins = 10;
+  plantYear(y2029, y2029.season - 1, 10, 10);
+  y2029.phase = "regular";
+  plantLive(y2029, y2029.userTeamId, 6, 3);
+  const job2029 = ownerJobView(y2029, y2029.userTeamId)!;
+  assert.equal(job2029.wouldFire, true);
+  const card2029 = ownerCardVerdict(y2029, y2029.userTeamId, job2029);
+  assert.equal(card2029.wouldFire, "no");
+  assert.equal(card2029.seat, "watched");
+  assert.equal(archivedPriorWins(y2029, y2029.userTeamId), 10);
+
+  // Six wins against a 13-win prior: raw seat is hot; the pace is safe.
+  const six = newGame({ seed: 511 });
+  six.settings = { ...(six.settings!), firingEnabled: true };
+  const hot = six.teams[six.userTeamId];
+  hot.owner!.patience = 0.50;
+  hot.gmHiredSeason = six.season - 1;
+  hot.seasonExpectedWins = 10;
+  plantYear(six, six.season - 1, 13, 10);
+  six.phase = "regular";
+  plantLive(six, six.userTeamId, 6, 2);
+  const jobSixWins = ownerJobView(six, six.userTeamId)!;
+  assert.equal(jobSixWins.recentWins, 6);
+  assert.equal(jobSixWins.wouldFire, false);
+  assert.equal(jobSixWins.seat, "hot");
+  const cardSixWins = ownerCardVerdict(six, six.userTeamId, jobSixWins);
+  assert.equal(cardSixWins.wouldFire, "no");
+  assert.equal(cardSixWins.seat, "safe");
+
+  const year1 = earlyClub(512, 0, 1, 2);
+  assert.equal(archivedPriorWins(year1, year1.userTeamId), null, "year 1 in the regular season has no archived season");
+  ok("regular-season card follows the pace; last season is the archive");
 }
 
 console.log("ok    owner card pace");

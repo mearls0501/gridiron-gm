@@ -1,4 +1,4 @@
-import { OwnerJobView, OwnerSeat } from "../core/owner";
+import { OWNER_WIN_TARGET, OwnerJobView, OwnerSeat, tenureRows } from "../core/owner";
 import { computeRecords } from "../core/select";
 import { GAMES_PER_TEAM, GameState } from "../core/types";
 
@@ -112,11 +112,59 @@ export interface OwnerCardVerdict {
   line: string;
 }
 
+/** Newest archived season under this GM. History only, so a live partial is not last season. */
+export function archivedPriorWins(state: GameState, teamId: number): number | null {
+  const hired = state.teams[teamId]?.gmHiredSeason ?? state.season;
+  const rows = tenureRows(state, teamId, hired).filter((r) => r.season < state.season);
+  return rows.length ? rows[rows.length - 1].wins : null;
+}
+
+function marginSeat(margin: number): OwnerSeat {
+  if (margin <= 0) return "fired";
+  if (margin <= 1) return "hot";
+  if (margin <= 2.5) return "watched";
+  return "safe";
+}
+
 export function ownerCardVerdict(
   state: GameState,
   teamId: number,
   job: OwnerJobView,
 ): OwnerCardVerdict {
+  const regular =
+    state.phase === "regular" &&
+    !state.history.some((h) => h.season === state.season);
+  if (job.firingEnabled && regular) {
+    const pace = ownerCardPace(state, teamId, job);
+    if (pace.pace != null) {
+      const prior = archivedPriorWins(state, teamId);
+      const keep =
+        pace.pace > GAMES_PER_TEAM / 2 ||
+        (prior != null && pace.pace - prior >= 3);
+      const rebuildYear =
+        job.seasonsWithGm <= 1 && job.expectedWins === OWNER_WIN_TARGET.rebuild;
+      const paceFires = pace.margin <= 0 && !keep && !rebuildYear;
+      if (earlySeasonSample(state, teamId) && (job.wouldFire || paceFires)) {
+        return {
+          wouldFire: "early",
+          seat: "early",
+          line: `${job.owner.name} reads a firing verdict after more than five games. This sample is still early.`,
+        };
+      }
+      const band = marginSeat(pace.margin);
+      const seat: OwnerSeat = paceFires ? "fired" : band === "fired" ? "hot" : band;
+      const wouldFire = paceFires ? "yes" as const : "no" as const;
+      const agrees =
+        wouldFire === (job.wouldFire ? "yes" : "no") &&
+        seat === job.seat &&
+        wouldFire !== "yes";
+      if (agrees) return { wouldFire, seat, line: job.line };
+      const line = paceFires
+        ? `${job.owner.name} would fire at this pace. The bar is ${job.bar.toFixed(1)}. ${paceLabel(pace.pace)}.`
+        : `${job.owner.name} is counting this season at its pace. The bar is ${job.bar.toFixed(1)}. ${paceLabel(pace.pace)}.`;
+      return { wouldFire, seat, line };
+    }
+  }
   if (!job.wouldFire || !earlySeasonSample(state, teamId)) {
     return {
       wouldFire: job.wouldFire ? "yes" : "no",
