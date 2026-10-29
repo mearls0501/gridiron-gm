@@ -17,7 +17,7 @@ import {
   staffSlot,
 } from "@/lib/core/coaches";
 import { ensureOwners, isPendingForcedMove, ownerJobView, patienceScaleLabel } from "@/lib/core/owner";
-import { ownerCardPace, ownerCardVerdict, ownerMarginSub } from "@/lib/view/ownerPace";
+import { archivedPriorWins, ownerCardPace, ownerCardVerdict, ownerMarginSub } from "@/lib/view/ownerPace";
 import { schemeById } from "@/lib/core/staff";
 import { coachTermLabel, staffCardFields } from "@/lib/view/staffDesk";
 import {
@@ -144,6 +144,8 @@ export default function StaffPage() {
 
   if (!state || !team) return null;
   void rev;
+  const lastSeasonWins =
+    state.phase === "regular" ? archivedPriorWins(state, teamId) : job?.recentWins ?? null;
 
   const cardSeat = verdict?.seat ?? job?.seat;
   const seatTone =
@@ -208,7 +210,7 @@ export default function StaffPage() {
             />
             <Stat
               label="Last season"
-              value={job.recentWins == null ? "—" : job.recentWins.toFixed(job.recentWins % 1 ? 1 : 0)}
+              value={lastSeasonWins == null ? "—" : lastSeasonWins.toFixed(lastSeasonWins % 1 ? 1 : 0)}
               sub={`${job.seasonsWithGm} season${job.seasonsWithGm === 1 ? "" : "s"} in the chair`}
             />
             <Stat
