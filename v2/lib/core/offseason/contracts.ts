@@ -15,7 +15,7 @@ import {
 import { resolveDemand } from "../psychology";
 import { clearRosterSlot, placeOnPs } from "../rosterStatus";
 import { POSITION_VALUE } from "../ratings";
-import { evaluate, frontOffice, targetSpend, teamOutlook, SPEND_FLOOR, payroll } from "../frontOffice";
+import { evaluate, frontOffice, spendBudget, teamOutlook, SPEND_FLOOR, payroll } from "../frontOffice";
 import { cpuVeteranView } from "../scouting";
 
 /** Next-season committed + add must stay at or under this share of the cap. */
@@ -1159,7 +1159,7 @@ export function cpuResign(state: GameState, teamId: number, candidates: Player[]
   const kept: Player[] = [];
   const fo = frontOffice(state, teamId);
   const { posture } = teamOutlook(state, teamId);
-  const budget = targetSpend(state, teamId, posture) * teamCap(state, teamId).cap;
+  const budget = spendBudget(state, teamId, posture);
   const floor = teamCap(state, teamId).cap * SPEND_FLOOR;
 
   const ranked = candidates

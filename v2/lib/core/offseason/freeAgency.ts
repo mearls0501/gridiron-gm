@@ -8,7 +8,7 @@ import {
 import { capHit, formatMoney, isOnWaivers, positionCount, rosterCount, teamCap } from "../select";
 import { askingPrice, negotiatedApy, suggestedYears } from "./contracts";
 import {
-  FrontOffice, Posture, SPEND_FLOOR, evaluate, frontOffice, targetSpend, teamOutlook,
+  FrontOffice, Posture, SPEND_FLOOR, evaluate, frontOffice, spendBudget, teamOutlook,
 } from "../frontOffice";
 import { cpuVeteranView, userVeteranView } from "../scouting";
 
@@ -164,7 +164,7 @@ function placeCpuBids(state: GameState, rng: Rng, round: number): void {
     const fo = frontOffice(state, teamId);
     const capInfo = teamCap(state, teamId);
     const committed = capInfo.committed + pending.hit;
-    const target = targetSpend(state, teamId, posture) * capInfo.cap;
+    const target = spendBudget(state, teamId, posture);
 
     // How active a club is depends on what it is trying to do and how much
     // room it has, not on a coin flip. An all-in team with $80M works the
