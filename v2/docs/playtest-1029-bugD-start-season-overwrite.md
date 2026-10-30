@@ -1,6 +1,6 @@
 # Start the Season overwrites star contracts — playtest 1029, BUG-D
 
-**Finding only. UNSIGNED.** This PR adds this note. It does not change the sim, a test, `docs/baselines.json`, or a canary. Matt signs any fix. No re-lock, no dial retune, no panel.
+**SIGNED and implemented.** Matt signed the fix proposed below. The user seat skips cap releases and the one-year minimum rewrite. Start the Season is blocked while that club is over the cap, and the message names the overage. The 53-man trim stays. CPU `enforceCap` is unchanged. No re-lock, no dial change, no `docs/baselines.json` edit.
 
 Source: 30-season playtest on production `main` `8747e25` (same code as `ddc62bd`), save `GM Playtest career30 1029`, San Francisco, 2051 cutdown → 2052 preseason. Report section B1. M1, M2, and M4 are the context. Shots `qa-career30-1029/s26-30/bug-D-2052-finances-dead-378M.webp` and `bug-D-2052-roster-895K-overwrite-your-waive.webp`. The dollars below were reproduced on this tree by calling `makeContract`, `capHit`, `deadMoney`, `enforceCap`, and `reconcileRoster`. No save file was loaded. `contracts.ts`, `index.ts`, `generate.ts`, `page.tsx`, and `roster/page.tsx` are unchanged since `8747e25`.
 
@@ -179,7 +179,7 @@ The 101% check is the same `reconcileRoster` after a dead-cap bump to `1.010` of
 
 ## Proposed fix
 
-**UNSIGNED.** User seat only. Leave the CPU hatch where it is. `verify` requires every club under the cap at season start (`scripts/verify.ts` 182–191), and the CPU clubs get there through this function. Changing `enforceCap`'s sort for every club changes who the in-season waiver backstop releases (`waivers.ts` 306–308) during the season the canary plays.
+**SIGNED.** User seat only. Leave the CPU hatch where it is. `verify` requires every club under the cap at season start (`scripts/verify.ts` 182–191), and the CPU clubs get there through this function. Changing `enforceCap`'s sort for every club changes who the in-season waiver backstop releases (`waivers.ts` 306–308) during the season the canary plays.
 
 ```diff
 --- a/v2/lib/core/offseason/contracts.ts
@@ -226,7 +226,7 @@ Headless `advanceOffseason` does not read `canAdvance`. Seed 42 at the cutdown d
 
 ## Canary and the gate
 
-**UNSIGNED. Not re-locked. Nothing in `docs/baselines.json` moves.**
+**SIGNED. Not re-locked. Nothing in `docs/baselines.json` moves.**
 
 | Check | What this fix does to it |
 |---|---|

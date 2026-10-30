@@ -68,7 +68,7 @@ export const OFFSEASON_STEPS: Record<string, OffseasonStep> = {
   "offseason-final": {
     phase: "offseason-final",
     title: "Roster Cutdown",
-    description: "Fifth-year option and tagged-player extension on the desk. Camp may hold 90 and plays three preseason games; then Start the Season cuts to 53 and the cap.",
+    description: "Fifth-year option and tagged-player extension on the desk. Camp may hold 90 and plays three preseason games; then Start the Season cuts to 53. It stays disabled while the club is over the cap.",
     action: "Start the Season",
   },
 };

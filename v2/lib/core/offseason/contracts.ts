@@ -1977,14 +1977,19 @@ export function reconcileRoster(
   state: GameState, teamId: number, rng: Rng,
   limit = rosterLimit(state.phase), stashPs = false,
 ): void {
+  // The GM cuts his own cap. Releasing for cap, or rewriting a deal he
+  // signed down to the one-year minimum, is the 2052 Start the Season hatch.
+  // CPU clubs still have to reach a legal book; verify requires it.
+  const userSeat = teamId === state.userTeamId;
   for (let pass = 0; pass < 8; pass++) {
-    enforceCap(state, teamId);
+    if (!userSeat) enforceCap(state, teamId);
     fillRoster(state, teamId, rng, limit, stashPs);
 
     const cap = teamCap(state, teamId);
     const count = rosterCount(state, teamId);
     if (cap.space >= 0 && count >= ROSTER_LIMIT && count <= limit) return;
   }
+  if (userSeat) return;
 
   // Last resort: replace the most expensive cuttable contracts with minimum
   // deals until the books balance. Guarantees a legal team every time.

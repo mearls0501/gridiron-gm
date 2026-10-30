@@ -27,6 +27,7 @@ import { REGULAR_SEASON_WEEKS, ROSTER_LIMIT, TRADE_DEADLINE_WEEK, isHarsh, weath
 import { SeasonReviewPanels } from "@/components/SeasonReview";
 import { presentSeasonReview } from "@/lib/view/seasonReview";
 import { hubCampCutdownCopy, hubCampFloorCopy, rosterCapView } from "@/lib/view/rosterCap";
+import { autoFixComplianceToast, hubAdvanceBlock } from "@/lib/view/seasonStartGate";
 import { PRESEASON_PLAN_LABEL, preseasonView } from "@/lib/view/preseasonView";
 import { setUserPreseasonPlan } from "@/lib/core/preseason";
 import { PreseasonPlan } from "@/lib/core/types";
@@ -162,8 +163,8 @@ export default function Hub() {
     return step?.action ?? "Continue";
   })();
 
-  const blocking = issues.filter((i) => i.kind !== "underLimit" || state.phase === "preseason");
-  const canAdvance = !(state.phase === "preseason" && blocking.length > 0);
+  const advanceBlock = hubAdvanceBlock(state.phase, issues);
+  const canAdvance = advanceBlock === null;
   const resignWalk = hubResignWalkWarning(state);
 
   const doAdvance = () => {
@@ -194,9 +195,9 @@ export default function Hub() {
           </div>
 
           <div className="sm:ml-auto flex items-center gap-2">
-            {!canAdvance && (
-              <span className="text-xs text-[var(--color-warn)] max-w-[220px]">
-                Fix your roster before the season starts.
+            {!canAdvance && advanceBlock && (
+              <span className="text-xs text-[var(--color-warn)] max-w-[260px]">
+                {advanceBlock}
               </span>
             )}
             {confirming ? (
@@ -701,13 +702,13 @@ export default function Hub() {
                     const rng = new Rng(s.rngState);
                     reconcileRoster(s, s.userTeamId, rng);
                     s.rngState = rng.state;
-                    return "Roster and cap brought back into compliance";
+                    return autoFixComplianceToast(teamCap(s, s.userTeamId).space);
                   })
                 }
                 title={
                   clip.camp
-                    ? `Signs, releases and renegotiates until you are at ${ROSTER_LIMIT}–${clip.cap} players and under the cap`
-                    : "Signs, releases and renegotiates until you are at 53 players and under the cap"
+                    ? `Signs and releases until you are at ${ROSTER_LIMIT}–${clip.cap} players. It does not cut you under the cap.`
+                    : "Signs and releases until you are at 53 players. It does not cut you under the cap."
                 }
               >
                 Auto-fix
