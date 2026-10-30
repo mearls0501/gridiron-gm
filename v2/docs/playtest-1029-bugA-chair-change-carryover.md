@@ -2,9 +2,9 @@
 
 Read-only investigation of **M4 / BUG-A** in the 30-season report (`REPORT.md`, production `https://gridiron-gm-nine.vercel.app`, main `8747e25`). Save `GM Playtest career30 1029`. Fired from Baltimore at the 2049 Tag stage, took San Francisco at `/forced-move`. Shots: `qa-career30-1029/s21-25/25-finances.png` and `s26-30/capA-01` through `capA-09`. B1 / BUG-D is the cliff this room created; it is context here, not a second fix.
 
-No sim change in this PR. No `baselines.json` edit, no re-lock, no dial retune, no panel. Matt signs any fix. The line numbers below are unchanged from `8747e25` through this tree.
+Matt signed the proposed fix on 2026-10-30. This branch implements it: `spendBudget = targetSpend × cap + capCarryover` at the two CPU budget sites. Full rollover is unchanged. No `baselines.json` edit, no re-lock, no dial retune, no panel. The line numbers below are the pre-fix tree (`8747e25` through `0679a1a`).
 
-**UNSIGNED.**
+**SIGNED.**
 
 ## Verdict
 
@@ -158,7 +158,7 @@ The unmanaged user club on the same seed, which every CPU spender skips, was at 
 
 ## Proposed fix
 
-**UNSIGNED.** Carry the dollars, and let a CPU club spend them. Do not cap the field. Do not move the ceiling.
+**SIGNED 2026-10-30.** Carry the dollars, and let a CPU club spend them. Do not cap the field. Do not move the ceiling.
 
 `nfl-reference.md` §4 records Matt's signed rule: unused room carries in full, no haircut, no expiration. A cap at one year's ceiling would hide this bug and would also cut a club that was genuinely $30M under for several years. That is a different decision. It is not this fix.
 
@@ -186,6 +186,17 @@ Residual: the post-apply `reconcileRoster` still rewrites a club that enters the
 
 Residual: the finances label "Unused room from last year" means the cutdown snapshot, not the Season Review header. The $22.4M / $2.91M and $51.9M / $39.8M pairs are that gap. No formula change makes those two screens equal.
 
+## As built
+
+The formula above is what shipped. Seed 42, ten headless seasons, on `0679a1a` plus this change. The pre-fix column matches the table through 2034, and continues:
+
+| Preseason | Cap | Before max | After max | Before median | After median | Before sum | After sum |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 2035 | $430.8M | CAR $544.0M | MIN $392.3M | $169.5M | $125.9M | $6,343.1M | $4,127.5M |
+| 2036 | $456.7M | CAR $609.1M | MIN $459.9M | $187.3M | $171.0M | $7,399.8M | $4,872.9M |
+
+The league sum is lower. The median is lower through 2034 ($105.9M against $147.6M) and then closes most of the gap. The biggest club is lower than the pre-fix max and was still rising. It crossed one ceiling at the 2036 preseason. A full roster cannot deploy the whole field in one offseason: `cpuResign` only keeps players it already wanted, free agency stops at 53, and `spendToFloor` / `upgradeRoster` were left alone. The stock did not stop compounding inside ten seasons. No haircut was added. Mean of the ten in-season CPU median payroll percentages was 99.32 before and 99.91 after. Not re-locked.
+
 ## Regression test
 
 Add cases to `lib/core/capMechanics.test.ts`. That file is already `capmechanics` in both gate tiers (`scripts/gate.ts`). No new test file, no `scripts/` edit. Do not commit the test with this note.
@@ -200,7 +211,7 @@ Add cases to `lib/core/capMechanics.test.ts`. That file is already `capmechanics
 
 ## Risk to gate metrics and canaries
 
-This packet changes nothing. The proposal below is unsigned. Do not retune. Do not edit `docs/baselines.json`. Do not re-lock. Do not run a panel for this doc.
+The implementation is the formula above. Do not retune. Do not edit `docs/baselines.json`. Do not re-lock. Do not run a panel for this note. The seed-42 `userOffers` canary stayed tag `1777473079` / FA `3280841901`.
 
 | Check | Why it stays if the diff is `spendBudget` plus the two call sites | What would move it |
 |---|---|---|

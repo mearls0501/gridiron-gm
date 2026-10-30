@@ -298,6 +298,20 @@ export function targetSpend(state: GameState, teamId: number, posture: Posture):
 }
 
 /**
+ * Dollars a CPU club may have committed: its target share of the ceiling,
+ * plus unused room carried from last year.
+ *
+ * That room is already in `teamCap().space`. Leaving it out of the budget
+ * is what stacked the stock — a club under target rolled the whole field
+ * and the next capture added a fresh slice. Full rollover stays. Zero
+ * carryover is the old product.
+ */
+export function spendBudget(state: GameState, teamId: number, posture: Posture): number {
+  const cap = teamCap(state, teamId);
+  return targetSpend(state, teamId, posture) * cap.cap + cap.carryover;
+}
+
+/**
  * League-wide spending floor, as a share of the cap.
  *
  * Real leagues have one for a reason. Without it a club that lost a lot of
