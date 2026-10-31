@@ -153,7 +153,11 @@ export default function HistoryPage() {
 
       <Card
         title="Seasons"
-        subtitle="Records, finish, awards, and league leaders from the archive"
+        subtitle={
+          view.years.some((y) => y.pending)
+            ? "The season on the review is the live champion. It is written when you continue."
+            : "Records, finish, awards, and league leaders from the archive"
+        }
         padded={false}
       >
         {view.emptyHistory ? (
@@ -188,6 +192,9 @@ export default function HistoryPage() {
                     >
                       {y.season}
                     </Link>
+                    {y.pending && (
+                      <span className="block text-[10px] text-[var(--color-faint)]">Season Review</span>
+                    )}
                   </Cell>
                   <Cell align="left" className="tnum">
                     {y.record ?? "—"}
@@ -214,12 +221,21 @@ export default function HistoryPage() {
                       <span className="text-[var(--color-faint)]">—</span>
                     ) : (
                       <span className="flex flex-wrap gap-x-2 gap-y-1">
-                        {y.awards.map((a) => (
-                          <span key={`${y.season}-${a.key}`} className="flex items-center gap-1 min-w-0">
-                            <Pill tone="accent">{a.label}</Pill>
-                            {a.player && <PlayerLink p={a.player} className="text-xs" />}
-                          </span>
-                        ))}
+                        {y.awards.map((a) => {
+                          const club = a.teamId != null ? state.teams[a.teamId] : null;
+                          return (
+                            <span key={`${y.season}-${a.key}`} className="flex items-center gap-1 min-w-0">
+                              <Pill tone="accent">{a.label}</Pill>
+                              {a.player && <PlayerLink p={a.player} className="text-xs" />}
+                              {club && (
+                                <span className="inline-flex items-center gap-1 shrink-0">
+                                  <TeamMark team={club} size={14} />
+                                  <span className="text-[10px] text-[var(--color-faint)]">{club.abbr}</span>
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })}
                       </span>
                     )}
                   </Cell>
@@ -228,14 +244,25 @@ export default function HistoryPage() {
                       <span className="text-[var(--color-faint)]">—</span>
                     ) : (
                       <span className="flex flex-col gap-0.5">
-                        {y.leaders.map((l) => (
-                          <span key={`${y.season}-${l.key}`} className="text-xs text-[var(--color-muted)]">
-                            {l.label}
-                            {l.value ? ` ${l.value}` : ""}
-                            {l.player ? " · " : ""}
-                            {l.player && <PlayerLink p={l.player} className="text-xs" />}
-                          </span>
-                        ))}
+                        {y.leaders.map((l) => {
+                          const club = l.teamId != null ? state.teams[l.teamId] : null;
+                          return (
+                            <span key={`${y.season}-${l.key}`} className="text-xs text-[var(--color-muted)] inline-flex flex-wrap items-center gap-1">
+                              <span>
+                                {l.label}
+                                {l.value ? ` ${l.value}` : ""}
+                                {l.player ? " · " : ""}
+                              </span>
+                              {l.player && <PlayerLink p={l.player} className="text-xs" />}
+                              {club && (
+                                <span className="inline-flex items-center gap-1 shrink-0">
+                                  <TeamMark team={club} size={14} />
+                                  <span className="text-[10px] text-[var(--color-faint)]">{club.abbr}</span>
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })}
                       </span>
                     )}
                   </Cell>

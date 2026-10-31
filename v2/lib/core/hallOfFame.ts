@@ -1,6 +1,7 @@
 import {
   GameState, HofEntry as LeagueHofEntry, Player, SeasonHistory, SeasonStatLine, TeamRecord,
 } from "./types";
+import { previewSeasonHistory } from "./offseason/progression";
 import { recordString, winPct } from "./select";
 import {
   STARTER_GAMES, fullTimeSnapBaseline, positionRanks, snapshot,
@@ -102,8 +103,10 @@ export interface FranchiseYear {
   runnerUp: boolean;
   championId: number;
   runnerUpId: number;
-  awards: { key: AwardKey; label: string; player: Player | null }[];
-  leaders: { key: LeaderKey; label: string; player: Player | null; value: string | null }[];
+  /** True for the live Season Review year, which is not on `state.history` yet. */
+  pending: boolean;
+  awards: { key: AwardKey; label: string; player: Player | null; teamId: number | null }[];
+  leaders: { key: LeaderKey; label: string; player: Player | null; value: string | null; teamId: number | null }[];
 }
 
 export interface HofEntry {
@@ -318,43 +321,71 @@ export function franchiseHallOfFame(state: GameState, teamId: number): HofEntry[
   return rows;
 }
 
-function presentYear(state: GameState, teamId: number, h: SeasonHistory): FranchiseYear {
-  const standing = h.standings.find((r) => r.teamId === teamId) ?? null;
+/**
+ * Club whose record, finish, and title pills this row belongs to.
+ * A stored `gmTeamId` wins. A row from before that field keeps the club
+ * the page was asked to present. `gmHiredSeason` is not a substitute.
+ */
+function rowClub(teamId: number, h: SeasonHistory): number {
+  return h.gmTeamId != null ? h.gmTeamId : teamId;
+}
+
+function presentYear(
+  state: GameState, teamId: number, h: SeasonHistory, pending: boolean,
+): FranchiseYear {
+  const clubId = rowClub(teamId, h);
+  const standing = h.standings.find((r) => r.teamId === clubId) ?? null;
   const awards: FranchiseYear["awards"] = [];
   for (const key of (["mvp", "opoy", "dpoy", "roy"] as AwardKey[])) {
     const id = h.awards[key];
+    if (id == null) continue;
     const player = playerById(state, id);
-    if (!player || !playedFor(player, teamId, h.season)) continue;
-    awards.push({ key, label: AWARD_SHORT[key], player });
+    if (!player) continue;
+    const line = player.stats.find((s) => s.season === h.season);
+    awards.push({
+      key,
+      label: AWARD_SHORT[key],
+      player,
+      teamId: line?.teamId ?? null,
+    });
   }
   const leaders: FranchiseYear["leaders"] = [];
   for (const key of LEADER_KEYS) {
     const id = h.leaders[key];
+    if (id == null) continue;
     const player = playerById(state, id);
-    if (!player || !playedFor(player, teamId, h.season)) continue;
+    if (!player) continue;
     const line = player.stats.find((s) => s.season === h.season);
     leaders.push({
       key,
       label: LEADER_LABEL[key],
       player,
       value: leaderValue(line, key),
+      teamId: line?.teamId ?? null,
     });
   }
   return {
     season: h.season,
     record: standing ? recordString(standing) : null,
     standing,
-    finish: standing ? divisionFinish(state, teamId, h.standings) : null,
-    champion: h.championId === teamId,
-    runnerUp: h.runnerUpId === teamId,
+    finish: standing ? divisionFinish(state, clubId, h.standings) : null,
+    champion: h.championId === clubId,
+    runnerUp: h.runnerUpId === clubId,
     championId: h.championId,
     runnerUpId: h.runnerUpId,
+    pending,
     awards,
     leaders,
   };
 }
 
-function timelineText(year: FranchiseYear): string {
+function clubTag(state: GameState, teamId: number | null): string {
+  if (teamId == null) return "";
+  const abbr = state.teams[teamId]?.abbr;
+  return abbr ? `, ${abbr}` : "";
+}
+
+function timelineText(state: GameState, year: FranchiseYear): string {
   const bits: string[] = [];
   if (year.champion) bits.push("Won the championship");
   else if (year.runnerUp) bits.push("Lost the championship");
@@ -362,14 +393,21 @@ function timelineText(year: FranchiseYear): string {
   if (year.finish) bits.push(year.finish);
   for (const a of year.awards) {
     const name = a.player ? `${a.player.firstName} ${a.player.lastName}` : "—";
-    bits.push(`${a.label}: ${name}`);
+    bits.push(`${a.label}: ${name}${clubTag(state, a.teamId)}`);
   }
   for (const l of year.leaders) {
     const name = l.player ? `${l.player.firstName} ${l.player.lastName}` : "—";
     const val = l.value ? ` (${l.value})` : "";
-    bits.push(`Led ${l.label.toLowerCase()}: ${name}${val}`);
+    bits.push(`Led ${l.label.toLowerCase()}: ${name}${clubTag(state, l.teamId)}${val}`);
   }
   return bits.length > 0 ? bits.join(" · ") : "Season archived";
+}
+
+function historyRows(state: GameState): { row: SeasonHistory; pending: boolean }[] {
+  const archived = state.history.map((row) => ({ row, pending: false }));
+  if (state.phase !== "offseason-recap") return archived;
+  if (state.history.some((h) => h.season === state.season)) return archived;
+  return [...archived, { row: previewSeasonHistory(state), pending: true }];
 }
 
 export function presentFranchiseHistory(
@@ -377,13 +415,13 @@ export function presentFranchiseHistory(
   teamId: number = state.userTeamId,
 ): FranchiseHistoryView {
   const team = state.teams[teamId];
-  const years = [...state.history]
-    .sort((a, b) => b.season - a.season)
-    .map((h) => presentYear(state, teamId, h));
+  const years = historyRows(state)
+    .sort((a, b) => b.row.season - a.row.season)
+    .map(({ row, pending }) => presentYear(state, teamId, row, pending));
   const hallOfFame = franchiseHallOfFame(state, teamId);
   const timeline = [...years]
     .sort((a, b) => a.season - b.season)
-    .map((y) => ({ season: y.season, text: timelineText(y) }));
+    .map((y) => ({ season: y.season, text: timelineText(state, y) }));
   return {
     teamId,
     city: team?.city ?? "Unknown",
