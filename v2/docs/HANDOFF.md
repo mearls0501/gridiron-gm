@@ -1,5 +1,19 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-31 — BUG-A bank ceiling, proposed, pending panel sign-off
+
+**PROPOSED. Not signed.** On top of the signed `spendBudget` change (2026-10-30, below). Matt asked for a limit on banked `capCarryover` before the Studio panel. `docs/nfl-reference.md` §4 is not edited. Article 13 still carries unused room in full.
+
+The limit is a hard ceiling: a club banks at most **20% of the cap** the snapshot is taken against (`CAP_CARRYOVER_MAX_SHARE` in `lib/core/select.ts`). It is applied in `captureCapCarryover` and `applyCapCarryover`, for every club, the user included. `acceptGmChair` still does not touch the field. The chair inherits the bank, so the inherited stock cannot exceed the ceiling.
+
+Over The Cap's 2025 carryover list (2024 unused room, base cap $255.4M): max $50,096,964 (49ers, 19.6%), median $6,348,893 (2.5%). Twenty percent is $51.08M, just above that max. A yearly haircut (keep half of unused space) was the other shape. It would cut the $6.3M median and the 49ers' $50.1M roll in half. The league does not. The ceiling only drops the excess above the observed top.
+
+A roll under the ceiling is stored in full. `spendBudget` is unchanged. No `baselines.json` edit. No re-lock. No dial change. No 5-seed panel. Pending Matt's sign-off at panel review.
+
+Seed 42, ten seasons, 2036 preseason, CPU clubs: max Brooklyn $91.3M (20.0% of the $456.7M cap), median $91.3M, sum $2,292.3M. Against $7,399.8M / Carolina $609.1M / median $187.3M before either change, and $4,872.9M / Minneapolis $459.9M / median $171.0M with `spendBudget` only. The max is on the ceiling from 2028 through 2036 and rises only with the 6% cap. Compounding past it has stopped. Mean in-season CPU median payroll: 99.32 / 99.91 / 100.09. Not re-locked.
+
+`npm run verify` (5 seasons, seed 20260727) is 551/552. One fresh deal is a league-minimum bargain (Jennings, EDGE, 83 OVR, asked $16.1M, signed $0.9M). The same check fails on `e297802` without this ceiling (Vandross Jr., EDGE, 90 OVR, $0.9M) and passes on `0679a1a` (552/552). The ceiling did not create that class of miss. The check was not edited.
+
 ## 2026-10-30 — BUG-A: CPU clubs may spend carried cap room
 
 Signed packet, Matt, 2026-10-30. Built as written from `docs/playtest-1029-bugA-chair-change-carryover.md` (doc commit from draft PR #212). Branched from `0679a1a`.

@@ -443,8 +443,9 @@ export interface Team {
   /** Dead money charged to this season from cuts. Reset at the season rollover. */
   deadCap: number;
   /**
-   * Unused cap space carried into this league year in full. Missing = 0 so
-   * older saves and year-0 generation load unchanged. See `docs/nfl-reference.md` §4.
+   * Unused cap space carried into this league year. Missing = 0 so older
+   * saves and year-0 generation load unchanged. The snapshot banks at most
+   * 20% of the cap (`CAP_CARRYOVER_MAX_SHARE`). See `docs/nfl-reference.md` §4.
    */
   capCarryover?: number;
   /**

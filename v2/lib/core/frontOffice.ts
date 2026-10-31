@@ -303,8 +303,8 @@ export function targetSpend(state: GameState, teamId: number, posture: Posture):
  *
  * That room is already in `teamCap().space`. Leaving it out of the budget
  * is what stacked the stock — a club under target rolled the whole field
- * and the next capture added a fresh slice. Full rollover stays. Zero
- * carryover is the old product.
+ * and the next capture added a fresh slice. The capture banks at most
+ * `CAP_CARRYOVER_MAX_SHARE` of the cap. Zero carryover is the old product.
  */
 export function spendBudget(state: GameState, teamId: number, posture: Posture): number {
   const cap = teamCap(state, teamId);

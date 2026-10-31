@@ -9,8 +9,8 @@ import { newGame } from "./newGame";
 import { makeContract } from "./generate";
 import { Rng } from "./rng";
 import {
-  applyCapCarryover, capHit, captureCapCarryover, deadMoney, remainingBonusProration,
-  startSeason, teamCap,
+  CAP_CARRYOVER_MAX_SHARE, applyCapCarryover, capCarryoverBank, capHit, captureCapCarryover,
+  deadMoney, remainingBonusProration, startSeason, teamCap,
 } from "./select";
 import { Player, salaryCap } from "./types";
 import {
@@ -122,7 +122,10 @@ function ok(label: string) { console.log("ok   ", label); }
   const before = teamCap(st, teamId);
   assert.equal(before.carryover, 0);
   const snap = captureCapCarryover(st);
-  assert.equal(snap[teamId], Math.max(0, before.space));
+  const raw = Math.max(0, before.space);
+  const limit = Math.round(before.cap * CAP_CARRYOVER_MAX_SHARE);
+  assert.ok(raw <= limit, `seed leftover ${raw} is already over the bank ceiling ${limit}`);
+  assert.equal(snap[teamId], raw);
   applyCapCarryover(st, snap);
   const after = teamCap(st, teamId);
   assert.equal(after.carryover, snap[teamId]);
@@ -274,9 +277,8 @@ function ok(label: string) { console.log("ok   ", label); }
 
 // (12) Several seasons. Spending the carried dollars slows the stock.
 // Pre-fix seed 42, at this same 2031 preseason, had a CPU median field of
-// $105.5M on a $341.2M ceiling (31%). The max crossed that ceiling at the
-// 2034 preseason. The median here stays under a quarter of the ceiling,
-// and no club has stacked a full extra cap inside this window.
+// $105.5M on a $341.2M ceiling (31%). With the bank ceiling, no CPU club
+// holds more than 20% of that year's cap.
 {
   const st = newGame({ seed: 42 });
   const rows: { year: number; max: number; med: number; cap: number; abbr: string }[] = [];
@@ -307,9 +309,10 @@ function ok(label: string) { console.log("ok   ", label); }
     rows.push({ year: st.season, max, med, cap, abbr });
   }
   for (const row of rows) {
+    const bank = Math.round(row.cap * CAP_CARRYOVER_MAX_SHARE);
     assert.ok(
-      row.max < row.cap,
-      `${row.year} ${row.abbr} carryover ${row.max} reached the ${row.cap} ceiling`,
+      row.max <= bank,
+      `${row.year} ${row.abbr} carryover ${row.max} is over the ${bank} bank ceiling`,
     );
   }
   const last = rows[rows.length - 1];
@@ -318,6 +321,58 @@ function ok(label: string) { console.log("ok   ", label); }
     `${last.year} CPU median carryover ${last.med} is ${((last.med / last.cap) * 100).toFixed(1)}% of the ${last.cap} cap`,
   );
   ok("CPU carryover stays under a quarter of the cap at the median across five seasons");
+}
+
+// (13) The bank ceiling. Amounts inside it roll in full. Amounts above it
+// bank at 20% of the cap, for the user and for a CPU club. The chair then
+// inherits that bank, not the raw stockpile.
+{
+  const cap = 255_400_000;
+  const limit = Math.round(cap * CAP_CARRYOVER_MAX_SHARE);
+  assert.equal(capCarryoverBank(6_348_893, cap), 6_348_893);
+  assert.equal(capCarryoverBank(50_096_964, cap), 50_096_964);
+  assert.equal(capCarryoverBank(1_847_600_000, cap), limit);
+  assert.ok(50_096_964 <= limit, "the 2025 NFL max roll fits under the ceiling");
+
+  const st = newGame({ seed: 42 });
+  const sf = st.teams.find((t) => t.abbr === "SF");
+  const bal = st.teams.find((t) => t.abbr === "BAL");
+  assert.ok(sf && bal);
+  assert.notEqual(st.userTeamId, sf.id);
+  const fromId = st.userTeamId;
+  const liveCap = teamCap(st, fromId).cap;
+  const liveLimit = Math.round(liveCap * CAP_CARRYOVER_MAX_SHARE);
+
+  const setUnused = (teamId: number, unused: number) => {
+    const t = st.teams[teamId];
+    t.capCarryover = 0;
+    const info = teamCap(st, teamId);
+    const playerAndPaid = info.committed - info.dead;
+    t.deadCap = info.cap - playerAndPaid - unused;
+    assert.equal(teamCap(st, teamId).space, unused, `${t.abbr} unused`);
+  };
+  setUnused(bal.id, 12_000_000);
+  st.teams[fromId].capCarryover = 1_000_000_000;
+  sf.capCarryover = 1_000_000_000;
+
+  const snap = captureCapCarryover(st);
+  assert.equal(snap[fromId], liveLimit, "user bank");
+  assert.equal(snap[sf.id], liveLimit, "CPU bank");
+  assert.equal(snap[bal.id], 12_000_000, "under the ceiling rolls in full");
+  applyCapCarryover(st, snap);
+  assert.equal(st.teams[fromId].capCarryover, liveLimit);
+  assert.equal(sf.capCarryover, liveLimit);
+  assert.equal(bal.capCarryover, 12_000_000);
+
+  st.phase = "offseason-tag";
+  st.forcedMove = { fromTeamId: fromId, season: st.season, openChairs: [sf.id] };
+  const r = acceptGmChair(st, sf.id);
+  assert.equal(r.ok, true, r.reason ?? "accept");
+  assert.equal(st.userTeamId, sf.id);
+  assert.equal(sf.capCarryover, liveLimit, "the chair inherits the bank, not the stockpile");
+  assert.equal(st.teams[fromId].capCarryover, liveLimit, "the club he left keeps its own bank");
+  assert.equal(bal.capCarryover, 12_000_000, "a modest roll is not haircut");
+  ok("carryover banks at 20% of the cap, and the chair inherits that bank");
 }
 
 console.log("\ncapMechanics: all passed");
