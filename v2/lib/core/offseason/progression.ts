@@ -294,7 +294,12 @@ function bestBy(state: GameState, score: (p: Player) => number): number | null {
   return best ? best.id : null;
 }
 
-export function recordSeasonHistory(state: GameState): SeasonHistory {
+/**
+ * The row `recordSeasonHistory` would archive. Does not stamp
+ * `careerAwards` and does not push onto `state.history`. The Season
+ * Review reads this for the year that is not written until Continue.
+ */
+export function previewSeasonHistory(state: GameState): SeasonHistory {
   const recs = computeRecords(state, state.season);
   const standings = leagueStandings(state, state.season);
   const champion = state.playoffs?.championId ?? -1;
@@ -308,10 +313,11 @@ export function recordSeasonHistory(state: GameState): SeasonHistory {
 
   const lineOf = (p: Player) => p.stats.find((s) => s.season === state.season);
 
-  const history: SeasonHistory = {
+  return {
     season: state.season,
     championId: champion,
     runnerUpId: runnerUp,
+    gmTeamId: state.userTeamId,
     standings: standings.map((r) => {
       const expectedWins = state.teams[r.teamId]?.seasonExpectedWins;
       return expectedWins == null ? { ...r } : { ...r, expectedWins };
@@ -353,6 +359,11 @@ export function recordSeasonHistory(state: GameState): SeasonHistory {
       sacks: bestBy(state, (p) => lineOf(p)?.sacks ?? -Infinity),
     },
   };
+}
+
+export function recordSeasonHistory(state: GameState): SeasonHistory {
+  const history = previewSeasonHistory(state);
+  const champion = history.championId;
 
   // Stamp award winners onto the players themselves for their career page.
   const byId = new Map(state.players.map((p) => [p.id, p]));

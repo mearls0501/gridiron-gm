@@ -1191,6 +1191,13 @@ export interface SeasonHistory {
   standings: TeamRecord[];
   awards: { mvp: number | null; opoy: number | null; dpoy: number | null; roy: number | null };
   leaders: { passYds: number | null; rushYds: number | null; recYds: number | null; sacks: number | null };
+  /**
+   * Club the user ran this season. Stamped in `recordSeasonHistory` while
+   * that club is still `userTeamId`, including the year a firing is about
+   * to open. Missing on rows written before the field existed. Do not infer
+   * it from `gmHiredSeason`.
+   */
+  gmTeamId?: number;
 }
 
 export interface LogEntry {

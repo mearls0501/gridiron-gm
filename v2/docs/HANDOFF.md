@@ -1,5 +1,34 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-31 — /history keeps the club the year was played under
+
+Signed fix, Matt, 2026-10-31. Built as written in `docs/playtest-1029-history-gaps.md` on `cursor/history-page-gaps-8342` (draft PR #215). That doc is not in this branch. The file there still says UNSIGNED; this task is the signature. No `baselines.json` edit. No dial retune. No re-lock. Nothing was run on the Mac Studio.
+
+`recordSeasonHistory` stamps `gmTeamId` from `state.userTeamId` on the row it returns. That is the chair held when Continue archives the year, including a year a firing is about to open. The stamp is inside `previewSeasonHistory`, which does not push the row and does not stamp `careerAwards`. `recordSeasonHistory` is that preview plus the career stamps.
+
+`/history` (`presentFranchiseHistory`) uses `gmTeamId` for the record, the division finish, the Champion pill, the Runner-up pill, and the Championships count. Awards and leaders render every stored id whose player body is still on the save, with the club on that season's stat line. `playedFor` against the chair held today is not applied. A dash remains when the id is null or the body is gone. The franchise ring is unchanged: it still requires the player to have played for the club the ring is about.
+
+Rows already on disk with no `gmTeamId` are not repaired. `gmHiredSeason` is not read. Those rows keep today's current-club record and pills. Their awards, leaders, and stored champion id stay visible. The 1029 career's 2026 15-2 does not come back from this change.
+
+While `phase === "offseason-recap"` and `history` has no row for `state.season`, `/history` shows one pending year. The champion is `state.playoffs.championId`. Awards and leaders are the same scoring the writer uses. `recordSeasonHistory` is not called, so `careerAwards` is not stamped. Continue still writes the row once. The Season Review page already derived that year and was left as it was. The pending row is marked "Season Review" so it is not mistaken for a written archive row.
+
+The page header still names the chair held today. Championships on that header count seasons whose `gmTeamId` won, so a title from a previous chair stays in the count after `acceptGmChair`.
+
+**No disagreement with the signed doc.** The task line "render them without the user-club scoping" was read as the doc's rule for old rows: do not invent `gmTeamId`, keep the current-club record and pills, and keep awards, leaders, and the champion visible. Dropping the current-club record and pills on those rows would contradict the doc, so that was not done.
+
+Out of scope, not touched: the Records → Franchise tab, and the one-line `teamId` overwrite on a traded player's season stat line.
+
+Tests: `lib/core/historyChair.test.ts`, registered in `package.json` and both gate tiers (`historychair`). Seed 42, KC (15) → `acceptGmChair` BAL (19) → SF (28). A stamped 2026 KC title (15-2, MVP and passing leader on KC, OPOY and receiving leader on SF) and a stamped 2027 BAL runner-up stay put across both moves. The history array is unchanged by `acceptGmChair`. A 2024 row with no `gmTeamId`, and KC's `gmHiredSeason` set to 2024, follows the chair's record (15-2, then 6-11, then 4-13) and still shows the KC and SF award and leader rows and the stored PHX champion. A separate block stops on the 2026 Season Review with champion PHX: one pending year, `history.length` still 0, `careerAwards` lengths unchanged.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npx tsx lib/core/historyChair.test.ts` — pass.
+- `npx tsx lib/core/hallOfFame.test.ts` — pass.
+- `npm test` — pass, exit 0. Includes `historychair` and `useroffers`.
+- `npm run verify` (`tsx scripts/verify.ts 5`, seed 20260727) — 552/552 checks passed, `verify.failures` 0. Exit 0.
+- Seed-42 user-offer canary did **not** move. `useroffers` exited 0 against the signed pair tag `1777473079`, FA `3280841901`. Not re-locked. Nothing in `docs/baselines.json` was touched.
+
 ## 2026-10-27 — A short quarterback unit does not take another position
 
 Signed packet, Matt, 2026-10-27. Built as written. The seed-4 coherence miss on `89bca4d` (outlierExplainedPct 82.0, floor 85) is the leftover from #202. The write-up is `docs/gate-fail-89bca4d-investigation.md` on `cursor/gate-fail-89bca4d-investigation-0202` (draft PR #203). Staff seed 3 is the same noise already left red on `a393ac9`. Not touched.
