@@ -1,5 +1,35 @@
 # HANDOFF — 2026-08-02
 
+## 2026-10-31 — BUG-A bank ceiling, proposed, pending panel sign-off
+
+**PROPOSED. Not signed.** On top of the signed `spendBudget` change (2026-10-30, below). Matt asked for a limit on banked `capCarryover` before the Studio panel. `docs/nfl-reference.md` §4 is not edited. Article 13 still carries unused room in full.
+
+The limit is a hard ceiling: a club banks at most **20% of the cap** the snapshot is taken against (`CAP_CARRYOVER_MAX_SHARE` in `lib/core/select.ts`). It is applied in `captureCapCarryover` and `applyCapCarryover`, for every club, the user included. `acceptGmChair` still does not touch the field. The chair inherits the bank, so the inherited stock cannot exceed the ceiling.
+
+Over The Cap's 2025 carryover list (2024 unused room, base cap $255.4M): max $50,096,964 (49ers, 19.6%), median $6,348,893 (2.5%). Twenty percent is $51.08M, just above that max. A yearly haircut (keep half of unused space) was the other shape. It would cut the $6.3M median and the 49ers' $50.1M roll in half. The league does not. The ceiling only drops the excess above the observed top.
+
+A roll under the ceiling is stored in full. `spendBudget` is unchanged. No `baselines.json` edit. No re-lock. No dial change. No 5-seed panel. Pending Matt's sign-off at panel review.
+
+Seed 42, ten seasons, 2036 preseason, CPU clubs: max Brooklyn $91.3M (20.0% of the $456.7M cap), median $91.3M, sum $2,292.3M. Against $7,399.8M / Carolina $609.1M / median $187.3M before either change, and $4,872.9M / Minneapolis $459.9M / median $171.0M with `spendBudget` only. The max is on the ceiling from 2028 through 2036 and rises only with the 6% cap. Compounding past it has stopped. Mean in-season CPU median payroll: 99.32 / 99.91 / 100.09. Not re-locked.
+
+`npm run verify` (5 seasons, seed 20260727) is 551/552. One fresh deal is a league-minimum bargain (Jennings, EDGE, 83 OVR, asked $16.1M, signed $0.9M). The same check fails on `e297802` without this ceiling (Vandross Jr., EDGE, 90 OVR, $0.9M) and passes on `0679a1a` (552/552). The ceiling did not create that class of miss. The check was not edited.
+
+## 2026-10-30 — BUG-A: CPU clubs may spend carried cap room
+
+Signed packet, Matt, 2026-10-30. Built as written from `docs/playtest-1029-bugA-chair-change-carryover.md` (doc commit from draft PR #212). Branched from `0679a1a`.
+
+`spendBudget` is `targetSpend × cap + capCarryover` at CPU free agency and CPU re-signs. Full rollover is unchanged. No haircut on `capCarryover`. `acceptGmChair` and the user seat are unchanged. `spendToFloor` does not spend the stock.
+
+**Disagreement, measured, not applied as a further change.** The note says the next capture stores only that year's fresh slice and the stock stops compounding. Seed 42, ten headless seasons, does not show that. At the 2036 preseason the CPU carryover sum is $4,872.9M against $7,399.8M before this change. The median field is $171.0M against $187.3M, after a wider gap at the 2031 preseason ($64.1M against $105.5M). The biggest club is Minneapolis at $459.9M, 100.7% of the $456.7M ceiling, against Carolina at $609.1M (133%) before. It was still rising. A 53-man roster and a probabilistic re-sign cannot deploy the whole field. The signed scope leaves `spendToFloor`, `upgradeRoster`, and `spaceOf` alone. I did not cap the field.
+
+No disagreement with the signed formula, with the 2026-09-14 Packet 4 full-rollover rule, or with the 2026-10-22 note that the waiver `spaceOf` hole stays open.
+
+No `baselines.json` edit. No re-lock. No dial change. No 5-seed panel. Seed-42 user-offer canary stayed tag `1777473079`, FA `3280841901`.
+
+Mean of the ten in-season CPU median payroll percentages (the drift snapshot, user club excluded): 99.32 before, 99.91 after. Both already sit near 100 on this seed. Not re-locked.
+
+`capMechanics` covers zero carryover, a $200M stock, `spendToFloor`, `acceptGmChair`, the B1 cliff, and five seasons on seed 42. That fifth preseason is 2031. The median must stay under a quarter of the ceiling, which the pre-fix path missed at 31%, and no club may hold a full extra cap inside those five seasons. It is not a claim about season 10.
+
 ## 2026-10-27 — A short quarterback unit does not take another position
 
 Signed packet, Matt, 2026-10-27. Built as written. The seed-4 coherence miss on `89bca4d` (outlierExplainedPct 82.0, floor 85) is the leftover from #202. The write-up is `docs/gate-fail-89bca4d-investigation.md` on `cursor/gate-fail-89bca4d-investigation-0202` (draft PR #203). Staff seed 3 is the same noise already left red on `a393ac9`. Not touched.

@@ -284,8 +284,9 @@ export function finalizeOffseason(state: GameState): void {
   // function returns, so the closed year lives on tradesExecutedLast.
   rolloverTradeCounter(state);
 
-  // Unused room carries into the next league year in full. Capture
-  // before the calendar rolls so the new year's larger cap is not
+  // Unused room carries into the next league year, banked at
+  // CAP_CARRYOVER_MAX_SHARE of the ceiling already on the meter.
+  // Capture before the calendar rolls so the new year's larger cap is not
   // counted as leftover; write after so settleWaivers sees one copy.
   const carryover = captureCapCarryover(state);
 
