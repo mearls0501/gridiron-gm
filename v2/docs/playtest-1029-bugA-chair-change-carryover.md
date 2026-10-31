@@ -2,7 +2,7 @@
 
 Read-only investigation of **M4 / BUG-A** in the 30-season report (`REPORT.md`, production `https://gridiron-gm-nine.vercel.app`, main `8747e25`). Save `GM Playtest career30 1029`. Fired from Baltimore at the 2049 Tag stage, took San Francisco at `/forced-move`. Shots: `qa-career30-1029/s21-25/25-finances.png` and `s26-30/capA-01` through `capA-09`. B1 / BUG-D is the cliff this room created; it is context here, not a second fix.
 
-Matt signed the proposed fix on 2026-10-30. This branch implements it: `spendBudget = targetSpend × cap + capCarryover` at the two CPU budget sites. Full rollover is unchanged. No `baselines.json` edit, no re-lock, no dial retune, no panel. The line numbers below are the pre-fix tree (`8747e25` through `0679a1a`).
+Matt signed the spend fix on 2026-10-30: `spendBudget = targetSpend × cap + capCarryover` at the two CPU budget sites. A bank ceiling on `capCarryover` is **proposed** below and is not signed. No `baselines.json` edit, no re-lock, no dial retune. The line numbers in the investigation are the pre-fix tree (`8747e25` through `0679a1a`).
 
 **SIGNED.**
 
@@ -196,6 +196,31 @@ The formula above is what shipped. Seed 42, ten headless seasons, on `0679a1a` p
 | 2036 | $456.7M | CAR $609.1M | MIN $459.9M | $187.3M | $171.0M | $7,399.8M | $4,872.9M |
 
 The league sum is lower. The median is lower through 2034 ($105.9M against $147.6M) and then closes most of the gap. The biggest club is lower than the pre-fix max and was still rising. It crossed one ceiling at the 2036 preseason. A full roster cannot deploy the whole field in one offseason: `cpuResign` only keeps players it already wanted, free agency stops at 53, and `spendToFloor` / `upgradeRoster` were left alone. The stock did not stop compounding inside ten seasons. No haircut was added. Mean of the ten in-season CPU median payroll percentages was 99.32 before and 99.91 after. Not re-locked.
+
+## Proposed bank ceiling — pending Matt's sign-off
+
+**PROPOSED. Not signed.** Matt asked for a limit on how much `capCarryover` a club can bank, on top of the signed `spendBudget` change, with a Studio panel still to come. `docs/nfl-reference.md` §4 is unchanged: Article 13 still carries unused room in full, with no haircut and no expiration. This ceiling is a sim bound on the pathological stock, not an edit to that signed bullet.
+
+Two shapes:
+
+| | Hard ceiling, 20% of the cap | Yearly haircut, keep half of unused space |
+|---|---|---|
+| What is stored | `min(unused, round(0.20 × cap))` | `round(0.50 × unused)` |
+| A normal roll | Kept in full. OTC's 2025 list (2024 unused room) has a median of $6,348,893, 2.5% of the $255.4M cap. | Cut in half. The median $6.3M becomes $3.2M, every year, including the user's. |
+| The observed maximum | 49ers $50,096,964, 19.6% of the $255.4M cap. It fits under 20% ($51.08M) with about $1.0M of room. | The 49ers' intentional $50.1M roll becomes $25.0M. The league does not do that. |
+| A stock that is not spent | Stops at 20% of that year's cap. Dollars can still rise 6% with the cap. The ratio cannot. | Decays toward `haircut / (1 − haircut)` times the fresh unspent slice, and also taxes every modest roll. |
+
+The ceiling is the one proposed. It is applied where the field is written, `captureCapCarryover` and `applyCapCarryover`, for every club, the user included. `acceptGmChair` still does not read or write the field. The chair inherits whatever was banked, so the inherited number is at most 20% of the cap. A roll under the ceiling is stored in full. `spendBudget` is unchanged: it adds the stored carryover, which is now already banked.
+
+Seed 42, ten headless seasons, with the ceiling on top of `spendBudget`. The max CPU field sits on 20% of the cap from the 2028 preseason through 2036. The dollars rise only with the 6% cap growth. Compounding past the ceiling has stopped.
+
+| Preseason | Cap | Max | Median | Sum |
+|---|---:|---:|---:|---:|
+| 2036, before either change | $456.7M | CAR $609.1M | $187.3M | $7,399.8M |
+| 2036, `spendBudget` only | $456.7M | MIN $459.9M | $171.0M | $4,872.9M |
+| 2036, bank ceiling | $456.7M | BKN $91.3M | $91.3M | $2,292.3M |
+
+Mean of the ten in-season CPU median payroll percentages: 99.32 before, 99.91 with `spendBudget` only, 100.09 with the ceiling. Not re-locked.
 
 ## Regression test
 
