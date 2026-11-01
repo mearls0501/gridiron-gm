@@ -1536,7 +1536,9 @@ export function refillCpuRostersAfterWaivers(state: GameState, rng: Rng): void {
       }
     }
     if (rosterCount(state, t.id) < ROSTER_LIMIT || teamCap(state, t.id).space < 0) {
-      reconcileRoster(state, t.id, rng, ROSTER_LIMIT, true);
+      // Still the post-carryover book. A saving release, else the smallest
+      // hit that covers the hole. Not the cutdown's largest-hit resort.
+      reconcileRoster(state, t.id, rng, ROSTER_LIMIT, true, true);
     }
   }
 }
@@ -1976,6 +1978,7 @@ export function enforceCap(state: GameState, teamId: number): void {
 export function reconcileRoster(
   state: GameState, teamId: number, rng: Rng,
   limit = rosterLimit(state.phase), stashPs = false,
+  afterCarryover = false,
 ): void {
   // The GM cuts his own cap. Releasing for cap, or rewriting a deal he
   // signed down to the one-year minimum, is the 2052 Start the Season hatch.
@@ -1991,16 +1994,30 @@ export function reconcileRoster(
   }
   if (userSeat) return;
 
-  // Last resort: replace the most expensive cuttable contracts with minimum
-  // deals until the books balance. Guarantees a legal team every time.
+  // After the carryover bank is written, a release that saves money closes
+  // the hole before any deal is rewritten. `enforceCap` does not draw.
+  if (afterCarryover) enforceCap(state, teamId);
+
+  // Last resort: rewrite a deal down to the one-year minimum until the book
+  // balances. The cutdown still takes the largest hit. The post-carryover
+  // pass takes the smallest hit that covers the hole. `makeContract` does
+  // not draw, so the pick does not move the RNG.
+  const replacement = capHit(startContractNow(
+    state, makeContract(rng, LEAGUE_MINIMUM, 1, state.season, 0),
+  ));
   let guard = 0;
   while (teamCap(state, teamId).space < 0 && guard++ < 80) {
+    const deficit = -teamCap(state, teamId).space;
     const roster = state.players.filter(
       (p) => p.teamId === teamId && !p.retired && !p.prospect && p.contract
+        && capHit(p.contract) > LEAGUE_MINIMUM * 2
     );
-    const target = roster
-      .filter((p) => capHit(p.contract) > LEAGUE_MINIMUM * 2)
-      .sort((a, b) => capHit(b.contract) - capHit(a.contract))[0];
+    const byHit = (a: Player, b: Player) =>
+      capHit(a.contract) - capHit(b.contract) || a.id - b.id;
+    const target = afterCarryover
+      ? (roster.filter((p) => capHit(p.contract) - replacement >= deficit).sort(byHit)[0]
+        ?? roster.slice().sort(byHit)[0])
+      : roster.slice().sort((a, b) => capHit(b.contract) - capHit(a.contract) || a.id - b.id)[0];
     if (!target) break;
     // Renegotiate down rather than cut — keeps the roster at 53. This is the
     // escape hatch that guarantees a legal team, but it is a 95% haircut the
@@ -2009,7 +2026,7 @@ export function reconcileRoster(
     target.contract = startContractNow(state, makeContract(rng, LEAGUE_MINIMUM, 1, state.season, 0));
     state.log.push({
       season: state.season, week: state.week, kind: "transaction",
-      text: `${state.teams[teamId].abbr} restructured ${target.firstName} ${target.lastName} (${target.pos}) to the league minimum — forced by the cap, was $${(was / 1e6).toFixed(1)}M`,
+      text: `${state.teams[teamId].abbr} restructured ${target.firstName} ${target.lastName} (${target.pos}) to the league minimum — forced by the cap, was $${(was / 1e6).toFixed(1)}M${afterCarryover ? " after carryover" : ""}`,
     });
   }
   fillRoster(state, teamId, rng, limit, stashPs);

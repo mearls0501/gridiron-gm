@@ -1,5 +1,22 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-01 — BUG-A ceiling signed, smallest-hit rewrite, CPU sweep
+
+Signed, Matt. Rebased onto `81bb316`. No `baselines.json` edit. No re-lock. No dial change.
+
+The 20% carryover ceiling (`CAP_CARRYOVER_MAX_SHARE`) stays as it was on `cf73d64`. It is signed. `spendBudget` is unchanged.
+
+After `applyCapCarryover`, a CPU club that is still over the cap is handled in `reconcileRoster` (`afterCarryover`). A release that saves money runs first (`enforceCap`, which does not draw). If the book is still negative, the rewrite is the smallest cap hit that covers the hole, not the largest. The cutdown's own last resort is still the largest hit. The user seat still returns before either rewrite (`#213`). `makeContract` does not draw, and the picker does not draw, so the RNG order ahead of that call is unchanged.
+
+`scripts/sweep.ts` counts over-cap and bad-roster clubs among CPU teams only. User cap enforcement is not turned back on.
+
+Validation on this VM, after the rebase onto `81bb316`:
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — pass, exit 0.
+- `npm run verify` (`tsx scripts/verify.ts 5`, seed 20260727) — 552/552 checks passed, `verify.failures` 0. Exit 0. The five-season window that used to rewrite Jennings is clean.
+- Seed-42 user-offer canary did **not** move. `useroffers` exited 0 against tag `1777473079`, FA `3280841901`. Not re-locked. Nothing in `docs/baselines.json` was touched.
+
 ## 2026-10-31 — /history keeps the club the year was played under
 
 Signed fix, Matt, 2026-10-31. Built as written in `docs/playtest-1029-history-gaps.md` on `cursor/history-page-gaps-8342` (draft PR #215). That doc is not in this branch. The file there still says UNSIGNED; this task is the signature. No `baselines.json` edit. No dial retune. No re-lock. Nothing was run on the Mac Studio.

@@ -338,7 +338,9 @@ export function finalizeOffseason(state: GameState): void {
   // land a club a few thousand over. Legalize before the desk opens.
   for (const t of state.teams) {
     if (teamCap(state, t.id).space < 0) {
-      reconcileRoster(state, t.id, rng, ROSTER_LIMIT, true);
+      // Last flag: post-carryover hole. A saving release, else the smallest
+      // hit that covers it. The user seat still returns inside.
+      reconcileRoster(state, t.id, rng, ROSTER_LIMIT, true, true);
     }
   }
   // That legalize does not see a CPU club enforceCap already returned to

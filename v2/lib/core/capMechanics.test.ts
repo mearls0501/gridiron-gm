@@ -14,8 +14,8 @@ import {
 } from "./select";
 import { Player, salaryCap } from "./types";
 import {
-  addVoidYearsPreview, applyVoidYears, expireContracts, MAX_VOID_YEARS, runCpuVoidYears,
-  spendToFloor,
+  addVoidYearsPreview, applyVoidYears, expireContracts, MAX_VOID_YEARS, reconcileRoster,
+  runCpuVoidYears, spendToFloor,
 } from "./offseason/contracts";
 import { payroll, SPEND_FLOOR, spendBudget, targetSpend, teamOutlook } from "./frontOffice";
 import { acceptGmChair } from "./owner";
@@ -273,6 +273,58 @@ function ok(label: string) { console.log("ok   ", label); }
   assert.equal(after.space, planted.cap + 13_700_000 - 2_009_400_000);
   assert.ok(after.space < -800_000_000, `space ${after.space} should be about -$836M`);
   ok("a sliver in place of the stock opens the B1 hole");
+}
+
+// (14) After carryover, a CPU club releases a saving cut before it rewrites,
+// and the rewrite is the smallest hit that covers the hole. The user seat
+// is not rewritten.
+{
+  const st = newGame({ seed: 42 });
+  const cpu = st.teams.find((t) => t.id !== st.userTeamId);
+  assert.ok(cpu);
+  const roster = st.players.filter(
+    (p) => p.teamId === cpu.id && !p.retired && !p.prospect && p.contract,
+  );
+  assert.ok(roster.length >= 2);
+  const [small, large] = roster.slice().sort((a, b) => a.id - b.id);
+  const locked = (hit: number) => ({
+    years: 1,
+    yearsRemaining: 1,
+    baseSalary: [hit],
+    signingBonus: 0,
+    bonusProrationYears: 1,
+    signedSeason: st.season,
+    guaranteedYears: 1,
+  });
+  for (const p of roster) p.contract = locked(795_000);
+  small.contract = locked(5_000_000);
+  large.contract = locked(40_000_000);
+  const info = teamCap(st, cpu.id);
+  const playerAndPaid = info.committed - info.dead;
+  st.teams[cpu.id].deadCap = info.cap + info.carryover - playerAndPaid + 2_000_000;
+  assert.ok(teamCap(st, cpu.id).space < 0, "planted hole");
+  const rng = new Rng(st.rngState);
+  const rngAt = rng.state;
+  reconcileRoster(st, cpu.id, rng, undefined, false, true);
+  assert.equal(rng.state, rngAt, "the pick does not draw");
+  assert.equal(small.contract?.years, 1);
+  assert.ok((small.contract?.baseSalary[0] ?? 0) <= 1_000_000, "smallest covering hit was rewritten");
+  assert.equal(large.contract?.baseSalary[0], 40_000_000, "the larger hit was left");
+  assert.ok(teamCap(st, cpu.id).space >= 0, "the hole closed");
+
+  const userRoster = st.players.filter(
+    (p) => p.teamId === st.userTeamId && !p.retired && !p.prospect && p.contract,
+  );
+  const [userSmall, userLarge] = userRoster.slice().sort((a, b) => a.id - b.id);
+  userSmall.contract = locked(5_000_000);
+  userLarge.contract = locked(40_000_000);
+  const userInfo = teamCap(st, st.userTeamId);
+  const userPay = userInfo.committed - userInfo.dead;
+  st.teams[st.userTeamId].deadCap = userInfo.cap + userInfo.carryover - userPay + 2_000_000;
+  reconcileRoster(st, st.userTeamId, new Rng(1), undefined, false, true);
+  assert.equal(userSmall.contract?.baseSalary[0], 5_000_000, "user seat is not rewritten");
+  assert.equal(userLarge.contract?.baseSalary[0], 40_000_000);
+  ok("post-carryover rewrite takes the smallest hit that covers the hole");
 }
 
 // (12) Several seasons. Spending the carried dollars slows the stock.

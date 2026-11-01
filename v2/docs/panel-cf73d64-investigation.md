@@ -1,6 +1,12 @@
 # Panel cf73d64 — three findings
 
-Read-only. No sim change, no `baselines.json` edit, no re-lock, no dial. The tree is draft PR #214 head `cf73d64` (signed `spendBudget`, plus the unsigned 20% carryover ceiling). The comparison panel is main `ddc62bd`.
+Read-only investigation of draft PR #214 head `cf73d64`. Matt signed three follow-ups; they are built on top of this note. No `baselines.json` edit, no re-lock, no dial.
+
+**Signed and built.** The 20% ceiling stays as it was. After `applyCapCarryover`, a CPU club still over the cap gets a saving release first (`enforceCap`), then the smallest cap hit that covers the hole, not the largest (`reconcileRoster`, `afterCarryover`). That pass is both the direct legalize and the refill that follows it. The cutdown's own last resort is still the largest hit. The user seat is unchanged. `scripts/sweep.ts` counts CPU clubs only.
+
+On this VM after the rebase onto `81bb316`: `tsc` passed, `npm test` passed, `npm run verify` (5 seasons, seed 20260727) was 552/552. The seed-42 canary stayed tag `1777473079` / FA `3280841901`.
+
+The comparison panel is main `ddc62bd`.
 
 `gate:full:serial`, 5 seeds, was **GATE FAIL, 4 problems** on `cf73d64`: `verify` exited 1, `sweep` exited 1, `coherence` exited 1, and `verify.failures` was 2. `ddc62bd` was **GATE FAIL, 1 problem**, the coherence miss already accepted as noise. Coherence is not one of the three findings below. `drift.medianPayrollPct` did **not** fail the band. The mean 96.57 is inside 90.602±6 (cap 96.602) by 0.03.
 
@@ -48,9 +54,9 @@ Why the ceiling can raise payroll: it also changes who hits the minimum rewrite 
 
 `#213` (`0679a1a`) stops the user seat from being cap-released. Drift already drops that club. It is not this delta.
 
-### Proposed fix — UNSIGNED
+### Proposed fix — signed as "do not undo"
 
-Do not retune the band and do not take the carryover back out of `spendBudget`. The panel mean is inside the lock. The rise is the signed spend. Undoing it is a different decision than the ceiling.
+Do not retune the band and do not take the carryover back out of `spendBudget`. The panel mean is inside the lock. The rise is the signed spend. Undoing it is a different decision than the ceiling. **Built as that: no payroll change.**
 
 If a later panel crosses 96.602, the lever is the add in `spendBudget`, not `CAP_CARRYOVER_MAX_SHARE`. Changing that add would move `drift.medianPayrollPct` back down and would change who gets signed from 2027 on. The seed-42 `userOffers` canary is the first tag and the first free agency, while year-0 carryover is still 0, so `spendBudget` at zero carryover is the old product and the canary (tag `1777473079` / FA `3280841901`) stays. This note does not authorize that undo.
 
@@ -96,9 +102,9 @@ Not on this VM. Through the same eight seasons, `e297802` rewrote five deals and
 
 Versus `ddc62bd`, which had zero, the class is new. `spendBudget` is what creates it. The ceiling does not. The Studio's two events in ten seasons and this VM's two events through 2032 are the same count on `cf73d64`, with different names because the leagues diverged. The earlier five-season run on `e297802` was the one miss (Vandross, 551/552). Jennings in that shorter run was the `cf73d64` name, not the `e297802` name.
 
-### Proposed fix — UNSIGNED
+### Proposed fix — SIGNED and built
 
-In the post-apply legalize only (`offseason/index.ts` lines 338–342), do not call the largest-hit rewrite to close the hole. Cut through `enforceCap` while a cut still saves money. If the book is still negative, rewrite the **smallest** hit that covers `-space`, not the largest hit on the roster. Leave the general last resort in `reconcileRoster` for a club that is insolvent at the cutdown, or the same smallest-hit rule will do.
+In the post-apply legalize only (`offseason/index.ts`, the `reconcileRoster` call after `applyCapCarryover`), do not call the largest-hit rewrite to close the hole. `enforceCap` runs first, and it does not draw. If the book is still negative, rewrite the **smallest** hit that covers `-space`, not the largest hit on the roster. The cutdown's own last resort is still the largest hit. The user seat still returns before either rewrite.
 
 Year-0 `newGame` does not enter the rewrite on seeds 42, 1, 12345, or 20260727 (zero "league minimum" log lines, zero clubs over the cap). The canary is read at the first tag and the first FA, before the first `finalizeOffseason`. This fix should leave tag `1777473079` / FA `3280841901` put. It would clear `verify.failures` if the hole no longer destroys a star. A panel can move `drift.medianPayrollPct` slightly **up**, because the star keeps his hit. Do not re-lock from this note. Do not retune `targetSpend` or the ceiling to hide it.
 
@@ -146,9 +152,9 @@ The cap on that line is already next year's. Recap has pushed history, so `salar
 
 `ddc62bd` is before `#213`, so the same cut still ran `enforceCap` on the user and the sweep stayed clean. The miss is the headless user under the signed `#213` rule. It is not carryover, not the 20% clamp, and not the refill.
 
-### Proposed fix — UNSIGNED
+### Proposed fix — SIGNED and built
 
-Count CPU clubs only in `scripts/sweep.ts` lines 22–23 and 36–37. `#213` signed that the user's book is not rewritten and that the hub blocks a human who is over. A headless sweep has no human and no hub, so the user seat is a false failure. Do not turn `enforceCap` back on for the user. That undoes `#213`.
+Count CPU clubs only in `scripts/sweep.ts`. `#213` signed that the user's book is not rewritten and that the hub blocks a human who is over. A headless sweep has no human and no hub, so the user seat is a false failure. User cap enforcement stays off. That undoes `#213`.
 
 The change is the harness exit code. Sweep emits no locked metric. It does not run before the canary's tag and FA, and it would not be in that path anyway. Tag `1777473079` / FA `3280841901` stay. No baseline moves. No dial moves.
 
