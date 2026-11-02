@@ -1,6 +1,6 @@
 # Panel 65e1284 — the post-carryover hole is not closed
 
-Read-only. No sim change, no test change, no `baselines.json` edit, no re-lock, no dial. Head `65e1284` is the signed 20% ceiling, the smallest-hit rewrite after carryover, and a CPU-only sweep. Compared with `cf73d64` (largest-hit, sweep still counted the user) and with `f1e5cae` on this VM, which is that ceiling without the smallest-hit change.
+The measurement below is the read-only pass on head `65e1284`. Matt signed the second fix (smallest-hit only when the refill still leaves the club legal). That fix is now in `reconcileRoster`. No `baselines.json` edit, no re-lock, no dial. The 20% ceiling and the CPU-only sweep filter were not retuned. Compared with `cf73d64` (largest-hit, sweep still counted the user) and with `f1e5cae` on this VM, which is that ceiling without the smallest-hit change.
 
 `gate:full:serial`, 5 seeds, was **GATE FAIL, 4 problems**: `verify` exited 1, `sweep` exited 1, `coherence` exited 1, and `verify.failures` was 5. Coherence is the same accepted `ddc62bd` noise. Payroll mean **96.46** (seeds 96.66, 96.50, 95.36, 97.93, 95.84) is inside 90.602±6. It is 0.11 under `cf73d64`'s 96.57 and still about a point over `ddc62bd`'s 95.46. Not a fail.
 
@@ -77,26 +77,25 @@ Each Studio line says **2 bargains** and names one:
 
 On the seeds this VM could replay, the post-carryover log is the same and the old hits are $6.8M, $12.0M, and $12.3M. On `f1e5cae` those clubs instead lost a $28.0M, $28.8M, or $55.7M hit, and that single rewrite did clear the cap. Smallest-hit is doing what it was signed to do. The verify check still fires, because a 75-overall guard asking $7.4M is already over the three-times-minimum line. The check did not get stricter. The rewrite moved down the payroll and kept hitting it. And because those small rewrites do not leave room for the refill, the same offseason also fails "no team is over the cap at season start." `cf73d64` was 1061/1063 (two bargain checks, no season-start cap miss). This head is 1058/1063 (three bargain checks and two cap misses).
 
-## Proposed fixes — UNSIGNED
+## Signed fix — built
 
-Two options, as asked.
+Matt signed the second option. Largest-hit stays the control, not the rule. The cutdown last resort is still the largest hit.
 
-**Keep largest-hit.** Delete the `afterCarryover` branch and pass `false` again from `index.ts` line 343 and from `refillCpuRostersAfterWaivers`. The replay already shows the result: NYS, DET, and LA finish under the cap, because one rewrite of the biggest hit leaves enough room for the refill. The new sweep failures and the season-start cap misses go away. The star-sized verify bargains come back, which is the `cf73d64` miss, not a new one. Smallest code change. It gives up the signed choice to spare the largest deal.
+What landed, CPU only, inside `reconcileRoster` when `afterCarryover` is set:
 
-**Smallest-hit only when it still covers the hole after the refill.** This is the one that matches the failure.
+- The refill after the cover refuses a market hit the room cannot hold. A spot that must still be filled uses `signMinimum`. The user seat is not on this path.
+- If the book is over after that fill, the cover runs again: release first, then rewrite.
+- The smallest hit is used only when that deal covers the hole and the open spots can still be filled at the minimum. A hit that cannot cover a negative book is not rewritten. If the smallest cannot leave the club legal, the largest covering hit is rewritten instead.
 
-- `signAtMarket` must refuse a hit the club does not have room for (`contracts.ts` lines 1287–1299). The refill is what reopens a hole the rewrite just closed.
-- After that fill, if space is negative, run the cover again. `reconcileRoster` line 2032 currently fills and returns.
-- Delete the fallback that rewrites a hit too small to cover the deficit (`contracts.ts` lines 2018–2019, the `??` arm). A $6.8M tight end cannot close an $12M hole, and rewriting him only to miss verify is the Gatlin shape.
-- If no hit both covers the hole and leaves the 53 fill legal, use the largest hit. That is the rewrite these seeds already survived.
+`capMechanics` rolls `506968236` (New York) and `506991993` (Detroit) to the 2028 preseason and requires each club under the cap with 53 active.
 
-Either fix runs in `finalizeOffseason`, after the first tag and the first free agency. Year-0 `newGame` does not enter the last resort. The seed-42 canary (tag `1777473079` / FA `3280841901`) stays. `verify.failures` moves, which is the point. `drift.medianPayrollPct` can move by a few tenths if a star keeps or loses his hit. Sweep's exit code moves if the clubs finish legal. Sweep has no locked metric. Do not re-lock. Do not retune `targetSpend` or the 20% ceiling. The ceiling is not the hole.
+On this VM after the build: `npm run verify` is 551/552. One minimum rewrite remains inside the five-season window (Sanchez, DT, 77, asked $11.1M, signed $0.9M, after the 2030 offseason). The roster check and the season-start cap checks in that window passed. A light CPU-only sweep of 10 leagues × 2 seasons, including `506968236`, `506991993`, `506944479`, and `506976155`, finished with **over-cap clubs 0** and bad-roster clubs 0. The seed-42 canary stayed tag `1777473079` / FA `3280841901`. Not re-locked. The 20% ceiling was not touched.
 
-Prefer the second. Largest-hit is the control that proves the refill is the residual, not a reason to throw the smallest-hit rule out before the fill is required to fit.
+The line numbers cited above are the `65e1284` file, before this edit.
 
-## What was re-run
+## What was re-run for the read-only pass
 
-No production file changed.
+No production file changed on that pass. The build re-run is in the signed section above.
 
 - `npx tsc --noEmit` passed.
 - Seed-42 `userOffers` stayed tag `1777473079` / FA `3280841901`.

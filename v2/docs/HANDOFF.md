@@ -1,5 +1,27 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-02 — BUG-A guarded refill after the carryover cover
+
+Signed, Matt. Built on the smallest-hit rewrite from 2026-11-01. No `baselines.json` edit. No re-lock. No dial change. The 20% ceiling is unchanged. `scripts/sweep.ts` still counts CPU clubs only.
+
+`reconcileRoster(..., afterCarryover)` is the only path that changed, and only for a CPU club. The user seat still returns before any rewrite.
+
+After `enforceCap`, the smallest hit is rewritten only when that one deal covers the hole and still leaves a one-year minimum for every open active spot. A hit that cannot cover a negative book is not rewritten. If no smallest hit leaves the club legal once those spots are filled, the largest hit that covers the hole is rewritten instead. The cutdown's own last resort is still the largest hit, and its fill does not take the fit path.
+
+The refill after that cover refuses a market deal the room cannot hold (`signMarketIfFits`). A spot that still has to be filled goes through `signMinimum`. That refusal is the `fitCap` flag on `fillRoster`, CPU only, including the quarterback-cap refill. Cutdown, camp, `newGame`, and the user seat still call `signAtMarket`. `makeContract` does not draw. A replacement body is generated only when a minimum hit fits, and only on that flag, so the draws ahead of the cover stay where they were.
+
+If the book is over after the fill, or the roster is still short, the cover runs again. Release first, then the same rewrite rule, then another fitting fill. Four rounds, and a round that moves neither room nor the roster count stops.
+
+`capMechanics` now rolls seed `506968236` to the 2028 preseason and requires New York under the cap with 53 active, and seed `506991993` the same for Detroit.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — pass, exit 0. Includes `useroffers` and `capMechanics`.
+- `npm run verify` (`tsx scripts/verify.ts 5`, seed 20260727) — 551/552 checks passed, `verify.failures` 1. The miss is one minimum rewrite after the 2030 offseason: Sanchez, DT, 77 OVR, asked $11.1M, signed $0.9M. The five-season roster check and the season-start cap checks in that window passed. Not re-locked.
+- Seed-42 user-offer canary did **not** move. `useroffers` exited 0 against tag `1777473079`, FA `3280841901`. Not re-locked.
+- Light CPU-only sweep, 10 leagues × 2 seasons: `506968236`, `506991993`, `506944479`, `506976155`, and `100000 + i*7919` for `i` = 0..5. **over-cap clubs 0**, bad-roster clubs 0. Exit 0. Not the 25-league panel.
+
 ## 2026-11-01 — BUG-A ceiling signed, smallest-hit rewrite, CPU sweep
 
 Signed, Matt. Rebased onto `81bb316`. No `baselines.json` edit. No re-lock. No dial change.

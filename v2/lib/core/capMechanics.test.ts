@@ -10,9 +10,9 @@ import { makeContract } from "./generate";
 import { Rng } from "./rng";
 import {
   CAP_CARRYOVER_MAX_SHARE, applyCapCarryover, capCarryoverBank, capHit, captureCapCarryover,
-  deadMoney, remainingBonusProration, startSeason, teamCap,
+  deadMoney, remainingBonusProration, rosterCount, startSeason, teamCap,
 } from "./select";
-import { Player, salaryCap } from "./types";
+import { Player, ROSTER_LIMIT, salaryCap } from "./types";
 import {
   addVoidYearsPreview, applyVoidYears, expireContracts, MAX_VOID_YEARS, reconcileRoster,
   runCpuVoidYears, spendToFloor,
@@ -325,6 +325,42 @@ function ok(label: string) { console.log("ok   ", label); }
   assert.equal(userSmall.contract?.baseSalary[0], 5_000_000, "user seat is not rewritten");
   assert.equal(userLarge.contract?.baseSalary[0], 40_000_000);
   ok("post-carryover rewrite takes the smallest hit that covers the hole");
+}
+
+// (15) The refill after that rewrite has to fit. These two CPU clubs were
+// over the cap at the 2028 preseason when the trailing fill signed at market
+// into room the smallest rewrite had just created.
+function rollToNextPreseason(st: ReturnType<typeof newGame>): void {
+  let g = 0;
+  while (!isOffseason(st.phase) && g++ < 40) advance(st);
+  assert.ok(isOffseason(st.phase), `did not reach the offseason (${st.phase})`);
+  let o = 0;
+  while (isOffseason(st.phase) && o++ < 16) advanceOffseason(st);
+  assert.equal(st.phase, "preseason", `ended in ${st.phase}`);
+}
+
+{
+  const cases = [
+    { seed: 506968236, abbr: "NYS" },
+    { seed: 506991993, abbr: "DET" },
+  ];
+  for (const c of cases) {
+    const st = newGame({ seed: c.seed });
+    const start = st.season;
+    rollToNextPreseason(st);
+    assert.equal(st.season, start + 1);
+    rollToNextPreseason(st);
+    assert.equal(st.season, start + 2);
+    assert.equal(st.season, 2028, `seed ${c.seed} reached ${st.season}, not 2028`);
+    const club = st.teams.find((t) => t.abbr === c.abbr);
+    assert.ok(club, c.abbr);
+    assert.notEqual(club.id, st.userTeamId, `${c.abbr} is a CPU club on seed ${c.seed}`);
+    const space = teamCap(st, club.id).space;
+    const n = rosterCount(st, club.id);
+    assert.ok(space >= 0, `${c.abbr} on ${c.seed} at 2028 is ${space} over, roster ${n}`);
+    assert.equal(n, ROSTER_LIMIT, `${c.abbr} on ${c.seed} at 2028 has ${n} active`);
+  }
+  ok("New York (506968236) and Detroit (506991993) are under the cap at the 2028 preseason");
 }
 
 // (12) Several seasons. Spending the carried dollars slows the stock.
