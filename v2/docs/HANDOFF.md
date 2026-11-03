@@ -1,5 +1,22 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-03 — Spend a legal CPU book back to the floor after the cover
+
+Signed, Matt, from `docs/panel-a76092b-investigation.md`. No `baselines.json` edit. No re-lock. No dial change. `SPEND_FLOOR`, the 20% ceiling, `targetSpend`, and the payroll band are untouched. The user seat is not spent up.
+
+After the post-carryover cover and the waiver refill, `spendLegalCpuBackToFloor` runs. A CPU club that is under the cap with 53 active players is handed to the existing `spendToFloor`. That path already refuses a signing that does not fit. A club already at the floor returns without a draw. A short or over-cap book is left for the cover.
+
+Seed `1013891931` did not fall under 55% on this VM, so the regression is a constructed book: 53 men at the minimum, under the cap, payroll at 16.5%. The cover leaves that book. The spend-back takes it to 78.3% of the cap with space still positive and the roster still 53. The same plant on the user seat does not move.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — pass, exit 0. Includes the new `capMechanics` case and `useroffers`.
+- `npm run verify` (`tsx scripts/verify.ts 5`, seed 20260727) — 551/552. The same Sanchez, DT, 77, $11.1M ask, $0.9M hit after the 2030 offseason. Not re-locked.
+- Seed-42 user-offer canary did **not** move. Tag `1777473079`, FA `3280841901`. Not re-locked.
+- Light CPU-only sweep, 10 leagues × 2 seasons: **over-cap clubs 0**, bad-roster clubs 0. Exit 0.
+- Seed `1013891931`, 20 seasons, minimum CPU payroll at recap: **Pittsburgh, 2043, 77.5%**. No season under 55%. Before this spend-back the same replay bottomed at San Francisco, 2043, 72.4%.
+
 ## 2026-11-02 — BUG-A guarded refill after the carryover cover
 
 Signed, Matt. Built on the smallest-hit rewrite from 2026-11-01. No `baselines.json` edit. No re-lock. No dial change. The 20% ceiling is unchanged. `scripts/sweep.ts` still counts CPU clubs only.

@@ -1836,6 +1836,21 @@ export function spendToFloor(state: GameState, teamId: number, rng: Rng): void {
 }
 
 /**
+ * After the post-carryover cover. A CPU club that is already legal spends
+ * back toward `SPEND_FLOOR` on the same path as `spendToFloor`. A signing
+ * that does not fit is refused there. The user seat is not this spend.
+ * Clubs already at the floor return without a draw.
+ */
+export function spendLegalCpuBackToFloor(state: GameState, rng: Rng): void {
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    if (teamCap(state, t.id).space < 0) continue;
+    if (rosterCount(state, t.id) !== ROSTER_LIMIT) continue;
+    spendToFloor(state, t.id, rng);
+  }
+}
+
+/**
  * Competition for roster spots — the missing cutdown.
  *
  * `scripts/careers.ts` found that 84% of fourth-round picks were still on a

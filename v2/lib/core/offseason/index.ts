@@ -5,7 +5,7 @@ import { GameState, Phase, ROSTER_LIMIT } from "../types";
 import { foldPracticeSquad, resetSeasonRosterFlags } from "../rosterStatus";
 import { settleWaivers } from "../waivers";
 import { recordSeasonHistory, reapplyRetirementDead, runProgression, OffseasonReport } from "./progression";
-import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, refillCpuRostersAfterWaivers, runCpuFifthYearOptions, runCpuFranchiseTags, runCpuTagExtensions, runCpuVoidYears, spendToFloor, upgradeRoster } from "./contracts";
+import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, refillCpuRostersAfterWaivers, runCpuFifthYearOptions, runCpuFranchiseTags, runCpuTagExtensions, runCpuVoidYears, spendLegalCpuBackToFloor, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase } from "./draft";
 import { ensureFutureClasses, promoteDraftClass } from "../futureClass";
@@ -347,6 +347,10 @@ export function finalizeOffseason(state: GameState): void {
   // non-negative space. Refill those short rosters, and apply the active
   // ceiling, without touching the user's club.
   refillCpuRostersAfterWaivers(state, rng);
+  // The cover can rewrite a deal down to the minimum after spendToFloor
+  // has already run. A CPU book that is still legal spends back to that
+  // same floor. Nothing here is signed if it would cross the cap.
+  spendLegalCpuBackToFloor(state, rng);
   state.rngState = rng.state;
   if (TIME) console.timeEnd("finalizeOffseason");
 }

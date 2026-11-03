@@ -15,7 +15,7 @@ import {
 import { Player, ROSTER_LIMIT, salaryCap } from "./types";
 import {
   addVoidYearsPreview, applyVoidYears, expireContracts, MAX_VOID_YEARS, reconcileRoster,
-  runCpuVoidYears, spendToFloor,
+  runCpuVoidYears, spendLegalCpuBackToFloor, spendToFloor,
 } from "./offseason/contracts";
 import { payroll, SPEND_FLOOR, spendBudget, targetSpend, teamOutlook } from "./frontOffice";
 import { acceptGmChair } from "./owner";
@@ -461,6 +461,47 @@ function rollToNextPreseason(st: ReturnType<typeof newGame>): void {
   assert.equal(st.teams[fromId].capCarryover, liveLimit, "the club he left keeps its own bank");
   assert.equal(bal.capCarryover, 12_000_000, "a modest roll is not haircut");
   ok("carryover banks at 20% of the cap, and the chair inherits that bank");
+}
+
+// (16) A cover that rewrites a club under 55% does not leave it there.
+// Seed 1013891931 did not fall under 55% on this VM (low was 72%), so this
+// is the book that rewrite leaves: 53 men, under the cap, almost all at the
+// minimum. The spend-back uses the same floor as spendToFloor.
+{
+  const st = newGame({ seed: 42 });
+  const cpu = st.teams.find((t) => t.id !== st.userTeamId);
+  assert.ok(cpu);
+  const minimum = (signedSeason: number) => ({
+    years: 1,
+    yearsRemaining: 1,
+    baseSalary: [795_000],
+    signingBonus: 0,
+    bonusProrationYears: 1,
+    signedSeason,
+    guaranteedYears: 0,
+  });
+  const plantCheap = (teamId: number) => {
+    for (const p of clubActive(st, teamId)) p.contract = minimum(st.season);
+  };
+  plantCheap(cpu.id);
+  plantCheap(st.userTeamId);
+  const cap = teamCap(st, cpu.id).cap;
+  const before = payroll(st, cpu.id);
+  const userBefore = payroll(st, st.userTeamId);
+  assert.ok(before < cap * 0.55, `planted payroll ${before} is not under 55% of ${cap}`);
+  assert.ok(teamCap(st, cpu.id).space >= 0, "planted book is under the cap");
+  assert.equal(rosterCount(st, cpu.id), ROSTER_LIMIT);
+  // The cover on an already-legal full roster does not spend. The hole stays.
+  reconcileRoster(st, cpu.id, new Rng(1), ROSTER_LIMIT, true, true);
+  assert.ok(payroll(st, cpu.id) < cap * 0.55, "the cover left the cheap book in place");
+  assert.equal(rosterCount(st, cpu.id), ROSTER_LIMIT);
+  spendLegalCpuBackToFloor(st, new Rng(st.rngState));
+  const after = payroll(st, cpu.id);
+  assert.ok(after >= cap * SPEND_FLOOR, `payroll ${after} is under the ${cap * SPEND_FLOOR} floor`);
+  assert.ok(teamCap(st, cpu.id).space >= 0, `space ${teamCap(st, cpu.id).space}`);
+  assert.equal(rosterCount(st, cpu.id), ROSTER_LIMIT, "the spend-back keeps 53");
+  assert.equal(payroll(st, st.userTeamId), userBefore, "the user seat is not spent up");
+  ok("a CPU club under 55% after the cover is spent back to the floor and stays legal");
 }
 
 console.log("\ncapMechanics: all passed");
