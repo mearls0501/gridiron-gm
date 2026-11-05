@@ -15,7 +15,7 @@ import {
 import { resolveDemand } from "../psychology";
 import { clearRosterSlot, placeOnPs } from "../rosterStatus";
 import { POSITION_VALUE } from "../ratings";
-import { evaluate, frontOffice, spendBudget, teamOutlook, SPEND_FLOOR, payroll } from "../frontOffice";
+import { evaluate, frontOffice, spendBudget, teamOutlook, SPEND_FLOOR, payroll, type Posture } from "../frontOffice";
 import { cpuVeteranView } from "../scouting";
 
 /** Next-season committed + add must stay at or under this share of the cap. */
@@ -1486,8 +1486,7 @@ function cutWorstSurplus(state: GameState, teamId: number, protectPos: Position 
 export const QB_53_MAX = 3;
 
 /** Worth the cutdown already uses. Lowest active QB above the cap is waived. */
-function quarterbackKeepWorth(state: GameState, teamId: number, p: Player): number {
-  const { posture } = teamOutlook(state, teamId);
+function quarterbackKeepWorth(state: GameState, teamId: number, p: Player, posture: Posture): number {
   return evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season)
     + campNudge(state, p);
 }
@@ -1497,8 +1496,10 @@ function cutWorstActiveQuarterback(state: GameState, teamId: number): boolean {
     (p) => p.teamId === teamId && p.pos === "QB" && !p.retired && !p.prospect && isActiveRoster(p),
   );
   if (qbs.length <= QB_53_MAX) return false;
+  // One outlook for this sort. The roster does not change until the cut returns.
+  const { posture } = teamOutlook(state, teamId);
   const worst = firstAffordable(state, qbs.slice().sort(
-    (a, b) => quarterbackKeepWorth(state, teamId, a) - quarterbackKeepWorth(state, teamId, b) || a.id - b.id,
+    (a, b) => quarterbackKeepWorth(state, teamId, a, posture) - quarterbackKeepWorth(state, teamId, b, posture) || a.id - b.id,
   ));
   if (!worst) return false;
   return cutPlayer(state, worst.id).ok;
@@ -1705,21 +1706,30 @@ export function fillOpenActiveSlots(state: GameState, teamId: number, rng: Rng):
   }
 }
 
-function surplusWorth(state: GameState, teamId: number, p: Player): number {
-  const { posture } = teamOutlook(state, teamId);
+function surplusWorth(state: GameState, teamId: number, p: Player, posture: Posture): number {
   return evaluate(state, teamId, p, posture, POSITION_VALUE[p.pos]) + draftCapitalHold(p, state.season)
     + campNudge(state, p);
+}
+
+/** Active counts for one club. Same predicate `positionCount` uses, on the roster already filtered. */
+function activeAt(roster: readonly Player[]): Map<Position, number> {
+  const counts = new Map<Position, number>();
+  for (const p of roster) counts.set(p.pos, (counts.get(p.pos) ?? 0) + 1);
+  return counts;
 }
 
 function worstSurplus(state: GameState, teamId: number, protectPos: Position | null): Player | null {
   const roster = state.players.filter(
     (p) => p.teamId === teamId && !p.retired && !p.prospect && isActiveRoster(p)
   );
+  const counts = activeAt(roster);
+  // One outlook for this sort. Cutting happens after the order is chosen.
+  const { posture } = teamOutlook(state, teamId);
   const candidates = roster.filter((p) => {
     if (protectPos && p.pos === protectPos) return false;
-    return positionCount(state, teamId, p.pos) > POSITION_MIN[p.pos];
+    return (counts.get(p.pos) ?? 0) > POSITION_MIN[p.pos];
   });
-  candidates.sort((a, b) => surplusWorth(state, teamId, a) - surplusWorth(state, teamId, b) || a.id - b.id);
+  candidates.sort((a, b) => surplusWorth(state, teamId, a, posture) - surplusWorth(state, teamId, b, posture) || a.id - b.id);
   return firstAffordable(state, candidates) ?? null;
 }
 
@@ -1727,8 +1737,10 @@ function cutWorstActiveAt(state: GameState, teamId: number, pos: Position): bool
   const roster = state.players.filter(
     (p) => p.teamId === teamId && p.pos === pos && !p.retired && !p.prospect && isActiveRoster(p)
   );
+  // The filter is already this position, so the length is the active tally.
   if (roster.length <= POSITION_ACTIVE_MAX[pos]) return false;
-  roster.sort((a, b) => surplusWorth(state, teamId, a) - surplusWorth(state, teamId, b) || a.id - b.id);
+  const { posture } = teamOutlook(state, teamId);
+  roster.sort((a, b) => surplusWorth(state, teamId, a, posture) - surplusWorth(state, teamId, b, posture) || a.id - b.id);
   return cutPlayer(state, firstAffordable(state, roster)!.id).ok;
 }
 
