@@ -1,5 +1,61 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-03 — Spend a legal CPU book back to the floor after the cover
+
+Signed, Matt, from `docs/panel-a76092b-investigation.md`. No `baselines.json` edit. No re-lock. No dial change. `SPEND_FLOOR`, the 20% ceiling, `targetSpend`, and the payroll band are untouched. The user seat is not spent up.
+
+After the post-carryover cover and the waiver refill, `spendLegalCpuBackToFloor` runs. A CPU club that is under the cap with 53 active players is handed to the existing `spendToFloor`. That path already refuses a signing that does not fit. A club already at the floor returns without a draw. A short or over-cap book is left for the cover.
+
+Seed `1013891931` did not fall under 55% on this VM, so the regression is a constructed book: 53 men at the minimum, under the cap, payroll at 16.5%. The cover leaves that book. The spend-back takes it to 78.3% of the cap with space still positive and the roster still 53. The same plant on the user seat does not move.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — pass, exit 0. Includes the new `capMechanics` case and `useroffers`.
+- `npm run verify` (`tsx scripts/verify.ts 5`, seed 20260727) — 551/552. The same Sanchez, DT, 77, $11.1M ask, $0.9M hit after the 2030 offseason. Not re-locked.
+- Seed-42 user-offer canary did **not** move. Tag `1777473079`, FA `3280841901`. Not re-locked.
+- Light CPU-only sweep, 10 leagues × 2 seasons: **over-cap clubs 0**, bad-roster clubs 0. Exit 0.
+- Seed `1013891931`, 20 seasons, minimum CPU payroll at recap: **Pittsburgh, 2043, 77.5%**. No season under 55%. Before this spend-back the same replay bottomed at San Francisco, 2043, 72.4%.
+
+## 2026-11-02 — BUG-A guarded refill after the carryover cover
+
+Signed, Matt. Built on the smallest-hit rewrite from 2026-11-01. No `baselines.json` edit. No re-lock. No dial change. The 20% ceiling is unchanged. `scripts/sweep.ts` still counts CPU clubs only.
+
+`reconcileRoster(..., afterCarryover)` is the only path that changed, and only for a CPU club. The user seat still returns before any rewrite.
+
+After `enforceCap`, the smallest hit is rewritten only when that one deal covers the hole and still leaves a one-year minimum for every open active spot. A hit that cannot cover a negative book is not rewritten. If no smallest hit leaves the club legal once those spots are filled, the largest hit that covers the hole is rewritten instead. The cutdown's own last resort is still the largest hit, and its fill does not take the fit path.
+
+The refill after that cover refuses a market deal the room cannot hold (`signMarketIfFits`). A spot that still has to be filled goes through `signMinimum`. That refusal is the `fitCap` flag on `fillRoster`, CPU only, including the quarterback-cap refill. Cutdown, camp, `newGame`, and the user seat still call `signAtMarket`. `makeContract` does not draw. A replacement body is generated only when a minimum hit fits, and only on that flag, so the draws ahead of the cover stay where they were.
+
+If the book is over after the fill, or the roster is still short, the cover runs again. Release first, then the same rewrite rule, then another fitting fill. Four rounds, and a round that moves neither room nor the roster count stops.
+
+`capMechanics` now rolls seed `506968236` to the 2028 preseason and requires New York under the cap with 53 active, and seed `506991993` the same for Detroit.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — pass, exit 0. Includes `useroffers` and `capMechanics`.
+- `npm run verify` (`tsx scripts/verify.ts 5`, seed 20260727) — 551/552 checks passed, `verify.failures` 1. The miss is one minimum rewrite after the 2030 offseason: Sanchez, DT, 77 OVR, asked $11.1M, signed $0.9M. The five-season roster check and the season-start cap checks in that window passed. Not re-locked.
+- Seed-42 user-offer canary did **not** move. `useroffers` exited 0 against tag `1777473079`, FA `3280841901`. Not re-locked.
+- Light CPU-only sweep, 10 leagues × 2 seasons: `506968236`, `506991993`, `506944479`, `506976155`, and `100000 + i*7919` for `i` = 0..5. **over-cap clubs 0**, bad-roster clubs 0. Exit 0. Not the 25-league panel.
+
+## 2026-11-01 — BUG-A ceiling signed, smallest-hit rewrite, CPU sweep
+
+Signed, Matt. Rebased onto `81bb316`. No `baselines.json` edit. No re-lock. No dial change.
+
+The 20% carryover ceiling (`CAP_CARRYOVER_MAX_SHARE`) stays as it was on `cf73d64`. It is signed. `spendBudget` is unchanged.
+
+After `applyCapCarryover`, a CPU club that is still over the cap is handled in `reconcileRoster` (`afterCarryover`). A release that saves money runs first (`enforceCap`, which does not draw). If the book is still negative, the rewrite is the smallest cap hit that covers the hole, not the largest. The cutdown's own last resort is still the largest hit. The user seat still returns before either rewrite (`#213`). `makeContract` does not draw, and the picker does not draw, so the RNG order ahead of that call is unchanged.
+
+`scripts/sweep.ts` counts over-cap and bad-roster clubs among CPU teams only. User cap enforcement is not turned back on.
+
+Validation on this VM, after the rebase onto `81bb316`:
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — pass, exit 0.
+- `npm run verify` (`tsx scripts/verify.ts 5`, seed 20260727) — 552/552 checks passed, `verify.failures` 0. Exit 0. The five-season window that used to rewrite Jennings is clean.
+- Seed-42 user-offer canary did **not** move. `useroffers` exited 0 against tag `1777473079`, FA `3280841901`. Not re-locked. Nothing in `docs/baselines.json` was touched.
+
 ## 2026-10-31 — /history keeps the club the year was played under
 
 Signed fix, Matt, 2026-10-31. Built as written in `docs/playtest-1029-history-gaps.md` on `cursor/history-page-gaps-8342` (draft PR #215). That doc is not in this branch. The file there still says UNSIGNED; this task is the signature. No `baselines.json` edit. No dial retune. No re-lock. Nothing was run on the Mac Studio.
@@ -28,6 +84,36 @@ Validation on this VM:
 - `npm test` — pass, exit 0. Includes `historychair` and `useroffers`.
 - `npm run verify` (`tsx scripts/verify.ts 5`, seed 20260727) — 552/552 checks passed, `verify.failures` 0. Exit 0.
 - Seed-42 user-offer canary did **not** move. `useroffers` exited 0 against the signed pair tag `1777473079`, FA `3280841901`. Not re-locked. Nothing in `docs/baselines.json` was touched.
+
+## 2026-10-31 — BUG-A bank ceiling, proposed, pending panel sign-off
+
+**PROPOSED. Not signed.** On top of the signed `spendBudget` change (2026-10-30, below). Matt asked for a limit on banked `capCarryover` before the Studio panel. `docs/nfl-reference.md` §4 is not edited. Article 13 still carries unused room in full.
+
+The limit is a hard ceiling: a club banks at most **20% of the cap** the snapshot is taken against (`CAP_CARRYOVER_MAX_SHARE` in `lib/core/select.ts`). It is applied in `captureCapCarryover` and `applyCapCarryover`, for every club, the user included. `acceptGmChair` still does not touch the field. The chair inherits the bank, so the inherited stock cannot exceed the ceiling.
+
+Over The Cap's 2025 carryover list (2024 unused room, base cap $255.4M): max $50,096,964 (49ers, 19.6%), median $6,348,893 (2.5%). Twenty percent is $51.08M, just above that max. A yearly haircut (keep half of unused space) was the other shape. It would cut the $6.3M median and the 49ers' $50.1M roll in half. The league does not. The ceiling only drops the excess above the observed top.
+
+A roll under the ceiling is stored in full. `spendBudget` is unchanged. No `baselines.json` edit. No re-lock. No dial change. No 5-seed panel. Pending Matt's sign-off at panel review.
+
+Seed 42, ten seasons, 2036 preseason, CPU clubs: max Brooklyn $91.3M (20.0% of the $456.7M cap), median $91.3M, sum $2,292.3M. Against $7,399.8M / Carolina $609.1M / median $187.3M before either change, and $4,872.9M / Minneapolis $459.9M / median $171.0M with `spendBudget` only. The max is on the ceiling from 2028 through 2036 and rises only with the 6% cap. Compounding past it has stopped. Mean in-season CPU median payroll: 99.32 / 99.91 / 100.09. Not re-locked.
+
+`npm run verify` (5 seasons, seed 20260727) is 551/552. One fresh deal is a league-minimum bargain (Jennings, EDGE, 83 OVR, asked $16.1M, signed $0.9M). The same check fails on `e297802` without this ceiling (Vandross Jr., EDGE, 90 OVR, $0.9M) and passes on `0679a1a` (552/552). The ceiling did not create that class of miss. The check was not edited.
+
+## 2026-10-30 — BUG-A: CPU clubs may spend carried cap room
+
+Signed packet, Matt, 2026-10-30. Built as written from `docs/playtest-1029-bugA-chair-change-carryover.md` (doc commit from draft PR #212). Branched from `0679a1a`.
+
+`spendBudget` is `targetSpend × cap + capCarryover` at CPU free agency and CPU re-signs. Full rollover is unchanged. No haircut on `capCarryover`. `acceptGmChair` and the user seat are unchanged. `spendToFloor` does not spend the stock.
+
+**Disagreement, measured, not applied as a further change.** The note says the next capture stores only that year's fresh slice and the stock stops compounding. Seed 42, ten headless seasons, does not show that. At the 2036 preseason the CPU carryover sum is $4,872.9M against $7,399.8M before this change. The median field is $171.0M against $187.3M, after a wider gap at the 2031 preseason ($64.1M against $105.5M). The biggest club is Minneapolis at $459.9M, 100.7% of the $456.7M ceiling, against Carolina at $609.1M (133%) before. It was still rising. A 53-man roster and a probabilistic re-sign cannot deploy the whole field. The signed scope leaves `spendToFloor`, `upgradeRoster`, and `spaceOf` alone. I did not cap the field.
+
+No disagreement with the signed formula, with the 2026-09-14 Packet 4 full-rollover rule, or with the 2026-10-22 note that the waiver `spaceOf` hole stays open.
+
+No `baselines.json` edit. No re-lock. No dial change. No 5-seed panel. Seed-42 user-offer canary stayed tag `1777473079`, FA `3280841901`.
+
+Mean of the ten in-season CPU median payroll percentages (the drift snapshot, user club excluded): 99.32 before, 99.91 after. Both already sit near 100 on this seed. Not re-locked.
+
+`capMechanics` covers zero carryover, a $200M stock, `spendToFloor`, `acceptGmChair`, the B1 cliff, and five seasons on seed 42. That fifth preseason is 2031. The median must stay under a quarter of the ceiling, which the pre-fix path missed at 31%, and no club may hold a full extra cap inside those five seasons. It is not a claim about season 10.
 
 ## 2026-10-27 — A short quarterback unit does not take another position
 

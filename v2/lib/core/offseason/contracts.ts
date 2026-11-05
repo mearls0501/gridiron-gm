@@ -15,7 +15,7 @@ import {
 import { resolveDemand } from "../psychology";
 import { clearRosterSlot, placeOnPs } from "../rosterStatus";
 import { POSITION_VALUE } from "../ratings";
-import { evaluate, frontOffice, targetSpend, teamOutlook, SPEND_FLOOR, payroll } from "../frontOffice";
+import { evaluate, frontOffice, spendBudget, teamOutlook, SPEND_FLOOR, payroll } from "../frontOffice";
 import { cpuVeteranView } from "../scouting";
 
 /** Next-season committed + add must stay at or under this share of the cap. */
@@ -1159,7 +1159,7 @@ export function cpuResign(state: GameState, teamId: number, candidates: Player[]
   const kept: Player[] = [];
   const fo = frontOffice(state, teamId);
   const { posture } = teamOutlook(state, teamId);
-  const budget = targetSpend(state, teamId, posture) * teamCap(state, teamId).cap;
+  const budget = spendBudget(state, teamId, posture);
   const floor = teamCap(state, teamId).cap * SPEND_FLOOR;
 
   const ranked = candidates
@@ -1280,6 +1280,54 @@ function bestAffordable(
 }
 
 /**
+ * Market signing that must fit. CPU post-carryover refill only.
+ * `negotiatedApy` and `makeContract` do not draw. A miss falls through
+ * to `signMinimum`, which also refuses when the minimum itself does not fit.
+ */
+function signMarketIfFits(state: GameState, teamId: number, p: Player, rng: Rng): boolean {
+  if (p.teamId !== null || rosterCount(state, teamId) >= rosterLimit(state.phase)) return false;
+  if (atActiveMax(state, teamId, p.pos)) return false;
+  const apy = negotiatedApy(state, teamId, p, 1);
+  const yrs = apy <= LEAGUE_MINIMUM * 1.25 ? 1 : suggestedYears(p);
+  const hit = capHit(startContractNow(
+    state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)),
+  ));
+  if (hit > teamCap(state, teamId).space) return false;
+  return signAtMarket(state, teamId, p, rng);
+}
+
+function signMinimumIfFits(state: GameState, teamId: number, pos: Position | null, rng: Rng): boolean {
+  const cheap = pos ? minimumFreeAgent(state, pos) : minimumFreeAgentAny(state, teamId);
+  if (!cheap) return false;
+  return signMinimum(state, teamId, cheap, rng) > 0;
+}
+
+/** Cap hit of a one-year minimum signed now. `makeContract` does not draw. */
+function minimumCapHit(state: GameState, rng: Rng): number {
+  return capHit(startContractNow(
+    state, makeContract(rng, LEAGUE_MINIMUM, 1, state.season, 0),
+  ));
+}
+
+/** True when a one-year minimum still fits. Used to skip a replacement draw the club cannot sign. */
+function minimumHitFits(state: GameState, teamId: number, rng: Rng): boolean {
+  return minimumCapHit(state, rng) <= teamCap(state, teamId).space;
+}
+
+/** Any street body at or under the minimum-fill overall who fits an open position. */
+function minimumFreeAgentAny(state: GameState, teamId: number): Player | null {
+  let best: Player | null = null;
+  for (const p of state.players) {
+    if (p.teamId !== null || p.retired || p.prospect || isOnWaivers(state, p.id)) continue;
+    if (p.ovr > USER_FILL_OVR) continue;
+    if (atActiveMax(state, teamId, p.pos)) continue;
+    if (best && (p.ovr < best.ovr || (p.ovr === best.ovr && p.id > best.id))) continue;
+    best = p;
+  }
+  return best;
+}
+
+/**
  * Sign at the going rate, on a term appropriate to what he costs.
  * Refuses when the phase roster is already full so an in-season caller
  * cannot grow a club past 53 (90 in camp).
@@ -1299,10 +1347,21 @@ function signAtMarket(state: GameState, teamId: number, p: Player, rng: Rng): bo
   return true;
 }
 
+/** Post-carryover CPU refill: market deal if it fits, otherwise a minimum. */
+function signForFill(
+  state: GameState, teamId: number, p: Player, rng: Rng, fitCap: boolean,
+): boolean {
+  if (!fitCap || teamId === state.userTeamId) return signAtMarket(state, teamId, p, rng);
+  if (signMarketIfFits(state, teamId, p, rng)) return true;
+  return signMinimumIfFits(state, teamId, p.pos, rng);
+}
+
 export function fillRoster(
   state: GameState, teamId: number, rng: Rng,
   limit = rosterLimit(state.phase), stashPs = false,
+  fitCap = false,
 ): void {
+  const cpuFit = fitCap && teamId !== state.userTeamId;
   // 1. Position minimums first.
   for (const pos of Object.keys(POSITION_MIN) as Position[]) {
     while (positionCount(state, teamId, pos) < POSITION_MIN[pos]) {
@@ -1310,9 +1369,11 @@ export function fillRoster(
         // Cut the worst player at an over-stocked position to make room.
         if (!cutWorstSurplus(state, teamId, pos)) break;
       }
-      // Generate a replacement-level body rather than leave the unit empty.
+      // A post-carryover CPU refill does not draw a body it cannot sign.
+      // Every other caller still generates, in the same place as before.
+      if (cpuFit && !minimumHitFits(state, teamId, rng)) break;
       const pick = bestAffordable(state, teamId, pos) ?? generateReplacement(state, pos, rng);
-      if (!signAtMarket(state, teamId, pick, rng)) break;
+      if (!signForFill(state, teamId, pick, rng, cpuFit)) break;
     }
   }
 
@@ -1321,6 +1382,7 @@ export function fillRoster(
   // under the position ceiling so a cheap punter cannot fill every hole.
   let guard = 0;
   while (rosterCount(state, teamId) < ROSTER_LIMIT && guard++ < 120) {
+    if (cpuFit && !minimumHitFits(state, teamId, rng)) break;
     let pick = bestAffordable(state, teamId, null, null, true);
     if (!pick) {
       const pos = positionUnderMax(state, teamId);
@@ -1328,7 +1390,7 @@ export function fillRoster(
       pick = generateReplacement(state, pos, rng);
     }
     if (atActiveMax(state, teamId, pick.pos)) break;
-    if (!signAtMarket(state, teamId, pick, rng)) break;
+    if (!signForFill(state, teamId, pick, rng, cpuFit)) break;
   }
 
   // 3. Camp extras: fill toward the phase ceiling from the street. Do not
@@ -1357,7 +1419,7 @@ export function fillRoster(
   // Camp fill, newGame, and in-season auto-fix do not pass it.
   // The user seat is skipped inside `capQuarterbacksOn53`.
   if (stashPs && limit === ROSTER_LIMIT) {
-    capQuarterbacksOn53(state, teamId, rng);
+    capQuarterbacksOn53(state, teamId, rng, cpuFit);
   }
 }
 
@@ -1448,19 +1510,21 @@ function cutWorstActiveQuarterback(state: GameState, teamId: number): boolean {
  * Waived bodies still clear through waivers; this does not park them on the PS directly.
  * The user seat is not this cap.
  */
-function capQuarterbacksOn53(state: GameState, teamId: number, rng: Rng): void {
+function capQuarterbacksOn53(state: GameState, teamId: number, rng: Rng, fitCap = false): void {
   if (teamId === state.userTeamId) return;
+  const cpuFit = fitCap && teamId !== state.userTeamId;
   let guard = 0;
   while (positionCount(state, teamId, "QB") > QB_53_MAX && guard++ < 16) {
     if (!cutWorstActiveQuarterback(state, teamId)) break;
   }
   guard = 0;
   while (rosterCount(state, teamId) < ROSTER_LIMIT && guard++ < 16) {
+    if (cpuFit && !minimumHitFits(state, teamId, rng)) break;
     const pos = positionUnderMax(state, teamId, "QB");
     const pick = (pos ? bestAffordable(state, teamId, null, "QB", true) : null)
       ?? (pos ? generateReplacement(state, pos, rng) : null);
     if (!pick || pick.pos === "QB" || atActiveMax(state, teamId, pick.pos)) break;
-    if (!signAtMarket(state, teamId, pick, rng)) break;
+    if (!signForFill(state, teamId, pick, rng, cpuFit)) break;
   }
 }
 
@@ -1536,7 +1600,9 @@ export function refillCpuRostersAfterWaivers(state: GameState, rng: Rng): void {
       }
     }
     if (rosterCount(state, t.id) < ROSTER_LIMIT || teamCap(state, t.id).space < 0) {
-      reconcileRoster(state, t.id, rng, ROSTER_LIMIT, true);
+      // Still the post-carryover book. A saving release, else the smallest
+      // hit that covers the hole. Not the cutdown's largest-hit resort.
+      reconcileRoster(state, t.id, rng, ROSTER_LIMIT, true, true);
     }
   }
 }
@@ -1770,6 +1836,21 @@ export function spendToFloor(state: GameState, teamId: number, rng: Rng): void {
 }
 
 /**
+ * After the post-carryover cover. A CPU club that is already legal spends
+ * back toward `SPEND_FLOOR` on the same path as `spendToFloor`. A signing
+ * that does not fit is refused there. The user seat is not this spend.
+ * Clubs already at the floor return without a draw.
+ */
+export function spendLegalCpuBackToFloor(state: GameState, rng: Rng): void {
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    if (teamCap(state, t.id).space < 0) continue;
+    if (rosterCount(state, t.id) !== ROSTER_LIMIT) continue;
+    spendToFloor(state, t.id, rng);
+  }
+}
+
+/**
  * Competition for roster spots — the missing cutdown.
  *
  * `scripts/careers.ts` found that 84% of fourth-round picks were still on a
@@ -1976,6 +2057,7 @@ export function enforceCap(state: GameState, teamId: number): void {
 export function reconcileRoster(
   state: GameState, teamId: number, rng: Rng,
   limit = rosterLimit(state.phase), stashPs = false,
+  afterCarryover = false,
 ): void {
   // The GM cuts his own cap. Releasing for cap, or rewriting a deal he
   // signed down to the one-year minimum, is the 2052 Start the Season hatch.
@@ -1991,26 +2073,112 @@ export function reconcileRoster(
   }
   if (userSeat) return;
 
-  // Last resort: replace the most expensive cuttable contracts with minimum
-  // deals until the books balance. Guarantees a legal team every time.
+  // Post-carryover: release first, then a rewrite that still leaves the
+  // refill legal, then a refill that will not sign past the room. If that
+  // fill is over — a cut inside it can book dead money — cover again.
+  // The cutdown last resort below is still the largest hit, and its fill
+  // does not take the fit path, so year-0 draws stay where they were.
+  if (afterCarryover) {
+    for (let round = 0; round < 4; round++) {
+      const beforeSpace = teamCap(state, teamId).space;
+      const beforeCount = rosterCount(state, teamId);
+      coverAfterCarryover(state, teamId, rng);
+      fillRoster(state, teamId, rng, limit, stashPs, true);
+      const afterSpace = teamCap(state, teamId).space;
+      const afterCount = rosterCount(state, teamId);
+      if (afterSpace >= 0 && afterCount >= ROSTER_LIMIT && afterCount <= limit) return;
+      // A cut inside the fill can book dead money and leave the club short.
+      // Another cover is worth it only when room or the roster actually moved.
+      if (afterSpace <= beforeSpace && afterCount <= beforeCount) break;
+    }
+    return;
+  }
+
+  // Cutdown last resort: largest hit, then the ordinary fill.
+  rewriteLargestHits(state, teamId, rng, false);
+  fillRoster(state, teamId, rng, limit, stashPs);
+}
+
+/**
+ * Deals the post-carryover / cutdown hatch may rewrite. A hit at or under
+ * twice the minimum is already the floor this hatch writes.
+ */
+function rewriteCandidates(state: GameState, teamId: number): Player[] {
+  return state.players.filter(
+    (p) => p.teamId === teamId && !p.retired && !p.prospect && p.contract
+      && capHit(p.contract) > LEAGUE_MINIMUM * 2,
+  );
+}
+
+function rewriteToMinimum(state: GameState, teamId: number, target: Player, rng: Rng, afterCarryover: boolean): void {
+  const was = capHit(target.contract);
+  target.contract = startContractNow(state, makeContract(rng, LEAGUE_MINIMUM, 1, state.season, 0));
+  state.log.push({
+    season: state.season, week: state.week, kind: "transaction",
+    text: `${state.teams[teamId].abbr} restructured ${target.firstName} ${target.lastName} (${target.pos}) to the league minimum — forced by the cap, was $${(was / 1e6).toFixed(1)}M${afterCarryover ? " after carryover" : ""}`,
+  });
+}
+
+/** Old cutdown hatch. Largest hit, repeating until the book is no longer negative. */
+function rewriteLargestHits(state: GameState, teamId: number, rng: Rng, afterCarryover: boolean): void {
   let guard = 0;
   while (teamCap(state, teamId).space < 0 && guard++ < 80) {
-    const roster = state.players.filter(
-      (p) => p.teamId === teamId && !p.retired && !p.prospect && p.contract
-    );
-    const target = roster
-      .filter((p) => capHit(p.contract) > LEAGUE_MINIMUM * 2)
-      .sort((a, b) => capHit(b.contract) - capHit(a.contract))[0];
+    const target = rewriteCandidates(state, teamId)
+      .sort((a, b) => capHit(b.contract) - capHit(a.contract) || a.id - b.id)[0];
     if (!target) break;
-    // Renegotiate down rather than cut — keeps the roster at 53. This is the
-    // escape hatch that guarantees a legal team, but it is a 95% haircut the
-    // player never agreed to, so it must never happen silently.
-    const was = capHit(target.contract);
-    target.contract = startContractNow(state, makeContract(rng, LEAGUE_MINIMUM, 1, state.season, 0));
-    state.log.push({
-      season: state.season, week: state.week, kind: "transaction",
-      text: `${state.teams[teamId].abbr} restructured ${target.firstName} ${target.lastName} (${target.pos}) to the league minimum — forced by the cap, was $${(was / 1e6).toFixed(1)}M`,
-    });
+    rewriteToMinimum(state, teamId, target, rng, afterCarryover);
   }
-  fillRoster(state, teamId, rng, limit, stashPs);
+}
+
+/**
+ * Release-first, then one rewrite strategy. Does not fill.
+ *
+ * The smallest hit is rewritten only when that one deal covers the cap hole
+ * and still leaves a one-year minimum for every open active spot. A hit that
+ * cannot cover a negative book is not rewritten. If no such smallest hit
+ * exists, the largest hit that covers the hole is rewritten instead. When
+ * the book is already non-negative and no one deal can fund the open spots,
+ * the old largest-hit order opens room one deal at a time.
+ */
+function coverAfterCarryover(state: GameState, teamId: number, rng: Rng): void {
+  enforceCap(state, teamId);
+  const replacement = minimumCapHit(state, rng);
+  const spaceNow = () => teamCap(state, teamId).space;
+  const spotsNow = () => Math.max(0, ROSTER_LIMIT - rosterCount(state, teamId));
+  // Room for a one-year minimum in every open active spot, and a non-negative book.
+  const refillFunded = () => spaceNow() >= 0 && spaceNow() >= spotsNow() * replacement;
+  const byAsc = (a: Player, b: Player) => capHit(a.contract) - capHit(b.contract) || a.id - b.id;
+  const byDesc = (a: Player, b: Player) => capHit(b.contract) - capHit(a.contract) || a.id - b.id;
+
+  let guard = 0;
+  while (guard++ < 80 && !refillFunded()) {
+    const space = spaceNow();
+    const deficit = Math.max(0, -space);
+    const gap = Math.max(0, spotsNow() * replacement - space);
+    const required = Math.max(deficit, gap);
+    const roster = rewriteCandidates(state, teamId);
+    // Smallest hit that covers the cap hole and still pays for the refill.
+    const finishes = roster.filter((p) => capHit(p.contract) - replacement >= required).sort(byAsc)[0];
+    if (finishes) {
+      rewriteToMinimum(state, teamId, finishes, rng, true);
+      break;
+    }
+
+    if (space < 0) {
+      // No hit can leave the club legal after the refill. Largest hit that
+      // covers the hole — never one that cannot.
+      const cover = roster.filter((p) => capHit(p.contract) - replacement >= deficit).sort(byDesc)[0];
+      if (!cover) break;
+      rewriteToMinimum(state, teamId, cover, rng, true);
+      continue;
+    }
+
+    // Already under the cap, but the open spots do not fit, and no one deal
+    // funds them. The old largest-hit order opens room one deal at a time.
+    const largest = roster.slice().sort(byDesc)[0];
+    if (!largest) break;
+    const before = space;
+    rewriteToMinimum(state, teamId, largest, rng, true);
+    if (spaceNow() <= before) break;
+  }
 }

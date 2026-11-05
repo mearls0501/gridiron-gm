@@ -272,20 +272,44 @@ export function teamCap(state: GameState, teamId: number): CapSummary {
   };
 }
 
+/**
+ * Most unused room a club may bank, as a share of the cap the snapshot
+ * is taken against.
+ *
+ * The CBA carries unused room in full (`docs/nfl-reference.md` §4).
+ * Observed rolls are a small share of the cap. Over The Cap's 2025
+ * carryover list (2024 unused room): max $50,096,964 (49ers), 19.6% of
+ * the $255.4M 2024 cap; median $6,348,893 (2.5%). A ceiling at 20%
+ * keeps every one of those rolls. A yearly haircut would cut the
+ * ordinary median, which the league does not do. Proposed; pending
+ * Matt's sign-off.
+ */
+export const CAP_CARRYOVER_MAX_SHARE = 0.20;
+
+/** Bank unused room, floored at 0 and capped at `CAP_CARRYOVER_MAX_SHARE` of `cap`. */
+export function capCarryoverBank(unused: number, cap: number): number {
+  const limit = Math.round(cap * CAP_CARRYOVER_MAX_SHARE);
+  return Math.max(0, Math.min(Math.round(unused), limit));
+}
+
 /** Unused room this league year, floored at 0. Includes unused prior carryover. */
 export function unusedCapSpace(state: GameState, teamId: number): number {
   return Math.max(0, Math.round(teamCap(state, teamId).space));
 }
 
-/** Snapshot leftover space per club before the calendar rolls. */
+/** Snapshot leftover space per club, banked at the carryover ceiling. */
 export function captureCapCarryover(state: GameState): number[] {
-  return state.teams.map((t) => unusedCapSpace(state, t.id));
+  return state.teams.map((t) => {
+    const info = teamCap(state, t.id);
+    return capCarryoverBank(unusedCapSpace(state, t.id), info.cap);
+  });
 }
 
-/** Write captured leftovers as this league year's carryover. */
+/** Write captured leftovers as this league year's carryover, banked at the ceiling. */
 export function applyCapCarryover(state: GameState, amounts: number[]): void {
+  const cap = salaryCap(state.season, startSeason(state));
   for (let i = 0; i < state.teams.length; i++) {
-    state.teams[i].capCarryover = Math.max(0, Math.round(amounts[i] ?? 0));
+    state.teams[i].capCarryover = capCarryoverBank(amounts[i] ?? 0, cap);
   }
 }
 

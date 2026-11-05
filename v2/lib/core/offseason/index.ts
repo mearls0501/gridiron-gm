@@ -5,7 +5,7 @@ import { GameState, Phase, ROSTER_LIMIT } from "../types";
 import { foldPracticeSquad, resetSeasonRosterFlags } from "../rosterStatus";
 import { settleWaivers } from "../waivers";
 import { recordSeasonHistory, reapplyRetirementDead, runProgression, OffseasonReport } from "./progression";
-import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, refillCpuRostersAfterWaivers, runCpuFifthYearOptions, runCpuFranchiseTags, runCpuTagExtensions, runCpuVoidYears, spendToFloor, upgradeRoster } from "./contracts";
+import { cpuResign, expireContracts, fillCampRosters, reconcileRoster, refillCpuRostersAfterWaivers, runCpuFifthYearOptions, runCpuFranchiseTags, runCpuTagExtensions, runCpuVoidYears, spendLegalCpuBackToFloor, spendToFloor, upgradeRoster } from "./contracts";
 import { FA_ROUNDS, openMarket, openCpuBidding, resolveFaWave } from "./freeAgency";
 import { buildDraftPicks, convertUndrafted, initDraft, runDraftUntilUser, runFullDraft, runUdfaChase } from "./draft";
 import { ensureFutureClasses, promoteDraftClass } from "../futureClass";
@@ -284,8 +284,9 @@ export function finalizeOffseason(state: GameState): void {
   // function returns, so the closed year lives on tradesExecutedLast.
   rolloverTradeCounter(state);
 
-  // Unused room carries into the next league year in full. Capture
-  // before the calendar rolls so the new year's larger cap is not
+  // Unused room carries into the next league year, banked at
+  // CAP_CARRYOVER_MAX_SHARE of the ceiling already on the meter.
+  // Capture before the calendar rolls so the new year's larger cap is not
   // counted as leftover; write after so settleWaivers sees one copy.
   const carryover = captureCapCarryover(state);
 
@@ -337,13 +338,19 @@ export function finalizeOffseason(state: GameState): void {
   // land a club a few thousand over. Legalize before the desk opens.
   for (const t of state.teams) {
     if (teamCap(state, t.id).space < 0) {
-      reconcileRoster(state, t.id, rng, ROSTER_LIMIT, true);
+      // Last flag: post-carryover hole. A saving release, else the smallest
+      // hit that covers it. The user seat still returns inside.
+      reconcileRoster(state, t.id, rng, ROSTER_LIMIT, true, true);
     }
   }
   // That legalize does not see a CPU club enforceCap already returned to
   // non-negative space. Refill those short rosters, and apply the active
   // ceiling, without touching the user's club.
   refillCpuRostersAfterWaivers(state, rng);
+  // The cover can rewrite a deal down to the minimum after spendToFloor
+  // has already run. A CPU book that is still legal spends back to that
+  // same floor. Nothing here is signed if it would cross the cap.
+  spendLegalCpuBackToFloor(state, rng);
   state.rngState = rng.state;
   if (TIME) console.timeEnd("finalizeOffseason");
 }

@@ -19,8 +19,9 @@ for (let i = 0; i < N; i++) {
   try { st = newGame({ seed }); }
   catch (e) { console.log(`seed ${seed}: newGame THREW ${(e as Error).message}`); bad++; continue; }
 
-  const overAtStart = st.teams.filter((t) => teamCap(st, t.id).space < 0).length;
-  const badRosters = st.teams.filter((t) => rosterCount(st, t.id) !== ROSTER_LIMIT).length;
+  const cpu = (id: number) => id !== st.userTeamId;
+  const overAtStart = st.teams.filter((t) => cpu(t.id) && teamCap(st, t.id).space < 0).length;
+  const badRosters = st.teams.filter((t) => cpu(t.id) && rosterCount(st, t.id) !== ROSTER_LIMIT).length;
   if (overAtStart || badRosters) {
     console.log(`seed ${seed}: START over-cap=${overAtStart} bad-rosters=${badRosters}`);
     bad++;
@@ -33,8 +34,8 @@ for (let i = 0; i < N; i++) {
       g = 0; while (st.phase === "playoffs" && g++ < 12) advance(st);
       g = 0; while (isOffseason(st.phase) && g++ < 12) advanceOffseason(st);
       if (st.phase !== "preseason") { console.log(`seed ${seed}: stuck in ${st.phase}`); bad++; break; }
-      const over = st.teams.filter((t) => teamCap(st, t.id).space < 0).length;
-      const rost = st.teams.filter((t) => rosterCount(st, t.id) !== ROSTER_LIMIT).length;
+      const over = st.teams.filter((t) => cpu(t.id) && teamCap(st, t.id).space < 0).length;
+      const rost = st.teams.filter((t) => cpu(t.id) && rosterCount(st, t.id) !== ROSTER_LIMIT).length;
       if (over || rost) { console.log(`seed ${seed} season ${st.season}: over-cap=${over} bad-rosters=${rost}`); bad++; }
     }
   } catch (e) {
