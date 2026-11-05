@@ -1,6 +1,6 @@
 # Start the Season freezes as the franchise ages — playtest 1029, M3
 
-**UNSIGNED.** This note is the measurement and a proposed fix. It does not change the sim, a test, a dial, or `docs/baselines.json`. Matt signs any fix. No re-lock.
+**SIGNED and implemented.** Matt signed the fix in the last section. Posture is computed once per sort, and position counts come from the roster already in hand. No dial change, no `docs/baselines.json` edit, no re-lock. Retirees and stat rows stay. Re-timed on that implementation, seed 42: the click that opens 2030 is 2.4s (59.1s in the table below) and the click that opens 2055 is 19.6s (363.2s below).
 
 Source: 30-season playtest on production `main` `8747e25` (same code as `ddc62bd`), save `GM Playtest career30 1029`. Report section M3. The click is Confirm on Roster Cutdown, after the three preseason weeks, until the next Preseason paints. Hand timings there run from about 35s (2030) to about 190s (2055). A second Start the Season, once Preseason is already on screen, was 4–25s from 2041 on.
 
@@ -131,7 +131,7 @@ After this click, the phase is `preseason` and the button reads Start the Season
 
 The week loop ("Through the Playoffs") also got slower in this run: 6.9s for 2026, 26.6s for 2030, 72s for 2040, 165s for 2055. `teamOutlook` calls during the whole regular season plus playoffs stay around 40–47k, so that growth is not the cutdown's call-count story. The week was not split into game simulation versus roster scans. It is recorded here and left alone.
 
-## Proposed fix — UNSIGNED
+## The signed fix
 
 Compute posture once per sort, and count positions once per sort. Both values are constant for the length of that sort, because the sort does not cut anyone until it returns.
 
