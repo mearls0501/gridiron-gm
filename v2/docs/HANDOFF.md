@@ -1,5 +1,39 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-08 — User FA Auto-fix holds the draft and camp bill
+
+Signed, Matt, 2026-11-08 ("ok do it"). Both packets together. No `baselines.json` edit. No re-lock. No dial change. `SPEND_FLOOR`, the 20% ceiling, `targetSpend`, the payroll band, and the rookie scale are untouched. CPU spend-to-floor and the #214 spend-back are untouched. The #213 user return still skips `enforceCap` and the minimum rewrite. The #218 hoist is untouched.
+
+Hub Auto-fix is still `reconcileRoster` on the user seat. In `offseason-fa` and `offseason-tag` only, that fill subtracts `userFaCampHold` before it will spend: the year-1 `capHit` of `rookieContract` for each pick this club owns in `previewDraftPicks` for `state.season`, plus `(90 − 53 − those picks)` times the real one-year minimum cap hit (**895,000**, not 795,000). The existing open-spot reserve (`(slotsLeft − 1) × 795,000 × 1.3`) still applies inside that reduced room. There is no $993,750 floor on this path. `bestAffordable` itself is unchanged and is still what CPU clubs and camp street selection use.
+
+A user signing in the tag, FA, draft, or camp phase is refused when its actual cap hit is above that ceiling. Camp does not subtract the hold a second time; the ceiling there is raw space. The refusal happens before `teamId` is set. A generated replacement on that path is peeked with a scratch `Rng` first, so a miss does not draw the parent and does not push a player. CPU generation is the old one-draw path.
+
+Compensatory picks that are not already on the save are not priced and are not written. Awarding them inside Auto-fix would create rows before free agency ends, and the award moves as signings do. A comp that appears later is an extra rookie of about a minimum hit, in place of a street body the hold already priced at 895,000. Seeds 42 and 7 still finished camp under the cap (below). Draft-day trades after the click can still add a pick the hold did not see. That is not papered over.
+
+Not in this change: the 2044 / 2051 post-cut hole (a thin cushion at 90 going negative when the 53-man trim books dead money). It was not reproduced on the year-1 seeds and the cut order was not touched. Records #217 / #219, Hall of Fame #220, and tackle definition were not touched.
+
+Measured on this VM, seed 42 and seed 7, hub Auto-fix at FA open then the real draft and camp:
+
+| | FA space after Auto-fix | Hold | Camp space | Gate |
+|---|---:|---:|---:|---|
+| Seed 42 Boston, before | 186,667 | — | −24,650,833 | blocked |
+| Seed 42 Boston, after | 37,456,667 | 37,380,000 | 11,711,667 | open |
+| Seed 7 Boston, before | 79,166 | — | −26,238,334 | blocked |
+| Seed 7 Boston, after | 37,283,332 | 37,070,000 | 10,965,832 | open |
+
+Same tree, planted books, seed 42: one hole and space 88,000 stays 88,000 with the parent RNG unmoved. Twenty-one holes and space 3,530,000 stay 3,530,000 (the old Auto-fix went to −15,425,000). Eighteen holes: the user kept 38,032,501 against a hold of 37,575,000; the same plant on a CPU club spent to 189,167. Camp Auto-fix at 53 with 88,000 of room did not sign the 37 street bodies.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npx tsx lib/core/userFaReserve.test.ts` — pass. Registered in `package.json` and both gate tiers (`userfareserve`).
+- `npx tsx lib/core/startSeasonCap.test.ts` — pass.
+- `npx tsx lib/core/capMechanics.test.ts` — pass.
+- `npx tsx lib/core/draftRules.test.ts` — pass.
+- `npx tsx lib/core/rosterManagement.test.ts` — pass.
+- `npx tsx lib/core/trimIdentity.test.ts` — pass. Seed 42 still opens 2030 with 1506 cuts and rng `2450416366`. The hoist lock did not move.
+- No `gate`, `drift`, `verify`, or 30-season run. No re-lock.
+
 ## 2026-11-03 — Spend a legal CPU book back to the floor after the cover
 
 Signed, Matt, from `docs/panel-a76092b-investigation.md`. No `baselines.json` edit. No re-lock. No dial change. `SPEND_FLOOR`, the 20% ceiling, `targetSpend`, and the payroll band are untouched. The user seat is not spent up.

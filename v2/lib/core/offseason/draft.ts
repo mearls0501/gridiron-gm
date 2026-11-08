@@ -497,18 +497,12 @@ function commitStream(state: GameState, pick: DraftPick, used: Rng, parent: Rng)
 // Draft board + picks
 // ---------------------------------------------------------------------------
 
-export function buildDraftPicks(state: GameState, season: number): DraftPick[] {
-  // The ORDER comes from the season that was just PLAYED, which is `season`
-  // itself — during the draft phase `state.season` has not rolled over yet.
-  // Asking for `season - 1` returned 32 all-zero records (those games were
-  // wiped at the previous rollover), every tiebreak fell through to the
-  // team-id fallback, and round one was 31,30,29,28... in every save forever.
-  //
-  // WHO OWNS each slot is a separate question, and it is answered by the
-  // persistent pick inventory rather than by the standings — that is what makes
-  // a pick a tradeable asset instead of an entitlement.
-  ensurePickInventory(state);
-  awardCompensatoryPicks(state, season);
+/**
+ * Slot list for `season` from the pick inventory already on the save.
+ * Does not create inventory rows and does not award compensatory picks.
+ * `buildDraftPicks` is this, after those two writes.
+ */
+export function previewDraftPicks(state: GameState, season: number): DraftPick[] {
   const order = draftOrder(state, season);
   const owners = new Map<string, number>();
   const compsByRound = new Map<number, PickOwnership[]>();
@@ -541,6 +535,21 @@ export function buildDraftPicks(state: GameState, season: number): DraftPick[] {
     }
   }
   return picks;
+}
+
+export function buildDraftPicks(state: GameState, season: number): DraftPick[] {
+  // The ORDER comes from the season that was just PLAYED, which is `season`
+  // itself — during the draft phase `state.season` has not rolled over yet.
+  // Asking for `season - 1` returned 32 all-zero records (those games were
+  // wiped at the previous rollover), every tiebreak fell through to the
+  // team-id fallback, and round one was 31,30,29,28... in every save forever.
+  //
+  // WHO OWNS each slot is a separate question, and it is answered by the
+  // persistent pick inventory rather than by the standings — that is what makes
+  // a pick a tradeable asset instead of an entitlement.
+  ensurePickInventory(state);
+  awardCompensatoryPicks(state, season);
+  return previewDraftPicks(state, season);
 }
 
 export function initDraft(state: GameState, rng: Rng): DraftState {

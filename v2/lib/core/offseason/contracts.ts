@@ -1314,6 +1314,124 @@ function minimumHitFits(state: GameState, teamId: number, rng: Rng): boolean {
   return minimumCapHit(state, rng) <= teamCap(state, teamId).space;
 }
 
+function userReservesCampBill(state: GameState, teamId: number): boolean {
+  return teamId === state.userTeamId
+    && (state.phase === "offseason-fa" || state.phase === "offseason-tag");
+}
+
+function userFitsCapHit(state: GameState, teamId: number): boolean {
+  return teamId === state.userTeamId && (
+    state.phase === "offseason-fa" || state.phase === "offseason-tag"
+    || state.phase === "offseason-draft" || state.phase === "offseason-final"
+  );
+}
+
+/**
+ * Dollars the user FA fill must leave untouched.
+ *
+ * Upcoming picks this draft, priced with `rookieContract` at the slot the
+ * current order would give them, plus one real one-year minimum cap hit for
+ * every camp street body those picks do not already occupy
+ * (`90 − 53 − picks`). Compensatory picks that are not on the save yet are
+ * not invented here — awarding them would write rows before free agency
+ * finishes, and the award itself moves as signings do. `previewDraftPicks`
+ * does not draw and does not write.
+ *
+ * Zero for every CPU club, and for the user outside the tag and FA phases.
+ * Camp spends the bill; it does not reserve it a second time.
+ */
+export function userFaCampHold(state: GameState, teamId: number): number {
+  if (!userReservesCampBill(state, teamId)) return 0;
+  // draft.ts imports trades.ts, which imports this module. A top-level import
+  // cycles. The preview is only needed when a user fill asks for the hold.
+  const draft = require("./draft") as typeof import("./draft");
+  const picks = draft.previewDraftPicks(state, state.season).filter((p) => p.teamId === teamId);
+  const rng = new Rng(1);
+  let rookieHits = 0;
+  for (const pick of picks) {
+    rookieHits += capHit(draft.rookieContract(state, pick.round, rng, pick.pick));
+  }
+  const street = Math.max(0, CAMP_ROSTER_LIMIT - ROSTER_LIMIT - picks.length);
+  return rookieHits + street * minimumCapHit(state, rng);
+}
+
+/** Room a user signing may use. `null` means the old unguarded path. */
+function userSigningCeiling(state: GameState, teamId: number): number | null {
+  if (!userFitsCapHit(state, teamId)) return null;
+  return teamCap(state, teamId).space - userFaCampHold(state, teamId);
+}
+
+function projectedMarketHit(state: GameState, teamId: number, p: Player, rng: Rng): number {
+  const apy = negotiatedApy(state, teamId, p, 1);
+  const yrs = apy <= LEAGUE_MINIMUM * 1.25 ? 1 : suggestedYears(p);
+  return capHit(startContractNow(
+    state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)),
+  ));
+}
+
+/**
+ * User FA/tag selector. Same ordering as `bestAffordable` (highest OVR under
+ * the budget, first id wins a tie) but the budget is actual cap hit against
+ * space minus the camp hold minus the open-spot reserve. No $993,750 floor.
+ * CPU and camp street selection stay on `bestAffordable`.
+ */
+function bestUserAffordable(
+  state: GameState, teamId: number, pos: Position | null, exclude: Position | null,
+  respectMax: boolean, rng: Rng,
+): Player | null {
+  const slotsLeft = Math.max(0, ROSTER_LIMIT - rosterCount(state, teamId));
+  const slotReserve = Math.max(0, slotsLeft - 1) * LEAGUE_MINIMUM * 1.3;
+  const ceiling = teamCap(state, teamId).space - userFaCampHold(state, teamId) - slotReserve;
+  let best: Player | null = null;
+  for (const p of state.players) {
+    if (p.teamId !== null || p.retired || p.prospect || isOnWaivers(state, p.id)) continue;
+    if (pos !== null && p.pos !== pos) continue;
+    if (exclude !== null && p.pos === exclude) continue;
+    if (respectMax && atActiveMax(state, teamId, p.pos)) continue;
+    if (best && p.ovr <= best.ovr) continue;
+    if (projectedMarketHit(state, teamId, p, rng) > ceiling) continue;
+    best = p;
+  }
+  return best;
+}
+
+function chooseFill(
+  state: GameState, teamId: number, rng: Rng,
+  pos: Position | null, exclude: Position | null, respectMax: boolean,
+): Player | null {
+  if (userReservesCampBill(state, teamId)) {
+    return bestUserAffordable(state, teamId, pos, exclude, respectMax, rng);
+  }
+  return bestAffordable(state, teamId, pos, exclude, respectMax);
+}
+
+function rollReplacement(rng: Rng, id: number, pos: Position, season: number): Player {
+  return makePlayer(rng, id, {
+    pos,
+    targetOvr: clamp(Math.round(rng.normal(56, 4)), 45, 66),
+    age: rng.int(22, 28),
+    season,
+  });
+}
+
+/**
+ * Street is empty. CPU behavior is unchanged: draw a body and sign it.
+ * A user on the fit path peeks with a scratch RNG first. A miss does not
+ * draw the parent and does not push a player.
+ */
+function signGenerated(
+  state: GameState, teamId: number, rng: Rng, pos: Position, fitCap: boolean,
+): boolean {
+  const ceiling = userSigningCeiling(state, teamId);
+  if (ceiling !== null) {
+    if (minimumCapHit(state, rng) > ceiling) return false;
+    const ghost = rollReplacement(new Rng(rng.state), state.nextPlayerId, pos, state.season);
+    if (projectedMarketHit(state, teamId, ghost, new Rng(1)) > ceiling) return false;
+  }
+  const pick = generateReplacement(state, pos, rng);
+  return signForFill(state, teamId, pick, rng, fitCap);
+}
+
 /** Any street body at or under the minimum-fill overall who fits an open position. */
 function minimumFreeAgentAny(state: GameState, teamId: number): Player | null {
   let best: Player | null = null;
@@ -1341,8 +1459,13 @@ function signAtMarket(state: GameState, teamId: number, p: Player, rng: Rng): bo
   // silently did.
   const apy = negotiatedApy(state, teamId, p, 1);
   const yrs = apy <= LEAGUE_MINIMUM * 1.25 ? 1 : suggestedYears(p);
+  const contract = startContractNow(state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)));
+  // User FA holds the draft/camp bill. User camp street fills stop when the
+  // actual hit does not fit. CPU clubs are not this check.
+  const ceiling = userSigningCeiling(state, teamId);
+  if (ceiling !== null && capHit(contract) > ceiling) return false;
   p.teamId = teamId;
-  p.contract = startContractNow(state, makeContract(rng, apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)));
+  p.contract = contract;
   clearRosterSlot(p);
   return true;
 }
@@ -1371,9 +1494,14 @@ export function fillRoster(
       }
       // A post-carryover CPU refill does not draw a body it cannot sign.
       // Every other caller still generates, in the same place as before.
+      // The user FA hold and the user cap-hit check live in chooseFill / signAtMarket.
       if (cpuFit && !minimumHitFits(state, teamId, rng)) break;
-      const pick = bestAffordable(state, teamId, pos) ?? generateReplacement(state, pos, rng);
-      if (!signForFill(state, teamId, pick, rng, cpuFit)) break;
+      const pick = chooseFill(state, teamId, rng, pos, null, false);
+      if (pick) {
+        if (!signForFill(state, teamId, pick, rng, cpuFit)) break;
+      } else if (!signGenerated(state, teamId, rng, pos, cpuFit)) {
+        break;
+      }
     }
   }
 
@@ -1383,11 +1511,12 @@ export function fillRoster(
   let guard = 0;
   while (rosterCount(state, teamId) < ROSTER_LIMIT && guard++ < 120) {
     if (cpuFit && !minimumHitFits(state, teamId, rng)) break;
-    let pick = bestAffordable(state, teamId, null, null, true);
+    let pick = chooseFill(state, teamId, rng, null, null, true);
     if (!pick) {
       const pos = positionUnderMax(state, teamId);
       if (!pos) break;
-      pick = generateReplacement(state, pos, rng);
+      if (!signGenerated(state, teamId, rng, pos, cpuFit)) break;
+      continue;
     }
     if (atActiveMax(state, teamId, pick.pos)) break;
     if (!signForFill(state, teamId, pick, rng, cpuFit)) break;
@@ -1758,12 +1887,7 @@ function moveWorstSurplus(
 }
 
 function generateReplacement(state: GameState, pos: Position, rng: Rng): Player {
-  const p = makePlayer(rng, state.nextPlayerId++, {
-    pos,
-    targetOvr: clamp(Math.round(rng.normal(56, 4)), 45, 66),
-    age: rng.int(22, 28),
-    season: state.season,
-  });
+  const p = rollReplacement(rng, state.nextPlayerId++, pos, state.season);
   state.players.push(p);
   return p;
 }

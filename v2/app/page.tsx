@@ -707,8 +707,8 @@ export default function Hub() {
                 }
                 title={
                   clip.camp
-                    ? `Signs and releases until you are at ${ROSTER_LIMIT}–${clip.cap} players. It does not cut you under the cap.`
-                    : "Signs and releases until you are at 53 players. It does not cut you under the cap."
+                    ? `Signs camp bodies whose cap hit fits, up to ${clip.cap}. It does not cut you under the cap.`
+                    : "Signs until you are at 53, after holding back this draft and the camp roster. It does not cut you under the cap."
                 }
               >
                 Auto-fix
