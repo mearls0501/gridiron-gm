@@ -188,6 +188,45 @@ const TACKLE_SHARE: Record<Position, number> = {
 };
 
 /**
+ * Soft target-share saturation. Shape and anchors are justified in
+ * `docs/playtest-1029-records.md` (signed 2026-11-10) from
+ * `docs/nfl-reference.md` §5.13, 2018–2024.
+ *
+ *   multiplier = exp(-λ · max(0, targets − knee · teamTargets))
+ *
+ * Identically 1 at or below the knee, continuous, and never zero. Not a cap.
+ * A one-target sample barely moves; the same share on a full game does.
+ *
+ * Game knee is the single-game p99.9, 48.6%. λ is one e-fold from that
+ * percentile to the observed maximum, Malik Nabers, 18 of 27.
+ * Season knee is the club-#1 maximum, 33.1%. λ is one e-fold across the
+ * p90-to-max gap (4.3 points) on Michael Thomas's 559-target season.
+ */
+export const GAME_TARGET_SHARE_KNEE = 0.486;
+export const SEASON_TARGET_SHARE_KNEE = 0.331;
+const NABERS_TARGETS = 18;
+const NABERS_TEAM_TARGETS = 27;
+const SEASON_SHARE_P90 = 0.288;
+const THOMAS_TEAM_TARGETS = 559;
+export const GAME_TARGET_SHARE_LAMBDA =
+  1 / (NABERS_TARGETS - GAME_TARGET_SHARE_KNEE * NABERS_TEAM_TARGETS);
+export const SEASON_TARGET_SHARE_LAMBDA =
+  1 / ((SEASON_TARGET_SHARE_KNEE - SEASON_SHARE_P90) * THOMAS_TEAM_TARGETS);
+
+/** Weight multiplier in (0, 1]. `teamTargets <= 0` has no share yet. */
+export function targetShareSaturation(
+  targets: number,
+  teamTargets: number,
+  knee: number,
+  lambda: number,
+): number {
+  if (!(teamTargets > 0) || !(targets > 0)) return 1;
+  const excess = targets - knee * teamTargets;
+  if (excess <= 0) return 1;
+  return Math.exp(-lambda * excess);
+}
+
+/**
  * Rotational snap share by depth-chart slot.
  *
  * Snaps used to be incremented at three scattered offensive call sites — the
@@ -363,6 +402,25 @@ function* runGameSim(
 
   const ctxHome = mkCtx(home);
   const ctxAway = mkCtx(away);
+
+  // Targets already on the season line, before this game. Playoff boxes are
+  // not on the line. Camp does not write one either.
+  const priorTargetsFor = (teamId: number): { team: number; byPlayer: Map<number, number> } => {
+    const byPlayer = new Map<number, number>();
+    let team = 0;
+    for (const p of state.players) {
+      const line = p.stats.find((s) => s.season === game.season && s.teamId === teamId);
+      if (!line || line.targets <= 0) continue;
+      byPlayer.set(p.id, line.targets);
+      team += line.targets;
+    }
+    return { team, byPlayer };
+  };
+  const priorTargets = new Map<number, { team: number; byPlayer: Map<number, number> }>([
+    [home.id, priorTargetsFor(home.id)],
+    [away.id, priorTargetsFor(away.id)],
+  ]);
+  const gameTargets = new Map<number, number>();
 
   /**
    * A child stream for the play-economy mechanics — receiver carries and
@@ -1255,7 +1313,10 @@ function* runGameSim(
     hitUnit(lbs, d, 0.11);
 
     // Fumble. Recovery is contested — not every fumble is a turnover.
+    // A kept fumble used to credit the forcer and then the ordinary tackle
+    // draw as well: two tackles on one play. The forcer's credit is the stop.
     const fumbleP = clamp(0.0330 - (att(carrier, "car") - 60) * 0.00032 + wx.fumble, 0.010, 0.085);
+    let fumbleTackleCredited = false;
     if (rng.chance(fumbleP)) {
       cs.fumbles++;
       const forcer = rng.pick([...dl, ...lbs]);
@@ -1263,6 +1324,7 @@ function* runGameSim(
         const fs = statFor(forcer, d);
         fs.ff++;
         fs.tackles++;
+        fumbleTackleCredited = true;
       }
       if (rng.chance(0.46)) {
         cs.fumblesLost++;
@@ -1306,7 +1368,7 @@ function* runGameSim(
               * TACKLE_SHARE[p.pos]
               * (d.script.targetBoost.get(p.id) ?? 1)
     );
-    if (tackler) statFor(tackler, d).tackles++;
+    if (tackler && !fumbleTackleCredited) statFor(tackler, d).tackles++;
     hit(tackler, d, 0.55);
 
     return {
@@ -1424,12 +1486,26 @@ function* runGameSim(
       // what makes a big receiving day traceable to a reason rather than to an
       // unconditional random multiplier.
       const matchup = clamp(1 + (sepOf(p) - covOf(p)) / 68, 0.40, 1.75);
-      return Math.max(1, (base - 30 + roleBonus + rzBonus) * boost * matchup);
+      const raw = Math.max(1, (base - 30 + roleBonus + rzBonus) * boost * matchup);
+      const played = gameTargets.get(o.team.id) ?? 0;
+      const mine = pstats.get(p.id)?.targets ?? 0;
+      const prior = priorTargets.get(o.team.id) ?? { team: 0, byPlayer: new Map<number, number>() };
+      // Game share and season share each bend on their own tail. The product
+      // is still strictly positive, so a hot receiver can be thrown to.
+      return raw
+        * targetShareSaturation(mine, played, GAME_TARGET_SHARE_KNEE, GAME_TARGET_SHARE_LAMBDA)
+        * targetShareSaturation(
+          (prior.byPlayer.get(p.id) ?? 0) + mine,
+          prior.team + played,
+          SEASON_TARGET_SHARE_KNEE,
+          SEASON_TARGET_SHARE_LAMBDA,
+        );
     });
     if (!target) return NO_PLAY(6);
 
     const tStat = statFor(target, o);
     tStat.targets++;
+    gameTargets.set(o.team.id, (gameTargets.get(o.team.id) ?? 0) + 1);
 
     // The defender assigned before the snap, not a fresh draw each play.
     const coverPool = target.pos === "WR" ? cbs : [...lbs, ...safeties];

@@ -1,5 +1,41 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-10 — Target-share saturation and the fumble tackle
+
+Signed, Matt, 2026-11-10, the TARGETS packet. Built as written. No `baselines.json` edit. No re-lock. No dial change. `targetSpend`, the payroll band, `sepEdge`, `armQuality`, tackle weights, and `statcheck.leadTackles` (`nfl: 180`) are untouched.
+
+`lib/core/sim/game.ts` multiplies the existing target weight by a soft saturation on this game's target share and on the season's. The shape is `exp(−λ × max(0, targets − knee × teamTargets))`, identically 1 at or below the knee, never zero. Game knee 0.486 (single-game p99.9) and λ one e-fold to Nabers, 18 of 27. Season knee 0.331 (club-#1 maximum) and λ one e-fold across the p90-to-max gap on Thomas's 559 targets. Justification is in `docs/playtest-1029-records.md`. A kept run fumble no longer credits a second tackle. The forcer's credit is the stop. Lost run fumbles, strip sacks, and fumbles after the catch were already one credit and were not changed.
+
+The unsigned proposal's hard cap, and its promise that seventeen capped weeks cannot sum to 2,404, are not what was signed. The soft bend does not make that yards total impossible. Zeller's 11.67 yards per target against the traced #1 rate of 9.82 is the separation term, and that term was left alone on purpose. A raw 45% season share walks down to about 35% under this curve, which is still past Thomas's 33.1%. On this build, seed 7's first season reached a 34.1% club share, and an 8-season run of seed 7 produced a 2,067-yard receiver on a 29.6% share — under the season knee, so the bend never touched him.
+
+Tackle concentration is the other half of the finding and was not signed. The 32- and 39-tackle games are still the winner-take-all draw. I did not move it. The 8-season game maximum was 36 tackles after the change (seed 1). That is the old draw on a different seed path, not a new tackle rule.
+
+Measured on this VM, seeds 42 / 1 / 7, eight regular seasons each, before at `7fff4d0` and after this change. Team-games with at least 20 targets. Club-#1 means are the mean of each club's leading target share.
+
+| | game share max | season share max | club-#1 mean | leader p50 | all-player p95 | top rec yds | top game rec | top tackles (season / game) |
+|---|---|---|---|---|---|---|---|---|
+| 42 before | 66.7% | 34.4% | 22.4% | 29.4% | 32.4% | 1,926 | 26 | 225 / 29 |
+| 42 after | 59.5% | 34.3% | 22.4% | 29.5% | 32.6% | 2,007 | 23 | 196 / 26 |
+| 1 before | 69.0% | 35.2% | 22.2% | 29.4% | 32.6% | 1,805 | 22 | 163 / 31 |
+| 1 after | 59.4% | 32.7% | 22.2% | 29.6% | 33.3% | 1,742 | 22 | 191 / 36 |
+| 7 before | 65.8% | 34.1% | 23.0% | 30.0% | 33.3% | 1,981 | 21 | 213 / 38 |
+| 7 after | 59.5% | 34.1% | 22.9% | 30.0% | 33.3% | 2,067 | 21 | 176 / 27 |
+
+NFL anchors from §5.13: game max 66.7%, club-#1 mean 23.2%, leader median 28.1%, all-player p95 30.0%, season max 33.1%. The body did not move. The game tail came down from 69% to 59.5%. Season shares still reach about 34%, which is the soft step past 33.1%.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npx tsx lib/core/sim/targetShare.test.ts` — pass. Registered in `package.json` and both gate tiers (`targetshare`).
+- `npx tsx lib/core/sim/clock.test.ts` and `lib/view/playByPlay.test.ts` — pass.
+- `npx tsx scripts/verify.ts 3` — 348/348. `verify.checks` 348 against the locked floor of 330. `verify.ts 2` was 246/246.
+- `npx tsx scripts/sweep.ts 5 1` — 5 leagues × 1 season, all clean.
+- `npx tsx scripts/statcheck.ts` (one season, seed 8675309) — inside the locked bands checked: `leadRecYds` 1492 (1615.8 ± 400), `leadTackles` 149 (165.2 ± 40), `maxGameRecYds` 196 (249.6 ± 80), `wr10RecYds` 1038 (1105.8 ± 97). Not a 5-seed panel.
+- `npx tsx scripts/calibrate.ts 300` — score mismatches 0. `calibrate.fgPct` read **81.995** against 86.029 ± 4, so the floor is 82.029. It is 0.03 under. The baseline was not moved. The other calibrate rows checked (`pts`, `plays`, `passYds`, `passAtt`, `cmpPct`, `fumbles`, `rushYds`) were inside.
+- `lib/core/userOffers.test.ts` — the seed-42 walk to the tag window moved `rngState` from the locked `1777473079` to `3009009807`. Not re-locked. The test fails there.
+- `lib/core/trimIdentity.test.ts` — seed 42 opening 2030 cut **1506 → 1540**. The parent RNG literal was not reached. Not re-locked. The test fails on the cut count.
+- `baselines.json` was not edited. The 5-seed Mac Studio panel was not run.
+
 ## 2026-11-08 — User FA Auto-fix holds the draft and camp bill
 
 Signed, Matt, 2026-11-08 ("ok do it"). Both packets together. No `baselines.json` edit. No re-lock. No dial change. `SPEND_FLOOR`, the 20% ceiling, `targetSpend`, the payroll band, and the rookie scale are untouched. CPU spend-to-floor and the #214 spend-back are untouched. The #213 user return still skips `enforceCap` and the minimum rewrite. The #218 hoist is untouched.
