@@ -1,5 +1,25 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-10 — Hall of Fame class rules
+
+Signed, Matt, 2026-11-10, exactly the proposal in `docs/playtest-1029-hall-of-fame.md`. That file is still marked UNSIGNED. The signature is this entry. No `baselines.json` edit. No re-lock. No dial change. `starRank` and `eliteRank` are untouched. The franchise ring is untouched. The sim, tackles, targets, and contracts are untouched.
+
+`HOF_CLASS_MAX` is 5. A class of two stays a class of two. A year with nobody qualified writes no rows. `HOF_ELITE_BAR` is 3. The other ordinary path is `HOF_STAR_BAR` 8 and `HOF_STAR_PATH_ELITE` 1. A starter ring stays in the score and the tie-break. It is not a way in. Kickers and punters return false from `meetsLeagueHofBar`. Their ballot is `HOF_SPECIALIST_ELITE_BAR` 8 and eight seasons with one club (`LONGEVITY_SEASONS`). `HOF_SPECIALIST_CLASS_MAX` is 1.
+
+**Literal readings.** The note did not name three of those constants, and it did not spell the slice.
+
+- `HOF_STAR_PATH_ELITE`, `HOF_SPECIALIST_ELITE_BAR`, and `HOF_SPECIALIST_CLASS_MAX` are names added in code. The note wrote `1`, `8`, and "at most one" without identifiers. The values are the note's.
+- "Eight seasons with one club" reuses `LONGEVITY_SEASONS`. It is not a second constant.
+- The slice is one score sort of everyone who cleared their own ballot. The walk stops at 5. A second specialist is skipped, and the walk continues, so a later player who already cleared a ballot can take the open seat. A specialist who ranks sixth or worse is not inducted that year. They wait, the same way an ordinary player who ranks sixth waits. A reserved specialist seat, taken whenever one specialist clears even if five ordinary players outrank them, was the other reading of "separate ballot." It was not built. "At most" is a ceiling. "Keep the sort" is the order. "Only inside the five seats" means the specialist has to land in that sorted five.
+- An empty class is the absence of rows for that season. The hall is a list of inductees. `hofInducteesPerClass` still averages only seasons that inducted someone.
+- The waiting list is not grandfathered. A ring-only player who had not been inducted yet does not get a bust under the new bar. Rows already in `state.hallOfFame` stay, including a stored class of 8. `migrate` does not filter them. There is no version bump. Loading the same hall twice leaves it unchanged.
+- `scripts/careers.ts` still says the report-only metric is aimed at nfl ≈ 5–8. That file was not edited. §4 now says the metric is not that band. The unit-test `##M careers.hofInducteesPerClass 8.00` fixture emit was removed so a full gate no longer mixes it with the careers harness. No baseline row existed for it.
+- `jersey.test.ts` plants `eliteSeasons = 8` so the existing recap-retires-the-number assertion still describes a player who clears the signed bar. The retire-at-8 hook is unchanged.
+
+No disagreement with the signed numbers.
+
+The 30-season census is recorded with the PR. It is not a gate and it was not re-locked.
+
 ## 2026-11-08 — User FA Auto-fix holds the draft and camp bill
 
 Signed, Matt, 2026-11-08 ("ok do it"). Both packets together. No `baselines.json` edit. No re-lock. No dial change. `SPEND_FLOOR`, the 20% ceiling, `targetSpend`, the payroll band, and the rookie scale are untouched. CPU spend-to-floor and the #214 spend-back are untouched. The #213 user return still skips `enforceCap` and the minimum rewrite. The #218 hoist is untouched.
