@@ -13,7 +13,7 @@ import {
 } from "@/lib/core/select";
 import { userNextGame, isOnBye, injuredPlayers, weekGames } from "@/lib/core/season/engine";
 import { roundLabel } from "@/lib/core/season/playoffs";
-import { divisionStandings, seasonHasResults } from "@/lib/core/season/standings";
+import { divisionRankLabelFrom, divisionStandings, seasonHasResults } from "@/lib/core/season/standings";
 import {
   applyFifthYearOption, applyFranchiseTag, applyTagExtension, clubFranchiseTaggedPlayer,
   declineFifthYearOption, expiringPlayers, fifthYearOptionPlayers, fifthYearOptionSalary,
@@ -127,19 +127,19 @@ export default function Hub() {
     const chairFlags = staffChairFlags(team);
     const clip = rosterCapView(state, team.id);
     const div = divisionStandings(state, team.division);
-    const divRank = seasonHasResults(state)
-      ? div.findIndex((r) => r.teamId === team.id) + 1
-      : 0;
+    const divRankLabel = seasonHasResults(state)
+      ? divisionRankLabelFrom(state, team.id, div, state.season)
+      : null;
     const roster = state.players.filter(
       (p) => p.teamId === team.id && !p.retired && !p.prospect
     );
     const topPerformers = teamLeaders(state, team.id);
     const lastResults = weekGames(state, Math.max(1, state.week - 1)).filter((g) => g.played);
-    return { team, rec, cap, next, bye, injured, onIr, issues, chairFlags, clip, div, divRank, roster, topPerformers, lastResults };
+    return { team, rec, cap, next, bye, injured, onIr, issues, chairFlags, clip, div, divRankLabel, roster, topPerformers, lastResults };
   }, [state]);
 
   if (!state || !derived) return null;
-  const { team, rec, cap, next, bye, injured, onIr, issues, chairFlags, clip, divRank, roster, topPerformers } = derived;
+  const { team, rec, cap, next, bye, injured, onIr, issues, chairFlags, clip, divRankLabel, roster, topPerformers } = derived;
   const cal = calendarView(state);
   const offers = incomingOffersOnTheTable(state);
   const filmNews = focusFilmLines(state);
@@ -187,7 +187,7 @@ export default function Hub() {
                 {state.season} {PHASE_LABEL[state.phase]}
                 {state.phase === "regular" && ` · Week ${state.week} of ${REGULAR_SEASON_WEEKS}`}
                 {" · "}
-                {recordString(rec)} · {divRank > 0 ? `${divRank}${["st", "nd", "rd", "th"][Math.min(divRank - 1, 3)]} in ${team.division}` : team.division}
+                {recordString(rec)} · {divRankLabel ?? team.division}
                 {" · "}
                 {cal.label} · {cal.visitsRemaining}/{PRIVATE_VISIT_CAP} visits
               </p>

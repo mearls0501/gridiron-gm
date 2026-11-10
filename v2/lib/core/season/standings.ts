@@ -111,6 +111,34 @@ export function divisionStandings(
     .sort((a, b) => compareTeams(state, a, b, season, true));
 }
 
+const PLACE = ["st", "nd", "rd", "th"];
+
+/**
+ * Division place in the same order as `divisionStandings` / the playoff
+ * seeds. `records` is the table to sort — live games, or a history snapshot
+ * when that season's games are already gone. Point differential alone is not
+ * the order.
+ */
+export function divisionRankLabelFrom(
+  state: GameState, teamId: number, records: TeamRecord[], season: number,
+): string | null {
+  const team = state.teams[teamId];
+  if (!team) return null;
+  const peers = records.filter((r) => state.teams[r.teamId]?.division === team.division);
+  peers.sort((a, b) => compareTeams(state, a, b, season, true));
+  const rank = peers.findIndex((r) => r.teamId === teamId) + 1;
+  if (rank <= 0) return null;
+  return `${rank}${PLACE[Math.min(rank - 1, 3)]} in ${team.division}`;
+}
+
+export function divisionRankLabel(
+  state: GameState, teamId: number, season = state.season,
+): string | null {
+  const team = state.teams[teamId];
+  if (!team) return null;
+  return divisionRankLabelFrom(state, teamId, divisionStandings(state, team.division, season), season);
+}
+
 export function conferenceStandings(
   state: GameState, conf: Conference, season = state.season
 ): TeamRecord[] {

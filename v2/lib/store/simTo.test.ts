@@ -16,6 +16,15 @@ function strip(s: GameState): string {
   return JSON.stringify(copy);
 }
 
+/** Pause flags are save settings. They must not change the league a click produces. */
+function league(s: GameState): string {
+  const copy = { ...s } as Record<string, unknown>;
+  delete copy.createdAt;
+  delete copy.updatedAt;
+  delete copy.settings;
+  return JSON.stringify(copy);
+}
+
 function kickoff(seed: number, pauses: boolean): GameState {
   const st = newGame({ seed });
   st.settings = defaultSettings();
@@ -67,6 +76,38 @@ async function main(): Promise<void> {
     assert.equal(yielded.message, syncMsg);
     assert.equal(strip(yieldState), strip(syncState));
     assert.ok(syncMsg.length > 0);
+  }
+
+  {
+    const paused = kickoff(42, true);
+    const open = kickoff(42, false);
+    const week = paused.week;
+    const pausedMsg = runSimTo(paused, "seasonEnd");
+    const openMsg = runSimTo(open, "seasonEnd");
+    assert.equal(paused.phase, "playoffs");
+    assert.equal(open.phase, "playoffs");
+    assert.ok(paused.week - week >= 17, `one click should cross the regular season, week ${week} -> ${paused.week}`);
+    assert.equal(pausedMsg, openMsg);
+    assert.equal(/paused/i.test(pausedMsg), false, pausedMsg);
+    assert.equal(paused.rngState, open.rngState);
+    assert.equal(league(paused), league(open));
+  }
+
+  {
+    const paused = kickoff(11, true);
+    const open = kickoff(11, false);
+    const yieldState = clone(paused);
+    const pausedMsg = runSimTo(paused, "champion");
+    const openMsg = runSimTo(open, "champion");
+    const yielded = await drainYielding(yieldState, "champion");
+    assert.equal(pausedMsg, "Champion crowned");
+    assert.equal(openMsg, pausedMsg);
+    assert.equal(yielded.message, pausedMsg);
+    assert.ok(paused.phase.startsWith("offseason"));
+    assert.ok(yielded.steps >= 18, `champion click should yield across the season, got ${yielded.steps}`);
+    assert.equal(paused.rngState, open.rngState);
+    assert.equal(league(paused), league(open));
+    assert.equal(league(yieldState), league(open));
   }
 
   console.log("ok    simTo — yielded steps match a synchronous drain");

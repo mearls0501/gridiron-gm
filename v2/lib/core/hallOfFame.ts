@@ -2,7 +2,8 @@ import {
   GameState, HofEntry as LeagueHofEntry, Player, SeasonHistory, SeasonStatLine, TeamRecord,
 } from "./types";
 import { previewSeasonHistory } from "./offseason/progression";
-import { recordString, winPct } from "./select";
+import { recordString } from "./select";
+import { divisionRankLabelFrom } from "./season/standings";
 import {
   STARTER_GAMES, fullTimeSnapBaseline, positionRanks, snapshot,
 } from "./outcomes";
@@ -182,18 +183,11 @@ function leaderValue(line: SeasonStatLine | undefined, key: LeaderKey): string |
   return Number.isFinite(n) ? String(n) : null;
 }
 
-function divisionFinish(state: GameState, teamId: number, standings: TeamRecord[]): string | null {
-  const team = state.teams[teamId];
-  if (!team || standings.length === 0) return null;
-  const peers = state.teams
-    .filter((t) => t.division === team.division)
-    .map((t) => standings.find((r) => r.teamId === t.id) ?? null)
-    .filter((r): r is TeamRecord => r != null)
-    .sort((a, b) => winPct(b) - winPct(a) || (b.pf - b.pa) - (a.pf - a.pa));
-  const rank = peers.findIndex((r) => r.teamId === teamId) + 1;
-  if (rank === 0) return null;
-  const suf = ["st", "nd", "rd", "th"][Math.min(rank - 1, 3)];
-  return `${rank}${suf} in ${team.division}`;
+function divisionFinish(
+  state: GameState, teamId: number, standings: TeamRecord[], season: number,
+): string | null {
+  if (standings.length === 0) return null;
+  return divisionRankLabelFrom(state, teamId, standings, season);
 }
 
 function careerAwardReasons(state: GameState, p: Player, teamId: number): HofReason[] {
@@ -368,7 +362,7 @@ function presentYear(
     season: h.season,
     record: standing ? recordString(standing) : null,
     standing,
-    finish: standing ? divisionFinish(state, clubId, h.standings) : null,
+    finish: standing ? divisionFinish(state, clubId, h.standings, h.season) : null,
     champion: h.championId === clubId,
     runnerUp: h.runnerUpId === clubId,
     championId: h.championId,

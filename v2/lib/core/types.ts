@@ -829,7 +829,10 @@ export type PauseEvent = "tradeOffer" | "injuredStarter" | "milestone";
 export interface GameSettings {
   /** The owner can fire you. Heat is always computed; this flag is the bite. */
   firingEnabled: boolean;
-  /** Which events stop a Sim-ahead early. */
+  /**
+   * Kept on the save. Hub sim does not stop on these — a click runs to the
+   * target it was given. Injuries and trade calls still occur.
+   */
   pauseOn: Record<PauseEvent, boolean>;
 }
 
