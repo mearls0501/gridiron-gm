@@ -1767,6 +1767,217 @@ still a legacy regression cap, not evidence every other distribution fits.
 No tolerance is widened here. Full validation is recorded in HANDOFF and the
 validation artifacts.
 
+### 5.13 Target share, tackles, and sacks — traced, not locked
+
+Added 2026-10-31. The playtest-records finding (draft PR #217) located absurd
+receiving and tackle marks in target and tackle concentration in
+`lib/core/sim/game.ts`. This block is the weekly-file trace that finding asked
+for, written before any cap is chosen. It sets no cap, retunes no dial, and
+does not edit `docs/baselines.json` or the engine.
+
+**Dataset.** nflverse `stats_player_week_YYYY.csv.gz`, seasons 2018–2024, from
+<https://github.com/nflverse/nflverse-data/releases/download/stats_player/>.
+Weekly rows with `season_type == "REG"`. Same filter and the same player-season
+summing as §5.7. This is the weekly player feed §5.11 already pinned for
+2021–2024; those four SHA-256s match `docs/milestone-reference.json`. The
+2018–2020 digests are at the bottom of this section. The smaller
+`player_stats_YYYY.csv.gz` release cited in §5.3–§5.7 reproduces the offensive
+anchors below and has no `def_tackles_*` columns, so tackles and sacks are read
+from `stats_player_week`.
+
+n = 1,855 games (256 / 256 / 256 / 272 / 271 / 272 / 272), 3,710 team-games,
+224 team-seasons. 2022 has 271 games because the Bills–Bengals week was
+cancelled. 2018–2020 are 16-game seasons and 2021–2024 are 17. The sim plays
+17, so a season share is shown pooled and for 2021–2024. A single-game tail
+uses the whole window, and the extreme row is named with its season.
+
+**Percentiles.** NumPy `quantile(..., method="nearest")`, the observed value
+closest to index `(n − 1) · p`. On these rows it returns §5.3's team
+pass-attempt p10 / median / p90 of **494 / 570 / 635** (mean 564, max 751).
+Type-7 linear interpolation agrees to the reported tenth on every share below.
+
+**Validation, before any of the new figures.** The pipeline reproduces the
+§5.3 anchors: passing yards #1 in 2019 / 2021 / 2023 are 5,109 / 5,316 / 4,624,
+#10 are 4,031 / 4,115 / 4,016, #20 are 3,271 / 3,245 / 2,877; rushing #1
+1,540 / 1,811 / 1,459; receiving #1 1,725 / 1,947 / 1,799. The §5.7 yards-rank
+receiving means reproduce as well: rank 1 is 1,743 yards on 177 targets, rank
+10 is 1,208 yards on 137. Defensive columns reproduce §5.11's Zaire Franklin
+2024 line — `def_tackles_solo` 75 + `def_tackles_with_assist` 18 = **93
+primary**, `def_tackle_assists` **80**, combined **173**. The seven combined
+leaders below match
+[PFR's year-by-year combined-tackle leaders](https://www.pro-football-reference.com/leaders/tackles_combined_year_by_year.htm)
+for 2018–2024. Foye Oluokun 2021 is file solo 88 + with_assist 14 = 102
+primary, 90 assists, 192 combined, which is NFL.com's TKL 102 / SOLO 88 /
+AST 90 / COMB 192.
+
+**What the columns are.**
+
+- A primary tackle is `def_tackles_solo` + `def_tackles_with_assist`. That sum
+  is the official TKL: the NFL gamebook's TKL column and NFL.com's season TKL.
+  Oluokun 2021 is 102. Singleton, DEN vs LAC, 2022 week 6, is gamebook TKL 19.
+  The file's `def_tackles_solo` alone is the narrower NFL.com season SOLO
+  (Oluokun 88; Singleton's week is 14, and 14 + 5 with_assist = the TKL of 19).
+  ESPN's box for that Singleton game labels 19 as SOLO, i.e. the TKL.
+- An assist is `def_tackle_assists` (gamebook AST, NFL.com AST).
+- A combined tackle is primary + assist. That is the NFL.com combined total,
+  and it is the total `statcheck.leadTackles` is currently set beside
+  (`nfl: 180` in `docs/baselines.json`). Franklin's combined is 75 + 18 + 80
+  = 173. Solo + assists with `with_assist` left out is 155 on that same season.
+- A sack credit is `def_sacks`. Every non-zero weekly value in this window is
+  a multiple of 0.5 (6,461 integers, 1,776 half-steps, nothing else). A shared
+  sack stays 0.5. The column does not hand the whole sack to one of the two
+  players. The engine's `sacks++` is a different unit. This section reports
+  the official credit and does not turn a half into a whole.
+
+#### Single-game target share
+
+Share = the player's `targets` / the sum of `targets` for his `team` in that
+`game_id`. The row is kept when the player has at least one target and the
+team has at least 20 pass `attempts`. n = 29,194 player-games inside 3,613
+team-games. 97 of 3,710 team-games have fewer than 20 attempts and are out.
+The file's own `target_share` matches this ratio on all 29,194 rows.
+
+| window | p95 | p99 | p99.9 | max |
+|---|---|---|---|---|
+| 2018–2024 | **30.0%** | **38.7%** | **48.6%** | **66.7%** |
+| 2021–2024 | **30.6%** | **39.1%** | **50.0%** | **66.7%** |
+
+The maximum is Malik Nabers, NYG vs WAS, 2024 week 2: 18 of 27 targets, with
+28 team attempts.
+
+These percentiles cover every targeted player, so most of the distribution is
+role players. On the same 3,613 team-games, the leading target-getter's share
+has median 28.1%, p95 41.0%, p99 48.0%, and the same 66.7% maximum
+(2018–2024). The 30% p95 above is a statement about all targeted players. It
+sits on an ordinary week for the player who led his club's targets that day.
+
+**Single-game target count, no attempt filter.** The maximum is **23**,
+Garrett Wilson, NYJ vs MIN, 2024 week 5, with 13 receptions. The ESPN box score
+for that game lists 23 targets. The Jets.com recap of the same game said 22.
+
+#### Season target share of each club's #1
+
+For each team-season, the player with the most targets on that club, divided
+by the club's targets. A traded player's weeks count on the club he played
+them for.
+
+| window | n | mean | p90 | max |
+|---|---|---|---|---|
+| 2018–2024 | 224 | **23.2%** | **28.8%** | **33.1%** |
+| 2021–2024 | 128 | **23.5%** | **29.3%** | **33.0%** |
+
+The pooled maximum is Michael Thomas, NO, 2019: 185 of 559 targets. The
+17-game maximum is Davante Adams, LV, 2023: 175 of 531.
+
+#### Single-game receptions
+
+On REG player-weeks with at least one target (n = 29,836; 17,396 in
+2021–2024), p99.9 is **13** and the maximum is **18**. Both windows give
+p99.9 = 13. The maximum is Keenan Allen, LAC vs MIN, 2023 week 3: 18
+receptions on 20 targets. On every REG row in the file, zeros included
+(n = 122,210), the maximum is still 18 and p99.9 is **12** (11 in 2021–2024).
+The targeted population is the reception tail recorded here. The all-rows
+figure moves with how many non-receivers the file contains.
+
+#### Primary tackles, and the combined total beside `nfl: 180`
+
+Season primary leader, his primary tackles, and his share of his club's season
+primary tackles. The combined leader is the player whose primary + assists is
+highest. Each of these seven played that season for one club. PFR's combined
+leader matches the last column in every year.
+
+| year | primary leader | primary | team primary | share | combined leader | combined |
+|---|---|---|---|---|---|---|
+| 2018 | Shaquille Leonard, IND | 111 | 750 | 14.8% | Shaquille Leonard, IND | 163 |
+| 2019 | Budda Baker, ARI | 104 | 776 | 13.4% | Bobby Wagner, SEA | 159 |
+| 2020 | Zach Cunningham, HOU | 106 | 736 | 14.4% | Zach Cunningham, HOU | 164 |
+| 2021 | Jordyn Brooks, SEA | 109 | 831 | 13.1% | Foye Oluokun, ATL | 192 |
+| 2022 | Foye Oluokun, JAX | 128 | 748 | 17.1% | Foye Oluokun, JAX | 184 |
+| 2023 | Foye Oluokun, JAX | 111 | 705 | 15.7% | Bobby Wagner, SEA | 183 |
+| 2024 | Jamien Sherwood, NYJ | 98 | 706 | 13.9% | Zaire Franklin, IND | 173 |
+
+Primary leaders run **98–128**. Combined leaders run **159–192**. The `nfl:
+180` on `statcheck.leadTackles` sits inside the combined range. It is a
+combined total. The sim's `tackles` field is one whole credit per stop and has
+no assist (§5.11). 180 is the number on the combined column.
+
+Across all 224 clubs, the #1 primary tackler's share of his club's primary
+tackles has mean **11.2%**, median 11.1%, p90 13.9%, max **17.1%** (Oluokun,
+2022, the primary-leader row above). The 2021–2024 mean is 11.2% as well. No
+club-season reaches 20%.
+
+**Single-game primary maximum: 19.** Alex Singleton, DEN vs LAC, 2022 week 6:
+14 solo + 5 with_assist, plus 2 assists (combined 21). The NFL gamebook lists
+TKL 19, AST 2, COMB 21. The combined single-game maximum in this window is
+**21**, Singleton in that game and Roquan Smith, BAL, 2023 week 10 (14 primary
++ 7 assists).
+
+#### Assists per tackle play, at team level
+
+A tackle play here is one primary credit, so the rate is team assists / team
+primary tackles. Play-weighted within each season, each primary tackle counting
+once:
+
+| year | assists per primary tackle |
+|---|---|
+| 2018 | 0.394 |
+| 2019 | 0.455 |
+| 2020 | 0.488 |
+| 2021 | 0.562 |
+| 2022 | 0.557 |
+| 2023 | 0.548 |
+| 2024 | 0.651 |
+
+Pooled 2018–2024 the rate is **0.522**. The mean of the 224 team-season ratios
+is 0.524. Pooled 2021–2024 it is **0.578** (mean of those 128 team-season
+ratios, 0.580). The rate rose from 0.394 to 0.651, so 0.522 averages a moving
+series. The 17-game sim sits next to the later years.
+`def_tackles_with_assist` is 11.4% of primary tackles over the whole window,
+and it is not the partner of the assist column: assists per `with_assist`
+credit run from 3.5 to 6.8 by year. The assist in the rate above is
+`def_tackle_assists`.
+
+#### Sack maxima, official credits
+
+`def_sacks`, in half-sack steps. These are the maxima of that credit.
+
+| | maximum | who |
+|---|---|---|
+| single game | **6.0** | Khalil Mack, LAC vs LV, 2023 week 4 |
+| season | **22.5** | T.J. Watt, 2021 |
+
+Season leaders by year, same credit: 2018 Aaron Donald 20.5, 2019 Shaquil
+Barrett 19.5, 2020 T.J. Watt 15.0, 2021 T.J. Watt 22.5, 2022 Nick Bosa 18.5,
+2023 T.J. Watt 19.0, 2024 Trey Hendrickson 17.5. Mack's 6.0 is an integer
+weekly total. The season maximum includes one half-sack. Both stay official
+credits. AP's account of the Chargers–Raiders game on 2023-10-01 is the same
+6 sacks.
+
+#### The "fifth of his team's stops" comment
+
+`lib/core/sim/game.ts` lines 1300–1302, on the run-play tackle draw:
+
+> Tackles were spread too evenly across nineteen defenders, so nobody ever
+> led the league. Real front sevens funnel run tackles to the linebackers,
+> and one player takes close to a fifth of his team's stops.
+
+A fifth is 20%. On all primary tackles in this file — the weekly feed does
+not separate run stops from pass stops — the leading tackler in a team-game
+takes a mean **16.4%** of that game's primary tackles (median 15.9%, p90
+21.2%, max 35.5% on Zack Baun, PHI vs GB, 2024 week 1, 11 of 31). The
+2021–2024 mean is 16.5%. In 16.8% of the 3,710 team-games the leader's share
+is at least 20%. Over a season the club's #1 takes a mean **11.2%**, and the
+highest club-season in the window is 17.1%. The measured centers are 16% for
+a game and 11% for a season. Twenty percent is near the single-game p90 and
+above every season share in the window. The comment's run-only wording is
+unmeasured here; this file has no run/pass split on a tackle.
+
+**SHA-256** of the three seasons not already listed in
+`docs/milestone-reference.json`:
+
+- 2018 `37f857a8ef540f35dd299fd2ebb3052ccf95a5639d2bbfa5b703fe9120e3af8a` (1,155,967 bytes)
+- 2019 `bd5d2e99c0b9f34a9d6fea7ebccd1c207112374b801412be03b776e158c34826` (1,155,384 bytes)
+- 2020 `c1206df91ca88c0c7ef37809bcef132267b75823c83f3620639d6510a4435411` (1,176,924 bytes)
 
 ## 6. Starter availability — how much time a real starter misses
 
