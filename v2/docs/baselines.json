@@ -220,10 +220,10 @@
       "nfl": 20
     },
     "statcheck.leadTackles": {
-      "target": 165.2,
-      "tol": 40,
-      "nfl": 180,
-      "note": "RE-LOCKED 2026-09-15 Wave 3.9 Packet 2 (Matt SIGNED). Mac Studio 5-seed panel at 748036a (#88) read 165.2 (was 177 +/-40). Target is the panel mean; tol 40 unchanged."
+      "target": 110,
+      "tol": 18,
+      "nfl": 110,
+      "note": "RETARGETED 2026-11-10 (Matt SIGNED, tackle definition). nfl: 180 was a combined total. The sim credits the primary tackle only, the stop the player makes himself, and does not add an assist. §5.13 primary season leaders, 2018–2024, are 111, 104, 106, 109, 128, 111, 98. Mean 767/7 = 109.6, rounded to 110. tol 18 is the gap from that mean to Oluokun's 128, so the band is 92–128 and every traced leader sits inside. The old target 165.2 ±40 was the sim panel beside the combined figure."
     },
     "statcheck.maxGamePassYds": {
       "target": 473.2,

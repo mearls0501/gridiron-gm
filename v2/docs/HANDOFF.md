@@ -1,5 +1,42 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-10 — Tackle definition: primary credit, and a soft bend on the draw
+
+Signed, Matt, 2026-11-10. Added on the target-share branch. No assist. No combined tackle. The only `baselines.json` edit is `statcheck.leadTackles`.
+
+A sim tackle stays the stop the player makes himself. That is a primary tackle. `statcheck.leadTackles` was `nfl: 180`, a combined total. The seven primary season leaders in §5.13 are 111, 104, 106, 109, 128, 111, 98. Mean 767/7 = 109.6, recorded as **110**. Tolerance **18** is the gap from 110 to Oluokun's 128, so the band is **92–128**.
+
+The 30-tackle games were the weighted draw. A defender's weekly boost runs to 2.3 on top of the 1.52/1.54 power and `TACKLE_SHARE`, and one player was taking half of a game. The draw now uses the same exponential as target share. Game knee **0.212** (team-game leader p90), one e-fold at Zack Baun, 11 of 31. Season knee **0.171** (club-#1 maximum, 128 of 748), one e-fold across the 3.2-point p90-to-max gap. A sack, a forced fumble, and a contested catch still credit the player who made them.
+
+I do not agree that a share bend can land the season leader inside 92–128, and I did not widen the band to hide that. This engine records about **50 tackles a team-game**, about **850 a team-season**. The traced clubs recorded **705–831** primary tackles. A defender at the traced maximum share, 17.1% of 850, is already about **145**. The bend did what the shape says: eight-season leaders moved from 176–196 at a 20–22% share to **162–164** at a **15–18%** share. 162 is still above 128. Which plays award a tackle was not signed, and it was not changed. `statcheck` on seed 8675309 read **131**, three tackles over the new ceiling.
+
+Single-game 30+ is gone. Seeds 42 / 1 / 7, eight seasons, before this bend and after. p99 is the 99th percentile of player-games with at least one tackle.
+
+| | season leader | top game | p99 | games over 19 | games over 30 |
+|---|---|---|---|---|---|
+| 42 before | 196 | 26 | 11 | 25 | 0 |
+| 42 after | 164 | 17 | 11 | 0 | 0 |
+| 1 before | 191 | 36 | 11 | 17 | 2 |
+| 1 after | 162 | 21 | 11 | 1 | 0 |
+| 7 before | 176 | 27 | 11 | 18 | 0 |
+| 7 after | 163 | 20 | 11 | 1 | 0 |
+
+The leader's median share of his team's tackles stayed at **16.1–16.4%**. The traced center is 16.4%.
+
+Validation on this VM, on top of the target-share run:
+
+- `npx tsc --noEmit` — pass.
+- `lib/core/sim/tackleShare.test.ts` — pass. Registered in `package.json` and both gate tiers (`tackleshare`). Seeds 1 and 42, one season: max game tackles 21 and 15.
+- `lib/core/sim/targetShare.test.ts` — pass. The fumble gap is still 0.
+- `verify.ts 3` — 348/348. `verify.checks` 348, floor 330.
+- `sweep.ts 5 1` — all clean.
+- `statcheck.ts` — `leadTackles` **131** against 110 ± 18. The new ceiling is 128. Not widened. `leadRecYds` 1314 and `wr10RecYds` 1070 stayed inside their existing bands.
+- `calibrate.ts 300` — `fgPct` **81.403** (was 81.995). Floor remains 82.029. Not moved. Score mismatches 0.
+- `userOffers.test.ts` — `rngState` **38324251** (locked 1777473079; 3009009807 after the target bend). Not re-locked.
+- `trimIdentity.test.ts` — seed 42 opening 2030, cuts **1558** (locked 1506; 1540 after the target bend). Not re-locked.
+
+The 5-seed Mac Studio panel was not run.
+
 ## 2026-11-10 — Target-share saturation and the fumble tackle
 
 Signed, Matt, 2026-11-10, the TARGETS packet. Built as written. No `baselines.json` edit. No re-lock. No dial change. `targetSpend`, the payroll band, `sepEdge`, `armQuality`, tackle weights, and `statcheck.leadTackles` (`nfl: 180`) are untouched.

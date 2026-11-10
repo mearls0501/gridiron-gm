@@ -1897,9 +1897,25 @@ leader matches the last column in every year.
 | 2024 | Jamien Sherwood, NYJ | 98 | 706 | 13.9% | Zaire Franklin, IND | 173 |
 
 Primary leaders run **98–128**. Combined leaders run **159–192**. The `nfl:
-180` on `statcheck.leadTackles` sits inside the combined range. It is a
+180` on `statcheck.leadTackles` sat inside the combined range. It is a
 combined total. The sim's `tackles` field is one whole credit per stop and has
 no assist (§5.11). 180 is the number on the combined column.
+
+**Signed 2026-11-10 — the tackle is a primary tackle.** The sim keeps crediting
+the stop the player makes himself. An assist is not added, and a combined
+total is not added. `statcheck.leadTackles` no longer uses 180. Its reference
+is the mean of the seven primary leaders above, 767 / 7 = **109.6**, recorded
+as **110**, with tolerance **18**. The acceptance band is 92–128. That
+tolerance is the distance from 110 to the traced maximum, Oluokun's 128, so
+98 and 128 both sit inside the band and the band does not extend above 128. The old 165.2 ± 40 was the sim's own panel,
+set beside the combined figure. The weighted draw now bends once a defender's
+share of his club's tackles climbs past these tails. The game knee is the
+team-game leader's p90, **21.2%**, and one e-fold lands on Zack Baun's maximum,
+11 of 31. The season knee is the club-#1 maximum, **17.1%** (128 of 748), and
+one e-fold is the 3.2-point gap from the club-#1 p90 (13.9%) to that maximum.
+The shape is the same exponential used for target share, and it is not a cap.
+A sack, a forced fumble, and a contested catch still credit the player who
+made the play. Only the weighted tackle draw bends.
 
 Across all 224 clubs, the #1 primary tackler's share of his club's primary
 tackles has mean **11.2%**, median 11.1%, p90 13.9%, max **17.1%** (Oluokun,
