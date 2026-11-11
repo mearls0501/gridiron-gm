@@ -926,18 +926,76 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   28% / `max: 0` as the backstop.
 
 - **Hall of Fame class size and wait.** Added 2026-09-15 (Wave 3.9
-  Packet 3). Not in T/D/S/P. The published Pro Football Hall of Fame
-  rule is a **five-season wait after retirement**
+  Packet 3). The player cap, the league bar, and the specialist ballot
+  were signed 2026-11-10 (`docs/playtest-1029-hall-of-fame.md`). Not in
+  T/D/S/P. Ungated. No `baselines.json` row.
+
+  The published Pro Football Hall of Fame rule is a **five-season wait
+  after retirement**
   ([Pro Football Hall of Fame selection process](https://www.profootballhof.com/hall-of-famers/selection-process/),
   same wait restated on
   [Wikipedia: List of Pro Football Hall of Fame inductees](https://en.wikipedia.org/wiki/List_of_Pro_Football_Hall_of_Fame_inductees)).
-  Modern-era player classes have sat at the **maximum of 5** for 17
-  consecutive years ([The Athletic, 2025-02-06](https://www.nytimes.com/athletic/6111416/2025/02/06/nfl-hall-of-fame-rules-class-of-2025/)).
-  Total enshrinement including seniors / coaches / contributors has
-  averaged **~7.8 per year since 2015** (same article; excludes the
-  2020 Centennial slate). The sim inducts players only, one class per
-  year, capped at 8, so `careers.hofInducteesPerClass` is the modern
-  5–8 band. Ungated; no baseline in this packet.
+  The sim keeps that wait. Star and elite labels stay the `outcomes.ts`
+  overall-rating ranks. Those ranks were not moved.
+
+  The 2026-09-15 bullet folded two series into one band. They are not
+  the same number.
+
+  **Modern-era players.** Modern-era classes sat at the **maximum of 5**
+  for 17 consecutive years. Over the forty years before that run, the
+  modern-era average was **4.1**. The Class of 2025 elected **4**
+  modern-era players (Eric Allen, Jared Allen, Antonio Gates, Sterling
+  Sharpe). Source:
+  [The Athletic, 2025-02-06](https://www.nytimes.com/athletic/6111416/2025/02/06/nfl-hall-of-fame-rules-class-of-2025/).
+
+  **Full ceremony.** Total enshrinement, counting seniors, coaches, and
+  contributors, has averaged **about 7.8 per year since 2015**, excluding
+  the 20-member 2020 Centennial class (same Athletic article). The sim
+  has no seniors, no coaches, and no contributors. That 7.8 is not a
+  players-only class size.
+
+  The sim inducts players only, one class per year. `HOF_CLASS_MAX` is
+  **5**. A class may be smaller, including empty. The cap is not a quota
+  to fill. `careers.hofInducteesPerClass` stays report-only. It averages
+  only seasons that inducted someone, so a mean inside the old 5–8 band
+  was not evidence the class was healthy.
+
+  **League bar, players other than kickers and punters.** Signed
+  2026-11-10. Either `eliteSeasons >= 3` (`HOF_ELITE_BAR`) or
+  `starSeasons >= 8` and `eliteSeasons >= 1` (`HOF_STAR_BAR`, and the
+  inline 1 named `HOF_STAR_PATH_ELITE` in code because the note did not
+  name it). A championship as a starter stays in the score and the
+  tie-break. It is not a way in by itself.
+
+  **Kickers and punters.** Not on the ordinary ballot. The
+  Pro-Football-Reference player table fetched for the 2026-11-10 note
+  (323 player rows, Class of 2024 at the top of that scrape):
+
+  | Player | Tag on that table | Class |
+  |---|---|---|
+  | Jan Stenerud | K | 1991 |
+  | Ray Guy | P | 2014 |
+  | Morten Andersen | K | 2017 |
+  | George Blanda | QB | 1981 |
+  | Lou Groza | T | 1974 |
+
+  Three of 323 are tagged K or P. Blanda and Groza kicked and played
+  another position, and the table tags the other position. Sporting
+  News and Yahoo, August 2026, report Adam Vinatieri as a Class of 2026
+  placekicker and still name Guy as the only punter. Exclusive
+  specialists are three placekickers and one punter across the Canton
+  era, on the order of **one every 15 to 20 classes**.
+
+  The sim rule, Hall only: a kicker or punter needs `eliteSeasons >= 8`
+  (`HOF_SPECIALIST_ELITE_BAR`; the note writes 8 and does not name it)
+  and eight seasons with one club (`LONGEVITY_SEASONS`). At most one
+  specialist in a class (`HOF_SPECIALIST_CLASS_MAX`), and that seat is
+  inside the five. They are on the same score sort as the ordinary
+  ballot. A specialist who ranks outside the five waits. A second
+  specialist in the same class is skipped, and the next player who
+  already cleared a ballot can take the open seat. The ordinary star,
+  elite, and ring counts do not qualify a kicker or a punter. The
+  franchise ring is a different list and was not tightened.
 
 - **Kicker and punter APY.** Added 2026-10-12. Not in T/D/S/P.
   Written here before any specialist constant moves. `marketApy` still

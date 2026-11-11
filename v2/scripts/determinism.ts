@@ -11,24 +11,31 @@
  * whose key order depends on insertion history. Every harness still passes.
  * Replay dies, and nobody finds out until a save won't reproduce.
  *
- *   npx tsx scripts/determinism.ts [seasons]
+ *   npx tsx scripts/determinism.ts [replays]
  *
  * Four checks:
  *   1. Generation      — the same seed builds a byte-identical league
- *   2. Simulation      — N seasons from the same seed end byte-identical
+ *   2. Simulation      — one regular season and the playoffs, replayed
  *   3. Serialisation   — the state survives a JSON round-trip unchanged
  *   4. Source          — nothing outside rng.ts calls a non-deterministic API
+ *
+ * `replays` defaults to 2 (the fast gate passes 2, the full gate passes 3).
+ * Each replay leaves preseason, plays every regular-season week and every
+ * playoff round, and stops once a champion is crowned. The played games are
+ * still on the state — the offseason wipes the schedule — so the hash covers
+ * the box scores and not an untouched league. One season, replayed, is enough
+ * for a real nondeterminism to fail, and it stays short enough for CI.
  */
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { newGame } from "../lib/core/newGame";
 import { advance } from "../lib/core/season/engine";
-import { advanceOffseason, isOffseason } from "../lib/core/offseason";
 import { GameState } from "../lib/core/types";
 import { emitAll } from "./metrics";
 
-const SEASONS = Number(process.argv[2] ?? 2);
+const requested = Number(process.argv[2] ?? 2);
+const REPLAYS = Number.isFinite(requested) && requested >= 2 ? Math.floor(requested) : 2;
 const SEED = 777001;
 
 // `createdAt` and `updatedAt` are wall-clock save metadata, not game state —
@@ -47,21 +54,40 @@ function check(ok: boolean, label: string, detail = ""): void {
   if (!ok) failures++;
 }
 
-/** Play `seasons` full years from a seed and return the final state. */
-function play(seed: number, seasons: number): GameState {
-  const st = newGame({ seed });
-  for (let s = 0; s < seasons; s++) {
-    let w = 0;
-    while (st.phase === "regular" && w++ < 40) advance(st);
-    let p = 0;
-    while (st.phase === "playoffs" && p++ < 12) advance(st);
-    let o = 0;
-    while (isOffseason(st.phase) && o++ < 12) advanceOffseason(st);
-  }
-  return st;
+interface Replay {
+  state: GameState;
+  regular: number;
+  playoff: number;
+  unplayed: number;
 }
 
-console.log(`\n=== Determinism (${SEASONS} seasons, seed ${SEED}) ===\n`);
+/**
+ * Play the regular season and the playoffs from a seed.
+ *
+ * `newGame` opens in preseason, and the week and round loops only move a
+ * phase they already see. The opening `advance` is what starts the season.
+ * Without it both loops are skipped, the hash is the generated league, and
+ * the check passes having simulated nothing.
+ */
+function play(seed: number): Replay {
+  const st = newGame({ seed });
+  advance(st);
+  let w = 0;
+  while (st.phase === "regular" && w++ < 40) advance(st);
+  let p = 0;
+  while (st.phase === "playoffs" && p++ < 12) advance(st);
+  let regular = 0;
+  let playoff = 0;
+  let unplayed = 0;
+  for (const g of st.games) {
+    if (!g.played) { unplayed++; continue; }
+    if (g.playoffRound === null) regular++;
+    else playoff++;
+  }
+  return { state: st, regular, playoff, unplayed };
+}
+
+console.log(`\n=== Determinism (${REPLAYS} replays, regular season + playoffs, seed ${SEED}) ===\n`);
 
 // 1. Generation ---------------------------------------------------------------
 const genA = hash(newGame({ seed: SEED }));
@@ -74,20 +100,39 @@ const genC = hash(newGame({ seed: SEED + 1 }));
 check(genA !== genC, "a different seed generates a different league");
 
 // 2. Simulation ---------------------------------------------------------------
-const simA = play(SEED, SEASONS);
-const simB = play(SEED, SEASONS);
-const hA = hash(simA);
-const hB = hash(simB);
-check(hA === hB, `${SEASONS} seasons replay identically`, `${hA} vs ${hB}`);
+const runs = Array.from({ length: REPLAYS }, () => play(SEED));
+const simA = runs[0].state;
+const hashes = runs.map((r) => hash(r.state));
+const hA = hashes[0];
+check(
+  hashes.every((h) => h === hA),
+  `${REPLAYS} replays of the regular season and playoffs match`,
+  hashes.join(" vs "),
+);
 
-if (hA !== hB) {
+const mismatch = hashes.findIndex((h) => h !== hA);
+if (mismatch > 0) {
   // Narrow it down for whoever has to fix this.
+  const other = runs[mismatch].state;
   const keys = Object.keys(simA) as (keyof GameState)[];
   const differing = keys.filter(
-    (k) => JSON.stringify(simA[k]) !== JSON.stringify(simB[k])
+    (k) => JSON.stringify(simA[k]) !== JSON.stringify(other[k])
   );
-  console.log(`        diverging top-level keys: ${differing.join(", ") || "(none — key order?)"}`);
+  console.log(`        replay ${mismatch + 1} diverges: ${differing.join(", ") || "(none — key order?)"}`);
 }
+
+// These are what stops the check passing on an unplayed league. A matching
+// pair of preseason hashes used to read as a clean replay.
+const played = runs[0];
+check(
+  played.state.phase === "offseason-recap" && played.state.playoffs?.complete === true,
+  "the replay ran through the playoffs to a champion",
+  `phase=${played.state.phase}`,
+);
+check(played.regular > 0, "regular-season games were simulated", `${played.regular} played`);
+check(played.playoff > 0, "playoff games were simulated", `${played.playoff} played`);
+check(played.unplayed === 0, "every scheduled game was played", `${played.unplayed} unplayed`);
+check(hA !== genA, "the replay is not the untouched preseason league");
 
 // 3. Serialisation ------------------------------------------------------------
 const roundTrip = JSON.parse(JSON.stringify(simA)) as GameState;

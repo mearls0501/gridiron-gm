@@ -165,7 +165,7 @@ function snapshot(state: GameState): string {
   p.teamId = null;
   p.prospect = false;
   p.retiredSeason = 2027;
-  p.starSeasons = 3;
+  p.eliteSeasons = 8;
   p.number = n;
   runRecap(st);
   assert.equal((st.hallOfFame ?? []).some((e) => e.playerId === p.id), true, "recap inducts");

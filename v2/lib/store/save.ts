@@ -2,7 +2,7 @@ import { ensureCoaches } from "../core/coaches";
 import { ensureJerseyNumbers, maybeRetireNumbersForHallOfFame } from "../core/jersey";
 import { ensureOwners } from "../core/owner";
 import { runPsychology } from "../core/psychology";
-import { GameState, STATE_VERSION, defaultSettings } from "../core/types";
+import { GameSettings, GameState, STATE_VERSION, defaultSettings } from "../core/types";
 import { blankRecordBook } from "../core/season/records";
 import { SCHEMES, evenBudget } from "../core/staff";
 import { ensureScouting } from "../core/scouting";
@@ -180,14 +180,23 @@ export function migrate(state: GameState): GameState {
   pruneStaleTradeInbox(state);
   // Settings arrived with the weekly-loop work. An existing franchise
   // migrates with firing OFF — nobody gets retroactively fired by an update.
+  // The starting-QB stop defaults on. The old pause-on-anything flags are
+  // gone; a save that still carries them drops the dead field.
   if (!state.settings) state.settings = { ...defaultSettings(), firingEnabled: false };
+  else {
+    const settings = state.settings as GameSettings & { pauseOn?: unknown };
+    if (typeof settings.pauseOnStartingQb !== "boolean") settings.pauseOnStartingQb = true;
+    delete settings.pauseOn;
+  }
   // `ceiling` arrived with the development failure model. An older save has
   // players without it, and undefined would poison every growth calculation.
   // Backfilling to `pot` preserves those careers exactly as they were.
   for (const p of state.players) {
     if (typeof p.ceiling !== "number") p.ceiling = p.pot;
     // secondScene missing = never fired. Do not invent a draw on load.
-    // hallOfFame / retiredSeason / starSeasons / eliteSeasons missing =
+    // hallOfFame rows already written are inducted facts. A later bar
+    // does not remove them and does not resize a class already stored.
+    // Missing hallOfFame / retiredSeason / starSeasons / eliteSeasons =
     // empty Hall and no accumulated labels (Packet 3).
   }
   for (const t of state.teams) {

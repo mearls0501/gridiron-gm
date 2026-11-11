@@ -3,7 +3,7 @@ import { refreshOvr, relevantAttrs, POSITION_WEIGHTS } from "../ratings";
 import { AttrKey, GameState, Player, SeasonHistory } from "../types";
 import { isReceivingLeaderPos, playedSnaps } from "../season/stats";
 import { healOffseason } from "../season/injuries";
-import { leagueStandings } from "../season/standings";
+import { leagueStandings, stampDivisionPlaces } from "../season/standings";
 import { addDeadCap, computeRecords, deadMoney } from "../select";
 import { REPLACEMENT_OVR } from "../frontOffice";
 import {
@@ -313,15 +313,20 @@ export function previewSeasonHistory(state: GameState): SeasonHistory {
 
   const lineOf = (p: Player) => p.stats.find((s) => s.season === state.season);
 
+  const archivedStandings = standings.map((r) => {
+    const expectedWins = state.teams[r.teamId]?.seasonExpectedWins;
+    return expectedWins == null ? { ...r } : { ...r, expectedWins };
+  });
+  // Games are still on the save here. Rollover drops them, and with them
+  // the head-to-head tiebreak, so the place has to be written down now.
+  stampDivisionPlaces(state, archivedStandings, state.season);
+
   return {
     season: state.season,
     championId: champion,
     runnerUpId: runnerUp,
     gmTeamId: state.userTeamId,
-    standings: standings.map((r) => {
-      const expectedWins = state.teams[r.teamId]?.seasonExpectedWins;
-      return expectedWins == null ? { ...r } : { ...r, expectedWins };
-    }),
+    standings: archivedStandings,
     awards: {
       mvp: bestBy(state, (p) => {
         const l = lineOf(p);

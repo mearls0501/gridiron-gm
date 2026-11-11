@@ -1,6 +1,5 @@
-import { GameState, Position, STARTERS, TRADE_DEADLINE_WEEK, defaultSettings } from "../core/types";
+import { GameState, TRADE_DEADLINE_WEEK } from "../core/types";
 import { advance as advanceSeason } from "../core/season/engine";
-import { incomingOfferPausesSim } from "../view/tradeWindow";
 import { formatSimPauseToast } from "./simToast";
 
 export type SimTarget = "deadline" | "seasonEnd" | "champion";
@@ -10,12 +9,55 @@ export type SimToStep =
   | { done: true; message: string };
 
 /**
- * Multi-step simulation used by Hub simTo. Extracted so the pause predicate
- * can be regression-tested without the zustand / IndexedDB store.
+ * Weeks still on the user's QB1 that stop a Hub sim. The week has already
+ * healed and rolled by the time a step returns, so this is the absence the
+ * roster is carrying, not the raw roll.
+ */
+export const STARTING_QB_PAUSE_WEEKS = 8;
+
+/**
+ * True when this step left the user's starting quarterback newly out for
+ * at least {@link STARTING_QB_PAUSE_WEEKS}. An absence that was already
+ * that long does not stop again. The setting off never stops.
+ */
+export function startingQbShouldPause(
+  enabled: boolean, weeksBefore: number, weeksAfter: number,
+): boolean {
+  return enabled
+    && weeksBefore < STARTING_QB_PAUSE_WEEKS
+    && weeksAfter >= STARTING_QB_PAUSE_WEEKS;
+}
+
+/** Missing setting is on. Older saves predate the field. */
+export function pauseOnStartingQb(s: GameState): boolean {
+  return s.settings?.pauseOnStartingQb !== false;
+}
+
+/**
+ * QB1 after the step. The user's club is not auto-IR'd during a sim, so a
+ * long injury stays on this player (injury weeks set, status not IR) and
+ * the depth chart is still the kickoff order — refresh runs at the start
+ * of the week, not after the games.
+ */
+function userStartingQb(s: GameState): { id: number; weeks: number } | null {
+  const id = s.teams[s.userTeamId]?.depthChart.QB?.[0];
+  if (typeof id !== "number") return null;
+  const p = s.players.find((x) => x.id === id);
+  if (!p || p.teamId !== s.userTeamId || p.pos !== "QB") return null;
+  return { id, weeks: p.injuryWeeks };
+}
+
+/**
+ * Multi-step simulation used by Hub simTo.
  *
  * One step is one `advance` (a week, or a playoff round). The stepper draws
  * no RNG of its own. `runSimTo` drains it synchronously. The Hub store yields
- * between steps so the tab can paint; the advances stay in this order.
+ * between steps so the tab can paint, and writes the save once at the end.
+ *
+ * The click's target is the end of the run. A trade call, a milestone, or
+ * any injury but one does not stop it. The exception, on by default, is the
+ * user's QB1 going out for 8 or more weeks. The guard is only a stuck-phase
+ * cap. A regular season plus the playoff rounds is under it.
  */
 export function simToStepper(s: GameState, target: SimTarget): () => SimToStep {
   const reached = (): boolean => {
@@ -29,18 +71,6 @@ export function simToStepper(s: GameState, target: SimTarget): () => SimToStep {
         return false;
     }
   };
-
-  const pauseOn = s.settings?.pauseOn ?? defaultSettings().pauseOn;
-  const team = () => s.teams[s.userTeamId];
-  const starterSet = (): Set<number> => {
-    const ids = new Set<number>();
-    for (const pos of Object.keys(STARTERS) as Position[]) {
-      for (const id of (team().depthChart[pos] ?? []).slice(0, STARTERS[pos])) ids.add(id);
-    }
-    return ids;
-  };
-  const hurt = () =>
-    s.players.filter((p) => p.teamId === s.userTeamId && p.injuryWeeks > 0).map((p) => p.id);
 
   let last = "";
   let guard = 0;
@@ -63,28 +93,26 @@ export function simToStepper(s: GameState, target: SimTarget): () => SimToStep {
       return finished;
     }
     guard++;
-
-    const offersBefore = (s.tradeOffers ?? []).length;
-    const hurtBefore = new Set(hurt());
-    const logBefore = s.log.length;
-
+    const watch = pauseOnStartingQb(s);
+    const weeksBefore = new Map<number, number>();
+    if (watch) {
+      for (const p of s.players) weeksBefore.set(p.id, p.injuryWeeks);
+    }
     last = advanceSeason(s);
-
-    let paused: string | null = null;
-    if (pauseOn.tradeOffer && incomingOfferPausesSim(s, offersBefore)) {
-      paused = "a club called with a trade offer";
-    } else if (pauseOn.injuredStarter) {
-      const starters = starterSet();
-      const newlyHurt = hurt().filter((id) => !hurtBefore.has(id) && starters.has(id));
-      if (newlyHurt.length > 0) paused = "a starter went down";
-    }
-    if (!paused && pauseOn.milestone && s.log.slice(logBefore).some((e) => e.kind === "milestone")) {
-      paused = "a milestone fell";
-    }
-
-    if (paused) {
-      finished = { done: true, message: formatSimPauseToast(paused, last) };
-      return finished;
+    if (watch) {
+      const qb = userStartingQb(s);
+      const before = qb ? weeksBefore.get(qb.id) ?? 0 : 0;
+      if (qb && startingQbShouldPause(true, before, qb.weeks)) {
+        const n = qb.weeks;
+        finished = {
+          done: true,
+          message: formatSimPauseToast(
+            `your starting quarterback is out ${n} week${n === 1 ? "" : "s"}`,
+            last,
+          ),
+        };
+        return finished;
+      }
     }
     return { done: false };
   };

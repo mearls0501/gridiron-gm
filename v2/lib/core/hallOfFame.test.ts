@@ -270,7 +270,7 @@ for (const archived of [true, false]) {
   assert.equal(entry.firstSeason, 2026);
   assert.equal(entry.lastSeason, 2029);
   assert.equal(entry.championships, 1);
-  p.starSeasons = 3;
+  p.eliteSeasons = 3;
   st.season = 2034;
   assert.equal(lastPlayedSeason(p), 2029, "the retirement fallback includes postseason service");
   assert.equal(isLeagueHofCandidate(st, p), true);
@@ -288,7 +288,7 @@ for (const archived of [true, false]) {
   p.stats = [];
   for (const season of [2026, 2027, 2028, 2029]) playoffAppearance(st, p, st.userTeamId, season);
   p.careerAwards = ["2029 Champion"];
-  p.eliteSeasons = 1;
+  p.eliteSeasons = 3;
   st.season = 2034;
   assert.equal(primaryTeamId(p), st.userTeamId, "postseason-only clubs participate in primary-club selection");
   assert.equal(isLeagueHofCandidate(st, p), true, "candidate discovery includes postseason-only clubs");
