@@ -1,5 +1,20 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-11 — One fingerprint re-lock, after main
+
+Signed, Matt. Main `b5c2a21` is merged (#226 determinism, #223 division place and the QB1 pause, #225 Hall of Fame rules). One re-lock, and only these two canaries. No other `baselines.json` entry, gate, or dial moved. `fgPct` stays reported. It was **81.995** on the pre-merge head, floor 82.029, and it was not re-measured or tuned here.
+
+Team tackles near **655** a season are accepted. Special-teams tackles are a later question.
+
+| canary | was | now |
+|---|---:|---:|
+| `userOffers` seed 42 tag `rngState` | 1777473079 | **1779302491** |
+| `userOffers` seed 42 FA `rngState` | 3280841901 | **1323223106** |
+| `trimIdentity` seed 42 opening 2030 cuts | 1506 | **1587** |
+| `trimIdentity` rng after that click | 2450416366 | **19218870** |
+
+On the merge head, before this re-lock: `tsc --noEmit` pass. `npm test` passed every file except those two. `verify.ts 5` 552/552. `determinism.ts 2` deterministic, failures 0, banned API uses 0. After the literals moved, `userOffers.test.ts` and `trimIdentity.test.ts` both pass.
+
 ## 2026-11-11 — Tackle credit, the kept-fumble hit, and the playoff share
 
 Signed, Matt, on draft PR #222. No `baselines.json` edit. No re-lock. No dial change. Award weights were not changed.
