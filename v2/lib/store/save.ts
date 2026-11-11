@@ -194,7 +194,9 @@ export function migrate(state: GameState): GameState {
   for (const p of state.players) {
     if (typeof p.ceiling !== "number") p.ceiling = p.pot;
     // secondScene missing = never fired. Do not invent a draw on load.
-    // hallOfFame / retiredSeason / starSeasons / eliteSeasons missing =
+    // hallOfFame rows already written are inducted facts. A later bar
+    // does not remove them and does not resize a class already stored.
+    // Missing hallOfFame / retiredSeason / starSeasons / eliteSeasons =
     // empty Hall and no accumulated labels (Packet 3).
   }
   for (const t of state.teams) {

@@ -26,9 +26,11 @@ import {
  *        - a league-leading season (pass / rush / rec / sacks) with this club
  *        - `LONGEVITY_SEASONS` seasons with this club
  *
- * League induction also requires the outcomes.ts bar: career star seasons
- * ≥ 3, or elite seasons ≥ 1, or a championship as a starter
- * (`gamesStarted >= STARTER_GAMES` on the title club that year).
+ * League induction also requires the signed bar: three elite seasons,
+ * or eight star seasons with at least one elite season. A championship
+ * as a starter stays in the score and the tie-break. It is not a way in.
+ * Kickers and punters are a separate ballot: eight elite seasons and
+ * eight seasons with one club, at most one of them inside a class of five.
  *
  * ROY alone does not qualify. Active players never qualify.
  * Retired numbers are omitted: players do not carry jersey numbers.
@@ -39,15 +41,31 @@ export const LONGEVITY_SEASONS = 8;
 /** Published Pro Football Hall of Fame wait: five seasons after retirement. */
 export const HOF_WAIT_SEASONS = 5;
 /**
- * Cap on one class. Modern-era player max has been 5; total enshrinement
- * including seniors / coaches / contributors runs ~5–8
- * (`docs/nfl-reference.md` §4). We induct players only, at most eight.
+ * Cap on one players-only class. Modern-era player maximum is 5. The
+ * ~7.8 figure is the full ceremony, which also enshrines seniors, coaches,
+ * and contributors (`docs/nfl-reference.md` §4). The cap is a maximum:
+ * a short class stays short.
  */
-export const HOF_CLASS_MAX = 8;
-/** outcomes.ts star-year bar for league induction. */
-export const HOF_STAR_BAR = 3;
-/** outcomes.ts elite-year bar for league induction. */
-export const HOF_ELITE_BAR = 1;
+export const HOF_CLASS_MAX = 5;
+/**
+ * Star-path count. The signed bar is this many star seasons and at least
+ * `HOF_STAR_PATH_ELITE` elite seasons. Star seasons alone do not qualify.
+ */
+export const HOF_STAR_BAR = 8;
+/** Elite-path count. This many elite seasons qualify on their own. */
+export const HOF_ELITE_BAR = 3;
+/**
+ * Elite seasons required beside `HOF_STAR_BAR`. The signed note writes
+ * this 1 inline and does not name it.
+ */
+export const HOF_STAR_PATH_ELITE = 1;
+/**
+ * Specialist ballot: elite seasons. The signed note writes 8 and does
+ * not name it. Eight seasons with one club is `LONGEVITY_SEASONS`.
+ */
+export const HOF_SPECIALIST_ELITE_BAR = 8;
+/** At most this many kickers and punters in one class. */
+export const HOF_SPECIALIST_CLASS_MAX = 1;
 
 export const HOF_RULE =
   "Retired, four seasons with this club, and a major award (MVP / OPOY / DPOY), " +
@@ -55,9 +73,10 @@ export const HOF_RULE =
   "ROY alone does not qualify. No career-value score — those numbers are not on the save.";
 
 export const LEAGUE_HOF_RULE =
-  "Five seasons after retirement. The franchise-legend threshold plus a league bar: " +
-  "three star seasons, one elite season, or a championship as a starter. " +
-  "One class per year, at most eight, selected by a sort.";
+  "Five seasons after retirement. The franchise-legend threshold, plus three elite seasons, " +
+  "or eight star seasons with at least one elite season. A championship is not enough on its own. " +
+  "Kickers and punters need eight elite seasons and eight seasons with one club, and at most one of them " +
+  "makes a class. One class per year, at most five, and a short class stays short.";
 
 export type AwardKey = "mvp" | "opoy" | "dpoy" | "roy";
 export type LeaderKey = "passYds" | "rushYds" | "recYds" | "sacks";
@@ -483,11 +502,28 @@ export function championshipsAsStarter(state: GameState, p: Player): number {
   return n;
 }
 
-export function meetsLeagueHofBar(state: GameState, p: Player): boolean {
+export function isHofSpecialist(p: Player): boolean {
+  return p.pos === "K" || p.pos === "P";
+}
+
+function seasonsWithOneClub(p: Player, min: number): boolean {
+  for (const teamId of playedClubs(p)) {
+    if (franchiseSeasonCount(p, teamId) >= min) return true;
+  }
+  return false;
+}
+
+/**
+ * Ordinary ballot only. Kickers and punters never clear this, including
+ * when their star and elite counts would. A starter ring is not a way in.
+ * The ring still counts in `leagueHofScore` and the tie-break.
+ */
+export function meetsLeagueHofBar(_state: GameState, p: Player): boolean {
+  if (isHofSpecialist(p)) return false;
+  const elite = eliteSeasonsOf(p);
   return (
-    starSeasonsOf(p) >= HOF_STAR_BAR ||
-    eliteSeasonsOf(p) >= HOF_ELITE_BAR ||
-    championshipsAsStarter(state, p) >= 1
+    elite >= HOF_ELITE_BAR ||
+    (starSeasonsOf(p) >= HOF_STAR_BAR && elite >= HOF_STAR_PATH_ELITE)
   );
 }
 
@@ -499,6 +535,12 @@ export function isWaitComplete(state: GameState, p: Player): boolean {
 
 export function isLeagueHofCandidate(state: GameState, p: Player): boolean {
   if (!p.retired || p.prospect) return false;
+  if (isHofSpecialist(p)) {
+    return (
+      eliteSeasonsOf(p) >= HOF_SPECIALIST_ELITE_BAR &&
+      seasonsWithOneClub(p, LONGEVITY_SEASONS)
+    );
+  }
   const teams = playedClubs(p);
   let franchise = false;
   for (const teamId of teams) {
@@ -581,7 +623,21 @@ export function runHofInduction(state: GameState): LeagueHofEntry[] {
     (p) => !already.has(p.id) && isWaitComplete(state, p) && isLeagueHofCandidate(state, p),
   );
   eligible.sort((a, b) => compareHofCandidates(state, a, b));
-  const clas = eligible.slice(0, HOF_CLASS_MAX);
+  // One sort of everyone who cleared a ballot. The cap is a maximum, and
+  // a second specialist is skipped. The walk keeps going so a later player
+  // who already cleared a ballot can take an open seat. A specialist who
+  // ranks outside the five is not taken. Nobody who missed a ballot is
+  // added to fill the class.
+  const clas: Player[] = [];
+  let specialists = 0;
+  for (const p of eligible) {
+    if (clas.length >= HOF_CLASS_MAX) break;
+    if (isHofSpecialist(p)) {
+      if (specialists >= HOF_SPECIALIST_CLASS_MAX) continue;
+      specialists += 1;
+    }
+    clas.push(p);
+  }
   const inducted: LeagueHofEntry[] = [];
   for (const p of clas) {
     const entry = toLeagueEntry(state, p);

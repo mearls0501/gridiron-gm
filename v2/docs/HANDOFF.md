@@ -1,5 +1,51 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-10 — Hall of Fame class rules
+
+Signed, Matt, 2026-11-10, exactly the proposal in `docs/playtest-1029-hall-of-fame.md`. That file is still marked UNSIGNED. The signature is this entry. No `baselines.json` edit. No re-lock. No dial change. `starRank` and `eliteRank` are untouched. The franchise ring is untouched. The sim, tackles, targets, and contracts are untouched.
+
+`HOF_CLASS_MAX` is 5. A class of two stays a class of two. A year with nobody qualified writes no rows. `HOF_ELITE_BAR` is 3. The other ordinary path is `HOF_STAR_BAR` 8 and `HOF_STAR_PATH_ELITE` 1. A starter ring stays in the score and the tie-break. It is not a way in. Kickers and punters return false from `meetsLeagueHofBar`. Their ballot is `HOF_SPECIALIST_ELITE_BAR` 8 and eight seasons with one club (`LONGEVITY_SEASONS`). `HOF_SPECIALIST_CLASS_MAX` is 1.
+
+**Literal readings.** The note did not name three of those constants, and it did not spell the slice.
+
+- `HOF_STAR_PATH_ELITE`, `HOF_SPECIALIST_ELITE_BAR`, and `HOF_SPECIALIST_CLASS_MAX` are names added in code. The note wrote `1`, `8`, and "at most one" without identifiers. The values are the note's.
+- "Eight seasons with one club" reuses `LONGEVITY_SEASONS`. It is not a second constant.
+- The slice is one score sort of everyone who cleared their own ballot. The walk stops at 5. A second specialist is skipped, and the walk continues, so a later player who already cleared a ballot can take the open seat. A specialist who ranks sixth or worse is not inducted that year. They wait, the same way an ordinary player who ranks sixth waits. A reserved specialist seat, taken whenever one specialist clears even if five ordinary players outrank them, was the other reading of "separate ballot." It was not built. "At most" is a ceiling. "Keep the sort" is the order. "Only inside the five seats" means the specialist has to land in that sorted five.
+- An empty class is the absence of rows for that season. The hall is a list of inductees. `hofInducteesPerClass` still averages only seasons that inducted someone.
+- The waiting list is not grandfathered. A ring-only player who had not been inducted yet does not get a bust under the new bar. Rows already in `state.hallOfFame` stay, including a stored class of 8. `migrate` does not filter them. There is no version bump. Loading the same hall twice leaves it unchanged.
+- `scripts/careers.ts` still says the report-only metric is aimed at nfl ≈ 5–8. That file was not edited. §4 now says the metric is not that band. The unit-test `##M careers.hofInducteesPerClass 8.00` fixture emit was removed so a full gate no longer mixes it with the careers harness. No baseline row existed for it.
+- `jersey.test.ts` plants `eliteSeasons = 8` so the existing recap-retires-the-number assertion still describes a player who clears the signed bar. The retire-at-8 hook is unchanged.
+
+No disagreement with the signed numbers. Seed 1 inducted 3 specialists in 30 seasons. The note's real-world rate is about one every 15 to 20 classes, and a 30-year league under that rate usually inducts one, sometimes none, sometimes two. The signed bar is what was built. It was not tightened after the census.
+
+**Census.** Headless `newGame`, 30 seasons, 2026–2055, the 2055 class included. Before is a worktree of `7fff4d0`. After is this change. The same induction functions on `0679a1a` were 164 on seed 42 (156 through 2054). This tree is later (`#214`, `#218`, `#221`), so the before headcount is not that 164. The shape is the same: a short ramp, then the cap of 8. Seed 7 through 2054 is 156, which is the production-playtest figure named for this task, and 19 of its 22 classes are 8.
+
+| | members | through 2054 | classes | mean | size histogram | K | P |
+|---|---:|---:|---:|---:|---|---:|---:|
+| 42 before | 158 | 150 | 22 | 7.18 | 2×1, 3×2, 6×1, 8×18 | 6 | 6 |
+| 42 after | 77 | 72 | 18 | 4.28 | 1×2, 3×2, 4×1, 5×13 | 1 | 1 |
+| 7 before | 164 | 156 | 22 | 7.45 | 1×1, 5×1, 6×1, 8×19 | 9 | 5 |
+| 7 after | 67 | 63 | 19 | 3.53 | 1×2, 2×4, 3×2, 4×4, 5×7 | 0 | 2 |
+| 1 before | 153 | 145 | 22 | 6.95 | 1×1, 2×2, 5×1, 7×1, 8×17 | 8 | 10 |
+| 1 after | 64 | 59 | 18 | 3.56 | 1×2, 2×3, 3×1, 4×7, 5×5 | 2 | 1 |
+
+Position mix, before → after. Seed 42: QB 10→7, RB 10→4, WR 20→12, TE 6→4, OT 16→7, OG 15→7, C 7→4, EDGE 16→8, DT 10→5, LB 12→4, CB 14→9, S 10→4, K 6→1, P 6→1. Seed 7: QB 14→5, RB 13→6, WR 14→7, TE 12→6, OT 9→2, OG 12→6, C 7→3, EDGE 12→4, DT 12→7, LB 16→8, CB 17→7, S 12→4, K 9→0, P 5→2. Seed 1: QB 10→5, RB 9→5, WR 23→12, TE 7→3, OT 11→6, OG 10→4, C 3→2, EDGE 9→4, DT 19→8, LB 10→6, CB 10→3, S 14→3, K 8→2, P 10→1.
+
+Years with nobody are not in the histogram. Seed 42's 2039 class is empty, between two classes of one. No specialist who had cleared the ballot was still waiting at the end. Ordinary players still waiting: 5, 7, and 5. Before, that queue was 231, 217, and 197, plus 20, 12, and 11 specialists.
+
+Not a gate. Not re-locked. `docs/baselines.json` was not edited.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npx tsx lib/core/hofInduction.test.ts` — pass.
+- `npx tsx lib/core/hallOfFame.test.ts` — pass.
+- `npx tsx lib/core/jersey.test.ts` — pass.
+- `npx tsx lib/core/historyChair.test.ts` — pass.
+- Seed-42 user-offer canary did not move. `useroffers` exited 0 against tag `1777473079`, FA `3280841901`. Not re-locked.
+- `trimIdentity` seed 42 still opens 2030 with 1506 cuts and rng `2450416366`. Not re-locked.
+- No `gate`, `verify`, `drift`, or `calibrate`. The sim was not edited.
+
 ## 2026-11-08 — User FA Auto-fix holds the draft and camp bill
 
 Signed, Matt, 2026-11-08 ("ok do it"). Both packets together. No `baselines.json` edit. No re-lock. No dial change. `SPEND_FLOOR`, the 20% ceiling, `targetSpend`, the payroll band, and the rookie scale are untouched. CPU spend-to-floor and the #214 spend-back are untouched. The #213 user return still skips `enforceCap` and the minimum rewrite. The #218 hoist is untouched.
