@@ -242,6 +242,7 @@ export default function FrontOfficePage() {
 
   return (
     <div className="space-y-4">
+      <h1 className="sr-only">Front Office</h1>
       <Card
         title="Staff Budget"
         subtitle={`${STAFF_POINTS} points a season. Every club gets the same hundred — what separates you from them is where they go.`}
@@ -392,7 +393,7 @@ export default function FrontOfficePage() {
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-medium">{s.name}</span>
-                        <span className="text-[11px] tnum text-[var(--color-muted)]">
+                        <span className="text-xs tnum text-[var(--color-muted)]">
                           <span className="text-[var(--color-good)]">{suits} suit</span>
                           {" · "}
                           <span className="text-[var(--color-bad)]">{misfits} don&apos;t</span>
@@ -421,7 +422,7 @@ export default function FrontOfficePage() {
               { label: "Playing out of position", rows: worstFits },
             ].map(({ label, rows }) => (
               <div key={label}>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">{label}</div>
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2">{label}</div>
                 <Table head={["Pos", "Player", "OVR", "Fit"]}>
                   {rows.map(({ p, fit }) => {
                     const w = fitWord(fit);

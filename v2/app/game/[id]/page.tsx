@@ -13,7 +13,7 @@ import {
 } from "@/lib/core/season/stats";
 import { playerMap } from "@/lib/core/select";
 import {
-  Card, Cell, Empty, Pill, PlayerLink, PosBadge, Row, Stat, Table, TeamMark, cx,
+  Card, Cell, Empty, Pill, PlayerLink, PosBadge, Row, Stat, Table, Tabs, TeamMark, cx,
 } from "@/components/ui";
 import {
   clockLabel, downDistance, driveBar, drivePlays, driveResultLabel, driveResultTone,
@@ -277,6 +277,12 @@ function rate(made: number, att: number): number {
   return att === 0 ? 0 : made / att;
 }
 
+/**
+ * A box score is three reads: how the game went, how each drive went, and who
+ * did what. One at a time, so the page is a screen or two and not ten.
+ */
+type BoxView = "summary" | "drives" | "players";
+
 export default function GamePage() {
   const params = useParams<{ id: string }>();
   const state = useGame((s) => s.state);
@@ -284,6 +290,7 @@ export default function GamePage() {
   const raw = params?.id;
   const id = Number(Array.isArray(raw) ? raw[0] : raw);
   const [driveFocus, setDriveFocus] = useState<{ gameId: number; n: number } | null>(null);
+  const [view, setView] = useState<BoxView>("summary");
   const pbpScroller = useRef<HTMLDivElement>(null);
   const driveNodes = useRef(new Map<number, HTMLDivElement>());
   const selectedDrive = driveFocus?.gameId === id ? driveFocus.n : null;
@@ -357,6 +364,8 @@ export default function GamePage() {
   const periods = Math.max(box.quarters.home.length, box.quarters.away.length, 4);
   const periodLabels = Array.from({ length: periods }, (_, i) => quarterLabel(i + 1));
   const pbpLinked = !!box.plays?.length;
+  const hasDrives = !!(box.drives?.length || box.plays?.length);
+  const shown: BoxView = !hasDrives && view === "drives" ? "summary" : view;
 
   function jumpToDrive(n: number) {
     setDriveFocus({ gameId: id, n });
@@ -379,7 +388,7 @@ export default function GamePage() {
           >
             {t.city} {t.name}
           </div>
-          <div className="text-[11px] text-[var(--color-faint)] uppercase tracking-wider">
+          <div className="text-xs text-[var(--color-faint)] uppercase tracking-wider">
             {t.division}
           </div>
         </div>
@@ -421,7 +430,7 @@ export default function GamePage() {
         ) : (
           sections.map(({ grp, rows: group }) => (
             <div key={grp.key} className="border-b border-[var(--color-line-soft)] last:border-0">
-              <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+              <div className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
                 {grp.label}
               </div>
               <Table head={[L("Player"), ...grp.head]}>
@@ -460,7 +469,7 @@ export default function GamePage() {
           if (scratches.length === 0) return null;
           return (
             <div className="border-t border-[var(--color-line-soft)]">
-              <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+              <div className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
                 Inactive · 0 snaps
               </div>
               <div className="divide-y divide-[var(--color-line-soft)]">
@@ -511,6 +520,17 @@ export default function GamePage() {
         )}
       </Card>
 
+      <Tabs
+        value={shown}
+        onChange={setView}
+        options={[
+          { value: "summary" as BoxView, label: "Summary" },
+          ...(hasDrives ? [{ value: "drives" as BoxView, label: "Drives & plays" }] : []),
+          { value: "players" as BoxView, label: "Player stats" },
+        ]}
+      />
+
+      {shown === "summary" && (<>
       <Card title="Linescore" padded={false}>
         <Table head={[L("Team"), ...periodLabels, "T"]}>
           {[
@@ -607,6 +627,10 @@ export default function GamePage() {
         )}
       </Card>
 
+      </>)}
+
+      {shown === "drives" && (
+      <div className="grid gap-4 items-start xl:grid-cols-2">
       {(box.drives?.length || box.plays?.length) ? (
         <Card
           title="Drive Chart"
@@ -629,12 +653,12 @@ export default function GamePage() {
                 const row = (
                   <>
                     <div className="flex items-center gap-2 text-sm">
-                      <span className={cx("text-[11px] tnum w-6", selected ? "text-[var(--color-accent)]" : "text-[var(--color-faint)]")}>
+                      <span className={cx("text-xs tnum w-6", selected ? "text-[var(--color-accent)]" : "text-[var(--color-faint)]")}>
                         {d.n}
                       </span>
                       <TeamMark team={t} size={18} />
                       <span className="font-medium">{t.abbr}</span>
-                      <span className="text-[11px] text-[var(--color-muted)] tnum">
+                      <span className="text-xs text-[var(--color-muted)] tnum">
                         {quarterLabel(d.q)} {clockLabel(d.clock)} · {spotLabel(d.startYl)}
                       </span>
                       <span className="ml-auto flex items-center gap-2">
@@ -694,10 +718,15 @@ export default function GamePage() {
       ) : null}
 
       {box.plays && box.plays.length > 0 ? (
-        <Card title="Play by Play" subtitle={`${shownPlays.length} snaps`} padded={false}>
+        <Card
+          title="Play by Play"
+          subtitle={`${shownPlays.length} snaps`}
+          padded={false}
+          className="xl:sticky xl:top-28"
+        >
           <div
             ref={pbpScroller}
-            className="divide-y divide-[var(--color-line-soft)] max-h-[32rem] overflow-y-auto"
+            className="divide-y divide-[var(--color-line-soft)] max-h-[32rem] xl:max-h-[calc(100vh-14rem)] overflow-y-auto"
           >
             {(box.drives ?? []).length > 0
               ? (box.drives ?? []).map((d) => {
@@ -717,7 +746,7 @@ export default function GamePage() {
                     >
                       <div
                         className={cx(
-                          "px-3 py-1.5 text-[10px] uppercase tracking-wider flex items-center gap-2",
+                          "px-3 py-1.5 text-[11px] uppercase tracking-wider flex items-center gap-2",
                           on
                             ? "text-[var(--color-accent)] bg-[var(--color-accent-dim)] shadow-[inset_3px_0_0_var(--color-accent)]"
                             : "text-[var(--color-faint)] bg-[var(--color-surface-2)]",
@@ -737,10 +766,10 @@ export default function GamePage() {
                               : row.event.offenseId === userTeamId && "bg-[var(--color-accent-dim)]/20",
                           )}
                         >
-                          <span className="text-[11px] text-[var(--color-faint)] tnum whitespace-nowrap w-16">
+                          <span className="text-xs text-[var(--color-faint)] tnum whitespace-nowrap w-16">
                             {quarterLabel(row.event.q)} {clockLabel(row.event.clock)}
                           </span>
-                          <span className="text-[11px] text-[var(--color-muted)] tnum whitespace-nowrap w-16">
+                          <span className="text-xs text-[var(--color-muted)] tnum whitespace-nowrap w-16">
                             {downDistance(row.event)}
                           </span>
                           <span className="min-w-0 truncate">{formatVisiblePlay(row, nameOf, playSides)}</span>
@@ -751,7 +780,7 @@ export default function GamePage() {
                 })
               : shownPlays.map((row, i) => (
                   <div key={i} className="px-3 py-1.5 text-sm flex gap-3">
-                    <span className="text-[11px] text-[var(--color-faint)] tnum whitespace-nowrap">
+                    <span className="text-xs text-[var(--color-faint)] tnum whitespace-nowrap">
                       {quarterLabel(row.event.q)} {clockLabel(row.event.clock)}
                     </span>
                     <span className="min-w-0 truncate">{formatVisiblePlay(row, nameOf, playSides)}</span>
@@ -760,11 +789,15 @@ export default function GamePage() {
           </div>
         </Card>
       ) : null}
+      </div>
+      )}
 
+      {shown === "players" && (
       <div className="grid gap-4 xl:grid-cols-2">
         <TeamPlayerStats t={away} />
         <TeamPlayerStats t={home} />
       </div>
+      )}
     </div>
   );
 }

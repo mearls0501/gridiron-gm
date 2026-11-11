@@ -81,8 +81,7 @@ import {
   Stat,
   Table,
   Tabs,
-  TeamMark,
-} from "@/components/ui";
+  TeamMark, Help } from "@/components/ui";
 
 /**
  * The draft room.
@@ -155,6 +154,7 @@ export default function DraftPage() {
   const [moveUpQuote, setMoveUpQuote] = useState<string | null>(null);
   const [reviewOfferId, setReviewOfferId] = useState<number | null>(null);
   const [futureSeason, setFutureSeason] = useState<number | null>(null);
+  const [futureOpen, setFutureOpen] = useState(false);
   const [showFutureAll, setShowFutureAll] = useState(false);
   const [pace, setPace] = useState<DraftPace>("fast");
 
@@ -457,6 +457,7 @@ export default function DraftPage() {
 
   return (
     <div className="space-y-4">
+      <h1 className="sr-only">Draft</h1>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {d ? (
           <>
@@ -535,13 +536,18 @@ export default function DraftPage() {
           }
         >
           <p className="text-sm text-[var(--color-muted)]">
-            The draft runs during the offseason, after free agency closes. Until then this
-            is a scouting board. You will never see a rating — only your department&apos;s
-            rank, its round shade, and what your people wrote. The free look already
-            disagrees with the media in places. Film and visits tighten that lean, and
-            both sides are sometimes wrong.
+            The draft runs in the offseason, after free agency closes. Until then this is
+            a scouting board.
           </p>
-          <p className="text-xs text-[var(--color-faint)] mt-2">
+          <Help label="What the board shows" className="mt-1">
+            <p>
+              You will never see a rating — only your department&apos;s rank, its round
+              shade, and what your people wrote. The free look already disagrees with the
+              media in places. Film and visits tighten that lean, and both sides are
+              sometimes wrong.
+            </p>
+          </Help>
+          <p className="text-xs text-[var(--color-muted)] mt-2">
             {WINDOW_LABEL[cal.window]} is open. Miss a window and that information does not
             exist this cycle. {cal.visitsRemaining} of {PRIVATE_VISIT_CAP} private visits remain.
           </p>
@@ -636,7 +642,7 @@ export default function DraftPage() {
         >
           {!d.complete && (
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Pace</span>
+              <span className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">Pace</span>
               <Tabs
                 value={pace}
                 onChange={(next) => {
@@ -648,7 +654,7 @@ export default function DraftPage() {
           )}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
                 Your remaining picks
               </div>
               {myUpcoming.length === 0 ? (
@@ -670,7 +676,7 @@ export default function DraftPage() {
 
             {rookieCost !== null && nextMine && (
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
                   Round {nextMine.round} rookie deal
                 </div>
                 <span className="text-xs tnum text-[var(--color-muted)]">
@@ -680,7 +686,7 @@ export default function DraftPage() {
             )}
 
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
                 Positions of need
               </div>
               {needs.length === 0 ? (
@@ -716,7 +722,7 @@ export default function DraftPage() {
                 if (live.kind === "trade") {
                   return (
                     <div className="px-4 py-3 text-sm">
-                      <span className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mr-2">Trade</span>
+                      <span className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mr-2">Trade</span>
                       {live.text}
                     </div>
                   );
@@ -835,7 +841,7 @@ export default function DraftPage() {
                       They send: {o.give.map((a) => tradeBoardAssetLabel(state, a)).join(" + ")} · for
                       your pick #{onClock?.pick}
                     </div>
-                    <div className="text-[10px] text-[var(--color-faint)] mt-0.5">{o.rationale}</div>
+                    <div className="text-[11px] text-[var(--color-faint)] mt-0.5">{o.rationale}</div>
                   </div>
                   {reviewOfferId !== o.id && (
                     <Button size="sm" variant="primary" onClick={() => setReviewOfferId(o.id)}>
@@ -934,10 +940,10 @@ export default function DraftPage() {
           >
             <div className="grid gap-5 lg:grid-cols-4 sm:grid-cols-2">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1">
                   Testing — {sheet.eraLabel}
                 </div>
-                <p className="text-[10px] text-[var(--color-faint)] mb-2">{eraNote}</p>
+                <p className="text-[11px] text-[var(--color-faint)] mb-2">{eraNote}</p>
                 <div className="space-y-1">
                   {sheet.rows.map((row) => (
                     <div key={row.label} className="flex justify-between gap-3 text-xs">
@@ -954,7 +960,7 @@ export default function DraftPage() {
               </div>
 
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
                   Your department&apos;s read
                 </div>
                 {(() => {
@@ -1055,7 +1061,7 @@ export default function DraftPage() {
               </div>
 
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
                   {WINDOW_LABEL[cal.window]}
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -1097,7 +1103,7 @@ export default function DraftPage() {
               </div>
 
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
                   Board call
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-2">
@@ -1160,7 +1166,7 @@ export default function DraftPage() {
 
             {/* ---- The file: what your people wrote ------------------------- */}
             <div className="mt-5 pt-4 border-t border-[var(--color-line-soft)]">
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
                 The File
               </div>
               <p className="text-xs text-[var(--color-muted)] mb-2">
@@ -1199,71 +1205,6 @@ export default function DraftPage() {
           </Card>
         );
       })()}
-
-      {shownFuture != null && (
-        <Card
-          title="Future classes"
-          subtitle={
-            futureCounts.names === 0
-              ? `${draftYearLabel(shownFuture)} is empty`
-              : `${futureCounts.names} names · ${futureCounts.injuries} injur${futureCounts.injuries === 1 ? "y" : "ies"} · ${futureCounts.declared} early declaration${futureCounts.declared === 1 ? "" : "s"} · ${futureCounts.returned} staying in school`
-          }
-          padded={false}
-        >
-          <div className="px-4 py-3 space-y-3 border-b border-[var(--color-line-soft)]">
-            <p className="text-sm text-[var(--color-muted)]">
-              These classes are already in the league. Film, visits, and medicals stay on the{" "}
-              {draftYearLabel(state.season)}. What you can see here is public: school, size, campus testing,
-              and the consensus board. A knee or an early declaration changes who is in the class
-              before that year opens.
-            </p>
-            <Tabs
-              value={String(shownFuture)}
-              onChange={(year) => {
-                setFutureSeason(Number(year));
-                setShowFutureAll(false);
-              }}
-              options={horizon.map((year) => ({ value: String(year), label: draftYearLabel(year) }))}
-            />
-          </div>
-          {futureRows.length === 0 ? (
-            <Empty title={`No one is in the ${draftYearLabel(shownFuture)}.`} />
-          ) : (
-            <Table
-              head={["Prospect", "Pos", "Year", "School", "Size", "40", "Consensus", "News"]}
-            >
-              {futureVisible.map((row) => (
-                <Row key={row.id}>
-                  <Cell align="left">
-                    {(() => {
-                      const person = state.players.find((p) => p.id === row.id);
-                      return person ? <PlayerLink p={person} className="font-medium" /> : row.name;
-                    })()}
-                  </Cell>
-                  <Cell>
-                    <PosBadge pos={row.pos} />
-                  </Cell>
-                  <Cell>{row.classYear}</Cell>
-                  <Cell>{row.college}</Cell>
-                  <Cell>{row.size}</Cell>
-                  <Cell>{row.forty ? `${row.forty}s` : "—"}</Cell>
-                  <Cell>{row.consensus}</Cell>
-                  <Cell align="left">
-                    {row.notes.length > 0 ? row.notes[row.notes.length - 1] : "—"}
-                  </Cell>
-                </Row>
-              ))}
-            </Table>
-          )}
-          {futureRows.length > 32 && (
-            <div className="px-4 py-3">
-              <Button size="sm" variant="ghost" onClick={() => setShowFutureAll((v) => !v)}>
-                {showFutureAll ? "Show the top 32" : `Show all ${futureRows.length}`}
-              </Button>
-            </div>
-          )}
-        </Card>
-      )}
 
       <Card
         title={d ? "Big board" : draftYearLabel(state.season)}
@@ -1352,7 +1293,7 @@ export default function DraftPage() {
                           <span className="tnum whitespace-nowrap" title={meas.fortyTitle}>
                             {meas.forty}
                             {meas.fortyPct && (
-                              <span className="text-[10px] text-[var(--color-faint)]"> {meas.fortyPct}</span>
+                              <span className="text-[11px] text-[var(--color-faint)]"> {meas.fortyPct}</span>
                             )}
                           </span>
                         </Cell>
@@ -1360,7 +1301,7 @@ export default function DraftPage() {
                           <span className="tnum whitespace-nowrap" title={meas.benchTitle}>
                             {meas.bench}
                             {meas.benchPct && (
-                              <span className="text-[10px] text-[var(--color-faint)]"> {meas.benchPct}</span>
+                              <span className="text-[11px] text-[var(--color-faint)]"> {meas.benchPct}</span>
                             )}
                           </span>
                         </Cell>
@@ -1368,7 +1309,7 @@ export default function DraftPage() {
                           <span className="tnum whitespace-nowrap" title={meas.verticalTitle}>
                             {meas.vertical}
                             {meas.verticalPct && (
-                              <span className="text-[10px] text-[var(--color-faint)]"> {meas.verticalPct}</span>
+                              <span className="text-[11px] text-[var(--color-faint)]"> {meas.verticalPct}</span>
                             )}
                           </span>
                         </Cell>
@@ -1394,11 +1335,11 @@ export default function DraftPage() {
                             title={`${g.conviction} conviction`}
                           />
                           <span className="text-xs font-semibold tnum">#{g.slot}</span>
-                          <span className="text-[10px] text-[var(--color-muted)]">{g.shade}</span>
+                          <span className="text-[11px] text-[var(--color-muted)]">{g.shade}</span>
                           {lean !== 0 && (
                             <span
                               className={cx(
-                                "text-[10px] tnum font-medium",
+                                "text-[11px] tnum font-medium",
                                 lean > 0 ? "text-[var(--color-good)]" : "text-[var(--color-warn)]"
                               )}
                               title={
@@ -1420,7 +1361,7 @@ export default function DraftPage() {
                       return (
                         <span className="text-xs text-[var(--color-muted)] whitespace-nowrap">
                           <span className="tnum">#{m.slot}</span>{" "}
-                          <span className="text-[10px]">{m.shade}</span>
+                          <span className="text-[11px]">{m.shade}</span>
                         </span>
                       );
                     })()}
@@ -1531,6 +1472,78 @@ export default function DraftPage() {
         )}
       </Card>
 
+      {shownFuture != null && (
+        <Card
+          title="Future classes"
+          subtitle={
+            futureCounts.names === 0
+              ? `${draftYearLabel(shownFuture)} is empty`
+              : `${futureCounts.names} names · ${futureCounts.injuries} injur${futureCounts.injuries === 1 ? "y" : "ies"} · ${futureCounts.declared} early declaration${futureCounts.declared === 1 ? "" : "s"} · ${futureCounts.returned} staying in school`
+          }
+          actions={
+            <Button size="sm" variant="ghost" onClick={() => setFutureOpen((v) => !v)}>
+              {futureOpen ? "Hide" : "Show"}
+            </Button>
+          }
+          padded={false}
+        >
+          {futureOpen && (<>
+          <div className="px-4 py-3 space-y-3 border-b border-[var(--color-line-soft)]">
+            <p className="text-sm text-[var(--color-muted)]">
+              These classes are already in the league. Film, visits, and medicals stay on the{" "}
+              {draftYearLabel(state.season)}. What you can see here is public: school, size, campus testing,
+              and the consensus board. A knee or an early declaration changes who is in the class
+              before that year opens.
+            </p>
+            <Tabs
+              value={String(shownFuture)}
+              onChange={(year) => {
+                setFutureSeason(Number(year));
+                setShowFutureAll(false);
+              }}
+              options={horizon.map((year) => ({ value: String(year), label: draftYearLabel(year) }))}
+            />
+          </div>
+          {futureRows.length === 0 ? (
+            <Empty title={`No one is in the ${draftYearLabel(shownFuture)}.`} />
+          ) : (
+            <Table
+              head={["Prospect", "Pos", "Year", "School", "Size", "40", "Consensus", "News"]}
+            >
+              {futureVisible.map((row) => (
+                <Row key={row.id}>
+                  <Cell align="left">
+                    {(() => {
+                      const person = state.players.find((p) => p.id === row.id);
+                      return person ? <PlayerLink p={person} className="font-medium" /> : row.name;
+                    })()}
+                  </Cell>
+                  <Cell>
+                    <PosBadge pos={row.pos} />
+                  </Cell>
+                  <Cell>{row.classYear}</Cell>
+                  <Cell>{row.college}</Cell>
+                  <Cell>{row.size}</Cell>
+                  <Cell>{row.forty ? `${row.forty}s` : "—"}</Cell>
+                  <Cell>{row.consensus}</Cell>
+                  <Cell align="left">
+                    {row.notes.length > 0 ? row.notes[row.notes.length - 1] : "—"}
+                  </Cell>
+                </Row>
+              ))}
+            </Table>
+          )}
+          {futureRows.length > 32 && (
+            <div className="px-4 py-3">
+              <Button size="sm" variant="ghost" onClick={() => setShowFutureAll((v) => !v)}>
+                {showFutureAll ? "Show the top 32" : `Show all ${futureRows.length}`}
+              </Button>
+            </div>
+          )}
+          </>)}
+        </Card>
+      )}
+
       {d && (
         <Card
           title="Recent picks"
@@ -1609,13 +1622,13 @@ function ClockOfferPanel({
       </div>
       <div className="grid sm:grid-cols-2 gap-3 text-sm">
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">You receive</div>
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">You receive</div>
           <ul className="mt-1 space-y-0.5">
             {review.incoming.map((l, i) => <li key={i}>{label(l)}</li>)}
           </ul>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">{partner?.abbr ?? "They"} receive</div>
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">{partner?.abbr ?? "They"} receive</div>
           <ul className="mt-1 space-y-0.5">
             {review.outgoing.map((l, i) => <li key={i}>{label(l)}</li>)}
           </ul>
@@ -1623,11 +1636,11 @@ function ClockOfferPanel({
       </div>
       <div className="grid grid-cols-2 gap-2 text-sm tnum">
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Your next pick</div>
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">Your next pick</div>
           {nextPick ? `#${nextPick.pick} (round ${nextPick.round})` : "None left this draft"}
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Picks this draft</div>
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">Picks this draft</div>
           {picksLeft.before} → {picksLeft.after}
         </div>
       </div>

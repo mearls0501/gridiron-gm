@@ -29,7 +29,7 @@ function AwardList({
         const team = teamOf(state, a.teamId);
         return (
           <div key={a.key} className="flex items-start gap-2 text-sm min-w-0">
-            <span className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] w-[72px] shrink-0 pt-0.5">
+            <span className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] w-[72px] shrink-0 pt-0.5">
               {a.key === "opoy" ? "OPOY" : a.key === "dpoy" ? "DPOY" : a.key.toUpperCase()}
             </span>
             {a.player ? (
@@ -40,7 +40,7 @@ function AwardList({
                   {team && <TeamMark team={team} size={16} />}
                 </div>
                 {!compact && a.line && (
-                  <div className="text-[11px] text-[var(--color-muted)] tnum mt-0.5">{a.line}</div>
+                  <div className="text-xs text-[var(--color-muted)] tnum mt-0.5">{a.line}</div>
                 )}
               </div>
             ) : (
@@ -92,7 +92,7 @@ function RetirementBlock({
         ))}
       </Table>
       {rows.length > shown.length && (
-        <div className="px-4 py-2 text-[11px] text-[var(--color-faint)]">
+        <div className="px-4 py-2 text-xs text-[var(--color-faint)]">
           and {rows.length - shown.length} more on the save
         </div>
       )}
@@ -215,7 +215,7 @@ export function SeasonReviewSummary({
         </div>
       )}
       <AwardList state={state} awards={view.awards} compact />
-      <div className="text-[11px] text-[var(--color-faint)]">
+      <div className="text-xs text-[var(--color-faint)]">
         {view.awardsArchived
           ? "Awards from the season archive."
           : "Awards scored from this season's lines — same formula the archive will write."}
@@ -263,7 +263,7 @@ export function SeasonReviewPanels({
               <div className="flex items-center gap-3">
                 <TeamMark team={champ} size={36} />
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Champion</div>
+                  <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">Champion</div>
                   <div className="font-semibold">{champ.city} {champ.name}</div>
                 </div>
               </div>
@@ -272,7 +272,7 @@ export function SeasonReviewPanels({
               <div className="flex items-center gap-3">
                 <TeamMark team={runner} size={36} />
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Runner-up</div>
+                  <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">Runner-up</div>
                   <div className="font-semibold">{runner.city} {runner.name}</div>
                 </div>
               </div>

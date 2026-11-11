@@ -83,7 +83,7 @@ export default function PlayoffsPage() {
       const mine = teamId === userTeamId;
       return (
         <div className="flex items-center gap-2 py-1">
-          <span className="w-7 shrink-0 text-[11px] tnum text-[var(--color-faint)]">
+          <span className="w-7 shrink-0 text-xs tnum text-[var(--color-faint)]">
             {seedLabel(teamId)}
           </span>
           <TeamMark team={t} size={22} />
@@ -117,12 +117,12 @@ export default function PlayoffsPage() {
         {side(g.awayId, g.awayScore, awayWon)}
         {side(g.homeId, g.homeScore, homeWon)}
         <div className="flex items-center justify-between gap-2 mt-1.5 pt-1.5 border-t border-[var(--color-line-soft)]">
-          <span className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+          <span className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
             {g.playoffRound === "SB"
               ? "Neutral site"
               : `${state!.teams[g.homeId].abbr} hosts`}
           </span>
-          <span className="text-[10px] text-[var(--color-accent)]">
+          <span className="text-[11px] text-[var(--color-accent)]">
             {g.played ? "Box score →" : isUser ? "Call plays →" : "Not played"}
           </span>
         </div>
@@ -211,7 +211,7 @@ export default function PlayoffsPage() {
           <div className="flex flex-wrap items-center gap-4">
             <TeamMark team={champion} size={56} />
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-accent)]">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-accent)]">
                 {state.season} Champions
               </div>
               <div className="text-xl font-semibold truncate">

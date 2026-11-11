@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/store/game";
-import { Button, Card, Empty, Pill, TeamMark } from "@/components/ui";
+import { Button, Card, Empty, Help, Pill, TeamMark } from "@/components/ui";
 import { isOnBye, userNextGame } from "@/lib/core/season/engine";
 import {
   AGGRESSION_AGGRESSIVE, AGGRESSION_CONSERVATIVE, PASS_LEAN_PASS, PASS_LEAN_RUN,
@@ -181,8 +181,10 @@ export default function PlayPage() {
       })
     : null;
 
+  const hasLog = !!view && (view.drives.length > 0 || shownPlays.length > 0);
+
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4">
       <div>
         <h1 className="text-lg font-semibold">Play the Game</h1>
         <p className="text-xs text-[var(--color-muted)]">
@@ -190,24 +192,77 @@ export default function PlayPage() {
         </p>
       </div>
 
+      <div className={hasLog ? "grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "max-w-3xl"}>
+      <div className="space-y-4 min-w-0">
+
       {view && !view.done && (
         <Card
           title={`${quarterLabel(view.info.quarter)} · ${clockLabel(view.info.clock)}`}
           subtitle={`${view.info.down} & ${view.info.toGo} · ${spotLabel(view.info.yardLine)}`}
         >
-          <p className="text-sm mb-3 tnum">
-            {us.abbr} {userIsHome ? view.info.homeScore : view.info.awayScore}
-            {" — "}
-            {opp.abbr} {userIsHome ? view.info.awayScore : view.info.homeScore}
-            <span className="text-[var(--color-muted)]">
-              {" · "}
-              {(() => {
-                const margin = offenseMargin(view.info);
-                if (margin === 0) return "Tied";
-                return margin > 0 ? `Up ${margin}` : `Down ${-margin}`;
-              })()}
-            </span>
-          </p>
+          {(() => {
+            const ours = userIsHome ? view.info.homeScore : view.info.awayScore;
+            const theirs = userIsHome ? view.info.awayScore : view.info.homeScore;
+            const margin = offenseMargin(view.info);
+            const yl = Math.max(1, Math.min(99, Math.round(view.info.yardLine)));
+            const line = Math.min(100, yl + view.info.toGo);
+            return (
+              <div className="mb-4">
+                <div className="flex items-center gap-3">
+                  <TeamMark team={us} size={36} />
+                  <div className="min-w-0">
+                    <div className="text-xs text-[var(--color-muted)] leading-tight">{us.abbr} · ball</div>
+                    <div className="text-3xl font-semibold tnum leading-none mt-0.5">{ours}</div>
+                  </div>
+                  <div className="flex-1 text-center">
+                    <Pill tone={margin === 0 ? "default" : margin > 0 ? "good" : "bad"}>
+                      {margin === 0 ? "Tied" : margin > 0 ? `Up ${margin}` : `Down ${-margin}`}
+                    </Pill>
+                  </div>
+                  <div className="min-w-0 text-right">
+                    <div className="text-xs text-[var(--color-muted)] leading-tight">{opp.abbr}</div>
+                    <div className="text-3xl font-semibold tnum leading-none mt-0.5 text-[var(--color-muted)]">{theirs}</div>
+                  </div>
+                  <TeamMark team={opp} size={36} />
+                </div>
+                {/* Field: our goal line on the left, theirs on the right. */}
+                <div
+                  className="mt-3"
+                  role="img"
+                  aria-label={`Ball on the ${spotLabel(view.info.yardLine)}, ${view.info.toGo} to go`}
+                >
+                  <div className="relative h-7 rounded-md overflow-hidden border border-[var(--color-line)] bg-[#12261b]">
+                    <div className="absolute inset-y-0 left-0 w-[4%]" style={{ background: us.primary, opacity: 0.9 }} />
+                    <div className="absolute inset-y-0 right-0 w-[4%]" style={{ background: opp.primary, opacity: 0.9 }} />
+                    {[10, 20, 30, 40, 50, 60, 70, 80, 90].map((m) => (
+                      <div
+                        key={m}
+                        className="absolute inset-y-0 w-px bg-white/15"
+                        style={{ left: `${4 + m * 0.92}%` }}
+                      />
+                    ))}
+                    <div
+                      className="absolute inset-y-0 bg-[var(--color-warn)]/25"
+                      style={{ left: `${4 + yl * 0.92}%`, width: `${(line - yl) * 0.92}%` }}
+                    />
+                    <div
+                      className="absolute inset-y-0 w-0.5 bg-[var(--color-warn)]"
+                      style={{ left: `${4 + line * 0.92}%` }}
+                    />
+                    <div
+                      className="absolute top-1/2 w-3 h-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white border-2 border-[#0c0e12]"
+                      style={{ left: `${4 + yl * 0.92}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-[var(--color-faint)] mt-1 tnum">
+                    <span>{us.abbr} goal</span>
+                    <span>50</span>
+                    <span>{opp.abbr} goal</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           {view.info.down === 4 && (
             <p className="text-xs text-[var(--color-muted)] mb-3">
               The staff already sent the offense out on fourth down. This desk calls the snap.
@@ -215,7 +270,7 @@ export default function PlayPage() {
           )}
           {headline && (
             <div className="mb-3 px-3 py-2 rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-line-soft)]">
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-0.5">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-0.5">
                 Last snap
               </div>
               <p className="text-sm">
@@ -227,8 +282,8 @@ export default function PlayPage() {
               </p>
             </div>
           )}
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
-            The call
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+            Call by situation
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {SNAP_INTENT_CHOICES.map((choice) => {
@@ -242,41 +297,45 @@ export default function PlayPage() {
                 >
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-sm font-medium">{choice.label}</span>
-                    <span className="text-[11px] font-semibold text-[var(--color-accent)] shrink-0">
-                      {snapSendWord(resolved.call)}
+                    <span className="text-xs text-[var(--color-muted)] shrink-0">
+                      sends{" "}
+                      <span className="font-semibold text-[var(--color-accent)]">{snapSendWord(resolved.call)}</span>
                     </span>
                   </div>
-                  <p className="text-[11px] text-[var(--color-muted)] mt-0.5">{resolved.because}</p>
+                  <p className="text-xs text-[var(--color-muted)] mt-0.5">{resolved.because}</p>
                 </button>
               );
             })}
           </div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mt-4 mb-1.5">
-            This snap
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mt-4 mb-1.5">
+            Or call it yourself
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="primary" onClick={() => pick("run")}>Run</Button>
-            <Button variant="primary" onClick={() => pick("pass")}>Pass</Button>
-            <Button onClick={() => pick("auto", "Coach this snap")}>Coach this snap</Button>
+            <Button variant="primary" size="lg" className="min-w-24" onClick={() => pick("run")}>Run</Button>
+            <Button variant="primary" size="lg" className="min-w-24" onClick={() => pick("pass")}>Pass</Button>
+            <Button size="lg" onClick={() => pick("auto", "Coach this snap")}>Coach this snap</Button>
+            <span className="flex-1" />
             <Button variant="ghost" onClick={finish}>Let the coach finish</Button>
           </div>
           {lastSend && (
             <p className="text-xs mt-3">Last call: {lastSend}</p>
           )}
-          <ul className="mt-3 space-y-1.5 text-[11px] text-[var(--color-muted)]">
+          <p className="text-xs text-[var(--color-muted)] mt-3 tnum">{snapMix(view.calls)}</p>
+          <Help label="What each call does" className="mt-1">
+          <ul className="space-y-1.5">
             {SNAP_INTENT_CHOICES.map((choice) => (
               <li key={choice.id}>
                 <span className="text-[var(--color-text)]">{choice.label}.</span> {choice.rule}
               </li>
             ))}
           </ul>
-          <p className="text-xs text-[var(--color-muted)] mt-2">
-            {snapMix(view.calls)}.
-            {" "}Run forces a run. Pass forces a pass. Coach this snap is the staff mix for the down, the distance, the score, and the clock.
+          <p>
+            Run forces a run. Pass forces a pass. Coach this snap is the staff mix for the down, the distance, the score, and the clock.
             {sheetBits.length > 0 ? ` This week's sheet is ${sheetBits.join(" and ")}, and the coach's snaps follow it.` : ""}
             {" "}Let the coach finish uses that mix for the snaps that are left.
             Formations stay with the engine. A kneel, once the lead and the clock have ended the game, is taken before this desk.
           </p>
+          </Help>
         </Card>
       )}
 
@@ -311,9 +370,13 @@ export default function PlayPage() {
         </Card>
       )}
 
+      </div>
+
+      {hasLog && (
+      <div className="space-y-4 min-w-0">
       {view && view.drives.length > 0 && (
         <Card title="Drive Log" subtitle={`${view.drives.length} possessions`} padded={false}>
-          <div className="divide-y divide-[var(--color-line-soft)] max-h-72 overflow-y-auto">
+          <div className="divide-y divide-[var(--color-line-soft)] max-h-56 overflow-y-auto">
             {view.drives.map((d) => {
               const t = state.teams[d.offenseId];
               const bar = driveBar(d);
@@ -322,7 +385,7 @@ export default function PlayPage() {
                   <div className="flex items-center gap-2 text-sm">
                     <TeamMark team={t} size={18} />
                     <span>{t.abbr}</span>
-                    <span className="text-[11px] text-[var(--color-muted)] tnum">
+                    <span className="text-xs text-[var(--color-muted)] tnum">
                       {quarterLabel(d.q)} · {spotLabel(d.startYl)}
                     </span>
                     <span className="ml-auto flex items-center gap-2">
@@ -347,7 +410,7 @@ export default function PlayPage() {
 
       {view && shownPlays.length > 0 && (
         <Card title="Play by Play" subtitle={`${shownPlays.length} snaps`} padded={false}>
-          <div className="divide-y divide-[var(--color-line-soft)] max-h-80 overflow-y-auto">
+          <div className="divide-y divide-[var(--color-line-soft)] max-h-80 lg:max-h-[30rem] overflow-y-auto">
             {shownPlays.map((row, i) => (
               <div
                 key={i}
@@ -355,10 +418,10 @@ export default function PlayPage() {
                   headline && row.event === headline.event ? "bg-[var(--color-accent-dim)]/40" : ""
                 }`}
               >
-                <span className="text-[11px] text-[var(--color-faint)] tnum whitespace-nowrap w-16">
+                <span className="text-xs text-[var(--color-faint)] tnum whitespace-nowrap w-16">
                   {quarterLabel(row.event.q)} {clockLabel(row.event.clock)}
                 </span>
-                <span className="text-[11px] text-[var(--color-muted)] tnum whitespace-nowrap w-14">
+                <span className="text-xs text-[var(--color-muted)] tnum whitespace-nowrap w-14">
                   {downDistance(row.event)}
                 </span>
                 <span className="min-w-0 truncate">{formatVisiblePlay(row, nameOf, playSides)}</span>
@@ -367,6 +430,9 @@ export default function PlayPage() {
           </div>
         </Card>
       )}
+      </div>
+      )}
+      </div>
     </div>
   );
 }

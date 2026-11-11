@@ -684,7 +684,7 @@ export async function checkPhase1BoxScores(page, base, { fail, ok }, onPage) {
   }
   await recap.click();
   await page.waitForTimeout(400);
-  await page.getByRole("heading", { name: "Drive Chart" }).waitFor({ timeout: 8000 }).catch(() => {});
+  await page.getByRole("heading", { name: "Linescore" }).waitFor({ timeout: 8000 }).catch(() => {});
   if (onPage) await onPage("/game user");
   const userPath = await page.evaluate(() => location.pathname);
   const userBox = await readBoxScore(page);
@@ -733,7 +733,7 @@ export async function checkPhase1BoxScores(page, base, { fail, ok }, onPage) {
   }
   await page.goto(base + cpuHref, { waitUntil: "networkidle" });
   await page.waitForTimeout(400);
-  await page.getByRole("heading", { name: "Drive Chart" }).waitFor({ timeout: 8000 }).catch(() => {});
+  await page.getByRole("heading", { name: "Linescore" }).waitFor({ timeout: 8000 }).catch(() => {});
   if (onPage) await onPage("/game CPU");
   const cpuBox = await readBoxScore(page);
   if (cpuBox.error) fail(`${cpuHref}: error boundary rendered`);
@@ -749,7 +749,14 @@ export async function checkPhase1BoxScores(page, base, { fail, ok }, onPage) {
 }
 
 async function readBoxScore(page) {
-  return page.evaluate(() => {
+  // The box score is tabbed: stats read from Summary, then the drives tab.
+  const hasStats = await page.evaluate(() => /Scoring|Passing|Rushing/i.test(document.body.innerText));
+  const drivesTab = page.getByRole("button", { name: /^Drives & plays$/ });
+  if (await drivesTab.count()) {
+    await drivesTab.click();
+    await page.waitForTimeout(200);
+  }
+  const read = await page.evaluate(() => {
     const collapse = (s) => (s || "").replace(/\s+/g, " ").trim();
     const ownText = (el) =>
       collapse(
@@ -783,6 +790,7 @@ async function readBoxScore(page) {
       groups,
     };
   });
+  return { ...read, hasStats };
 }
 
 export async function checkDraftBoard(page, base, { fail, ok }) {

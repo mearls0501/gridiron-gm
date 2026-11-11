@@ -123,6 +123,7 @@ export default function FinancesPage() {
 
   return (
     <div className="space-y-4">
+      <h1 className="sr-only">Finances</h1>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <Stat label="Salary Cap" value={formatMoney(cap.cap)} sub={`${state.season} season`} />
         <Stat
@@ -269,7 +270,7 @@ export default function FinancesPage() {
                   <Cell align="left">
                     <PlayerLink p={p} className="font-medium" />
                     {holding && (
-                      <div className="text-[10px] uppercase tracking-wider text-[var(--color-bad)]">Holding out · inactive</div>
+                      <div className="text-[11px] uppercase tracking-wider text-[var(--color-bad)]">Holding out · inactive</div>
                     )}
                   </Cell>
                   <Cell>

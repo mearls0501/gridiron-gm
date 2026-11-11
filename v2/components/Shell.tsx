@@ -20,24 +20,42 @@ import { NewGameScreen } from "./NewGameScreen";
  * season-advance control on an admin page.
  */
 
-const NAV = [
-  { href: "/", label: "Hub" },
-  { href: "/week", label: "This Week" },
-  { href: "/roster", label: "Roster" },
-  { href: "/depth-chart", label: "Depth Chart" },
-  { href: "/schedule", label: "Schedule" },
-  { href: "/standings", label: "Standings" },
-  { href: "/stats", label: "Stats" },
-  { href: "/records", label: "Records" },
-  { href: "/history", label: "History" },
-  { href: "/playoffs", label: "Playoffs" },
-  { href: "/free-agency", label: "Free Agency" },
-  { href: "/trades", label: "Trades" },
-  { href: "/draft", label: "Draft" },
-  { href: "/finances", label: "Finances" },
-  { href: "/front-office", label: "Front Office" },
-  { href: "/staff", label: "Staff" },
-  { href: "/league", label: "League" },
+type NavLink = { href: string; label: string };
+type NavGroup = { title: string; links: NavLink[] };
+
+/**
+ * Every screen stays one click away, but the bar is five clusters rather than
+ * seventeen equal words: what you do this week, your club, the league, the
+ * three markets, and the building.
+ */
+const NAV_GROUPS: NavGroup[] = [
+  { title: "Now", links: [
+    { href: "/", label: "Hub" },
+    { href: "/week", label: "This Week" },
+  ] },
+  { title: "Team", links: [
+    { href: "/roster", label: "Roster" },
+    { href: "/depth-chart", label: "Depth Chart" },
+    { href: "/finances", label: "Finances" },
+    { href: "/staff", label: "Staff" },
+    { href: "/front-office", label: "Front Office" },
+  ] },
+  { title: "Players", links: [
+    { href: "/free-agency", label: "Free Agency" },
+    { href: "/trades", label: "Trades" },
+    { href: "/draft", label: "Draft" },
+  ] },
+  { title: "Season", links: [
+    { href: "/schedule", label: "Schedule" },
+    { href: "/standings", label: "Standings" },
+    { href: "/playoffs", label: "Playoffs" },
+    { href: "/stats", label: "Stats" },
+  ] },
+  { title: "League", links: [
+    { href: "/league", label: "League" },
+    { href: "/records", label: "Records" },
+    { href: "/history", label: "History" },
+  ] },
 ];
 
 export const PHASE_LABEL: Record<string, string> = {
@@ -51,10 +69,12 @@ export const PHASE_LABEL: Record<string, string> = {
   "offseason-final": "Roster Cutdown",
 };
 
-function navLinks(phase: string): { href: string; label: string }[] {
-  return phase === "regular"
-    ? NAV.flatMap((n) => (n.href === "/week" ? [n, { href: "/play", label: "Play the Game" }] : [n]))
-    : NAV.slice();
+/** Play the Game exists only while there is a game to play; it joins "Now". */
+function navGroups(phase: string): NavGroup[] {
+  if (phase !== "regular") return NAV_GROUPS;
+  return NAV_GROUPS.map((g) =>
+    g.title === "Now" ? { ...g, links: [...g.links, { href: "/play", label: "Play the Game" }] } : g
+  );
 }
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -83,7 +103,7 @@ export function Shell({ children }: { children: ReactNode }) {
     const shown = toast;
     const t = setTimeout(() => {
       if (toastDismissApplies(shown, useGame.getState().toast)) setToast(null);
-    }, 2600);
+    }, 4000);
     return () => clearTimeout(t);
   }, [toast, setToast]);
 
@@ -102,22 +122,18 @@ export function Shell({ children }: { children: ReactNode }) {
   const team = state.teams[state.userTeamId];
   const rec = computeRecords(state).get(team.id)!;
   const cap = teamCap(state, team.id);
-  const links = navLinks(state.phase);
+  const groups = navGroups(state.phase);
 
-  const linkClass = (href: string) => {
-    const active =
-      href === "/"
-        ? pathname === "/"
-        : href === "/play"
-          ? pathname === "/play"
-          : pathname.startsWith(href);
-    return cx(
-      "px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors",
-      active
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : href === "/play" ? pathname === "/play" : pathname.startsWith(href);
+
+  const linkClass = (href: string) =>
+    cx(
+      "px-2.5 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors",
+      isActive(href)
         ? "border-[var(--color-accent)] text-[var(--color-text)]"
         : "border-transparent text-[var(--color-muted)] hover:text-[var(--color-text)]"
     );
-  };
 
   return (
     <div className="min-h-screen">
@@ -129,7 +145,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <div className="text-sm font-semibold leading-tight truncate">
                 {team.city} {team.name}
               </div>
-              <div className="flex items-baseline gap-2 min-w-0 text-[11px] text-[var(--color-muted)] leading-tight tnum">
+              <div className="flex items-baseline gap-2 min-w-0 text-xs text-[var(--color-muted)] leading-tight tnum">
                 <span className="truncate">
                   {state.season} · {PHASE_LABEL[state.phase] ?? state.phase}
                   {state.phase === "regular" && ` · Week ${state.week}`}
@@ -140,15 +156,15 @@ export function Shell({ children }: { children: ReactNode }) {
             <div className="ml-auto flex items-center gap-3 shrink-0">
               <button
                 type="button"
-                className="sm:hidden text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-text)] cursor-pointer"
+                className="sm:hidden text-xs font-medium px-2.5 py-1.5 rounded-md border border-[var(--color-line)] text-[var(--color-text)] cursor-pointer"
                 aria-expanded={navOpen}
                 aria-controls="phone-nav"
                 onClick={() => setNavOpen((v) => !v)}
               >
-                Menu
+                {navOpen ? "Close" : "Menu"}
               </button>
               <div className="hidden sm:block text-right">
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Cap Space</div>
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">Cap Space</div>
                 <div
                   className={cx(
                     "text-xs font-semibold tnum",
@@ -160,32 +176,64 @@ export function Shell({ children }: { children: ReactNode }) {
               </div>
               <Link
                 href="/saves"
-                className="text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+                className="tap inline-flex items-center text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
               >
                 Saves
               </Link>
               <Link
                 href="/settings"
-                className="text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+                className="tap inline-flex items-center text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
               >
                 Settings
               </Link>
             </div>
           </div>
 
-          <nav className="hidden sm:flex flex-wrap gap-0.5 -mb-px" data-nav="bar">
-            {links.map((n) => (
-              <Link key={n.href} href={n.href} className={linkClass(n.href)}>
-                {n.label}
-              </Link>
+          <nav className="hidden sm:flex flex-wrap items-center -mb-px" data-nav="bar" aria-label="Main">
+            {groups.map((g, gi) => (
+              <div key={g.title} role="group" aria-label={g.title} className="flex items-center">
+                {gi > 0 && <span aria-hidden className="mx-1.5 h-4 w-px bg-[var(--color-line)]" />}
+                {g.links.map((n) => (
+                  <Link
+                    key={n.href}
+                    href={n.href}
+                    aria-current={isActive(n.href) ? "page" : undefined}
+                    className={linkClass(n.href)}
+                  >
+                    {n.label}
+                  </Link>
+                ))}
+              </div>
             ))}
           </nav>
           {navOpen && (
-            <nav id="phone-nav" className="sm:hidden flex flex-col pb-2" data-nav="menu">
-              {links.map((n) => (
-                <Link key={n.href} href={n.href} className={linkClass(n.href)}>
-                  {n.label}
-                </Link>
+            <nav
+              id="phone-nav"
+              className="sm:hidden grid grid-cols-2 gap-x-4 gap-y-3 pt-1 pb-4"
+              data-nav="menu"
+              aria-label="Main"
+            >
+              {groups.map((g) => (
+                <div key={g.title} className={g.links.length > 4 ? "row-span-2" : undefined}>
+                  <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] px-2 mb-0.5">
+                    {g.title}
+                  </div>
+                  {g.links.map((n) => (
+                    <Link
+                      key={n.href}
+                      href={n.href}
+                      aria-current={isActive(n.href) ? "page" : undefined}
+                      className={cx(
+                        "tap flex items-center px-2 py-2.5 rounded-md text-sm font-medium",
+                        isActive(n.href)
+                          ? "bg-[var(--color-accent-dim)] text-[var(--color-text)]"
+                          : "text-[var(--color-muted)] hover:text-[var(--color-text)]"
+                      )}
+                    >
+                      {n.label}
+                    </Link>
+                  ))}
+                </div>
               ))}
             </nav>
           )}
@@ -195,7 +243,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <main className="max-w-[1400px] mx-auto px-4 py-5 animate-in">{children}</main>
 
       {toast && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 animate-up">
+        <div role="status" aria-live="polite" className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 animate-up pointer-events-none">
           <div className="bg-[var(--color-surface-3)] border border-[var(--color-line)] rounded-lg px-4 py-2.5 text-sm shadow-xl">
             {toast}
           </div>
@@ -203,11 +251,12 @@ export function Shell({ children }: { children: ReactNode }) {
       )}
 
       {error && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 animate-up max-w-md">
+        <div role="alert" className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 animate-up max-w-md">
           <div className="bg-[#3a1d1d] border border-[#5a2c2c] rounded-lg px-4 py-3 text-sm shadow-xl flex items-start gap-3">
             <span className="text-[var(--color-bad)]">{error}</span>
             <button
               onClick={() => setError(null)}
+              aria-label="Dismiss"
               className="text-[var(--color-muted)] hover:text-[var(--color-text)] shrink-0 cursor-pointer"
             >
               ✕

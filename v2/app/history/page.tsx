@@ -116,7 +116,7 @@ export default function HistoryPage() {
               <li key={clas.season} className="px-4 py-3">
                 <div className="flex items-baseline justify-between gap-3 mb-2">
                   <h2 className="text-sm font-semibold">Class of {clas.season}</h2>
-                  <span className="text-[11px] text-[var(--color-faint)] tnum">
+                  <span className="text-xs text-[var(--color-faint)] tnum">
                     {clas.inductees.length} inductee{clas.inductees.length === 1 ? "" : "s"}
                   </span>
                 </div>
@@ -129,7 +129,7 @@ export default function HistoryPage() {
                       ) : (
                         <span className="text-xs text-[var(--color-faint)]">#{entry.playerId}</span>
                       )}
-                      <span className="text-[11px] text-[var(--color-muted)] tnum ml-auto shrink-0">
+                      <span className="text-xs text-[var(--color-muted)] tnum ml-auto shrink-0">
                         {entry.firstSeason != null && entry.lastSeason != null
                           ? `${entry.firstSeason}–${entry.lastSeason}`
                           : "—"}
@@ -145,7 +145,7 @@ export default function HistoryPage() {
           </ul>
         )}
         {!league.empty && (
-          <p className="px-4 py-3 text-[11px] text-[var(--color-faint)] border-t border-[var(--color-line-soft)]">
+          <p className="px-4 py-3 text-xs text-[var(--color-faint)] border-t border-[var(--color-line-soft)]">
             {league.rule}
           </p>
         )}
@@ -193,7 +193,7 @@ export default function HistoryPage() {
                       {y.season}
                     </Link>
                     {y.pending && (
-                      <span className="block text-[10px] text-[var(--color-faint)]">Season Review</span>
+                      <span className="block text-[11px] text-[var(--color-faint)]">Season Review</span>
                     )}
                   </Cell>
                   <Cell align="left" className="tnum">
@@ -230,7 +230,7 @@ export default function HistoryPage() {
                               {club && (
                                 <span className="inline-flex items-center gap-1 shrink-0">
                                   <TeamMark team={club} size={14} />
-                                  <span className="text-[10px] text-[var(--color-faint)]">{club.abbr}</span>
+                                  <span className="text-[11px] text-[var(--color-faint)]">{club.abbr}</span>
                                 </span>
                               )}
                             </span>
@@ -257,7 +257,7 @@ export default function HistoryPage() {
                               {club && (
                                 <span className="inline-flex items-center gap-1 shrink-0">
                                   <TeamMark team={club} size={14} />
-                                  <span className="text-[10px] text-[var(--color-faint)]">{club.abbr}</span>
+                                  <span className="text-[11px] text-[var(--color-faint)]">{club.abbr}</span>
                                 </span>
                               )}
                             </span>
@@ -333,7 +333,7 @@ export default function HistoryPage() {
           </Table>
         )}
         {!view.emptyHof && (
-          <p className="px-4 py-3 text-[11px] text-[var(--color-faint)] border-t border-[var(--color-line-soft)]">
+          <p className="px-4 py-3 text-xs text-[var(--color-faint)] border-t border-[var(--color-line-soft)]">
             {view.hofRule}
           </p>
         )}
@@ -358,14 +358,14 @@ export default function HistoryPage() {
                   className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-3 text-center"
                 >
                   <div className="text-2xl font-semibold tnum">{row.number}</div>
-                  <div className="mt-1 text-[11px] text-[var(--color-muted)] truncate">
+                  <div className="mt-1 text-xs text-[var(--color-muted)] truncate">
                     {wearer ? (
-                      <PlayerLink p={wearer} className="text-[11px]" />
+                      <PlayerLink p={wearer} className="text-xs" />
                     ) : (
                       `${row.firstName} ${row.lastName}`
                     )}
                   </div>
-                  <div className="mt-0.5 text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+                  <div className="mt-0.5 text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
                     {row.pos} · {row.season} · {row.reason === "user" ? "Club" : "Hall"}
                   </div>
                 </div>
@@ -375,7 +375,7 @@ export default function HistoryPage() {
         )}
         <div className="mt-4 flex flex-wrap items-end gap-2">
           <label className="min-w-[220px] flex-1">
-            <span className="block text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1">
+            <span className="block text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1">
               Retire a number
             </span>
             <select

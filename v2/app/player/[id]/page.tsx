@@ -280,7 +280,7 @@ export default function PlayerPage() {
           {team ? (
             <TeamMark team={team} size={48} />
           ) : (
-            <span className="inline-flex items-center justify-center w-12 h-12 rounded bg-[var(--color-surface-3)] text-[10px] font-semibold text-[var(--color-muted)]">
+            <span className="inline-flex items-center justify-center w-12 h-12 rounded bg-[var(--color-surface-3)] text-[11px] font-semibold text-[var(--color-muted)]">
               {p.prospect ? "DRAFT" : "FA"}
             </span>
           )}
@@ -314,7 +314,7 @@ export default function PlayerPage() {
             {p.prospect ? (
               <>
                 <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+                  <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
                     {future ? "Consensus" : "Scouted Grade"}
                   </div>
                   <div className="text-lg font-semibold">
@@ -323,7 +323,7 @@ export default function PlayerPage() {
                 </div>
                 {scheme && (
                   <div className="text-right">
-                    <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+                    <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
                       Scheme fit
                     </div>
                     <div className="text-lg font-semibold">
@@ -335,7 +335,7 @@ export default function PlayerPage() {
             ) : (
               <>
                 <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+                  <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
                     {fog ? "Scouted" : "Overall"}
                   </div>
                   <div className="mt-1">
@@ -343,7 +343,7 @@ export default function PlayerPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+                  <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
                     Potential
                   </div>
                   <div className="mt-1">
@@ -504,7 +504,7 @@ export default function PlayerPage() {
                   </span>
                 </div>
                 {p.contract.guaranteedYears > 0 && (
-                  <div className="text-[11px] text-[var(--color-faint)] mt-1.5">
+                  <div className="text-xs text-[var(--color-faint)] mt-1.5">
                     {p.contract.guaranteedYears} guaranteed year
                     {p.contract.guaranteedYears === 1 ? "" : "s"} remaining.
                   </div>
@@ -545,7 +545,7 @@ export default function PlayerPage() {
                 {Math.floor(p.profile.heightIn / 12)}&apos;{p.profile.heightIn % 12}&quot; · {p.profile.weightLb} lb
               </span>
               {testing?.eraLabel && (
-                <span className="uppercase tracking-wider text-[10px] text-[var(--color-faint)]">
+                <span className="uppercase tracking-wider text-[11px] text-[var(--color-faint)]">
                   {testing.eraLabel}
                 </span>
               )}
@@ -585,7 +585,7 @@ export default function PlayerPage() {
 
           {showAllAttrs && !future && (
             <div className="mt-5 pt-4 border-t border-[var(--color-line-soft)]">
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-3">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-3">
                 Everything Else
               </div>
               {rest.length === 0 ? (
