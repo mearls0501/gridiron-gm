@@ -215,6 +215,7 @@ export default function RosterPage() {
 
   return (
     <div className="space-y-4">
+      <h1 className="sr-only">Roster</h1>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat
           label="Roster"
@@ -309,7 +310,7 @@ export default function RosterPage() {
                     <Cell>{from?.abbr ?? "—"}</Cell>
                     <Cell>
                       {row.own ? (
-                        <span className="text-[11px] text-[var(--color-muted)]">
+                        <span className="text-xs text-[var(--color-muted)]">
                           Your waive — if unclaimed, this club may stash him on the PS
                         </span>
                       ) : row.submitted ? (
@@ -321,7 +322,7 @@ export default function RosterPage() {
                           Withdraw
                         </Button>
                       ) : desk.rosterFull ? (
-                        <span className="text-[11px] text-[var(--color-muted)]">
+                        <span className="text-xs text-[var(--color-muted)]">
                           Release someone to claim
                         </span>
                       ) : (
@@ -396,6 +397,7 @@ export default function RosterPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search name or position…"
+            aria-label="Search roster by name or position"
             className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-lg px-3 py-1.5 text-sm placeholder:text-[var(--color-faint)] outline-none focus:border-[var(--color-accent)] transition-colors min-w-[200px]"
           />
           {(query || group !== "All") && (
@@ -484,7 +486,7 @@ export default function RosterPage() {
                   <Cell>
                     {confirming ? (
                       <div className="flex items-center justify-end gap-2 whitespace-nowrap">
-                        <span className="text-[11px] text-[var(--color-muted)]">
+                        <span className="text-xs text-[var(--color-muted)]">
                           Dead <span className="text-[var(--color-bad)]">{formatMoney(dead)}</span>
                           {" · "}
                           Save{" "}
@@ -493,7 +495,7 @@ export default function RosterPage() {
                           </span>
                         </span>
                         {cutRefusal(state, p) ? (
-                          <span className="text-[11px] text-[var(--color-bad)] whitespace-normal max-w-[16rem]">
+                          <span className="text-xs text-[var(--color-bad)] whitespace-normal max-w-[16rem]">
                             {cutRefusal(state, p)}
                           </span>
                         ) : (

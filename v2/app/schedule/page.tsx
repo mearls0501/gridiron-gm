@@ -59,7 +59,7 @@ function outcomeTone(o: Side["outcome"]): "good" | "bad" | "warn" {
 function ConditionsNote({ g }: { g: Game }) {
   if (!g.conditions) return null;
   return (
-    <span className="text-[11px] text-[var(--color-faint)] tnum shrink-0">
+    <span className="text-xs text-[var(--color-faint)] tnum shrink-0">
       {weatherLabel(g.conditions.weather)}
     </span>
   );

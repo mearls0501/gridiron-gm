@@ -198,7 +198,7 @@ function StandingsBody() {
                         <tr className="bg-[var(--color-surface-2)]">
                           <td
                             colSpan={7}
-                            className="py-1 px-2.5 text-[10px] uppercase tracking-wider text-[var(--color-faint)] border-y border-dashed border-[var(--color-accent)]/50"
+                            className="py-1 px-2.5 text-[11px] uppercase tracking-wider text-[var(--color-faint)] border-y border-dashed border-[var(--color-accent)]/50"
                           >
                             Playoff cut line
                           </td>

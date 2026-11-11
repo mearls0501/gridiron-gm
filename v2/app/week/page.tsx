@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useGame } from "@/lib/store/game";
-import { Button, Card, Empty, Pill, PosBadge, cx } from "@/components/ui";
+import { Button, Card, Empty, Pill, PosBadge, cx, NewsText } from "@/components/ui";
 import { PHASE_LABEL } from "@/components/Shell";
 import { buildBriefing } from "@/lib/core/season/briefing";
 import { OFFSEASON_STEPS } from "@/lib/core/offseason";
@@ -101,7 +101,7 @@ export default function WeekPage() {
           )}
           {b.yourGame.stars.length > 0 && (
             <div className="mb-2">
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">Played well</div>
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">Played well</div>
               <div className="space-y-1">
                 {b.yourGame.stars.map((s) => (
                   <div key={s.playerId} className="flex items-center gap-2 text-sm">
@@ -116,7 +116,7 @@ export default function WeekPage() {
           )}
           {b.yourGame.duds.length > 0 && (
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">A week to forget</div>
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">A week to forget</div>
               <div className="space-y-1">
                 {b.yourGame.duds.map((s) => (
                   <div key={s.playerId} className="flex items-center gap-2 text-sm">
@@ -136,7 +136,7 @@ export default function WeekPage() {
         <Card title="Around the League" padded={false}>
           <div className="divide-y divide-[var(--color-line-soft)]">
             {b.headlines.map((h, i) => (
-              <p key={i} className="px-4 py-2.5 text-sm">{presentNewsText(h)}</p>
+              <div key={i} className="px-4 py-2.5 text-sm"><NewsText text={presentNewsText(h)} /></div>
             ))}
           </div>
         </Card>
@@ -174,7 +174,7 @@ export default function WeekPage() {
             ))}
             <div className="flex flex-wrap gap-x-6 gap-y-2 pt-2">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1">Their best</div>
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1">Their best</div>
                 {b.opponent.stars.map((s) => (
                   <div key={s.name} className="text-sm">
                     <span className="font-medium">{s.name}</span>
@@ -183,7 +183,7 @@ export default function WeekPage() {
                 ))}
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1">They're missing</div>
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1">They're missing</div>
                 {b.opponent.out.length === 0 ? (
                   <div className="text-sm text-[var(--color-muted)]">Fully healthy</div>
                 ) : (
@@ -217,7 +217,7 @@ export default function WeekPage() {
             >
               <div className="space-y-3">
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+                  <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
                     Run / pass lean
                     <span className="ml-2 normal-case tracking-normal">
                       coach {sheet.coachPassBias >= 0 ? "+" : ""}{sheet.coachPassBias.toFixed(2)}
@@ -257,7 +257,7 @@ export default function WeekPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+                  <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
                     4th-down aggression
                     <span className="ml-2 normal-case tracking-normal">coach {sheet.coachAggression}</span>
                   </div>
@@ -348,7 +348,7 @@ export default function WeekPage() {
                       {p.injuryWeeks > 0 && <Pill tone="warn">out</Pill>}
                       {sat && <Pill tone="accent">inactive</Pill>}
                       {!sat && p.injuryWeeks <= 0 && suggested.has(p.id) && (
-                        <span className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">suggested</span>
+                        <span className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">suggested</span>
                       )}
                       <span className="ml-auto">
                         {sat ? (

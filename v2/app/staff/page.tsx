@@ -104,7 +104,7 @@ function CoachCard({
           <div className={fields.dials.length > 4 ? "grid grid-cols-3 gap-2 text-center sm:grid-cols-6" : "grid grid-cols-2 gap-2 text-center sm:grid-cols-4"}>
             {dials.map(([k, v]) => (
               <div key={k} className="rounded-lg border border-[var(--color-line-soft)] bg-[var(--color-surface-2)] px-2 py-2">
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">{k}</div>
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">{k}</div>
                 <div className="tnum text-sm font-semibold mt-0.5">{v}</div>
               </div>
             ))}

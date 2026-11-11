@@ -46,6 +46,7 @@ export default function SavesPage() {
 
   return (
     <div className="space-y-4 max-w-3xl">
+      <h1 className="sr-only">Saves</h1>
       <Card
         title="Saved Franchises"
         subtitle="Stored in this browser. Export a file to keep a backup or move devices."

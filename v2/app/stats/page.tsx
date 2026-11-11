@@ -492,6 +492,7 @@ export default function StatsPage() {
                 My Team
               </Button>
               <select
+                aria-label="Filter by team"
                 value={teamFilter === "ALL" ? "ALL" : String(teamFilter)}
                 onChange={(e) => {
                   setMine(false);

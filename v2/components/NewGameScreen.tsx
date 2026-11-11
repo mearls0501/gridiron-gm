@@ -52,7 +52,7 @@ export function NewGameScreen({ onDone }: { onDone?: () => void } = {}) {
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] transition-colors text-left cursor-pointer"
                 >
                   <span
-                    className="w-8 h-8 rounded flex items-center justify-center text-[10px] font-bold shrink-0"
+                    className="w-8 h-8 rounded flex items-center justify-center text-[11px] font-bold shrink-0"
                     style={{ background: s.teams[s.userTeamId].primary, color: s.teams[s.userTeamId].secondary }}
                   >
                     {s.teams[s.userTeamId].abbr}
@@ -102,7 +102,7 @@ export function NewGameScreen({ onDone }: { onDone?: () => void } = {}) {
           <div className="space-y-3 max-h-[42vh] overflow-y-auto pr-1">
             {DIVISIONS.map((div) => (
               <div key={div}>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">{div}</div>
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">{div}</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                   {FRANCHISES.map((f, i) => ({ f, i }))
                     .filter(({ f }) => f.division === div)
@@ -118,13 +118,13 @@ export function NewGameScreen({ onDone }: { onDone?: () => void } = {}) {
                         )}
                       >
                         <span
-                          className="w-6 h-6 rounded flex items-center justify-center text-[9px] font-bold shrink-0"
+                          className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold shrink-0"
                           style={{ background: f.primary, color: f.secondary }}
                         >
                           {f.abbr}
                         </span>
                         <span className="min-w-0">
-                          <span className="block text-[11px] text-[var(--color-muted)] truncate">{f.city}</span>
+                          <span className="block text-xs text-[var(--color-muted)] truncate">{f.city}</span>
                           <span className="block text-xs font-medium truncate">{f.name}</span>
                         </span>
                       </button>
@@ -135,7 +135,7 @@ export function NewGameScreen({ onDone }: { onDone?: () => void } = {}) {
           </div>
 
           <div className="mt-4 pt-3 border-t border-[var(--color-line-soft)]">
-            <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">Game options</div>
+            <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2">Game options</div>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -171,7 +171,7 @@ export function NewGameScreen({ onDone }: { onDone?: () => void } = {}) {
                   )}
                 />
                 {seedInvalid && (
-                  <span className="block text-[11px] text-[var(--color-bad)] mt-1">
+                  <span className="block text-xs text-[var(--color-bad)] mt-1">
                     Seeds are plain numbers, up to 10 digits.
                   </span>
                 )}

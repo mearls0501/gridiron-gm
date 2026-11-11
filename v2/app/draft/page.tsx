@@ -81,8 +81,7 @@ import {
   Stat,
   Table,
   Tabs,
-  TeamMark,
-} from "@/components/ui";
+  TeamMark, Help } from "@/components/ui";
 
 /**
  * The draft room.
@@ -457,6 +456,7 @@ export default function DraftPage() {
 
   return (
     <div className="space-y-4">
+      <h1 className="sr-only">Draft</h1>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {d ? (
           <>
@@ -535,13 +535,18 @@ export default function DraftPage() {
           }
         >
           <p className="text-sm text-[var(--color-muted)]">
-            The draft runs during the offseason, after free agency closes. Until then this
-            is a scouting board. You will never see a rating — only your department&apos;s
-            rank, its round shade, and what your people wrote. The free look already
-            disagrees with the media in places. Film and visits tighten that lean, and
-            both sides are sometimes wrong.
+            The draft runs in the offseason, after free agency closes. Until then this is
+            a scouting board.
           </p>
-          <p className="text-xs text-[var(--color-faint)] mt-2">
+          <Help label="What the board shows" className="mt-1">
+            <p>
+              You will never see a rating — only your department&apos;s rank, its round
+              shade, and what your people wrote. The free look already disagrees with the
+              media in places. Film and visits tighten that lean, and both sides are
+              sometimes wrong.
+            </p>
+          </Help>
+          <p className="text-xs text-[var(--color-muted)] mt-2">
             {WINDOW_LABEL[cal.window]} is open. Miss a window and that information does not
             exist this cycle. {cal.visitsRemaining} of {PRIVATE_VISIT_CAP} private visits remain.
           </p>
@@ -636,7 +641,7 @@ export default function DraftPage() {
         >
           {!d.complete && (
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Pace</span>
+              <span className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">Pace</span>
               <Tabs
                 value={pace}
                 onChange={(next) => {
@@ -648,7 +653,7 @@ export default function DraftPage() {
           )}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
                 Your remaining picks
               </div>
               {myUpcoming.length === 0 ? (
@@ -670,7 +675,7 @@ export default function DraftPage() {
 
             {rookieCost !== null && nextMine && (
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
                   Round {nextMine.round} rookie deal
                 </div>
                 <span className="text-xs tnum text-[var(--color-muted)]">
@@ -680,7 +685,7 @@ export default function DraftPage() {
             )}
 
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
                 Positions of need
               </div>
               {needs.length === 0 ? (
@@ -716,7 +721,7 @@ export default function DraftPage() {
                 if (live.kind === "trade") {
                   return (
                     <div className="px-4 py-3 text-sm">
-                      <span className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mr-2">Trade</span>
+                      <span className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mr-2">Trade</span>
                       {live.text}
                     </div>
                   );
@@ -835,7 +840,7 @@ export default function DraftPage() {
                       They send: {o.give.map((a) => tradeBoardAssetLabel(state, a)).join(" + ")} · for
                       your pick #{onClock?.pick}
                     </div>
-                    <div className="text-[10px] text-[var(--color-faint)] mt-0.5">{o.rationale}</div>
+                    <div className="text-[11px] text-[var(--color-faint)] mt-0.5">{o.rationale}</div>
                   </div>
                   {reviewOfferId !== o.id && (
                     <Button size="sm" variant="primary" onClick={() => setReviewOfferId(o.id)}>
@@ -934,10 +939,10 @@ export default function DraftPage() {
           >
             <div className="grid gap-5 lg:grid-cols-4 sm:grid-cols-2">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1">
                   Testing — {sheet.eraLabel}
                 </div>
-                <p className="text-[10px] text-[var(--color-faint)] mb-2">{eraNote}</p>
+                <p className="text-[11px] text-[var(--color-faint)] mb-2">{eraNote}</p>
                 <div className="space-y-1">
                   {sheet.rows.map((row) => (
                     <div key={row.label} className="flex justify-between gap-3 text-xs">
@@ -954,7 +959,7 @@ export default function DraftPage() {
               </div>
 
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
                   Your department&apos;s read
                 </div>
                 {(() => {
@@ -1055,7 +1060,7 @@ export default function DraftPage() {
               </div>
 
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
                   {WINDOW_LABEL[cal.window]}
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -1097,7 +1102,7 @@ export default function DraftPage() {
               </div>
 
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
                   Board call
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-2">
@@ -1160,7 +1165,7 @@ export default function DraftPage() {
 
             {/* ---- The file: what your people wrote ------------------------- */}
             <div className="mt-5 pt-4 border-t border-[var(--color-line-soft)]">
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
                 The File
               </div>
               <p className="text-xs text-[var(--color-muted)] mb-2">
@@ -1352,7 +1357,7 @@ export default function DraftPage() {
                           <span className="tnum whitespace-nowrap" title={meas.fortyTitle}>
                             {meas.forty}
                             {meas.fortyPct && (
-                              <span className="text-[10px] text-[var(--color-faint)]"> {meas.fortyPct}</span>
+                              <span className="text-[11px] text-[var(--color-faint)]"> {meas.fortyPct}</span>
                             )}
                           </span>
                         </Cell>
@@ -1360,7 +1365,7 @@ export default function DraftPage() {
                           <span className="tnum whitespace-nowrap" title={meas.benchTitle}>
                             {meas.bench}
                             {meas.benchPct && (
-                              <span className="text-[10px] text-[var(--color-faint)]"> {meas.benchPct}</span>
+                              <span className="text-[11px] text-[var(--color-faint)]"> {meas.benchPct}</span>
                             )}
                           </span>
                         </Cell>
@@ -1368,7 +1373,7 @@ export default function DraftPage() {
                           <span className="tnum whitespace-nowrap" title={meas.verticalTitle}>
                             {meas.vertical}
                             {meas.verticalPct && (
-                              <span className="text-[10px] text-[var(--color-faint)]"> {meas.verticalPct}</span>
+                              <span className="text-[11px] text-[var(--color-faint)]"> {meas.verticalPct}</span>
                             )}
                           </span>
                         </Cell>
@@ -1394,11 +1399,11 @@ export default function DraftPage() {
                             title={`${g.conviction} conviction`}
                           />
                           <span className="text-xs font-semibold tnum">#{g.slot}</span>
-                          <span className="text-[10px] text-[var(--color-muted)]">{g.shade}</span>
+                          <span className="text-[11px] text-[var(--color-muted)]">{g.shade}</span>
                           {lean !== 0 && (
                             <span
                               className={cx(
-                                "text-[10px] tnum font-medium",
+                                "text-[11px] tnum font-medium",
                                 lean > 0 ? "text-[var(--color-good)]" : "text-[var(--color-warn)]"
                               )}
                               title={
@@ -1420,7 +1425,7 @@ export default function DraftPage() {
                       return (
                         <span className="text-xs text-[var(--color-muted)] whitespace-nowrap">
                           <span className="tnum">#{m.slot}</span>{" "}
-                          <span className="text-[10px]">{m.shade}</span>
+                          <span className="text-[11px]">{m.shade}</span>
                         </span>
                       );
                     })()}
@@ -1609,13 +1614,13 @@ function ClockOfferPanel({
       </div>
       <div className="grid sm:grid-cols-2 gap-3 text-sm">
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">You receive</div>
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">You receive</div>
           <ul className="mt-1 space-y-0.5">
             {review.incoming.map((l, i) => <li key={i}>{label(l)}</li>)}
           </ul>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">{partner?.abbr ?? "They"} receive</div>
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">{partner?.abbr ?? "They"} receive</div>
           <ul className="mt-1 space-y-0.5">
             {review.outgoing.map((l, i) => <li key={i}>{label(l)}</li>)}
           </ul>
@@ -1623,11 +1628,11 @@ function ClockOfferPanel({
       </div>
       <div className="grid grid-cols-2 gap-2 text-sm tnum">
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Your next pick</div>
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">Your next pick</div>
           {nextPick ? `#${nextPick.pick} (round ${nextPick.round})` : "None left this draft"}
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Picks this draft</div>
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">Picks this draft</div>
           {picksLeft.before} → {picksLeft.after}
         </div>
       </div>

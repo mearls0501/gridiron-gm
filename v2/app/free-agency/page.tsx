@@ -243,6 +243,7 @@ export default function FreeAgencyPage() {
 
   return (
     <div className="space-y-4">
+      <h1 className="sr-only">Free Agency</h1>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat
           label="Cap Space"
@@ -490,7 +491,7 @@ export default function FreeAgencyPage() {
             className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-lg px-3 py-1.5 text-sm placeholder:text-[var(--color-faint)] outline-none focus:border-[var(--color-accent)] transition-colors min-w-[180px]"
           />
           {faPhase && (
-            <span className="text-[11px] text-[var(--color-faint)]">
+            <span className="text-xs text-[var(--color-faint)]">
               Leading bid — rivals may counter when you bid.
             </span>
           )}
@@ -565,7 +566,7 @@ export default function FreeAgencyPage() {
                   <Cell>
                     {editing ? (
                       <div className="flex items-center justify-end gap-2 whitespace-nowrap">
-                        <label className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+                        <label className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
                           Yrs
                         </label>
                         <input
@@ -579,7 +580,7 @@ export default function FreeAgencyPage() {
                           }
                           className="w-14 bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-lg px-2 py-1 text-sm tnum text-right outline-none focus:border-[var(--color-accent)] transition-colors"
                         />
-                        <label className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+                        <label className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
                           $M / yr
                         </label>
                         <input
@@ -590,7 +591,7 @@ export default function FreeAgencyPage() {
                           onChange={(e) => setOffer({ ...offer, apyM: e.target.value })}
                           className="w-24 bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-lg px-2 py-1 text-sm tnum text-right outline-none focus:border-[var(--color-accent)] transition-colors"
                         />
-                        <span className="text-[11px] text-[var(--color-muted)] tnum">
+                        <span className="text-xs text-[var(--color-muted)] tnum">
                           {Number.isFinite(total) && total > 0 ? formatMoney(total) : "—"} total
                         </span>
                         <Button size="sm" variant="primary" onClick={() => submitOffer(p)}>

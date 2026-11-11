@@ -221,6 +221,7 @@ export default function TradesPage() {
 
   return (
     <div className="space-y-4">
+      <h1 className="sr-only">Trades</h1>
       {/* ---- Window ---------------------------------------------------------- */}
       {open ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -298,7 +299,7 @@ export default function TradesPage() {
                       <div className="text-sm font-semibold truncate">
                         {from.city} {from.name}
                       </div>
-                      <div className="text-[11px] text-[var(--color-muted)] tnum">
+                      <div className="text-xs text-[var(--color-muted)] tnum">
                         {offer.season}
                         {offer.week > 0 ? ` · Week ${offer.week}` : ""}
                       </div>
@@ -376,6 +377,7 @@ export default function TradesPage() {
         subtitle={other ? `Talking to ${other.city} ${other.name}` : undefined}
         actions={
           <select
+            aria-label="Trade partner"
             value={partnerId ?? ""}
             onChange={(e) => resetPartner(Number(e.target.value))}
             disabled={!open}
@@ -539,7 +541,7 @@ function ReviewLines({
 }) {
   return (
     <div className="min-w-0">
-      <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">{label}</div>
+      <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">{label}</div>
       {lines.length === 0 ? (
         <div className="text-sm text-[var(--color-faint)] mt-1">Nothing</div>
       ) : (
@@ -554,7 +556,7 @@ function ReviewLines({
                   {l.ir && <Pill tone="bad">IR</Pill>}
                   {!l.ir && l.injury && <Pill tone="bad">Injured</Pill>}
                 </div>
-                <div className="text-[11px] text-[var(--color-muted)] tnum mt-0.5">
+                <div className="text-xs text-[var(--color-muted)] tnum mt-0.5">
                   Age {l.age} ·{" "}
                   {arriving
                     ? `${formatMoney(l.capAfter)} on your cap`
@@ -605,21 +607,21 @@ function ReviewPanel({
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm tnum">
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Cap space now</div>
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">Cap space now</div>
           {formatMoney(cap.spaceBefore)}
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">After the trade</div>
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">After the trade</div>
           <span className={cap.spaceAfter < 0 ? "text-[var(--color-bad)]" : undefined}>
             {formatMoney(cap.spaceAfter)}
           </span>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Dead money</div>
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">Dead money</div>
           {formatMoney(cap.deadAdded)}
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Roster</div>
+          <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">Roster</div>
           {roster.before} → {roster.after}
         </div>
       </div>
@@ -668,7 +670,7 @@ function AssetPanel({
 }) {
   return (
     <div className="bg-[var(--color-surface-2)] border border-[var(--color-line-soft)] rounded-lg px-3 py-2.5">
-      <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">{label}</div>
+      <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)]">{label}</div>
       {items.length === 0 ? (
         <div className="text-sm text-[var(--color-faint)] mt-1">Nothing</div>
       ) : (
@@ -749,10 +751,11 @@ function SidePanel({
                     <input
                       type="checkbox"
                       checked={on}
-                      readOnly
                       disabled={disabled}
-                      tabIndex={-1}
-                      className="accent-[var(--color-accent)] shrink-0 pointer-events-none"
+                      aria-label={`Include ${playerName(p)}`}
+                      onChange={() => onToggle(a)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="shrink-0"
                     />
                     <span className="truncate font-medium">{playerName(p)}</span>
                     {p.injuryWeeks > 0 && <Pill tone="bad">{p.injuryWeeks}w</Pill>}
@@ -771,7 +774,7 @@ function SidePanel({
           })}
         </Table>
 
-        <div className="px-4 py-2 border-y border-[var(--color-line-soft)] text-[10px] uppercase tracking-wider text-[var(--color-faint)] bg-[var(--color-surface-2)]">
+        <div className="px-4 py-2 border-y border-[var(--color-line-soft)] text-[11px] uppercase tracking-wider text-[var(--color-faint)] bg-[var(--color-surface-2)]">
           Draft picks
         </div>
 
@@ -799,10 +802,11 @@ function SidePanel({
                       <input
                         type="checkbox"
                         checked={on}
-                        readOnly
                         disabled={disabled}
-                        tabIndex={-1}
-                        className="accent-[var(--color-accent)] shrink-0 pointer-events-none"
+                        aria-label={`Include ${label} round ${pk.round} pick`}
+                        onChange={() => onToggle(a)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0"
                       />
                       <span className="truncate">{label}</span>
                     </span>

@@ -64,7 +64,7 @@ export default function LeaguePage() {
         <div className="space-y-5">
           {DIVISIONS.map((div) => (
             <div key={div}>
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2">
                 {div}
               </div>
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -88,7 +88,7 @@ export default function LeaguePage() {
                           <div className="text-sm font-medium truncate">
                             {t.city} {t.name}
                           </div>
-                          <div className="text-[11px] text-[var(--color-muted)] tnum">
+                          <div className="text-xs text-[var(--color-muted)] tnum">
                             {r.pf} PF · {r.pa} PA ·{" "}
                             <span
                               className={cx(
@@ -101,7 +101,7 @@ export default function LeaguePage() {
                           </div>
                           {t.frontOffice && (
                             <div
-                              className="text-[10px] text-[var(--color-faint)] truncate"
+                              className="text-[11px] text-[var(--color-faint)] truncate"
                               title={t.frontOffice.blurb}
                             >
                               {t.frontOffice.name} · {postureLabel(state, t.id)}
@@ -131,7 +131,7 @@ export default function LeaguePage() {
                 <li key={`${e.season}-${e.week}-${i}`} className="flex items-start gap-3 px-4 py-2.5">
                   <Pill tone={LOG_TONE[e.kind]}>{e.kind}</Pill>
                   <span className={cx("text-xs flex-1 min-w-0", LOG_TEXT[e.kind])}>{presentNewsText(e.text)}</span>
-                  <span className="text-[10px] text-[var(--color-faint)] tnum shrink-0">
+                  <span className="text-[11px] text-[var(--color-faint)] tnum shrink-0">
                     {e.season} W{e.week}
                   </span>
                 </li>

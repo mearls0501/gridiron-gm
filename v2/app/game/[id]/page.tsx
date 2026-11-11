@@ -379,7 +379,7 @@ export default function GamePage() {
           >
             {t.city} {t.name}
           </div>
-          <div className="text-[11px] text-[var(--color-faint)] uppercase tracking-wider">
+          <div className="text-xs text-[var(--color-faint)] uppercase tracking-wider">
             {t.division}
           </div>
         </div>
@@ -421,7 +421,7 @@ export default function GamePage() {
         ) : (
           sections.map(({ grp, rows: group }) => (
             <div key={grp.key} className="border-b border-[var(--color-line-soft)] last:border-0">
-              <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+              <div className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
                 {grp.label}
               </div>
               <Table head={[L("Player"), ...grp.head]}>
@@ -460,7 +460,7 @@ export default function GamePage() {
           if (scratches.length === 0) return null;
           return (
             <div className="border-t border-[var(--color-line-soft)]">
-              <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
+              <div className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
                 Inactive · 0 snaps
               </div>
               <div className="divide-y divide-[var(--color-line-soft)]">
@@ -629,12 +629,12 @@ export default function GamePage() {
                 const row = (
                   <>
                     <div className="flex items-center gap-2 text-sm">
-                      <span className={cx("text-[11px] tnum w-6", selected ? "text-[var(--color-accent)]" : "text-[var(--color-faint)]")}>
+                      <span className={cx("text-xs tnum w-6", selected ? "text-[var(--color-accent)]" : "text-[var(--color-faint)]")}>
                         {d.n}
                       </span>
                       <TeamMark team={t} size={18} />
                       <span className="font-medium">{t.abbr}</span>
-                      <span className="text-[11px] text-[var(--color-muted)] tnum">
+                      <span className="text-xs text-[var(--color-muted)] tnum">
                         {quarterLabel(d.q)} {clockLabel(d.clock)} · {spotLabel(d.startYl)}
                       </span>
                       <span className="ml-auto flex items-center gap-2">
@@ -717,7 +717,7 @@ export default function GamePage() {
                     >
                       <div
                         className={cx(
-                          "px-3 py-1.5 text-[10px] uppercase tracking-wider flex items-center gap-2",
+                          "px-3 py-1.5 text-[11px] uppercase tracking-wider flex items-center gap-2",
                           on
                             ? "text-[var(--color-accent)] bg-[var(--color-accent-dim)] shadow-[inset_3px_0_0_var(--color-accent)]"
                             : "text-[var(--color-faint)] bg-[var(--color-surface-2)]",
@@ -737,10 +737,10 @@ export default function GamePage() {
                               : row.event.offenseId === userTeamId && "bg-[var(--color-accent-dim)]/20",
                           )}
                         >
-                          <span className="text-[11px] text-[var(--color-faint)] tnum whitespace-nowrap w-16">
+                          <span className="text-xs text-[var(--color-faint)] tnum whitespace-nowrap w-16">
                             {quarterLabel(row.event.q)} {clockLabel(row.event.clock)}
                           </span>
-                          <span className="text-[11px] text-[var(--color-muted)] tnum whitespace-nowrap w-16">
+                          <span className="text-xs text-[var(--color-muted)] tnum whitespace-nowrap w-16">
                             {downDistance(row.event)}
                           </span>
                           <span className="min-w-0 truncate">{formatVisiblePlay(row, nameOf, playSides)}</span>
@@ -751,7 +751,7 @@ export default function GamePage() {
                 })
               : shownPlays.map((row, i) => (
                   <div key={i} className="px-3 py-1.5 text-sm flex gap-3">
-                    <span className="text-[11px] text-[var(--color-faint)] tnum whitespace-nowrap">
+                    <span className="text-xs text-[var(--color-faint)] tnum whitespace-nowrap">
                       {quarterLabel(row.event.q)} {clockLabel(row.event.clock)}
                     </span>
                     <span className="min-w-0 truncate">{formatVisiblePlay(row, nameOf, playSides)}</span>

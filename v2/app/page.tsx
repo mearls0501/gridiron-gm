@@ -6,8 +6,7 @@ import { useGame } from "@/lib/store/game";
 import { shouldDismissSimMenu } from "@/lib/view/simMenu";
 import { PHASE_LABEL } from "@/components/Shell";
 import {
-  Button, Card, Cell, Empty, OvrBadge, Pill, PlayerLink, PosBadge, Row, Stat, Table, TeamMark, cx,
-} from "@/components/ui";
+  Button, Card, Cell, Empty, OvrBadge, Pill, PlayerLink, PosBadge, Row, Stat, Table, TeamMark, cx, NewsText } from "@/components/ui";
 import {
   capHit, computeRecords, formatMoney, irCount, recordString, rosterIssues, teamCap,
 } from "@/lib/core/select";
@@ -59,7 +58,7 @@ function SimOption({ label, hint, onClick }: { label: string; hint: string; onCl
       className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
     >
       <span className="block text-xs font-medium">{label}</span>
-      <span className="block text-[11px] text-[var(--color-muted)] mt-0.5">{hint}</span>
+      <span className="block text-xs text-[var(--color-muted)] mt-0.5">{hint}</span>
     </button>
   );
 }
@@ -328,7 +327,7 @@ export default function Hub() {
             )}
             {camp.leaders.length > 0 && (
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1">Most preseason snaps</div>
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1">Most preseason snaps</div>
                 <ul className="text-xs space-y-0.5">
                   {camp.leaders.map((l) => (
                     <li key={l.playerId} className="flex gap-2 tnum">
@@ -1026,7 +1025,7 @@ export default function Hub() {
                       : "bg-[var(--color-faint)]"
                     )}
                   />
-                  <span className="text-xs leading-relaxed">{presentNewsText(e.text)}</span>
+                  <span className="text-xs leading-relaxed min-w-0"><NewsText text={presentNewsText(e.text)} /></span>
                 </div>
               ))}
             </div>

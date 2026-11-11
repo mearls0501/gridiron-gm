@@ -39,6 +39,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-4 max-w-3xl">
+      <h1 className="sr-only">Settings</h1>
       <Card title="Franchise" subtitle="How this save appears on the saves screen.">
         <div className="flex items-center gap-3 mb-4">
           <TeamMark team={team} size={40} />

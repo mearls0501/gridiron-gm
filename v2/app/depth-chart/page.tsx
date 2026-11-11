@@ -24,8 +24,7 @@ import {
   PlayerLink,
   Row,
   Table,
-  Tabs,
-} from "@/components/ui";
+  Tabs, Help } from "@/components/ui";
 import { DEPTH_CHART_HELP, starterCountLabel } from "@/lib/view/depthChartCopy";
 import { presentedOvr } from "@/lib/core/ratings";
 
@@ -104,6 +103,7 @@ export default function DepthChartPage() {
 
   return (
     <div className="space-y-4">
+      <h1 className="sr-only">Depth Chart</h1>
       <Card
         title="Depth Chart"
         subtitle={`${team.city} ${team.name} — ${team.depthChartManual ? "your order at edited positions" : "auto-sorted by rating"}`}
@@ -119,7 +119,12 @@ export default function DepthChartPage() {
         }
       >
         <div className="space-y-3">
-          <p className="text-sm text-[var(--color-muted)]">{DEPTH_CHART_HELP}</p>
+          <p className="text-sm text-[var(--color-muted)]">
+            This order is who takes the snap. Injured players are skipped and the next man up plays.
+          </p>
+          <Help label="How the engine reads this chart">
+            <p>{DEPTH_CHART_HELP}</p>
+          </Help>
           <div className="flex flex-wrap items-center gap-2">
             <Pill tone="accent">Starter</Pill>
             <span className="text-xs text-[var(--color-muted)]">
@@ -166,7 +171,7 @@ export default function DepthChartPage() {
                       <Row key={p.id} highlight={i < starters}>
                         <Cell align="left">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-[10px] text-[var(--color-faint)] tnum w-4 shrink-0">
+                            <span className="text-[11px] text-[var(--color-faint)] tnum w-4 shrink-0">
                               {i + 1}
                             </span>
                             <PlayerLink p={p} className="font-medium" />
