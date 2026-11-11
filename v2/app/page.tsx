@@ -30,7 +30,7 @@ import { autoFixComplianceToast, hubAdvanceBlock } from "@/lib/view/seasonStartG
 import { PRESEASON_PLAN_LABEL, preseasonView } from "@/lib/view/preseasonView";
 import { setUserPreseasonPlan } from "@/lib/core/preseason";
 import { PreseasonPlan } from "@/lib/core/types";
-import { hubResignWalkWarning, resignPot, resignStepRows } from "@/lib/view/resignStep";
+import { hubResignWalkWarning, resignPot, resignStepRows, screenCap } from "@/lib/view/resignStep";
 import { coachingCarouselMoves, splitCoachingCarousel } from "@/lib/view/coachingCarousel";
 import { teamLeaders } from "@/lib/view/teamLeaders";
 import { presentedOvr } from "@/lib/core/ratings";
@@ -139,7 +139,7 @@ export default function Hub() {
     const team = state.teams[state.userTeamId];
     const recs = computeRecords(state);
     const rec = recs.get(team.id)!;
-    const cap = teamCap(state, team.id);
+    const cap = screenCap(state, team.id);
     const next = userNextGame(state);
     const bye = isOnBye(state, team.id);
     const injured = injuredPlayers(state, team.id);

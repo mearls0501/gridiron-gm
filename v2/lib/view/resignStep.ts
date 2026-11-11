@@ -1,8 +1,24 @@
 import {
-  expiringPlayers, extensionAskingApy, isFranchiseTagged, isOfficeExtensionEligible,
+  comingYearCapHit, expiringPlayers, extensionAskingApy, isFranchiseTagged, isOfficeExtensionEligible,
+  tagWindowCap,
 } from "../core/offseason/contracts";
 import { presentedOvr, presentedPot } from "../core/ratings";
+import { capHit, teamCap, type CapSummary } from "../core/select";
 import { GameState, Player } from "../core/types";
+
+/**
+ * The cap figure the header, Hub, /finances and /roster show. In the tag
+ * window that is the coming league year (`tagWindowCap`); a re-sign then
+ * costs its year-1 hit instead of crediting the expiring deal.
+ */
+export function screenCap(state: GameState, teamId = state.userTeamId): CapSummary {
+  return state.phase === "offseason-tag" ? tagWindowCap(state, teamId) : teamCap(state, teamId);
+}
+
+/** One player's cap-hit cell, on the same year as `screenCap`. */
+export function screenCapHit(state: GameState, p: Player): number {
+  return state.phase === "offseason-tag" ? comingYearCapHit(state, p) : capHit(p.contract);
+}
 
 /**
  * User re-sign step on the franchise-tag window.

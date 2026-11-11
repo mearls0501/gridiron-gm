@@ -1,5 +1,19 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-11 — Rookie guarantees, the tag-window cap meter, and the trim re-lock
+
+Signed, Matt, 2026-11-11. Both proposals were built as written. No `baselines.json` edit. No dial change.
+
+**Dead if cut** (`docs/playtest-1028-dead-if-cut.md`). `rookieContract` passes `defaultGuaranteedYears(apy, 4)` instead of 2. Picks 1–17 now get one guaranteed year and picks 18–224 get none. The smaller rule was used. `lib/core/deadIfCut.test.ts` is registered in `package.json` and as `deadifcut` in both gate tiers.
+
+**Tag-window cap space** (`docs/playtest-1028-resign-cap-space.md`). `tagWindowCap` / `comingYearCapHit` in `offseason/contracts.ts`, and `screenCap` / `screenCapHit` in `lib/view/resignStep.ts` for the header, Hub, `/finances` and `/roster`. In `offseason-tag`, `applyOfficeExtension` signs the deal with `startsNextLeagueYear` and charges its year-1 hit against `tagWindowCap`. Not changed: `teamCap`, `applyFranchiseTag`, `clearDeadCap`, `expireContracts`. The note's two residuals stay open: void bonus on a replaced tag-window deal, and the Tag button's own check. Cases were added to `resignStep.test.ts`.
+
+**Re-lock, signed.** `trimIdentity` seed 42, the opening-2030 cut: **1587 → 1600** cuts, rng **19218870 → 2524091302**. The cause is the rookie change: late picks now save room on a cut, so the 90→53 trim changes. The tag-window change is not on this headless walk. The seed-42 `userOffers` pair did **not** move (tag 1779302491, FA 1323223106).
+
+Validation on this VM: `tsc --noEmit` pass. `verify.ts 5` 552/552 (rookie fix). `deadIfCut`, `resignStep`, `contractOffice`, `tagExtension`, `franchiseTag`, `fifthYearOption`, `capMechanics`, `startSeasonCap`, `userFaReserve`, `rosterCap`, `proRata`, `retirementDead`, `draftRules`, `waiverClearing`, `userOffers` and `trimIdentity` pass. `e2e.mjs` and `e2e-interact.mjs` pass on a fresh build, with 0 console errors.
+
+The 5-seed Mac Studio panel was not run. The rookie change moves the league after the first draft, so read `drift` (`deadMoneyPct`, payroll, `capBustSeasons`) and `careers` (late-round survival) before merge.
+
 ## 2026-11-11 — One fingerprint re-lock, after main
 
 Signed, Matt. Main `b5c2a21` is merged (#226 determinism, #223 division place and the QB1 pause, #225 Hall of Fame rules). One re-lock, and only these two canaries. No other `baselines.json` entry, gate, or dial moved. `fgPct` stays reported. It was **81.995** on the pre-merge head, floor 82.029, and it was not re-measured or tuned here.

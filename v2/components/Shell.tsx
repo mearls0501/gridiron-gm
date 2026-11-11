@@ -6,7 +6,8 @@ import { ReactNode, useEffect, useState } from "react";
 import { useGame } from "@/lib/store/game";
 import { toastDismissApplies } from "@/lib/store/simToast";
 import { forcedMoveKeepsRoute, showNewGameScreen } from "@/lib/view/newGameRoute";
-import { computeRecords, recordString, teamCap, formatMoney } from "@/lib/core/select";
+import { computeRecords, recordString, formatMoney } from "@/lib/core/select";
+import { screenCap } from "@/lib/view/resignStep";
 import { isPendingForcedMove } from "@/lib/core/owner";
 import { cx, TeamMark } from "./ui";
 import { NewGameScreen } from "./NewGameScreen";
@@ -121,7 +122,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
   const team = state.teams[state.userTeamId];
   const rec = computeRecords(state).get(team.id)!;
-  const cap = teamCap(state, team.id);
+  const cap = screenCap(state, team.id);
   const groups = navGroups(state.phase);
 
   const isActive = (href: string) =>

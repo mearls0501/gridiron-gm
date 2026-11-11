@@ -1,5 +1,5 @@
 import { Rng, clamp } from "../rng";
-import { makeContract, makePlayer } from "../generate";
+import { defaultGuaranteedYears, makeContract, makePlayer } from "../generate";
 import { assignJerseyOnJoin, ensureJerseyNumbers } from "../jersey";
 import { POSITION_VALUE } from "../ratings";
 import {
@@ -328,7 +328,7 @@ export function rookieContract(
 ) {
   const slot = overallPick ?? midRoundOverall(round);
   const apy = rookieSlotApy(state, slot, round);
-  return makeContract(rng, apy, 4, state.season, 2);
+  return makeContract(rng, apy, 4, state.season, defaultGuaranteedYears(apy, 4));
 }
 
 // ---------------------------------------------------------------------------

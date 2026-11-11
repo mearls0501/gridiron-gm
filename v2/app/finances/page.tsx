@@ -7,7 +7,6 @@ import {
   capSavingsFromCut,
   deadMoney,
   formatMoney,
-  teamCap,
   teamRoster,
 } from "@/lib/core/select";
 import {
@@ -22,6 +21,7 @@ import {
 } from "@/lib/core/offseason/contracts";
 import { POSITION_GROUP, POSITIONS, Player } from "@/lib/core/types";
 import { presentedOvr } from "@/lib/core/ratings";
+import { screenCap, screenCapHit } from "@/lib/view/resignStep";
 import {
   Bar,
   Button,
@@ -92,7 +92,7 @@ export default function FinancesPage() {
 
   const teamId = state.userTeamId;
   const team = state.teams[teamId];
-  const cap = teamCap(state, teamId);
+  const cap = screenCap(state, teamId);
   const maxGroup = byGroup.reduce((m, g) => Math.max(m, g.total), 0);
   const rows = showAll ? contracts : contracts.slice(0, 25);
   const top5 = contracts.slice(0, 5).reduce((sum, p) => sum + capHit(p.contract), 0);
@@ -280,7 +280,7 @@ export default function FinancesPage() {
                   <Cell>
                     <OvrBadge ovr={presentedOvr(p.pos, p.ovr)} size="sm" />
                   </Cell>
-                  <Cell className="font-medium">{formatMoney(capHit(p.contract))}</Cell>
+                  <Cell className="font-medium">{formatMoney(screenCapHit(state, p))}</Cell>
                   <Cell className="text-[var(--color-muted)]">{formatMoney(baseSalary(p))}</Cell>
                   <Cell className="text-[var(--color-muted)]">{formatMoney(proration(p))}</Cell>
                   <Cell>{p.contract?.yearsRemaining ?? 0}</Cell>
