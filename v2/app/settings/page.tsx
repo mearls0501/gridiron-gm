@@ -119,8 +119,25 @@ export default function SettingsPage() {
             />
             <span className="text-sm">The owner can fire you</span>
           </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings.pauseOnStartingQb !== false}
+              onChange={(e) => {
+                const on = e.target.checked;
+                apply((s) => {
+                  s.settings = { ...(s.settings ?? defaultSettings()), pauseOnStartingQb: on };
+                  return on
+                    ? "Sim stops if your starting quarterback is out 8 or more weeks"
+                    : "Sim runs to the stop you pick";
+                });
+              }}
+              className="accent-[var(--color-accent)]"
+            />
+            <span className="text-sm">Stop when your starting quarterback is out 8 or more weeks</span>
+          </label>
           <p className="text-xs text-[var(--color-muted)]">
-            Sim on the Hub runs to the stop you pick. A trade call or a starter injury does not end it early.
+            Sim on the Hub runs to the stop you pick. A trade call or any other injury does not end it early.
           </p>
         </div>
       </Card>

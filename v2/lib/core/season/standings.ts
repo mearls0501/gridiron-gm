@@ -113,22 +113,47 @@ export function divisionStandings(
 
 const PLACE = ["st", "nd", "rd", "th"];
 
+export function divisionPlaceLabel(place: number, division: string): string {
+  return `${place}${PLACE[Math.min(place - 1, 3)]} in ${division}`;
+}
+
+/**
+ * Final division place for every club, from the full tiebreak chain.
+ * Call this while the season's games are still on the save: head-to-head
+ * reads those games, and a later recompute cannot see them.
+ */
+export function stampDivisionPlaces(state: GameState, standings: TeamRecord[], season: number): void {
+  const byId = new Map(standings.map((r) => [r.teamId, r]));
+  const seen = new Set<string>();
+  for (const team of state.teams) {
+    if (seen.has(team.division)) continue;
+    seen.add(team.division);
+    divisionStandings(state, team.division, season).forEach((r, i) => {
+      const row = byId.get(r.teamId);
+      if (row) row.divisionPlace = i + 1;
+    });
+  }
+}
+
 /**
  * Division place in the same order as `divisionStandings` / the playoff
  * seeds. `records` is the table to sort — live games, or a history snapshot
  * when that season's games are already gone. Point differential alone is not
- * the order.
+ * the order. A row that already carries `divisionPlace` is not re-sorted:
+ * head-to-head is gone once the games are.
  */
 export function divisionRankLabelFrom(
   state: GameState, teamId: number, records: TeamRecord[], season: number,
 ): string | null {
   const team = state.teams[teamId];
   if (!team) return null;
+  const stored = records.find((r) => r.teamId === teamId)?.divisionPlace;
+  if (stored != null) return divisionPlaceLabel(stored, team.division);
   const peers = records.filter((r) => state.teams[r.teamId]?.division === team.division);
   peers.sort((a, b) => compareTeams(state, a, b, season, true));
   const rank = peers.findIndex((r) => r.teamId === teamId) + 1;
   if (rank <= 0) return null;
-  return `${rank}${PLACE[Math.min(rank - 1, 3)]} in ${team.division}`;
+  return divisionPlaceLabel(rank, team.division);
 }
 
 export function divisionRankLabel(
