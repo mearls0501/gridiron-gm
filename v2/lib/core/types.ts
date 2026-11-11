@@ -816,9 +816,6 @@ export type Phase =
 // Game settings
 // ---------------------------------------------------------------------------
 
-/** Events that can interrupt a bulk sim. More arrive with the owner/media systems. */
-export type PauseEvent = "tradeOffer" | "injuredStarter" | "milestone";
-
 /**
  * Player-chosen gameplay options. None of these may alter the simulation
  * itself — a paused-and-resumed sim must produce the identical league to an
@@ -829,14 +826,19 @@ export type PauseEvent = "tradeOffer" | "injuredStarter" | "milestone";
 export interface GameSettings {
   /** The owner can fire you. Heat is always computed; this flag is the bite. */
   firingEnabled: boolean;
-  /** Which events stop a Sim-ahead early. */
-  pauseOn: Record<PauseEvent, boolean>;
+  /**
+   * Hub sim runs to the stop on the menu. This is the one early stop, on
+   * by default: the user's QB1 suffers an injury of 8 or more weeks.
+   * The user's club is not auto-IR'd during a sim, so the absence stays
+   * on that quarterback. Missing on a save written before the field means on.
+   */
+  pauseOnStartingQb: boolean;
 }
 
 export function defaultSettings(): GameSettings {
   return {
     firingEnabled: true,
-    pauseOn: { tradeOffer: true, injuredStarter: true, milestone: false },
+    pauseOnStartingQb: true,
   };
 }
 
@@ -1183,6 +1185,13 @@ export interface TeamRecord {
    * uses the current outlook for that row only.
    */
   expectedWins?: number;
+  /**
+   * Final division place, 1–4. Stamped when the season is archived, from
+   * the full tiebreak chain (head-to-head included) while that season's
+   * games are still on the save. Missing on older rows; History and
+   * Season Review recompute those.
+   */
+  divisionPlace?: number;
 }
 
 export interface SeasonHistory {
