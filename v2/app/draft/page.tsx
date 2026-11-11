@@ -154,6 +154,7 @@ export default function DraftPage() {
   const [moveUpQuote, setMoveUpQuote] = useState<string | null>(null);
   const [reviewOfferId, setReviewOfferId] = useState<number | null>(null);
   const [futureSeason, setFutureSeason] = useState<number | null>(null);
+  const [futureOpen, setFutureOpen] = useState(false);
   const [showFutureAll, setShowFutureAll] = useState(false);
   const [pace, setPace] = useState<DraftPace>("fast");
 
@@ -1205,71 +1206,6 @@ export default function DraftPage() {
         );
       })()}
 
-      {shownFuture != null && (
-        <Card
-          title="Future classes"
-          subtitle={
-            futureCounts.names === 0
-              ? `${draftYearLabel(shownFuture)} is empty`
-              : `${futureCounts.names} names · ${futureCounts.injuries} injur${futureCounts.injuries === 1 ? "y" : "ies"} · ${futureCounts.declared} early declaration${futureCounts.declared === 1 ? "" : "s"} · ${futureCounts.returned} staying in school`
-          }
-          padded={false}
-        >
-          <div className="px-4 py-3 space-y-3 border-b border-[var(--color-line-soft)]">
-            <p className="text-sm text-[var(--color-muted)]">
-              These classes are already in the league. Film, visits, and medicals stay on the{" "}
-              {draftYearLabel(state.season)}. What you can see here is public: school, size, campus testing,
-              and the consensus board. A knee or an early declaration changes who is in the class
-              before that year opens.
-            </p>
-            <Tabs
-              value={String(shownFuture)}
-              onChange={(year) => {
-                setFutureSeason(Number(year));
-                setShowFutureAll(false);
-              }}
-              options={horizon.map((year) => ({ value: String(year), label: draftYearLabel(year) }))}
-            />
-          </div>
-          {futureRows.length === 0 ? (
-            <Empty title={`No one is in the ${draftYearLabel(shownFuture)}.`} />
-          ) : (
-            <Table
-              head={["Prospect", "Pos", "Year", "School", "Size", "40", "Consensus", "News"]}
-            >
-              {futureVisible.map((row) => (
-                <Row key={row.id}>
-                  <Cell align="left">
-                    {(() => {
-                      const person = state.players.find((p) => p.id === row.id);
-                      return person ? <PlayerLink p={person} className="font-medium" /> : row.name;
-                    })()}
-                  </Cell>
-                  <Cell>
-                    <PosBadge pos={row.pos} />
-                  </Cell>
-                  <Cell>{row.classYear}</Cell>
-                  <Cell>{row.college}</Cell>
-                  <Cell>{row.size}</Cell>
-                  <Cell>{row.forty ? `${row.forty}s` : "—"}</Cell>
-                  <Cell>{row.consensus}</Cell>
-                  <Cell align="left">
-                    {row.notes.length > 0 ? row.notes[row.notes.length - 1] : "—"}
-                  </Cell>
-                </Row>
-              ))}
-            </Table>
-          )}
-          {futureRows.length > 32 && (
-            <div className="px-4 py-3">
-              <Button size="sm" variant="ghost" onClick={() => setShowFutureAll((v) => !v)}>
-                {showFutureAll ? "Show the top 32" : `Show all ${futureRows.length}`}
-              </Button>
-            </div>
-          )}
-        </Card>
-      )}
-
       <Card
         title={d ? "Big board" : draftYearLabel(state.season)}
         subtitle={`${rows.length} of ${pool.length} prospects · grades are your department's opinion, not the truth`}
@@ -1535,6 +1471,78 @@ export default function DraftPage() {
           </div>
         )}
       </Card>
+
+      {shownFuture != null && (
+        <Card
+          title="Future classes"
+          subtitle={
+            futureCounts.names === 0
+              ? `${draftYearLabel(shownFuture)} is empty`
+              : `${futureCounts.names} names · ${futureCounts.injuries} injur${futureCounts.injuries === 1 ? "y" : "ies"} · ${futureCounts.declared} early declaration${futureCounts.declared === 1 ? "" : "s"} · ${futureCounts.returned} staying in school`
+          }
+          actions={
+            <Button size="sm" variant="ghost" onClick={() => setFutureOpen((v) => !v)}>
+              {futureOpen ? "Hide" : "Show"}
+            </Button>
+          }
+          padded={false}
+        >
+          {futureOpen && (<>
+          <div className="px-4 py-3 space-y-3 border-b border-[var(--color-line-soft)]">
+            <p className="text-sm text-[var(--color-muted)]">
+              These classes are already in the league. Film, visits, and medicals stay on the{" "}
+              {draftYearLabel(state.season)}. What you can see here is public: school, size, campus testing,
+              and the consensus board. A knee or an early declaration changes who is in the class
+              before that year opens.
+            </p>
+            <Tabs
+              value={String(shownFuture)}
+              onChange={(year) => {
+                setFutureSeason(Number(year));
+                setShowFutureAll(false);
+              }}
+              options={horizon.map((year) => ({ value: String(year), label: draftYearLabel(year) }))}
+            />
+          </div>
+          {futureRows.length === 0 ? (
+            <Empty title={`No one is in the ${draftYearLabel(shownFuture)}.`} />
+          ) : (
+            <Table
+              head={["Prospect", "Pos", "Year", "School", "Size", "40", "Consensus", "News"]}
+            >
+              {futureVisible.map((row) => (
+                <Row key={row.id}>
+                  <Cell align="left">
+                    {(() => {
+                      const person = state.players.find((p) => p.id === row.id);
+                      return person ? <PlayerLink p={person} className="font-medium" /> : row.name;
+                    })()}
+                  </Cell>
+                  <Cell>
+                    <PosBadge pos={row.pos} />
+                  </Cell>
+                  <Cell>{row.classYear}</Cell>
+                  <Cell>{row.college}</Cell>
+                  <Cell>{row.size}</Cell>
+                  <Cell>{row.forty ? `${row.forty}s` : "—"}</Cell>
+                  <Cell>{row.consensus}</Cell>
+                  <Cell align="left">
+                    {row.notes.length > 0 ? row.notes[row.notes.length - 1] : "—"}
+                  </Cell>
+                </Row>
+              ))}
+            </Table>
+          )}
+          {futureRows.length > 32 && (
+            <div className="px-4 py-3">
+              <Button size="sm" variant="ghost" onClick={() => setShowFutureAll((v) => !v)}>
+                {showFutureAll ? "Show the top 32" : `Show all ${futureRows.length}`}
+              </Button>
+            </div>
+          )}
+          </>)}
+        </Card>
+      )}
 
       {d && (
         <Card

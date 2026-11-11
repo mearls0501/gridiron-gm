@@ -54,8 +54,10 @@ function hubSimLabel(state: GameState): string {
 function SimOption({ label, hint, onClick }: { label: string; hint: string; onClick: () => void }) {
   return (
     <button
+      type="button"
+      role="menuitem"
       onClick={onClick}
-      className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
+      className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-surface-2)] focus-visible:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
     >
       <span className="block text-xs font-medium">{label}</span>
       <span className="block text-xs text-[var(--color-muted)] mt-0.5">{hint}</span>
@@ -94,11 +96,31 @@ export default function Hub() {
       );
       if (shouldDismissSimMenu({ type: e.type, insideControl })) setSimMenu(false);
     };
+    const items = () =>
+      [...(simMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
     const onKeyDown = (e: KeyboardEvent) => {
       if (shouldDismissSimMenu({ type: e.type, key: e.key, insideControl: true })) {
         setSimMenu(false);
+        // Hand focus back to the button that opened the menu.
+        simMenuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+        return;
+      }
+      const list = items();
+      if (list.length === 0) return;
+      const at = list.indexOf(document.activeElement as HTMLButtonElement);
+      let to = -1;
+      if (e.key === "ArrowDown") to = at < 0 ? 0 : (at + 1) % list.length;
+      else if (e.key === "ArrowUp") to = at < 0 ? list.length - 1 : (at - 1 + list.length) % list.length;
+      else if (e.key === "Home") to = 0;
+      else if (e.key === "End") to = list.length - 1;
+      else if (e.key === "Tab") { setSimMenu(false); return; }
+      if (to >= 0) {
+        e.preventDefault();
+        list[to].focus();
       }
     };
+    // Opening from the keyboard lands on the first destination.
+    if (simMenuRef.current?.contains(document.activeElement)) items()[0]?.focus();
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
     return () => {
@@ -211,12 +233,14 @@ export default function Hub() {
                     <Button
                       size="lg"
                       disabled={busy || simming}
+                      ariaHaspopup="menu"
+                      ariaExpanded={simMenu}
                       onClick={() => setSimMenu(!simMenu)}
                     >
                       {simming ? hubSimLabel(state) : "Sim ▾"}
                     </Button>
                     {simMenu && (
-                      <div className="absolute right-0 top-full mt-1 z-30 w-60 bg-[var(--color-surface-3)] border border-[var(--color-line)] rounded-lg shadow-xl overflow-hidden">
+                      <div role="menu" aria-label="Sim ahead" className="absolute right-0 top-full mt-1 z-30 w-60 bg-[var(--color-surface-3)] border border-[var(--color-line)] rounded-lg shadow-xl overflow-hidden">
                         {state.phase === "regular" && state.week < TRADE_DEADLINE_WEEK && (
                           <SimOption
                             label={`To the Trade Deadline (Wk ${TRADE_DEADLINE_WEEK})`}

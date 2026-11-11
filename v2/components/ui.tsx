@@ -42,7 +42,9 @@ export function Card({
 
 export function Button({
   children, onClick, href, variant = "default", size = "md", disabled, title, type = "button", className,
+  ariaExpanded, ariaHaspopup,
 }: {
+  ariaExpanded?: boolean; ariaHaspopup?: "menu";
   children: ReactNode; onClick?: () => void; href?: string;
   variant?: "default" | "primary" | "ghost" | "danger";
   size?: "sm" | "md" | "lg";
@@ -72,6 +74,8 @@ export function Button({
       onClick={onClick}
       disabled={disabled}
       title={title}
+      aria-expanded={ariaExpanded}
+      aria-haspopup={ariaHaspopup}
       className={cls}
     >
       {children}
@@ -238,12 +242,22 @@ export function Empty({ title, hint, action }: { title: string; hint?: string; a
   );
 }
 
-export function Table({ head, children, className }: {
-  head: ReactNode[]; children: ReactNode; className?: string;
+/**
+ * `pack` is for a wide card holding a table of short columns: the columns sit
+ * at their natural width beside the name and the last column (the row's
+ * actions) takes the slack, so a row reads as one line and not as islands.
+ */
+export function Table({ head, children, className, pack }: {
+  head: ReactNode[]; children: ReactNode; className?: string; pack?: boolean;
 }) {
   return (
     <div className={cx("overflow-x-auto table-scroll", className)}>
-      <table className="w-full text-sm">
+      <table
+        className={cx(
+          "w-full text-sm",
+          pack && "lg:[&_th:last-child]:w-full lg:[&_th:first-child]:min-w-52 lg:[&_th]:px-4 lg:[&_td]:px-4 lg:[&_td]:whitespace-nowrap"
+        )}
+      >
         <thead>
           <tr className="border-b border-[var(--color-line)]">
             {head.map((h, i) => (

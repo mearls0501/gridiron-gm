@@ -13,7 +13,7 @@ import {
 } from "@/lib/core/season/stats";
 import { playerMap } from "@/lib/core/select";
 import {
-  Card, Cell, Empty, Pill, PlayerLink, PosBadge, Row, Stat, Table, TeamMark, cx,
+  Card, Cell, Empty, Pill, PlayerLink, PosBadge, Row, Stat, Table, Tabs, TeamMark, cx,
 } from "@/components/ui";
 import {
   clockLabel, downDistance, driveBar, drivePlays, driveResultLabel, driveResultTone,
@@ -277,6 +277,12 @@ function rate(made: number, att: number): number {
   return att === 0 ? 0 : made / att;
 }
 
+/**
+ * A box score is three reads: how the game went, how each drive went, and who
+ * did what. One at a time, so the page is a screen or two and not ten.
+ */
+type BoxView = "summary" | "drives" | "players";
+
 export default function GamePage() {
   const params = useParams<{ id: string }>();
   const state = useGame((s) => s.state);
@@ -284,6 +290,7 @@ export default function GamePage() {
   const raw = params?.id;
   const id = Number(Array.isArray(raw) ? raw[0] : raw);
   const [driveFocus, setDriveFocus] = useState<{ gameId: number; n: number } | null>(null);
+  const [view, setView] = useState<BoxView>("summary");
   const pbpScroller = useRef<HTMLDivElement>(null);
   const driveNodes = useRef(new Map<number, HTMLDivElement>());
   const selectedDrive = driveFocus?.gameId === id ? driveFocus.n : null;
@@ -357,6 +364,8 @@ export default function GamePage() {
   const periods = Math.max(box.quarters.home.length, box.quarters.away.length, 4);
   const periodLabels = Array.from({ length: periods }, (_, i) => quarterLabel(i + 1));
   const pbpLinked = !!box.plays?.length;
+  const hasDrives = !!(box.drives?.length || box.plays?.length);
+  const shown: BoxView = !hasDrives && view === "drives" ? "summary" : view;
 
   function jumpToDrive(n: number) {
     setDriveFocus({ gameId: id, n });
@@ -511,6 +520,17 @@ export default function GamePage() {
         )}
       </Card>
 
+      <Tabs
+        value={shown}
+        onChange={setView}
+        options={[
+          { value: "summary" as BoxView, label: "Summary" },
+          ...(hasDrives ? [{ value: "drives" as BoxView, label: "Drives & plays" }] : []),
+          { value: "players" as BoxView, label: "Player stats" },
+        ]}
+      />
+
+      {shown === "summary" && (<>
       <Card title="Linescore" padded={false}>
         <Table head={[L("Team"), ...periodLabels, "T"]}>
           {[
@@ -607,6 +627,10 @@ export default function GamePage() {
         )}
       </Card>
 
+      </>)}
+
+      {shown === "drives" && (
+      <div className="grid gap-4 items-start xl:grid-cols-2">
       {(box.drives?.length || box.plays?.length) ? (
         <Card
           title="Drive Chart"
@@ -694,10 +718,15 @@ export default function GamePage() {
       ) : null}
 
       {box.plays && box.plays.length > 0 ? (
-        <Card title="Play by Play" subtitle={`${shownPlays.length} snaps`} padded={false}>
+        <Card
+          title="Play by Play"
+          subtitle={`${shownPlays.length} snaps`}
+          padded={false}
+          className="xl:sticky xl:top-28"
+        >
           <div
             ref={pbpScroller}
-            className="divide-y divide-[var(--color-line-soft)] max-h-[32rem] overflow-y-auto"
+            className="divide-y divide-[var(--color-line-soft)] max-h-[32rem] xl:max-h-[calc(100vh-14rem)] overflow-y-auto"
           >
             {(box.drives ?? []).length > 0
               ? (box.drives ?? []).map((d) => {
@@ -760,11 +789,15 @@ export default function GamePage() {
           </div>
         </Card>
       ) : null}
+      </div>
+      )}
 
+      {shown === "players" && (
       <div className="grid gap-4 xl:grid-cols-2">
         <TeamPlayerStats t={away} />
         <TeamPlayerStats t={home} />
       </div>
+      )}
     </div>
   );
 }

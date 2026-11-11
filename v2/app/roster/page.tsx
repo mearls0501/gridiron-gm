@@ -436,7 +436,7 @@ export default function RosterPage() {
             }
           />
         ) : (
-          <Table head={head}>
+          <Table head={head} pack>
             {rows.map((p) => {
               const dead = deadMoney(p.contract);
               const savings = capSavingsFromCut(p.contract);
