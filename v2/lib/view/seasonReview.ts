@@ -1,5 +1,6 @@
 import { Game, GameState, Player, SeasonHistory, SeasonStatLine } from "../core/types";
 import { computeRecords, recordString } from "../core/select";
+import { divisionRankLabelFrom } from "../core/season/standings";
 import { isReceivingLeaderPos } from "../core/season/stats";
 
 /**
@@ -319,25 +320,9 @@ export function presentSeasonReview(state: GameState): SeasonReviewView {
   const userRec = recs.get(state.userTeamId);
   const userRecord = userRec ? recordString(userRec) : "0-0";
 
-  let userFinish: string | null = null;
-  if (userRec) {
-    const div = state.teams[state.userTeamId]?.division;
-    const peers = state.teams
-      .filter((t) => t.division === div)
-      .map((t) => recs.get(t.id)!)
-      .sort((a, b) => {
-        const ga = a.w + a.l + a.t;
-        const gb = b.w + b.l + b.t;
-        const pa = ga === 0 ? 0 : (a.w + a.t * 0.5) / ga;
-        const pb = gb === 0 ? 0 : (b.w + b.t * 0.5) / gb;
-        return pb - pa || (b.pf - b.pa) - (a.pf - a.pa);
-      });
-    const rank = peers.findIndex((r) => r.teamId === state.userTeamId) + 1;
-    if (rank > 0 && div) {
-      const suf = ["st", "nd", "rd", "th"][Math.min(rank - 1, 3)];
-      userFinish = `${rank}${suf} in ${div}`;
-    }
-  }
+  const userFinish = userRec
+    ? divisionRankLabelFrom(state, state.userTeamId, [...recs.values()], season)
+    : null;
 
   const championId =
     archived?.championId ?? state.playoffs?.championId ?? null;

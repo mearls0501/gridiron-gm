@@ -119,36 +119,26 @@ export default function SettingsPage() {
             />
             <span className="text-sm">The owner can fire you</span>
           </label>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
-              Pause Sim-ahead when…
-            </div>
-            <div className="space-y-1.5">
-              {(
-                [
-                  ["tradeOffer", "A club calls with a trade offer"],
-                  ["injuredStarter", "One of your starters goes down"],
-                  ["milestone", "A league milestone falls"],
-                ] as const
-              ).map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={settings.pauseOn[key]}
-                    onChange={(e) => {
-                      const on = e.target.checked;
-                      apply((s) => {
-                        const cur = s.settings ?? defaultSettings();
-                        s.settings = { ...cur, pauseOn: { ...cur.pauseOn, [key]: on } };
-                      });
-                    }}
-                    className="accent-[var(--color-accent)]"
-                  />
-                  <span className="text-sm">{label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings.pauseOnStartingQb !== false}
+              onChange={(e) => {
+                const on = e.target.checked;
+                apply((s) => {
+                  s.settings = { ...(s.settings ?? defaultSettings()), pauseOnStartingQb: on };
+                  return on
+                    ? "Sim stops if your starting quarterback is out 8 or more weeks"
+                    : "Sim runs to the stop you pick";
+                });
+              }}
+              className="accent-[var(--color-accent)]"
+            />
+            <span className="text-sm">Stop when your starting quarterback is out 8 or more weeks</span>
+          </label>
+          <p className="text-xs text-[var(--color-muted)]">
+            Sim on the Hub runs to the stop you pick. A trade call or any other injury does not end it early.
+          </p>
         </div>
       </Card>
 

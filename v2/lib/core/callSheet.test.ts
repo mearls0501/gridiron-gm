@@ -218,8 +218,7 @@ function playUser(st: ReturnType<typeof newGame>) {
   startRegularSeason(st);
   setCallSheet(st, { passLean: PASS_LEAN_PASS, aggression: AGGRESSION_AGGRESSIVE });
   st.settings = defaultSettings();
-  st.settings.pauseOn.tradeOffer = false;
-  st.settings.pauseOn.injuredStarter = false;
+  st.settings.pauseOnStartingQb = false;
   const msg = runSimTo(st, "champion");
   assert.ok(st.phase.startsWith("offseason"), `Through the Playoffs stalled: ${msg} phase=${st.phase}`);
   for (const t of st.teams) {

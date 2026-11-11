@@ -36,7 +36,6 @@ import { runSimTo } from "../store/simTo";
 import {
   CLOSED_WINDOW_ACTIONS,
   incomingOfferAccept,
-  incomingOfferPausesSim,
   incomingOfferReject,
   proposeTradeControl,
 } from "./tradeWindow";
@@ -169,12 +168,9 @@ assert.match(
 
 console.log("ok    tradeWindow — closed-window incoming offer is not a live Accept");
 
-function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
+function runToTheStop(st: ReturnType<typeof newGame>): void {
   const cur = st.settings ?? defaultSettings();
-  st.settings = {
-    ...cur,
-    pauseOn: { tradeOffer: true, injuredStarter: false, milestone: false },
-  };
+  st.settings = { ...cur, pauseOnStartingQb: false };
 }
 
 // After week 9, generateUserOffers must not grow the inbox, and the
@@ -191,11 +187,9 @@ function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
   assert.equal(st.tradeOffers?.some((o) => o.id === offer.id), false, "deadline leftover is not still offered");
   assert.equal(incomingOffersOnTheTable(st).length, 0);
   assert.equal(acceptOffer(st, offer.id).ok, false);
-  assert.equal(incomingOfferPausesSim(st, before), false, "a cleared inbox is not a new Accept-able call");
-  assert.equal(incomingOfferPausesSim(st, 0), false, "even a length bump after the deadline does not pause");
 }
 
-// Open window: a newly arrived offer still pauses bulk sim.
+// Open window: week 8 can still put a call on the table.
 {
   const st = newGame({ seed: 1 });
   st.phase = "regular";
@@ -203,7 +197,6 @@ function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
   st.tradeOffers = [];
   generateUserOffers(st, new Rng(1), 1);
   assert.ok((st.tradeOffers?.length ?? 0) >= 1, "week 8 can still put an offer on the table");
-  assert.equal(incomingOfferPausesSim(st, 0), true, "new offer during the window still pauses");
 }
 
 // Week 10 leftover + simTo seasonEnd: do not stop for that leftover.
@@ -212,11 +205,10 @@ function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
   const st = newGame({ seed: 1 });
   startRegularSeason(st);
   st.week = TRADE_DEADLINE_WEEK + 1;
-  tradeOnlyPause(st);
+  runToTheStop(st);
   const { offer } = plantIncoming(st);
   assert.equal(st.week, 10);
   assert.equal(incomingOffersOnTheTable(st).length, 0, "week 10 does not list the call before the week is played");
-  assert.equal(incomingOfferPausesSim(st, (st.tradeOffers ?? []).length), false);
 
   const seasonEnd = runSimTo(st, "seasonEnd");
   assert.ok(
@@ -240,7 +232,7 @@ function tradeOnlyPause(st: ReturnType<typeof newGame>): void {
   const st = newGame({ seed: 1 });
   startRegularSeason(st);
   st.week = TRADE_DEADLINE_WEEK + 1;
-  tradeOnlyPause(st);
+  runToTheStop(st);
   plantIncoming(st);
 
   const champ = runSimTo(st, "champion");
@@ -345,7 +337,6 @@ console.log("ok    tradeWindow — deadline roll clears incoming offers");
   const msg = advanceOffseason(st);
   assert.equal(st.phase, "offseason-tag", msg);
   assert.equal((st.tradeOffers ?? []).length, 0, "tag window inbox is empty after rollover");
-  assert.equal(incomingOfferPausesSim(st, 0), false);
 }
 
 console.log("ok    tradeWindow — prior-year pick honesty and year-boundary inbox");
