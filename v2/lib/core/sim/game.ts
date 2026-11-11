@@ -1,7 +1,7 @@
 import { schemeAttrMultiplier } from "../staff";
 import { Rng, clamp } from "../rng";
 import {
-  BoxScore, CARRY_SHARE, Coach, Game, GameState, PlayEvent, PlayKind, PlayResult,
+  BoxScore, CARRY_SHARE, Coach, Game, GameState, PlayEvent, PlayKind, PlayoffRound, PlayResult,
   Player, PlayerGameStat, Position, ROTATION, ScoringPlay, SnapCall, STARTERS, Team, TeamGameStats,
 } from "../types";
 import { buildDrives } from "./events";
@@ -235,6 +235,82 @@ export const GAME_TACKLE_SHARE_LAMBDA =
 export const SEASON_TACKLE_SHARE_LAMBDA =
   1 / ((SEASON_TACKLE_SHARE_KNEE - TACKLE_SHARE_P90) * OLUOKUN_TEAM_TACKLES);
 
+/**
+ * Whether a non-scoring play records a solo or own tackle.
+ *
+ * Own tackle is the primary credit in nfl-reference §5.13: a solo, or the
+ * tackler on a play that also has an assist (`tackle_with_assist`). An
+ * assist alone is not an own tackle. Rates are the 2021–2024 REG share of
+ * plays with either id set, from nflverse `play_by_play_YYYY`. Scoring plays
+ * are not in these rates. A scoring play never credits a tackle.
+ *
+ * The mass of live rushes with no own tackle is a shared tackle (both
+ * defenders assist, nobody is credited solo or with_assist), not a runner
+ * stepping out. Out-of-bounds rushes still carry an own tackle most of the time.
+ */
+export type TackleCreditKind = "run" | "catch" | "sack";
+
+export const TACKLE_CREDIT: Record<TackleCreditKind, { credited: number; plays: number }> = {
+  run: { credited: 41275, plays: 55037 },
+  catch: { credited: 38002, plays: 43993 },
+  sack: { credited: 4594, plays: 5213 },
+};
+
+export function tackleCreditRate(kind: TackleCreditKind): number {
+  const row = TACKLE_CREDIT[kind];
+  return row.credited / row.plays;
+}
+
+/** Scoring plays credit nothing. Any other play credits when `roll` is under the traced rate. */
+export function creditsTackle(scoring: boolean, kind: TackleCreditKind, roll: number): boolean {
+  if (scoring) return false;
+  return roll < tackleCreditRate(kind);
+}
+
+const PLAYOFF_ROUND_INDEX: Record<PlayoffRound, number> = { WC: 0, DIV: 1, CONF: 2, SB: 3 };
+
+/**
+ * Targets or tackles already counted before this game.
+ *
+ * Regular-season games read the season line. That line is regular season
+ * only. A playoff game does not read it. The postseason prior is the boxes
+ * from earlier playoff rounds, so the wild-card game starts clear and a
+ * later round sees only the postseason.
+ */
+export function priorCountingStats(
+  state: GameState,
+  game: Game,
+  teamId: number,
+  field: "targets" | "tackles",
+): { team: number; byPlayer: Map<number, number> } {
+  const byPlayer = new Map<number, number>();
+  let team = 0;
+  const add = (playerId: number, n: number) => {
+    if (!(n > 0)) return;
+    byPlayer.set(playerId, (byPlayer.get(playerId) ?? 0) + n);
+    team += n;
+  };
+  if (game.playoffRound !== null) {
+    const round = PLAYOFF_ROUND_INDEX[game.playoffRound];
+    for (const g of state.games) {
+      if (g.season !== game.season || g.playoffRound === null || g.id === game.id) continue;
+      if (!g.played || !g.boxScore) continue;
+      if (PLAYOFF_ROUND_INDEX[g.playoffRound] >= round) continue;
+      for (const row of g.boxScore.players) {
+        if (row.teamId !== teamId) continue;
+        add(row.playerId, row[field]);
+      }
+    }
+    return { team, byPlayer };
+  }
+  for (const p of state.players) {
+    const line = p.stats.find((s) => s.season === game.season && s.teamId === teamId);
+    if (!line) continue;
+    add(p.id, line[field]);
+  }
+  return { team, byPlayer };
+}
+
 /** Weight multiplier in (0, 1]. No share yet, or a share at or below the knee, is 1. */
 export function shareSaturation(
   count: number,
@@ -427,40 +503,22 @@ function* runGameSim(
   const ctxHome = mkCtx(home);
   const ctxAway = mkCtx(away);
 
-  // Targets already on the season line, before this game. Playoff boxes are
-  // not on the line. Camp does not write one either.
-  const priorTargetsFor = (teamId: number): { team: number; byPlayer: Map<number, number> } => {
-    const byPlayer = new Map<number, number>();
-    let team = 0;
-    for (const p of state.players) {
-      const line = p.stats.find((s) => s.season === game.season && s.teamId === teamId);
-      if (!line || line.targets <= 0) continue;
-      byPlayer.set(p.id, line.targets);
-      team += line.targets;
-    }
-    return { team, byPlayer };
-  };
+  // Regular season reads the season line. Playoffs read earlier playoff
+  // boxes only. Camp does not write a season line.
   const priorTargets = new Map<number, { team: number; byPlayer: Map<number, number> }>([
-    [home.id, priorTargetsFor(home.id)],
-    [away.id, priorTargetsFor(away.id)],
+    [home.id, priorCountingStats(state, game, home.id, "targets")],
+    [away.id, priorCountingStats(state, game, away.id, "targets")],
   ]);
   const gameTargets = new Map<number, number>();
-  const priorTacklesFor = (teamId: number): { team: number; byPlayer: Map<number, number> } => {
-    const byPlayer = new Map<number, number>();
-    let team = 0;
-    for (const p of state.players) {
-      const line = p.stats.find((s) => s.season === game.season && s.teamId === teamId);
-      if (!line || line.tackles <= 0) continue;
-      byPlayer.set(p.id, line.tackles);
-      team += line.tackles;
-    }
-    return { team, byPlayer };
-  };
   const priorTackles = new Map<number, { team: number; byPlayer: Map<number, number> }>([
-    [home.id, priorTacklesFor(home.id)],
-    [away.id, priorTacklesFor(away.id)],
+    [home.id, priorCountingStats(state, game, home.id, "tackles")],
+    [away.id, priorCountingStats(state, game, away.id, "tackles")],
   ]);
   const gameTackles = new Map<number, number>();
+  // Not a draw on `rng`. The credit coin must not move the hit or the injury roll.
+  const tackleCreditRng = new Rng(
+    (state.seed ^ Math.imul((game.id + 1) >>> 0, 0x9e3779b9) ^ 0x71a0c1e5) >>> 0,
+  );
 
   /**
    * A child stream for the play-economy mechanics — receiver carries and
@@ -510,11 +568,18 @@ function* runGameSim(
     }
     return s;
   };
-  const creditTackle = (p: Player, ctx: Ctx) => {
+  /**
+   * Record a tackle. Scoring plays credit none. A non-scoring play credits
+   * at the traced rate for its family. The hit is separate and always lands.
+   */
+  const creditTackle = (p: Player | undefined, ctx: Ctx, kind: TackleCreditKind, scoring: boolean) => {
+    if (!p || scoring) return;
+    if (!tackleCreditRng.chance(tackleCreditRate(kind))) return;
     statFor(p, ctx).tackles++;
     gameTackles.set(ctx.team.id, (gameTackles.get(ctx.team.id) ?? 0) + 1);
   };
-  /** Bend a weighted tackle draw. A sack or a forced fumble still credits the man who made it. */
+  const playScores = (yl: number, yds: number) => yl + yds >= 100 || yl + yds <= 0;
+  /** Bend a weighted tackle draw. A sack or a forced fumble still names the man who made the stop. */
   const tackleDrawWeight = (p: Player, ctx: Ctx, raw: number): number => {
     const played = gameTackles.get(ctx.team.id) ?? 0;
     const mine = pstats.get(p.id)?.tackles ?? 0;
@@ -1371,18 +1436,18 @@ function* runGameSim(
     hitUnit(lbs, d, 0.11);
 
     // Fumble. Recovery is contested — not every fumble is a turnover.
-    // A kept fumble used to credit the forcer and then the ordinary tackle
-    // draw as well: two tackles on one play. The forcer's credit is the stop.
+    // A kept fumble credits the forcer once, not the forcer and the draw.
+    // The hit lands on that forcer. A return touchdown is a scoring play
+    // and credits no tackle.
     const fumbleP = clamp(0.0330 - (att(carrier, "car") - 60) * 0.00032 + wx.fumble, 0.010, 0.085);
-    let fumbleTackleCredited = false;
+    let fumbleForcer: Player | undefined;
     if (rng.chance(fumbleP)) {
       cs.fumbles++;
       const forcer = rng.pick([...dl, ...lbs]);
       if (forcer) {
         const fs = statFor(forcer, d);
         fs.ff++;
-        creditTackle(forcer, d);
-        fumbleTackleCredited = true;
+        fumbleForcer = forcer;
       }
       if (rng.chance(0.46)) {
         cs.fumblesLost++;
@@ -1398,6 +1463,7 @@ function* runGameSim(
             return { ...NO_PLAY(rng.int(8, 16)), scored: true, result: "fumble", scorerId: carrier.id };
           }
         }
+        if (fumbleForcer) creditTackle(fumbleForcer, d, "run", false);
         return {
           yards: Math.max(0, Math.min(yards, 3)), timeUsed: rng.int(25, 40),
           turnover: true, touchdown: false, scored: false,
@@ -1429,8 +1495,14 @@ function* runGameSim(
           * (d.script.targetBoost.get(p.id) ?? 1),
       )
     );
-    if (tackler && !fumbleTackleCredited) creditTackle(tackler, d);
-    hit(tackler, d, 0.55);
+    const scoring = playScores(yardLine, yards);
+    if (fumbleForcer) {
+      if (!scoring) creditTackle(fumbleForcer, d, "run", false);
+      hit(fumbleForcer, d, 0.55);
+    } else {
+      if (tackler) creditTackle(tackler, d, "run", scoring);
+      hit(tackler, d, 0.55);
+    }
 
     return {
       yards, timeUsed: rng.int(25, 40), turnover: false,
@@ -1492,7 +1564,7 @@ function* runGameSim(
       if (sacker) {
         const ss = statFor(sacker, d);
         ss.sacks++;
-        creditTackle(sacker, d);
+        creditTackle(sacker, d, "sack", playScores(yardLine, -loss));
         ss.tfl++;
       }
       // Going down under a sack is the single most dangerous thing that happens
@@ -1670,7 +1742,7 @@ function* runGameSim(
       tStat.recLong = Math.max(tStat.recLong, gained);
       o.stats.passYards += gained;
       o.stats.totalYards += gained;
-      if (defender) creditTackle(defender, d);
+      if (defender) creditTackle(defender, d, "catch", playScores(yardLine, gained));
       hit(target, o, 0.85);
       hit(defender, d, 0.50);
       return {
@@ -1793,11 +1865,10 @@ function* runGameSim(
           * (d.script.targetBoost.get(p.id) ?? 1),
       )
     );
-    if (tackler) creditTackle(tackler, d);
     hit(target, o, 0.85);
     hit(tackler, d, 0.50);
 
-    // Fumble after the catch.
+    // Fumble after the catch. A lost ball is not a scoring play.
     if (rng.chance(clamp(0.010 - (att(target, "car") - 60) * 0.00012, 0.003, 0.022))) {
       tStat.fumbles++;
       if (tackler) statFor(tackler, d).ff++;
@@ -1807,6 +1878,7 @@ function* runGameSim(
         o.stats.giveaways++;
         d.stats.takeaways++;
         if (tackler) statFor(tackler, d).fr++;
+        if (tackler) creditTackle(tackler, d, "catch", false);
         return {
           yards, timeUsed: rng.int(25, 39), turnover: true, touchdown: false,
           scored: false, passerId: qb.id, scorerId: target.id, isPass: true,
@@ -1814,6 +1886,7 @@ function* runGameSim(
         };
       }
     }
+    if (tackler) creditTackle(tackler, d, "catch", playScores(yardLine, yards));
 
     return {
       yards, timeUsed: rng.int(25, 39), turnover: false,

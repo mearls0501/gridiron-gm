@@ -1,5 +1,44 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-11 — Tackle credit, the kept-fumble hit, and the playoff share
+
+Signed, Matt, on draft PR #222. No `baselines.json` edit. No re-lock. No dial change. Award weights were not changed.
+
+A scoring play credits no tackle. A non-scoring rush, completion, or sack credits one at the 2021–2024 REG rate of plays that carry a solo or own tackle (`solo_tackle_*` or `tackle_with_assist_*` on nflverse `play_by_play`). The rates are 41,275/55,037 rushes, 38,002/43,993 completions, and 4,594/5,213 sacks. They are in `docs/nfl-reference.md` §5.13. The coin is a side stream. It does not draw on the play rng. On the play itself the hit still lands, at the same risk, on the player who made the stop. The draw's weights follow credited tackles, so a later play can name a different tackler once a credit was withheld.
+
+**Disagreement.** Out of bounds is not that rate. Of 13,762 live rushes with no own tackle, 13,289 are assist-only: the play description names two defenders with a semicolon, and neither id is a solo or a tackle-with-assist. Live rushes that are out of bounds still have an own tackle on 4,038 of 4,271. The sim has no out-of-bounds result. I did not add one. The credit withheld is the no-own-tackle share, which is the shared tackle.
+
+**Disagreement.** Team tackles do not land in 705–831. Seeds 1–5, one regular season each, mean team tackles **655 / 654.5 / 657.4 / 656.2 / 653.8**. Club lows on those seeds are 554–601 and club highs are 740–759. The 705–831 span is the seven clubs that produced the primary leader, 2018–2024. All 128 clubs in the 2021–2024 weekly file run **622–831**, mean **712.3**. This engine does not credit a tackle on a punt or a kickoff. That is most of the gap from 655 to 712. I did not raise the scrimmage rate, and I did not start crediting special-teams tackles, to climb into 705.
+
+A safety that is a sack records an own tackle on 47 of 52 plays in that file. The signed rule still withholds it. Calibrate reads 0.03 safeties a team-game. It does not move the season total.
+
+The kept-fumble hit lands on the forcer. The weighted draw still runs, so the play rng is not short a draw. The forcer is the contact. A fumble returned for a score credits no tackle.
+
+A playoff game does not read the regular-season target or tackle line. The wild-card prior is empty. A later round sums earlier playoff boxes only. `priorCountingStats` is the guard, covered in `tackleShare.test.ts`.
+
+`docs/milestone-reference.json` now counts primary tackles. Game 15+ is 2/1/0/0. Game 20+, season 150+, and season 180+ are 0/0/0/0. All four are comparable. The engine still has no assist.
+
+**Awards, not changed.** DPOY is `sacks * 9 + ints * 11 + tackles * 0.55 + ff * 5 + passDef * 1.5`. ROY adds `tackles * 0.5` to the offensive line and `sacks * 8 + ints * 9`. On seeds 1–5 the DPOY is an edge rusher every time (14, 15, 16, 18, 18 sacks). His tackle term is 16.5–37.4 points of a 166–214 score. The tackle leader on those seeds has 0 sacks and would score about 53–62 from tackles. He was already short of a 15-sack season when the leader had 162 tackles (89 points against 135). The cut does not create a new winner. ROY is a quarterback on all five seeds, with a tackle term of 0. A defensive rookie at 100 tackles and 8 sacks scores about 114, against a 4,000-yard passer near 200. The weights do not need a change for this credit cut. They are still scaled to a league that records no assist. Leave them until someone wants a traced voting model.
+
+Seeds 1–5 leaders, against 92–128: **106, 109, 113, 108, 97**. All inside. Max game tackles on those seeds: **17, 13, 13, 15, 14**. `statcheck` on seed 8675309 read `leadTackles` **107**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `tackleShare.test.ts` — pass. Seeds 1 and 42, one season: max game tackles 17 and 15. Leader median 17.1%.
+- `targetShare.test.ts` — pass. Week 1 credit 3,558/4,468 = 0.796. Kept fumbles 48. No tackle past the stops, and none past the stops once rushing and receiving scores are removed.
+- `verify.ts 3` — 348/348. `verify.checks` 348, floor 330.
+- `conditions.ts 6` — problems 0. Home win 55.2%.
+- `coherence.ts 5` — coherent. 90.6% of outlier games explained.
+- `leverage.ts 150` — `wrongSign` 0, `unbackedOvr` 0, `noEffect` 1. That one is the known `OT.sta` probe. The script exits 1 because the probe is non-zero. The baseline max is 1. Not a new miss.
+- `tails.ts 16` — `milestonesOff` **11**, under the max of 16. Comparable categories 46. 15+ tackles is too rare (1/4352 against 3/1087). 20+, 150+, and 180+ are even with a zero reference. Best game tackles 16. Best season tackles 129, one over Oluokun's 128, on a 16-league sample. The band was not widened.
+- `calibrate.ts 300` — score mismatches 0. `fgPct` **81.995**. Floor remains 82.029. Not moved.
+- The `package.json` test list, run through with failures kept: every file passed except the two fingerprints below. `guardMeasurements.test.ts` had required four unmatched tackle rows. That assertion now requires the four primary rows, with counts 3, 0, 0, and 0, and it passes.
+- `userOffers.test.ts` — `rngState` **1779302491**. Locked 1777473079. Not re-locked. The test fails there.
+- `trimIdentity.test.ts` — seed 42 opening 2030, cuts **1587**. Locked 1506. Not re-locked. The test fails on the cut count.
+
+The 5-seed Mac Studio panel was not run.
+
 ## 2026-11-10 — Tackle definition: primary credit, and a soft bend on the draw
 
 Signed, Matt, 2026-11-10. Added on the target-share branch. No assist. No combined tackle. The only `baselines.json` edit is `statcheck.leadTackles`.

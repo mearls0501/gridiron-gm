@@ -13,8 +13,13 @@ import {
   GAME_TACKLE_SHARE_LAMBDA,
   SEASON_TACKLE_SHARE_KNEE,
   SEASON_TACKLE_SHARE_LAMBDA,
+  TACKLE_CREDIT,
+  creditsTackle,
+  priorCountingStats,
   shareSaturation,
+  tackleCreditRate,
 } from "./game";
+import type { Game, GameState } from "../types";
 
 const E = Math.E;
 
@@ -45,6 +50,65 @@ function expectedCount(rawShare: number, tackles: number, knee: number, lambda: 
   }
   return mine;
 }
+
+assert.equal(creditsTackle(true, "run", 0), false);
+assert.equal(creditsTackle(true, "catch", 0), false);
+assert.equal(creditsTackle(true, "sack", 0), false);
+assert.equal(creditsTackle(false, "run", 0), true);
+assert.equal(creditsTackle(false, "run", tackleCreditRate("run")), false);
+assert.ok(Math.abs(tackleCreditRate("run") - (41275 / 55037)) < 1e-12);
+assert.ok(Math.abs(tackleCreditRate("catch") - (38002 / 43993)) < 1e-12);
+assert.ok(Math.abs(tackleCreditRate("sack") - (4594 / 5213)) < 1e-12);
+assert.ok(tackleCreditRate("run") < tackleCreditRate("catch") && tackleCreditRate("catch") < tackleCreditRate("sack"));
+assert.equal(TACKLE_CREDIT.run.plays, 55037);
+
+function planted(playoffRound: Game["playoffRound"], week: number): { state: GameState; game: Game } {
+  const state = {
+    players: [{
+      id: 7,
+      stats: [{ season: 2026, teamId: 3, tackles: 140, targets: 90 }],
+    }],
+    games: [{
+      id: 1,
+      season: 2026,
+      week: 19,
+      playoffRound: "WC",
+      played: true,
+      boxScore: { players: [{ playerId: 7, teamId: 3, tackles: 6, targets: 4 }] },
+    }, {
+      id: 2,
+      season: 2026,
+      week: 20,
+      playoffRound: "DIV",
+      played: true,
+      boxScore: { players: [{ playerId: 7, teamId: 3, tackles: 5, targets: 2 }] },
+    }],
+  } as unknown as GameState;
+  const game = { id: 9, season: 2026, week, playoffRound } as Game;
+  return { state, game };
+}
+
+const regularPrior = planted(null, 8);
+const regTackles = priorCountingStats(regularPrior.state, regularPrior.game, 3, "tackles");
+const regTargets = priorCountingStats(regularPrior.state, regularPrior.game, 3, "targets");
+assert.equal(regTackles.team, 140);
+assert.equal(regTackles.byPlayer.get(7), 140);
+assert.equal(regTargets.team, 90);
+
+const wildCard = planted("WC", 19);
+assert.equal(priorCountingStats(wildCard.state, wildCard.game, 3, "tackles").team, 0);
+assert.equal(priorCountingStats(wildCard.state, wildCard.game, 3, "targets").team, 0);
+
+const divisional = planted("DIV", 20);
+const divTackles = priorCountingStats(divisional.state, divisional.game, 3, "tackles");
+const divTargets = priorCountingStats(divisional.state, divisional.game, 3, "targets");
+assert.equal(divTackles.team, 6, "a playoff game does not read the regular-season tackle line");
+assert.equal(divTargets.team, 4);
+
+const conference = planted("CONF", 21);
+assert.equal(priorCountingStats(conference.state, conference.game, 3, "tackles").team, 11);
+assert.equal(priorCountingStats(conference.state, conference.game, 3, "targets").team, 6);
+assert.equal(priorCountingStats(conference.state, conference.game, 4, "tackles").team, 0);
 
 const ordinary = expectedCount(0.164, 60, GAME_TACKLE_SHARE_KNEE, GAME_TACKLE_SHARE_LAMBDA);
 assert.ok(Math.abs(ordinary / 60 - 0.164) < 0.01, `ordinary game moved to ${ordinary}`);

@@ -83,7 +83,13 @@ console.log(
   `target share shape: ordinary ${ordinary.toFixed(3)}, hot game ${hot.toFixed(3)}, hot season ${seasonHot.toFixed(3)}`,
 );
 
-function sum(rows: readonly { rushAtt: number; rec: number; sacked: number; tackles: number; fumbles: number; fumblesLost: number }[], key: "rushAtt" | "rec" | "sacked" | "tackles" | "fumbles" | "fumblesLost"): number {
+function sum(
+  rows: readonly {
+    rushAtt: number; rushTd: number; rec: number; recTd: number;
+    sacked: number; tackles: number; fumbles: number; fumblesLost: number;
+  }[],
+  key: "rushAtt" | "rushTd" | "rec" | "recTd" | "sacked" | "tackles" | "fumbles" | "fumblesLost",
+): number {
   let n = 0;
   for (const row of rows) n += row[key];
   return n;
@@ -99,11 +105,18 @@ function kneelsByOffense(plays: PlayEvent[]): Map<number, number> {
 }
 
 /**
- * Every scrimmage stop is one tackle: a rush (kneels are not stops), a
- * reception, or a sack. A kept run-fumble used to add a second.
+ * A stop is a rush (kneels are not stops), a reception, or a sack.
+ * A scoring rush or catch credits no tackle. A kept fumble is still one
+ * stop, not two. Non-scoring stops credit at the traced rate, so tackles
+ * sit under the non-scoring stops and do not match them one for one.
  */
-function tackleGap(st: GameState, seed: number): { gap: number; kept: number; games: number } {
-  let gap = 0;
+function tackleGap(st: GameState, seed: number): {
+  overStops: number; overLive: number; tackles: number; liveStops: number; kept: number; games: number;
+} {
+  let overStops = 0;
+  let overLive = 0;
+  let tackles = 0;
+  let liveStops = 0;
   let kept = 0;
   let games = 0;
   for (const game of st.games.filter((g) => g.week === 1)) {
@@ -114,27 +127,41 @@ function tackleGap(st: GameState, seed: number): { gap: number; kept: number; ga
       const off = result.box.players.filter((p) => p.teamId === offId);
       const def = result.box.players.filter((p) => p.teamId === defId);
       const stops = sum(off, "rushAtt") - (kneels.get(offId) ?? 0) + sum(off, "rec") + sum(off, "sacked");
-      const tackles = sum(def, "tackles");
-      gap += tackles - stops;
+      const scores = sum(off, "rushTd") + sum(off, "recTd");
+      const credited = sum(def, "tackles");
+      if (credited > stops) overStops += credited - stops;
+      if (credited > stops - scores) overLive += credited - (stops - scores);
+      tackles += credited;
+      liveStops += stops - scores;
       kept += sum(off, "fumbles") - sum(off, "fumblesLost");
     }
     games++;
   }
-  return { gap, kept, games };
+  return { overStops, overLive, tackles, liveStops, kept, games };
 }
 
 let keptFumbles = 0;
 let fumbleGames = 0;
+let credited = 0;
+let liveStops = 0;
 for (const seed of [1, 7, 42]) {
   const st = newGame({ seed });
   advance(st);
   const row = tackleGap(st, seed);
-  assert.equal(row.gap, 0, `seed ${seed}: tackle credits minus stops = ${row.gap}`);
+  assert.equal(row.overStops, 0, `seed ${seed}: tackles exceed stops by ${row.overStops}`);
+  assert.equal(row.overLive, 0, `seed ${seed}: a score or a second fumble credit added ${row.overLive}`);
   keptFumbles += row.kept;
   fumbleGames += row.games;
+  credited += row.tackles;
+  liveStops += row.liveStops;
 }
 assert.ok(keptFumbles > 0, "week 1 produced a kept fumble, so the regression is not vacuous");
-console.log(`fumble tackle: PASS (${fumbleGames} week-1 games, ${keptFumbles} kept fumbles, gap 0)`);
+const rate = credited / liveStops;
+assert.ok(rate > 0.6 && rate < 0.95, `credit rate ${rate} (${credited}/${liveStops})`);
+console.log(
+  `fumble tackle: PASS (${fumbleGames} week-1 games, ${keptFumbles} kept fumbles, ` +
+  `credit ${credited}/${liveStops} = ${rate.toFixed(3)})`,
+);
 
 function quantile(sorted: number[], p: number): number {
   if (!sorted.length) return 0;

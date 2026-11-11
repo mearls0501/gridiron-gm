@@ -57,7 +57,7 @@
     "ints": "def_interceptions",
     "fgm": "fg_made",
     "longFg": "fg_long",
-    "tackles": "def_tackles_solo + def_tackles_with_assist + def_tackle_assists; diagnostic only: engine has no assist statistic"
+    "tackles": "def_tackles_solo + def_tackles_with_assist; primary (own) tackle, assists excluded. Recomputed 2026-11-11 on the same 2021-2024 REG weekly files. Franklin 2024 remains 93 primary and 173 combined."
   },
   "validation": {
     "rushingRank5": [
@@ -355,24 +355,24 @@
         "key": "tackles",
         "atLeast": 15.0,
         "counts": [
-          26,
-          31,
-          35,
-          26
+          2,
+          1,
+          0,
+          0
         ],
-        "comparable": false
+        "comparable": true
       },
       {
         "label": "20+ tackles",
         "key": "tackles",
         "atLeast": 20.0,
         "counts": [
-          3,
-          2,
-          1,
+          0,
+          0,
+          0,
           0
         ],
-        "comparable": false
+        "comparable": true
       },
       {
         "label": "5+ FG made",
@@ -609,24 +609,24 @@
         "key": "tackles",
         "atLeast": 150.0,
         "counts": [
-          6,
-          10,
-          8,
-          7
+          0,
+          0,
+          0,
+          0
         ],
-        "comparable": false
+        "comparable": true
       },
       {
         "label": "180+ tackles",
         "key": "tackles",
         "atLeast": 180.0,
         "counts": [
-          2,
-          2,
-          1,
+          0,
+          0,
+          0,
           0
         ],
-        "comparable": false
+        "comparable": true
       }
     ]
   }
