@@ -10,7 +10,7 @@ import {
   addDeadCap, annualCapHit, capHit, deadMoney, departingPaidOut, expiresAtRollover, formatMoney,
   isActiveRoster, isOnWaivers,
   positionCount, practiceSquadCount, regularWeeksPaid, remainingBonusProration, rosterCount,
-  settlePaidWeeks, startContractNow, startSeason, teamCap,
+  settlePaidWeeks, startContractNow, startSeason, teamCap, type CapSummary,
 } from "../select";
 import { resolveDemand } from "../psychology";
 import { clearRosterSlot, placeOnPs } from "../rosterStatus";
@@ -222,6 +222,43 @@ function upcomingSeasonCommitted(state: GameState, teamId: number): number {
     return sum;
   }
   return teamCap(state, teamId).committed;
+}
+
+/**
+ * One player's charge on the coming-year meter. A tagged tender is a real
+ * year 1 (the roll skips him); everything else is the hit after the roll.
+ */
+export function comingYearCapHit(state: GameState, p: Player): number {
+  if (!p.contract) return 0;
+  if (isFranchiseTagged(state, p.id)) return annualCapHit(p.contract);
+  return nextSeasonCapHit(p.contract);
+}
+
+/**
+ * The tag-window meter: the coming league year on this year's ceiling.
+ * Expiring deals are $0, closing-year dead and paid-out leave (the wipe at
+ * FA open), and retirement acceleration, which survives it, stays.
+ * `docs/playtest-1028-resign-cap-space.md`.
+ */
+export function tagWindowCap(state: GameState, teamId: number): CapSummary {
+  const { cap, carryover } = teamCap(state, teamId);
+  let charges = 0;
+  let players = 0;
+  for (const p of state.players) {
+    if (p.teamId !== teamId || p.retired || p.prospect) continue;
+    charges += comingYearCapHit(state, p);
+    players++;
+  }
+  const dead = state.teams[teamId]?.retirementDeadPending ?? 0;
+  return {
+    cap,
+    committed: charges + dead,
+    dead,
+    paidOut: 0,
+    carryover,
+    space: cap + carryover - charges - dead,
+    players,
+  };
 }
 
 function clubAboveCommitHeadroom(state: GameState, teamId: number): boolean {
@@ -911,15 +948,20 @@ export function applyOfficeExtension(
     };
   }
 
-  // In season the old deal's paid weeks stay booked at its rate; the new deal
-  // pays the weeks left.
-  const paidOld = departingPaidOut(state, p.contract);
+  // The tag window is the season that is over: the new deal starts next
+  // league year and is charged on the coming-year meter, where the expiring
+  // deal is already $0. Elsewhere the old deal's paid weeks stay booked at
+  // its rate and the new deal pays the weeks left.
+  const tagWindow = state.phase === "offseason-tag";
+  const paidOld = tagWindow ? 0 : departingPaidOut(state, p.contract);
   const contract = startContractNow(state, makeContract(
     contractOfficeChildRng(state), apy, yrs, state.season, defaultGuaranteedYears(apy, yrs)
   ));
-  const hit = capHit(contract);
-  const cap = teamCap(state, teamId);
-  const available = cap.space + currentHit - paidOld;
+  if (tagWindow) contract.startsNextLeagueYear = true;
+  const hit = tagWindow ? annualCapHit(contract) : capHit(contract);
+  const available = tagWindow
+    ? tagWindowCap(state, teamId).space
+    : teamCap(state, teamId).space + currentHit - paidOld;
   if (hit > available) {
     return {
       ok: false,
@@ -927,7 +969,7 @@ export function applyOfficeExtension(
     };
   }
 
-  settlePaidWeeks(state, p, teamId);
+  if (!tagWindow) settlePaidWeeks(state, p, teamId);
   p.contract = contract;
   if (p.psychology?.holdout) resolveDemand(state, p.id);
   state.log.push({

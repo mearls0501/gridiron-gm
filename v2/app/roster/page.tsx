@@ -11,7 +11,6 @@ import {
   formatMoney,
   rosterCount,
   rosterIssues,
-  teamCap,
   teamRoster,
 } from "@/lib/core/select";
 import { cutPlayer, cutRefusal, fillUserMinimum } from "@/lib/core/offseason/contracts";
@@ -37,6 +36,7 @@ import {
   designateIr, elevateFromPs,
 } from "@/lib/core/rosterStatus";
 import { rosterCapView } from "@/lib/view/rosterCap";
+import { screenCap, screenCapHit } from "@/lib/view/resignStep";
 import {
   Bar,
   Button,
@@ -136,7 +136,7 @@ export default function RosterPage() {
 
   const teamId = state.userTeamId;
   const team = state.teams[teamId];
-  const cap = teamCap(state, teamId);
+  const cap = screenCap(state, teamId);
   const issues = rosterIssues(state, teamId);
   const clip = rosterCapView(state, teamId);
 
@@ -467,7 +467,7 @@ export default function RosterPage() {
                       </span>
                     </div>
                   </Cell>
-                  <Cell>{p.contract ? formatMoney(capHit(p.contract)) : "—"}</Cell>
+                  <Cell>{p.contract ? formatMoney(screenCapHit(state, p)) : "—"}</Cell>
                   <Cell>{p.contract ? yearsLeft(p) : "—"}</Cell>
                   {showCamp && (
                     <Cell className="text-xs text-[var(--color-muted)] max-w-[16rem] truncate">

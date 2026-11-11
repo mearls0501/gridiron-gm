@@ -13,11 +13,14 @@ import { newGame } from "../core/newGame";
 import { Rng } from "../core/rng";
 import { LEAGUE_MINIMUM, Player } from "../core/types";
 import {
-  applyFranchiseTag, applyOfficeExtension, expiringPlayers, extensionAskingApy,
-  isFranchiseTagged, officeExtensionTerms, submitOfficeOffer,
+  applyFranchiseTag, applyOfficeExtension, comingYearCapHit, expireContracts, expiringPlayers,
+  extensionAskingApy, isFranchiseTagged, officeExtensionTerms, submitOfficeOffer, tagWindowCap,
 } from "../core/offseason/contracts";
+import { annualCapHit, capHit, teamCap } from "../core/select";
 import { runFreeAgencyOpen } from "../core/offseason";
-import { hubResignWalkWarning, resignPot, resignStepRows, resignWalkCount } from "./resignStep";
+import {
+  hubResignWalkWarning, resignPot, resignStepRows, resignWalkCount, screenCap, screenCapHit,
+} from "./resignStep";
 
 function clubRoster(st: ReturnType<typeof newGame>, teamId: number): Player[] {
   return st.players.filter((p) => p.teamId === teamId && !p.retired && !p.prospect && p.contract);
@@ -213,4 +216,67 @@ function ok(label: string) { console.log("ok   ", label); }
   young.age = 26;
   assert.equal(resignPot(young), null, "potential stays off the row after 25");
   ok("re-sign potential is only for players 25 and under");
+}
+
+// Tag-window cap space (`docs/playtest-1028-resign-cap-space.md`, signed
+// 2026-11-11). The screen is the coming league year. Meet asking costs the
+// new year-1 hit; it no longer credits the expiring deal's closing year.
+{
+  const st = newGame({ seed: 28 });
+  st.phase = "offseason-tag";
+  const me = st.userTeamId;
+  const p = plantExpiring(st, me, 68);
+  p.age = 30;
+  const walker = plantExpiring(st, me, 66);
+  assert.notEqual(walker.id, p.id);
+  const ask = extensionAskingApy(st, me, p);
+  assert.ok(p.contract);
+  p.contract.baseSalary = [ask + 3_400_000];
+  p.contract.signingBonus = 0;
+  const closingHit = capHit(p.contract);
+  assert.ok(closingHit > ask, "Thigpen shape: the closing hit is above the ask");
+  assert.equal(comingYearCapHit(st, p), 0, "an unsigned expiring deal is $0 next year");
+
+  const before = tagWindowCap(st, me).space;
+  const beforeTeam = teamCap(st, me).space;
+  assert.equal(screenCap(st, me).space, before, "the tag-window screen is the coming year");
+  const terms = officeExtensionTerms(st, me, p);
+  const rng = st.rngState;
+  const r = submitOfficeOffer(st, me, p.id, true);
+  assert.equal(r.ok, true, r.message);
+  assert.equal(st.rngState, rng, "the click does not draw");
+
+  assert.ok(p.contract);
+  const yearOne = annualCapHit(p.contract);
+  assert.ok(Math.abs(tagWindowCap(st, me).space - (before - yearOne)) <= 1, "the meter falls by year 1");
+  assert.ok(teamCap(st, me).space > beforeTeam, "the closing-year book would still have risen");
+  assert.equal(screenCapHit(st, p), yearOne, "the cap-hit cell shows year 1, not $0");
+  assert.equal(p.contract.startsNextLeagueYear, true);
+  assert.equal(p.contract.yearsRemaining, terms.years, "the signed term");
+  const baseOne = p.contract.baseSalary[0];
+
+  const gone = expireContracts(st);
+  assert.ok(p.contract);
+  assert.equal(p.contract.startsNextLeagueYear, undefined, "the roll clears the flag");
+  assert.equal(p.contract.yearsRemaining, terms.years, "year 1 is not burned");
+  assert.equal(p.contract.baseSalary[0], baseOne);
+  assert.equal(capHit(p.contract), yearOne, "the FA hit is the year-1 hit the meter charged");
+  assert.ok(gone.some((x) => x.id === walker.id), "the unsigned player walks");
+  assert.equal(walker.teamId, null);
+  ok("tag-window Meet asking charges year 1 on the coming-year meter and keeps year 1");
+}
+
+// The tag-window meter leaves closing-year dead on the team and shows only
+// what survives the FA-open wipe.
+{
+  const st = newGame({ seed: 29 });
+  st.phase = "offseason-tag";
+  const t = st.teams[st.userTeamId];
+  t.deadCap = 24_200_000;
+  t.retirementDeadPending = 2_790_000;
+  assert.equal(tagWindowCap(st, st.userTeamId).dead, 2_790_000);
+  assert.equal(t.deadCap, 24_200_000);
+  st.phase = "offseason-fa";
+  assert.equal(screenCap(st, st.userTeamId).dead, 24_200_000, "outside the window the screen is teamCap");
+  ok("tag-window dead is retirement acceleration only; the team keeps its closing dead");
 }
