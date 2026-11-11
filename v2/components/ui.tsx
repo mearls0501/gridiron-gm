@@ -296,13 +296,12 @@ export function Tabs<T extends string>({ value, onChange, options }: {
   value: T; onChange: (v: T) => void; options: { value: T; label: string }[];
 }) {
   return (
-    <div role="tablist" className="flex gap-1 bg-[var(--color-surface-2)] p-1 rounded-lg overflow-x-auto">
+    <div role="group" className="flex gap-1 bg-[var(--color-surface-2)] p-1 rounded-lg overflow-x-auto">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
-          role="tab"
-          aria-selected={value === o.value}
+          aria-pressed={value === o.value}
           onClick={() => onChange(o.value)}
           className={cx(
             "px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors cursor-pointer",
