@@ -1,11 +1,9 @@
 # Gridiron GM — Roadmap
 
 Standing roadmap. Read after `AGENTS.md`, before `HANDOFF.md`. **Updated
-2026-10-21** against the #182 Studio panel (`a393ac9`, Mac Studio
-`npm run gate:full:serial`, 5 seeds) and `main` at `664d212` (#185–#189
-merged). `HANDOFF.md` is the
-record; this file is the plan. Dispatch rules for parallel agents are in
-`ORCHESTRATION.md`.
+2026-11-11** against `main` at `aa114db` (#227). The last Studio panel on
+`main` is `ddc62bd` (#204, 2026-10-27). `HANDOFF.md` is the record; this file
+is the plan. Dispatch rules for parallel agents are in `ORCHESTRATION.md`.
 
 Standing rules, unchanged:
 
@@ -19,68 +17,99 @@ Standing rules, unchanged:
 
 ## Where we are
 
-Phases 1–4 of the September plan have shipped. What follows is the shape, not
-the changelog; each line has a dated `HANDOFF.md` entry.
+Phases 1–4 of the September plan have shipped. Since 2026-10-21 the work has
+been playtest fixes, cap mechanics and stat tails, not new phases. What
+follows is the shape, not the changelog; each line has a dated `HANDOFF.md`
+entry.
 
 - **Engine visible (Phase 1).** Text play-by-play, drive log and Drive Chart
   (#53, #81, #83, P1/P3/P4 signed 2026-09-28). `/play` calls a situation,
   stores the snap, and a finished `/play` game is the official result. Paced
-  draft night.
+  draft night. A live game screen and grouped nav (#227).
 - **People (Phase 2).** Seeded coaches and owners at `newGame` (#111); HC and
-  coordinator chairs, empty chairs, the coaching carousel on the tag hub; owner
-  heat window and two-season firing rule (no fire after a winning season or a
-  three-win jump); holdouts and trade requests; people counters and teeth.
+  coordinator chairs, empty chairs, the coaching carousel on the tag hub;
+  coordinators stay on the staff market and an empty HC is flagged (#195);
+  owner heat window and two-season firing rule; the owner card judges pace in
+  season (#210) and early firing verdicts are withheld (#194); holdouts and
+  trade requests; people counters and teeth.
 - **Contract office (Phase 3).** User extensions and restructures, void years,
-  cap carryover, contract ceilings, rookie slot scale, compensatory picks,
-  franchise tag window and tender ceiling, fifth-year option, July 15
-  extension, retirement acceleration, user re-sign step, FA bid premium
-  ceiling.
-- **History and identity (Phase 4).** Hall of Fame as a league event (with
-  postseason club history), jersey and retired numbers, franchise history,
-  the second scene (Darnold path, success band 7–16% pooled).
+  cap carryover, contract ceilings, rookie slot scale, compensatory picks
+  (labelled, #193), franchise tag window and tender ceiling, fifth-year
+  option, July 15 extension, retirement acceleration, user re-sign step (fixed
+  in #196; the tag waits until a fired GM picks), FA bid premium ceiling.
+- **Cap mechanics.** Pro rata in-season base salary (#187). Waiver clearing:
+  the bonus books at the cut, a claim carries base and guarantee only, no
+  limbo (#198). CPU clubs spend carried room under a signed 20% carryover
+  ceiling, legalize with the smallest covering hit, and spend a legal book
+  back to the floor (BUG-A, #214). Start the Season no longer rewrites the
+  user's deals and is blocked while the user is over the cap (BUG-D, #213).
+  FA Auto-fix holds the user's draft and camp bill (#221).
+- **Trades.** Review before Accept and Propose; the calling club re-checks an
+  offer at Accept; guarantees travel with a traded contract (CBA Art. 13
+  §6(b)(ii)); CPU clubs price an acquired player at the base salary they take
+  on (#185, #186). Draft-night trade-downs are reviewed before they commit
+  (#191). Post-deadline trade calls are dropped (#193).
+- **Roster rules.** Camp 90 → 53, IR + 16-man PS, gameday inactives, waiver
+  wire with claim chains, QB ≤3 on the 53. Depth charts, auto-fill and the
+  53 (#197); CPU rosters refilled after the waiver cap cut (#201); the
+  emergency quarterback only on an empty room (#202) and a short QB unit does
+  not take another position (#205). The Hub sim stops on a long QB1 injury
+  (#223).
+- **Preseason.** Three exhibition weeks in camp before the cut, outside
+  `state.games` (#189, packet A). The camp nudge (packet B, #192) is built
+  and ships **off**.
+- **History and identity (Phase 4).** Hall of Fame as a league event, classes
+  capped at five under the signed bar (#225); jersey and retired numbers;
+  franchise history that keeps the club the user ran that year (#216) and
+  the archived division place (#223); the second scene (Darnold path, success
+  band 7–16% pooled).
+- **Stat tails.** Target share and tackle share bend past the NFL tails;
+  primary tackle credit at the 2021–24 rate; no tackle on a scoring play
+  (#222). Team tackles near **655** a season are accepted (Matt, 2026-11-11);
+  the engine credits no special-teams tackle.
 - **Scouting.** Named scouts and a focus list, film / pro-day caps, risk grades
   with consequences, public athletic testing, scheme-fit grades, CPU drafting
   on believed fit, future classes alive before they are scouted, fogged trade
   board. The solved line is closed (2026-09-15 audit).
-- **Roster rules.** Camp 90 → 53, IR + 16-man PS, gameday inactives, waiver
-  wire with claim chains, QB ≤3 on the 53.
-- **Trades (#185, #186).** Review before Accept and Propose; the calling club
-  re-checks an offer at Accept like a physical; guarantees travel with a traded
-  contract and the check prices what execution posts (CBA Art. 13 §6(b)(ii)).
-  CPU clubs price an acquired player at the base salary they take on.
-- **Pro rata salary (#187).** In-season base salary is charged by the
-  regular-season week; weeks already paid stay with the club that paid them.
-- **Preseason (#189, packet A).** Three exhibition weeks in camp before the
-  cut, outside `state.games`; starters mostly sit; no camp nudge yet.
-- **Saves.** Storage identity separate from the league seed; legacy saves
-  repair regular-season totals on load (#182).
+- **Performance and saves.** Start the Season no longer walks every retiree
+  (#218). Storage identity separate from the league seed; legacy saves repair
+  regular-season totals on load (#182). `determinism` plays the regular season
+  and playoffs (#226).
 
 ### Gate status
 
-Latest Studio panel: #182 at `a393ac9`, **GATE FAIL 5**, all five decided by
-Matt 2026-10-18. **No Studio panel since**, so #185–#189 are unpanelled.
+**Last Studio panel on `main`:** `ddc62bd` (#204), 2026-10-27, **GATE FAIL 1**:
+`coherence` seed 2 at 83.7 under the per-seed floor of 85 (mean 87.65). Not a
+sim bug; #205 reshuffled the seed-2 sample
+(`docs/gate-fail-ddc62bd-seed2-coherence.md`). Accepted as noise.
 
-On a 4-core box, 2026-10-21 (HANDOFF has the detail):
-- `gate:serial --seeds 1` **PASS** on each merge, preseason last.
-- Full tier on `main` `5b6d738`, split by step: determinism, verify,
-  leverage, sweep, calibrate, statcheck, rbpanel, tails, coherence, staff
-  and scout **PASS**. `conditions` **FAIL** on the default seed only
-  (`coldPointsDelta` −0.02); `GG_SEED=1..4` all inside the band.
-  `careers` and `drift` did not finish inside the 2-hour limit.
+The #214 branch was panelled three times (`cf73d64`, `65e1284`, `a76092b`;
+GATE FAIL 4 / 4 / 7). Each led to a signed fix
+(`docs/panel-*-investigation.md`). The final #214 head was not panelled.
+
+**Unpanelled on `main` since `ddc62bd`:** #213, #214, #216, #218, #221, #222,
+#223, #225, #226, #227. `drift` and `careers` have not been read on any of
+them.
+
+On a 4-core box, 2026-11-11, merge head `b5c2a21` plus the signed re-lock:
+`tsc --noEmit` pass; `npm test` pass; `verify.ts 5` 552/552; `determinism.ts
+2` deterministic, 0 failures, 0 banned API uses.
 
 | metric | reads | target | status | note |
 |---|---|---|---|---|
-| `userOffers` seed-42 canary | tag 1725353685, FA 2028992364 | literal | signed 2026-10-20 | Moved with #185 trade cap accounting, trade valuation (2282341061 / 3785709883), then pro rata salary. No new parent draws. |
-| `staff.problems` | seed 2 `leagueOvrDelta` 1.31 | ≤ 1.2 per seed | reported red | Mean 0.58. Left reported 2026-10-18. Do not widen 1.2. |
-| `careers.path2BurnInTop10PrPct` | 7/116 = 6.03% | 7–16% pooled | reported red | k-of-n noise (P(k≤8)≈0.40). Left reported. |
-| `statcheck.rb5RushYds` | 1255.68 (100-seed, #185) | 1191 ±95 | **PASS** | Fixed 100-seed panel since 2026-10-18. |
-| `drift.playerWeeksLost` | 1638.95 | 2158 ±700 | PASS, not re-locked | Measurement changed to weekly injury/IR status (2026-10-16). |
-| `tails.milestonesOff` | 10.0 | ≤ 16 | **PASS** | Exact Poisson comparisons (2026-10-16). |
-| `leverage.wrongSign` / `drift.p0Failures` / coherence | 0 / 0 / ok | 0 / 0 / ≥85 | **PASS** at `a393ac9` | Age guard replaced by the paired post-peak guard. |
+| `userOffers` seed-42 canary | tag 1779302491, FA 1323223106 | literal | signed 2026-11-11 | Moved with #222/#223/#225/#226. |
+| `trimIdentity` seed-42 opening 2030 | 1587 cuts, rng 19218870 | literal | signed 2026-11-11 | Same re-lock. |
+| `calibrate.fgPct` | 81.995 (`calibrate.ts 300`, pre-merge #222 head) | floor 82.029 | **reported red** | Not re-measured or tuned. Read it on the next panel. |
+| `coherence.outlierExplainedPct` | seed 2 83.7 at `ddc62bd` | ≥ 85 per seed | noise | Per-seed floor; panel mean 87.65. |
+| `staff.leagueOvrDelta` | panel mean | ≤ 1.2 mean | lock changed | Signed 2026-10-27 (#204): the cap is the panel mean, not per seed. |
+| `drift.medianPayrollPct` | 96.46 at `65e1284` | 90.602 ±6 | inside | Rose ~1.1 with BUG-A spending; the NFL note is 92. |
+| `careers.path2BurnInTop10PrPct` | 7/116 = 6.03% | 7–16% pooled | reported red | k-of-n noise. Left reported 2026-10-18. |
+| `statcheck.rb5RushYds` | 1255.68 (100-seed, #185) | 1191 ±95 | **PASS** | Fixed 100-seed panel. |
+| `tails.milestonesOff` | 11 (`tails.ts 16`, #222) | ≤ 16 | **PASS** | Primary-tackle rows recomputed 2026-11-11. |
+| `drift.playerWeeksLost` | 1638.95 | 2158 ±700 | PASS, not re-locked | Measurement changed 2026-10-16. |
 | `careers.survivalMae` | 5.94 (2026-08-31) | < 4 | open | R1–R3 over-survive. Not re-measured since. |
 | `careers.careerLenMae` | 0.57 (2026-08-31) | < 0.5 | open | R1/R2/R4 residue; must not be shortened. |
-| `conditions.coldPointsDelta` | −0.02 default seed; −2.37 / −2.18 / −3.00 / −2.05 on `GG_SEED=1..4` | −2.13 ±1.6 | default seed red, noise | Default seed moved −1.21 → −0.02 with #187's roster changes; other seeds in band (2026-10-21). |
-| `drift.healthyIrWeeks` | 49.3 → 73.4 with preseason (one seed) | report-only | explained | Rule-driven: healed inside the 4-game IR minimum (~55%) or club out of its 8 return designations (~45%). Preseason on vs off, 2 seeds × 4 seasons: no consistent change (2026-10-21). |
+| `conditions.coldPointsDelta` | −0.02 default seed; in band on `GG_SEED=1..4` | −2.13 ±1.6 | default seed red, noise | 2026-10-21. |
 | `drift.passRecordSeasons` | 0/20 | 1–3/20 | accepted limitation | Needs pass volume without touching the mix. |
 | QB availability 2nd moment | 41% at 16+ | 46% | accepted limitation | Needs a per-position duration table. |
 
@@ -88,28 +117,38 @@ On a 4-core box, 2026-10-21 (HANDOFF has the detail):
 
 ### Now — a Studio panel on `main`
 
-Run `npm run gate:full:serial` on the Mac Studio against `main` (`664d212`)
-and post the GATE table to `HANDOFF.md`. It is the first panel since #182 and
-covers five merges: trade review and cap accounting (#185), trade valuation
-(#186), pro rata salary (#187), the e2e fix (#188) and preseason packet A
-(#189). `careers` and `drift` have not been read on any of them; drift moved
-trades 77.6 → 92.3 across #185–#187 (NFL ≈90).
+Run `npm run gate:full:serial` on the Mac Studio against `main` (`aa114db`)
+and post the GATE table to `HANDOFF.md`. It is the first `main` panel since
+`ddc62bd` and covers ten merges, including the
+BUG-A spend change (#214), the stat-tail bend (#222) and the Hall of Fame
+rules (#225). Read `drift`, `careers`, `calibrate.fgPct` and
+`drift.medianPayrollPct` first.
 
-### Next — turn on preseason packet B (the camp nudge)?
+### Next — two unsigned playtest proposals
 
-Built and shipped **off** (`lib/core/campGrade.ts`). Let preseason play move
-who survives the cut. It acts on `careers` survival (R6–R7, UDFA), which is
-already open (R1–R3 over-survive), so read a Studio panel with
-`GG_CAMP_NUDGE=1` against one without before turning it on. Design and
-as-built: `docs/preseason-games-design-2026-10-20.md`.
+Both are written up with a diff and await Matt's sign:
 
-### Then — the long tail (Phase 6, unchanged)
+- **Dead-if-cut on rookie deals** (`docs/playtest-1028-dead-if-cut.md`).
+  `rookieContract` hands every pick two guaranteed years; the proposal routes
+  it through `defaultGuaranteedYears`. One argument, no dial.
+- **Tag-window re-sign cap space** (`docs/playtest-1028-resign-cap-space.md`).
+  The tag-window meter and Offer charge the closing year, not the coming one;
+  the proposal adds `tagWindowCap` and `screenCap`.
 
-Onside kicks, blocked
-kicks and fair catches (none in the sim today). Benching a passer for bad
-play. Trick plays. A per-position injury duration table (closes the QB
-availability limitation). The 6-veteran PS cap and international PS slot.
-Real, not urgent.
+### Then — turn on the camp nudge?
+
+Packet B (`lib/core/campGrade.ts`) lets preseason play move who survives the
+cut. It acts on `careers` survival (R6–R7, UDFA), which is already open, so
+read a Studio panel with `GG_CAMP_NUDGE=1` against one without before turning
+it on. Design: `docs/preseason-games-design-2026-10-20.md`.
+
+### Then — the long tail (Phase 6)
+
+Onside kicks, blocked kicks and fair catches (none in the sim today).
+Special-teams tackles (the gap from 655 to ~712 team tackles). Benching a
+passer for bad play. Trick plays. A per-position injury duration table
+(closes the QB availability limitation). The 6-veteran PS cap and
+international PS slot. Real, not urgent.
 
 ### Phase 1 leftovers
 
@@ -123,16 +162,14 @@ The approved LLM use: scouting-report prose, season recaps, a press conference
 after a loss. Thin proxy so keys stay off the client; fully optional so offline
 play survives; never in a decision loop. Not started.
 
-### Small product items
+### Housekeeping
 
-- The draft room's on-the-clock offers accept in one click with no review and
-  no re-check (`acceptClockOffer`). Nearly always pick-for-pick, so low
-  priority.
-- Waiver limbo (the year-2 desk residue) is a cap leak, not a product
-  choice: a cut frees the whole hit but dead money is booked only at
-  clearing, so clubs re-spend the room and the player is re-listed forever.
-  Claims also move the signing bonus to the claiming club. Design and
-  decisions: `docs/waiver-clearing-design-2026-10-23.md`.
+- `docs/playtest-1029-hall-of-fame.md` still reads UNSIGNED; the signature is
+  the 2026-11-10 `HANDOFF.md` entry.
+- Award weights are scaled to a league with no assist. Leave them until
+  someone wants a traced voting model.
+- CPU clubs carry 90 and sit over the cap until the cut; the NFL counts the
+  top 51 in the offseason. Not changed.
 
 ## The bar
 
