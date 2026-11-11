@@ -1761,12 +1761,12 @@ reports low/high according to observed rates; every row prints counts,
 exposures and p-value. Nested categories remain correlated and are not
 independent simulation bugs.
 
-**Definitions and scope.** Four combined-tackle categories stay visible as
-explicit unmatched diagnostics; the engine has no assist statistic, so those
-comparisons cannot supply an NFL verdict. The 42 comparable categories retain
-sacks: whole-player credit in the engine versus official fractional credit is
-a meaningful stat-distribution discrepancy, but not proof of excessive total
-sack rate. The harness still samples fresh generated leagues every season;
+**Definitions and scope.** The four tackle categories are primary tackles
+(solo + with_assist), recomputed in `docs/milestone-reference.json` on
+2026-11-11, and they are compared. The engine still has no assist statistic.
+Sacks stay a whole-player credit in the engine against the official fractional
+credit. That is a real difference in the stat, not proof of an excessive sack
+rate. The harness still samples fresh generated leagues every season;
 results do not establish the distribution of aged franchises. Real passing,
 rushing and receiving tail misses remain visible individually.
 
@@ -1955,9 +1955,81 @@ leader matches the last column in every year.
 | 2024 | Jamien Sherwood, NYJ | 98 | 706 | 13.9% | Zaire Franklin, IND | 173 |
 
 Primary leaders run **98–128**. Combined leaders run **159–192**. The `nfl:
-180` on `statcheck.leadTackles` sits inside the combined range. It is a
+180` on `statcheck.leadTackles` sat inside the combined range. It is a
 combined total. The sim's `tackles` field is one whole credit per stop and has
 no assist (§5.11). 180 is the number on the combined column.
+
+**Signed 2026-11-10 — the tackle is a primary tackle.** The sim keeps crediting
+the stop the player makes himself. An assist is not added, and a combined
+total is not added. `statcheck.leadTackles` no longer uses 180. Its reference
+is the mean of the seven primary leaders above, 767 / 7 = **109.6**, recorded
+as **110**, with tolerance **18**. The acceptance band is 92–128. That
+tolerance is the distance from 110 to the traced maximum, Oluokun's 128, so
+98 and 128 both sit inside the band and the band does not extend above 128. The old 165.2 ± 40 was the sim's own panel,
+set beside the combined figure. The weighted draw now bends once a defender's
+share of his club's tackles climbs past these tails. The game knee is the
+team-game leader's p90, **21.2%**, and one e-fold lands on Zack Baun's maximum,
+11 of 31. The season knee is the club-#1 maximum, **17.1%** (128 of 748), and
+one e-fold is the 3.2-point gap from the club-#1 p90 (13.9%) to that maximum.
+The shape is the same exponential used for target share, and it is not a cap.
+A sack, a forced fumble, and a contested catch still name the player who
+made the play. Only the weighted tackle draw bends.
+
+#### Which plays record an own tackle
+
+Signed 2026-11-11. A scoring play credits no tackle. On any other play the
+engine credits one at the rate below, and the hit is unchanged.
+
+**Dataset.** nflverse `play_by_play_YYYY.csv.gz`, seasons 2021–2024, REG
+rows, from
+<https://github.com/nflverse/nflverse-data/releases/download/pbp/>.
+`play_deleted` was not set on any row that entered the counts below.
+
+| file | bytes | SHA-256 |
+|---|---|---|
+| play_by_play_2021.csv.gz | 19,022,201 | `e8743a568f99667a8bdcd29ba12224ee1782ad2b7916bee78ee335c099383739` |
+| play_by_play_2022.csv.gz | 19,093,961 | `0c69a71eb39498956c7b1d5c1ca52ce7fe679934a95d1af249facb5ea9829ea4` |
+| play_by_play_2023.csv.gz | 19,169,807 | `4649804ee0f0a40b41e51ec75a1ce921949d7fab5459213488656b92f78560e8` |
+| play_by_play_2024.csv.gz | 19,362,351 | `23370d5d10f8104d80d46a1fc5e61f4f6f5a3263fe96fe2dd629913cfcb08c06` |
+
+An own tackle is a non-empty `solo_tackle_1_player_id`,
+`solo_tackle_2_player_id`, `tackle_with_assist_1_player_id`, or
+`tackle_with_assist_2_player_id`. That is the play-level form of solo +
+`def_tackles_with_assist`. An `assist_tackle_*` id with none of those set is
+not an own tackle. A play is a rush when `rush_attempt` is 1 and it is not a
+kneel and not a sack. A completion is `complete_pass` 1 and not a sack. A
+sack is `sack` 1. Scoring is `touchdown` 1 or `safety` 1.
+
+Non-scoring plays, own-tackle rate:
+
+| family | own tackle | plays | rate |
+|---|---|---|---|
+| rush | 41,275 | 55,037 | **0.749950** |
+| completion | 38,002 | 43,993 | **0.863819** |
+| sack | 4,594 | 5,213 | **0.881258** |
+
+Scoring plays in the same families: rushes 37/2,023 (0.018), completions
+16/3,170 (0.005), sacks 47/52 (0.904). The engine credits none of those.
+The sack row is a safety. It usually does carry an own tackle. There are 52
+such plays in four seasons.
+
+Of the 13,762 live rushes with no own tackle, 13,289 are assist-only: the
+description credits two defenders with a semicolon, and neither id is a solo
+or a tackle-with-assist. Out of bounds is not that set. Live rushes are out
+of bounds on 4,271 plays, and 4,038 of those still have an own tackle.
+Completions are the same shape: 5,991 with no own tackle, 4,726 of them
+assist-only, 1,536 both out of bounds and without an own tackle.
+
+Team primary tackles, same 2021–2024 weekly files as
+`docs/milestone-reference.json`, one total per club-season (n = 128): min
+622, p10 659, median 712, mean **712.3**, p90 763, max 831. By year the means
+are 721.4, 724.9, 722.1, 680.7. The 705–831 span in the leader table above is
+the seven clubs that produced the primary leader, 2018–2024, not the range
+of every club. `docs/milestone-reference.json` now counts primary tackles.
+In this window a player-game reaches 15 primary tackles 3 times and 20 never.
+A player-season reaches 150 or 180 never. The primary single-game maximum
+remains 19 and the primary season maximum in the longer §5.13 window remains
+128.
 
 Across all 224 clubs, the #1 primary tackler's share of his club's primary
 tackles has mean **11.2%**, median 11.1%, p90 13.9%, max **17.1%** (Oluokun,

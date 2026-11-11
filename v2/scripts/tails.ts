@@ -26,7 +26,7 @@ function report(title: string, rows: { t: Threshold; count: number }[], seasons:
     if (comparison && comparison.verdict !== "ok") problems++;
     console.log(`  ${t.label.padEnd(17)} ${(count / seasons).toFixed(3).padStart(10)} ${t.nfl.toFixed(3).padStart(10)}   ` +
       `${count}/${exposure} vs ${t.referenceCount}/${t.referenceExposure} · ` +
-      (comparison ? `p=${comparison.pValue.toPrecision(5)} · ${comparison.verdict}` : "UNMATCHED: combined NFL tackles; engine has no assists (diagnostic only)"));
+      (comparison ? `p=${comparison.pValue.toPrecision(5)} · ${comparison.verdict}` : "UNMATCHED"));
   }
   return problems;
 }
@@ -114,14 +114,14 @@ console.log(`\nBest single game seen (NFL record in brackets)`);
 console.log(`  passing   ${extremes.passYds} yds [554] · ${extremes.passTd} TD [7]`);
 console.log(`  rushing   ${extremes.rushYds} yds [296] · ${extremes.rushTd} TD [6]`);
 console.log(`  receiving ${extremes.recYds} yds [336] · ${extremes.recTd} TD [5]`);
-console.log(`  defense   ${extremes.sacks} sacks [7] · ${extremes.tackles} tackles [unmatched: no assists] · ${extremes.ints} INT [4]`);
+console.log(`  defense   ${extremes.sacks} sacks [7] · ${extremes.tackles} tackles [19] · ${extremes.ints} INT [4]`);
 console.log(`  kicking   ${extremes.longFg} yd FG [66]`);
 
 console.log(`\nBest season seen (NFL record in brackets)`);
 console.log(`  passing   ${extremes.sPassYds} yds [5,477] · ${extremes.sPassTd} TD [55]`);
 console.log(`  rushing   ${extremes.sRushYds} yds [2,105]`);
 console.log(`  receiving ${extremes.sRecYds} yds [1,964]`);
-console.log(`  defense   ${extremes.sSacks} sacks [22.5] · ${extremes.sTackles} tackles [unmatched: no assists]`);
+console.log(`  defense   ${extremes.sSacks} sacks [22.5] · ${extremes.sTackles} tackles [128]`);
 
 console.log(`\n${gp + sp === 0 ? "TAILS LOOK RIGHT" : `${gp + sp} comparable milestone frequencies are off`}`);
 

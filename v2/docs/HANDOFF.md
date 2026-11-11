@@ -1,5 +1,132 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-11 — One fingerprint re-lock, after main
+
+Signed, Matt. Main `b5c2a21` is merged (#226 determinism, #223 division place and the QB1 pause, #225 Hall of Fame rules). One re-lock, and only these two canaries. No other `baselines.json` entry, gate, or dial moved. `fgPct` stays reported. It was **81.995** on the pre-merge head, floor 82.029, and it was not re-measured or tuned here.
+
+Team tackles near **655** a season are accepted. Special-teams tackles are a later question.
+
+| canary | was | now |
+|---|---:|---:|
+| `userOffers` seed 42 tag `rngState` | 1777473079 | **1779302491** |
+| `userOffers` seed 42 FA `rngState` | 3280841901 | **1323223106** |
+| `trimIdentity` seed 42 opening 2030 cuts | 1506 | **1587** |
+| `trimIdentity` rng after that click | 2450416366 | **19218870** |
+
+On the merge head, before this re-lock: `tsc --noEmit` pass. `npm test` passed every file except those two. `verify.ts 5` 552/552. `determinism.ts 2` deterministic, failures 0, banned API uses 0. After the literals moved, `userOffers.test.ts` and `trimIdentity.test.ts` both pass.
+
+## 2026-11-11 — Tackle credit, the kept-fumble hit, and the playoff share
+
+Signed, Matt, on draft PR #222. No `baselines.json` edit. No re-lock. No dial change. Award weights were not changed.
+
+A scoring play credits no tackle. A non-scoring rush, completion, or sack credits one at the 2021–2024 REG rate of plays that carry a solo or own tackle (`solo_tackle_*` or `tackle_with_assist_*` on nflverse `play_by_play`). The rates are 41,275/55,037 rushes, 38,002/43,993 completions, and 4,594/5,213 sacks. They are in `docs/nfl-reference.md` §5.13. The coin is a side stream. It does not draw on the play rng. On the play itself the hit still lands, at the same risk, on the player who made the stop. The draw's weights follow credited tackles, so a later play can name a different tackler once a credit was withheld.
+
+**Disagreement.** Out of bounds is not that rate. Of 13,762 live rushes with no own tackle, 13,289 are assist-only: the play description names two defenders with a semicolon, and neither id is a solo or a tackle-with-assist. Live rushes that are out of bounds still have an own tackle on 4,038 of 4,271. The sim has no out-of-bounds result. I did not add one. The credit withheld is the no-own-tackle share, which is the shared tackle.
+
+**Accepted, Matt.** Team tackles land near **655**, not in 705–831. Seeds 1–5, one regular season each, mean **655 / 654.5 / 657.4 / 656.2 / 653.8**. Club lows on those seeds are 554–601 and club highs are 740–759. The 705–831 span is the seven clubs that produced the primary leader, 2018–2024. All 128 clubs in the 2021–2024 weekly file run **622–831**, mean **712.3**. This engine does not credit a tackle on a punt or a kickoff. That is most of the gap from 655 to 712. Special-teams tackles are a later question. The scrimmage rate was not raised.
+
+A safety that is a sack records an own tackle on 47 of 52 plays in that file. The signed rule still withholds it. Calibrate reads 0.03 safeties a team-game. It does not move the season total.
+
+The kept-fumble hit lands on the forcer. The weighted draw still runs, so the play rng is not short a draw. The forcer is the contact. A fumble returned for a score credits no tackle.
+
+A playoff game does not read the regular-season target or tackle line. The wild-card prior is empty. A later round sums earlier playoff boxes only. `priorCountingStats` is the guard, covered in `tackleShare.test.ts`.
+
+`docs/milestone-reference.json` now counts primary tackles. Game 15+ is 2/1/0/0. Game 20+, season 150+, and season 180+ are 0/0/0/0. All four are comparable. The engine still has no assist.
+
+**Awards, not changed.** DPOY is `sacks * 9 + ints * 11 + tackles * 0.55 + ff * 5 + passDef * 1.5`. ROY adds `tackles * 0.5` to the offensive line and `sacks * 8 + ints * 9`. On seeds 1–5 the DPOY is an edge rusher every time (14, 15, 16, 18, 18 sacks). His tackle term is 16.5–37.4 points of a 166–214 score. The tackle leader on those seeds has 0 sacks and would score about 53–62 from tackles. He was already short of a 15-sack season when the leader had 162 tackles (89 points against 135). The cut does not create a new winner. ROY is a quarterback on all five seeds, with a tackle term of 0. A defensive rookie at 100 tackles and 8 sacks scores about 114, against a 4,000-yard passer near 200. The weights do not need a change for this credit cut. They are still scaled to a league that records no assist. Leave them until someone wants a traced voting model.
+
+Seeds 1–5 leaders, against 92–128: **106, 109, 113, 108, 97**. All inside. Max game tackles on those seeds: **17, 13, 13, 15, 14**. `statcheck` on seed 8675309 read `leadTackles` **107**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `tackleShare.test.ts` — pass. Seeds 1 and 42, one season: max game tackles 17 and 15. Leader median 17.1%.
+- `targetShare.test.ts` — pass. Week 1 credit 3,558/4,468 = 0.796. Kept fumbles 48. No tackle past the stops, and none past the stops once rushing and receiving scores are removed.
+- `verify.ts 3` — 348/348. `verify.checks` 348, floor 330.
+- `conditions.ts 6` — problems 0. Home win 55.2%.
+- `coherence.ts 5` — coherent. 90.6% of outlier games explained.
+- `leverage.ts 150` — `wrongSign` 0, `unbackedOvr` 0, `noEffect` 1. That one is the known `OT.sta` probe. The script exits 1 because the probe is non-zero. The baseline max is 1. Not a new miss.
+- `tails.ts 16` — `milestonesOff` **11**, under the max of 16. Comparable categories 46. 15+ tackles is too rare (1/4352 against 3/1087). 20+, 150+, and 180+ are even with a zero reference. Best game tackles 16. Best season tackles 129, one over Oluokun's 128, on a 16-league sample. The band was not widened.
+- `calibrate.ts 300` — score mismatches 0. `fgPct` **81.995**. Floor remains 82.029. Not moved.
+- The `package.json` test list, run through with failures kept: every file passed except the two fingerprints below. `guardMeasurements.test.ts` had required four unmatched tackle rows. That assertion now requires the four primary rows, with counts 3, 0, 0, and 0, and it passes.
+- `userOffers.test.ts` — `rngState` **1779302491**. Locked 1777473079. Not re-locked. The test fails there.
+- `trimIdentity.test.ts` — seed 42 opening 2030, cuts **1587**. Locked 1506. Not re-locked. The test fails on the cut count.
+
+The 5-seed Mac Studio panel was not run.
+
+## 2026-11-10 — Tackle definition: primary credit, and a soft bend on the draw
+
+Signed, Matt, 2026-11-10. Added on the target-share branch. No assist. No combined tackle. The only `baselines.json` edit is `statcheck.leadTackles`.
+
+A sim tackle stays the stop the player makes himself. That is a primary tackle. `statcheck.leadTackles` was `nfl: 180`, a combined total. The seven primary season leaders in §5.13 are 111, 104, 106, 109, 128, 111, 98. Mean 767/7 = 109.6, recorded as **110**. Tolerance **18** is the gap from 110 to Oluokun's 128, so the band is **92–128**.
+
+The 30-tackle games were the weighted draw. A defender's weekly boost runs to 2.3 on top of the 1.52/1.54 power and `TACKLE_SHARE`, and one player was taking half of a game. The draw now uses the same exponential as target share. Game knee **0.212** (team-game leader p90), one e-fold at Zack Baun, 11 of 31. Season knee **0.171** (club-#1 maximum, 128 of 748), one e-fold across the 3.2-point p90-to-max gap. A sack, a forced fumble, and a contested catch still credit the player who made them.
+
+I do not agree that a share bend can land the season leader inside 92–128, and I did not widen the band to hide that. This engine records about **50 tackles a team-game**, about **850 a team-season**. The traced clubs recorded **705–831** primary tackles. A defender at the traced maximum share, 17.1% of 850, is already about **145**. The bend did what the shape says: eight-season leaders moved from 176–196 at a 20–22% share to **162–164** at a **15–18%** share. 162 is still above 128. Which plays award a tackle was not signed, and it was not changed. `statcheck` on seed 8675309 read **131**, three tackles over the new ceiling.
+
+Single-game 30+ is gone. Seeds 42 / 1 / 7, eight seasons, before this bend and after. p99 is the 99th percentile of player-games with at least one tackle.
+
+| | season leader | top game | p99 | games over 19 | games over 30 |
+|---|---|---|---|---|---|
+| 42 before | 196 | 26 | 11 | 25 | 0 |
+| 42 after | 164 | 17 | 11 | 0 | 0 |
+| 1 before | 191 | 36 | 11 | 17 | 2 |
+| 1 after | 162 | 21 | 11 | 1 | 0 |
+| 7 before | 176 | 27 | 11 | 18 | 0 |
+| 7 after | 163 | 20 | 11 | 1 | 0 |
+
+The leader's median share of his team's tackles stayed at **16.1–16.4%**. The traced center is 16.4%.
+
+Validation on this VM, on top of the target-share run:
+
+- `npx tsc --noEmit` — pass.
+- `lib/core/sim/tackleShare.test.ts` — pass. Registered in `package.json` and both gate tiers (`tackleshare`). Seeds 1 and 42, one season: max game tackles 21 and 15.
+- `lib/core/sim/targetShare.test.ts` — pass. The fumble gap is still 0.
+- `verify.ts 3` — 348/348. `verify.checks` 348, floor 330.
+- `sweep.ts 5 1` — all clean.
+- `statcheck.ts` — `leadTackles` **131** against 110 ± 18. The new ceiling is 128. Not widened. `leadRecYds` 1314 and `wr10RecYds` 1070 stayed inside their existing bands.
+- `calibrate.ts 300` — `fgPct` **81.403** (was 81.995). Floor remains 82.029. Not moved. Score mismatches 0.
+- `userOffers.test.ts` — `rngState` **38324251** (locked 1777473079; 3009009807 after the target bend). Not re-locked.
+- `trimIdentity.test.ts` — seed 42 opening 2030, cuts **1558** (locked 1506; 1540 after the target bend). Not re-locked.
+
+The 5-seed Mac Studio panel was not run.
+
+## 2026-11-10 — Target-share saturation and the fumble tackle
+
+Signed, Matt, 2026-11-10, the TARGETS packet. Built as written. No `baselines.json` edit. No re-lock. No dial change. `targetSpend`, the payroll band, `sepEdge`, `armQuality`, tackle weights, and `statcheck.leadTackles` (`nfl: 180`) are untouched.
+
+`lib/core/sim/game.ts` multiplies the existing target weight by a soft saturation on this game's target share and on the season's. The shape is `exp(−λ × max(0, targets − knee × teamTargets))`, identically 1 at or below the knee, never zero. Game knee 0.486 (single-game p99.9) and λ one e-fold to Nabers, 18 of 27. Season knee 0.331 (club-#1 maximum) and λ one e-fold across the p90-to-max gap on Thomas's 559 targets. Justification is in `docs/playtest-1029-records.md`. A kept run fumble no longer credits a second tackle. The forcer's credit is the stop. Lost run fumbles, strip sacks, and fumbles after the catch were already one credit and were not changed.
+
+The unsigned proposal's hard cap, and its promise that seventeen capped weeks cannot sum to 2,404, are not what was signed. The soft bend does not make that yards total impossible. Zeller's 11.67 yards per target against the traced #1 rate of 9.82 is the separation term, and that term was left alone on purpose. A raw 45% season share walks down to about 35% under this curve, which is still past Thomas's 33.1%. On this build, seed 7's first season reached a 34.1% club share, and an 8-season run of seed 7 produced a 2,067-yard receiver on a 29.6% share — under the season knee, so the bend never touched him.
+
+Tackle concentration is the other half of the finding and was not signed. The 32- and 39-tackle games are still the winner-take-all draw. I did not move it. The 8-season game maximum was 36 tackles after the change (seed 1). That is the old draw on a different seed path, not a new tackle rule.
+
+Measured on this VM, seeds 42 / 1 / 7, eight regular seasons each, before at `7fff4d0` and after this change. Team-games with at least 20 targets. Club-#1 means are the mean of each club's leading target share.
+
+| | game share max | season share max | club-#1 mean | leader p50 | all-player p95 | top rec yds | top game rec | top tackles (season / game) |
+|---|---|---|---|---|---|---|---|---|
+| 42 before | 66.7% | 34.4% | 22.4% | 29.4% | 32.4% | 1,926 | 26 | 225 / 29 |
+| 42 after | 59.5% | 34.3% | 22.4% | 29.5% | 32.6% | 2,007 | 23 | 196 / 26 |
+| 1 before | 69.0% | 35.2% | 22.2% | 29.4% | 32.6% | 1,805 | 22 | 163 / 31 |
+| 1 after | 59.4% | 32.7% | 22.2% | 29.6% | 33.3% | 1,742 | 22 | 191 / 36 |
+| 7 before | 65.8% | 34.1% | 23.0% | 30.0% | 33.3% | 1,981 | 21 | 213 / 38 |
+| 7 after | 59.5% | 34.1% | 22.9% | 30.0% | 33.3% | 2,067 | 21 | 176 / 27 |
+
+NFL anchors from §5.13: game max 66.7%, club-#1 mean 23.2%, leader median 28.1%, all-player p95 30.0%, season max 33.1%. The body did not move. The game tail came down from 69% to 59.5%. Season shares still reach about 34%, which is the soft step past 33.1%.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npx tsx lib/core/sim/targetShare.test.ts` — pass. Registered in `package.json` and both gate tiers (`targetshare`).
+- `npx tsx lib/core/sim/clock.test.ts` and `lib/view/playByPlay.test.ts` — pass.
+- `npx tsx scripts/verify.ts 3` — 348/348. `verify.checks` 348 against the locked floor of 330. `verify.ts 2` was 246/246.
+- `npx tsx scripts/sweep.ts 5 1` — 5 leagues × 1 season, all clean.
+- `npx tsx scripts/statcheck.ts` (one season, seed 8675309) — inside the locked bands checked: `leadRecYds` 1492 (1615.8 ± 400), `leadTackles` 149 (165.2 ± 40), `maxGameRecYds` 196 (249.6 ± 80), `wr10RecYds` 1038 (1105.8 ± 97). Not a 5-seed panel.
+- `npx tsx scripts/calibrate.ts 300` — score mismatches 0. `calibrate.fgPct` read **81.995** against 86.029 ± 4, so the floor is 82.029. It is 0.03 under. The baseline was not moved. The other calibrate rows checked (`pts`, `plays`, `passYds`, `passAtt`, `cmpPct`, `fumbles`, `rushYds`) were inside.
+- `lib/core/userOffers.test.ts` — the seed-42 walk to the tag window moved `rngState` from the locked `1777473079` to `3009009807`. Not re-locked. The test fails there.
+- `lib/core/trimIdentity.test.ts` — seed 42 opening 2030 cut **1506 → 1540**. The parent RNG literal was not reached. Not re-locked. The test fails on the cut count.
+- `baselines.json` was not edited. The 5-seed Mac Studio panel was not run.
+
 ## 2026-11-10 — Hall of Fame class rules
 
 Signed, Matt, 2026-11-10, exactly the proposal in `docs/playtest-1029-hall-of-fame.md`. That file is still marked UNSIGNED. The signature is this entry. No `baselines.json` edit. No re-lock. No dial change. `starRank` and `eliteRank` are untouched. The franchise ring is untouched. The sim, tackles, targets, and contracts are untouched.

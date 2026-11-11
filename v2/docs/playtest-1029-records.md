@@ -1,8 +1,8 @@
 # League records blow past the NFL marks — playtest 1029
 
-**UNSIGNED.** Finding only. This note does not change the sim, a test, `docs/baselines.json`, or a guard. Matt signs any fix. No re-lock, no dial retune. Calibration freeze stands.
+**Finding, then the signed fixes.** The measurement below is the original finding and is unchanged. Matt signed the target-share saturation and the fumble-tackle credit on 2026-11-10, and the tackle definition the same day. The tackle-share cap in the unsigned proposal was not the mechanism that was built. No dial other than the signed `statcheck.leadTackles` entry was retuned. Calibration freeze stands for everything else.
 
-Source: the 30-season production playtest (`GM Playtest career30 1029`, production `main` `8747e25`, report section 2 and section 4, minor m1) and a headless 30-season run of the same stat path on seed 42. `lib/core/sim/game.ts`, `lib/core/season/stats.ts`, and `lib/core/season/records.ts` are unchanged since `8747e25`. The seed-42 run is `newGame({ seed: 42 })` advanced 2026–2055. The user club is unmanaged, the same bias `scripts/drift.ts` already documents. Boxes were summed at the end of each regular season, before `state.games` is cleared.
+Source: the 30-season production playtest (`GM Playtest career30 1029`, production `main` `8747e25`, report section 2 and section 4, minor m1) and a headless 30-season run of the same stat path on seed 42. At the time of that measurement `lib/core/sim/game.ts`, `lib/core/season/stats.ts`, and `lib/core/season/records.ts` were unchanged since `8747e25`. The signed fix below edits `game.ts` only. The seed-42 run is `newGame({ seed: 42 })` advanced 2026–2055. The user club is unmanaged, the same bias `scripts/drift.ts` already documents. Boxes were summed at the end of each regular season, before `state.games` is cleared.
 
 ## Cause
 
@@ -194,13 +194,80 @@ Sacks use the same defender boost. Anderson's 26 in 14 games is that tail. The p
 
 `/records` is doing what it was built to do. Single-game marks are inserted from the box as the game finishes (`lib/core/season/records.ts` 36–62) because old boxes are discarded. Season and career marks are read back off `player.stats` (`records.ts` 130–144). Those lines matched the boxes, and `seasonRecords()` matched the table above. The page is not the bug.
 
-## Proposed fix — UNSIGNED
+## Proposed fix — superseded where signed
 
 Do not move a league-mean dial. Do not edit `docs/baselines.json`. Do not retune pass bias, `armQuality`, or the neutral point of `sepEdge`. The yearly receiving leader is already at 1,735 against 1,743. A mean nudge would miss the weeks of 27 catches and would push the calibrated center off the NFL number.
 
-1. Cap one player's share of a game's targets. Role bonus, the weekly boost, and the matchup currently multiply, and the red-zone bonus is inside that product. The cap should come from the nflverse weekly target-share distribution, written into `docs/nfl-reference.md` with the dataset and the URL, before any guard is locked. The weekly boost can stay as a small tilt under that cap. Seventeen capped weeks cannot sum to 2,404, and a 45-attempt game cannot contain 33 targets for one man.
-2. Cap one player's share of a game's tackles, or split the credit so the draw is not winner-take-all. The 2.3 boost on top of a 1.54 power is the 39-tackle week. The same cap pulls the 26-sack seasons, which ride the same defender boost.
-3. On a kept fumble, credit one tackle. The second credit did not create the season record in this run. It is the one place a single play writes two.
-4. Re-measure, and stop there. The number that is wrong is the standard deviation of the yearly receiving leader (283 against the traced ±128), the count of seasons past 1,964, the count of games past 21 receptions, and the single-game tackle maximum. Leave `baselines.json` unchanged until that measurement is signed. The 1,900-yard milestone rate is not the thing to chase.
+1. Cap one player's share of a game's targets. **Signed as a soft saturation, not this cap.** See below. Role bonus, the weekly boost, and the matchup currently multiply, and the red-zone bonus is inside that product. The cap should come from the nflverse weekly target-share distribution, written into `docs/nfl-reference.md` with the dataset and the URL, before any guard is locked. The weekly boost can stay as a small tilt under that cap. Seventeen capped weeks cannot sum to 2,404, and a 45-attempt game cannot contain 33 targets for one man.
+2. Cap one player's share of a game's tackles, or split the credit so the draw is not winner-take-all. **Signed later the same day as a soft bend, not this cap, plus the primary-tackle definition.** See the tackle section. The 2.3 boost on top of a 1.54 power is the 39-tackle week. The same cap pulls the 26-sack seasons, which ride the same defender boost.
+3. On a kept fumble, credit one tackle. **Signed and built.** The second credit did not create the season record in this run. It is the one place a single play writes two.
+4. Re-measure, and stop there. The number that is wrong is the standard deviation of the yearly receiving leader (283 against the traced ±128), the count of seasons past 1,964, the count of games past 21 receptions, and the single-game tackle maximum. The 1,900-yard milestone rate is not the thing to chase. The only baselines edit that was later signed is `statcheck.leadTackles`.
 
-No code in this note. Calibration freeze stands.
+No code in the finding above. The signed change is the next section. Calibration freeze stands.
+
+## Signed fix — 2026-11-10
+
+Two items were signed. Both are in `lib/core/sim/game.ts`. Nothing else in the unsigned proposal was built.
+
+1. Gradual saturation on per-game and per-season target share. Not a hard cap.
+2. One tackle credit on a fumble play.
+
+Not signed, and not changed: how tackles are drawn or split, `TACKLE_SHARE`, the defender `targetBoost`, assists, `statcheck.leadTackles` and its `nfl: 180` comparison, Hall of Fame rules, `sepEdge`, `armQuality`, pass bias, and `docs/baselines.json`. A 39-tackle week is still the tackle draw. This section does not claim that week is fixed.
+
+### Target share — shape
+
+The multiplier is an exponential in targets above a knee, applied to the existing target weight (role, weekly boost, matchup, red-zone bonus). Game and season each have their own knee. The two multipliers are a product. The product is never zero, so a receiver past both knees can still be thrown to.
+
+```
+excess = targets − knee × teamTargets
+multiplier = 1                         when teamTargets = 0 or excess ≤ 0
+multiplier = exp(−λ × excess)          when excess > 0
+```
+
+It is identically 1 through the body of the distribution. A logistic centered on the tail would already cut a normal week, and the yearly receiving leader is already on the traced mean. The penalty is counted in targets rather than in raw share so that one throw out of one (a 100% share) barely moves, and the same share after a full game does.
+
+Constants are the published §5.13 figures for 2018–2024, not a fit to the sim.
+
+| | Knee | λ |
+|---|---|---|
+| Game | **0.486**, the single-game p99.9 | **1 / (18 − 0.486 × 27) ≈ 0.205** |
+| Season | **0.331**, the club-#1 maximum | **1 / ((0.331 − 0.288) × 559) ≈ 0.0416** |
+
+Game. The all-player single-game table is p95 30.0%, p99 38.7%, p99.9 48.6%, max 66.7%. The leader's own median is 28.1% and his p95 is 41.0%. The bend starts at the p99.9, so a normal week and a merely hot week stay on the old weight. λ is one e-fold from that percentile to the observed maximum: Malik Nabers, NYG vs WAS, 2024 week 2, 18 of 27. At that row the weight is 1/e. Past it the weight keeps falling and does not hit a floor.
+
+Season. The club-#1 table is mean 23.2%, p90 28.8%, max 33.1% (Michael Thomas, NO, 2019, 185 of 559). The knee is that maximum. There is no observed season past it, so the width of the bend is the only upper-tail width the table gives, p90 to max, 4.3 points, converted to targets on Thomas's 559. One e-fold past the maximum — a 37.4% share of that season — is weight 1/e. A 23% season is untouched.
+
+The two together are what the signature asked for. A single game can no longer run away while the season line still looks ordinary, and seventeen ordinary-looking games can no longer add up to a 38% season without the season term bending the later weeks.
+
+This is not the hard cap in the unsigned proposal, and it does not make 2,404 yards impossible. Zeller's 11.67 yards per target sat above the traced #1 rate of 9.82 because separation lengthens the throw. That term was not signed. Saturation only bends the share. A season can still step past 33.1%. On the shape's own walk, a receiver whose raw weight would take 45% of 560 throws finishes near 35%, and a raw 75% of a 40-throw game finishes near 61%.
+
+### Fumble tackle — cause, confirmed
+
+A run fumble credits the forcer with a forced fumble and a tackle, then keeps going when the offense recovers. The ordinary tackle draw at the bottom of the run then credits a second tackle. That is the double. A lost run fumble returns before that draw, so it was already one tackle. A strip sack credits the sacker once and only adds the forced-fumble flag. A fumble after a catch credits the tackler once, before the fumble roll, and does not credit him again.
+
+The fix skips the ordinary tackle credit when the forcer was already credited. The draw itself is unchanged, so the tackle weights are not retuned. If the forcer pool is empty, the ordinary draw is still the one credit. Across the regression's week-1 games the defense's tackles now equal opponent rushes (excluding kneels) plus receptions plus sacks, including games that kept a fumble. Restoring the second credit fails that check.
+
+## Signed fix — tackle definition, 2026-11-10
+
+Three items. The target bend and the fumble credit above are unchanged.
+
+1. A sim tackle stays the stop the player makes himself. That is a primary tackle. Assists are not added. Combined tackles are not added. The definition is also in `docs/nfl-reference.md` §5.13.
+2. `statcheck.leadTackles` was aimed at `nfl: 180`, which is a combined total (Franklin 173, Oluokun 192, the column that runs 159–192). The primary season leaders in that same table run **98–128**: 111, 104, 106, 109, 128, 111, 98. Their mean is 767 / 7 = **109.6**, recorded as **110**. The tolerance is **18**, the distance from 110 to Oluokun's 128, so the band is **92–128** and every traced leader is inside. That is the only `baselines.json` entry this signature changes.
+3. The weighted tackle draw bends with the same exponential as target share, once a defender's share climbs past the §5.13 tails. It is not a cap.
+
+```
+excess = tackles − knee × teamTackles
+multiplier = 1                         when teamTackles = 0 or excess ≤ 0
+multiplier = exp(−λ × excess)          when excess > 0
+```
+
+| | Knee | λ |
+|---|---|---|
+| Game | **0.212**, the team-game leader's p90 | **1 / (11 − 0.212 × 31) ≈ 0.226**, one e-fold to Zack Baun, 11 of 31 |
+| Season | **0.171**, the club-#1 maximum (Oluokun, 128 of 748) | **1 / ((0.171 − 0.139) × 748) ≈ 0.0418**, one e-fold across the p90-to-max gap |
+
+The game knee is the p90, not the 35.5% maximum. A knee at the maximum still lets a defender who would have taken 55–70% of a 65-tackle game finish near 40%, and 40% of a busy game is still 30 tackles. One e-fold from the p90 to Baun's row pulls that same week under 30 and leaves a 16% week, the traced center, on the old weight. The season knee is the club maximum, the same choice as the target-season knee: the body (mean 11.2%) is untouched, and a season that runs past 17.1% bends.
+
+A sack, a forced fumble, and a contested catch still credit the player who made them. Those are the stop. The bend applies to the weighted draw that was handing one linebacker the rest of the game.
+
+The count band 92–128 is the traced primary leaders. It is not a claim that a share bend lands the sim there. A club in this engine records a tackle on every rush, completion, and sack, and those team totals run above the 705–831 primary tackles in the table. A defender at the traced maximum share of a larger total can still clear 128. Which plays award a tackle was not signed, and it was not changed.

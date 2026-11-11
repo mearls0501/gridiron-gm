@@ -59,7 +59,16 @@ first.boxScore!.players.push(first.boxScore!.players[0]); assert.throws(() => ca
 
 assert.equal(REFERENCE_GAMES, 1087);
 assert.equal(GAME_THRESHOLDS.length + SEASON_THRESHOLDS.length, 46);
-assert.equal([...GAME_THRESHOLDS, ...SEASON_THRESHOLDS].filter(t => !t.comparable).length, 4);
+assert.equal([...GAME_THRESHOLDS, ...SEASON_THRESHOLDS].filter(t => !t.comparable).length, 0);
+const tackles15 = GAME_THRESHOLDS.find(t => t.label === "15+ tackles")!;
+const tackles20 = GAME_THRESHOLDS.find(t => t.label === "20+ tackles")!;
+const tackles150 = SEASON_THRESHOLDS.find(t => t.label === "150+ tackles")!;
+const tackles180 = SEASON_THRESHOLDS.find(t => t.label === "180+ tackles")!;
+assert.equal(tackles15.referenceCount, 3);
+assert.equal(tackles20.referenceCount, 0);
+assert.equal(tackles150.referenceCount, 0);
+assert.equal(tackles180.referenceCount, 0);
+assert.equal(tackles15.comparable && tackles20.comparable && tackles150.comparable && tackles180.comparable, true);
 const rush200 = GAME_THRESHOLDS.find(t => t.label === "200+ rush yds")!;
 const fg60 = GAME_THRESHOLDS.find(t => t.label === "60+ yd FG")!;
 assert.equal(rush200.referenceCount, 6); assert.equal(fg60.referenceCount, 18);
@@ -73,4 +82,4 @@ assert.ok(Math.abs(compareCounts(0, 1, 4, 1).pValue - 0.125) < 1e-12, "independe
 assert.equal(compareCounts(4000, 80, 200, 4).pValue, 1, "large equal-rate counts avoid PMF underflow");
 assert.ok(Math.abs(compareCounts(11, 16, 16, 4).pValue - compareCounts(16, 4, 11, 16).pValue) < 1e-12);
 for (const args of [[-1,16,0,4], [1.5,16,0,4], [1,0,0,4], [1,16,0,NaN]]) assert.throws(() => compareCounts(...args as [number,number,number,number]));
-console.log("ok    guard measurements — locked home band, complete RB panel, REG evidence, finite NFL reference, exact comparisons, unmatched tackle diagnostics");
+console.log("ok    guard measurements — locked home band, complete RB panel, REG evidence, finite NFL reference, exact comparisons, primary tackle rows");

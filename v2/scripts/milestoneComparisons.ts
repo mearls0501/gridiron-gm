@@ -27,7 +27,7 @@ function thresholds(scope: "game" | "season"): readonly Threshold[] {
   return Object.freeze(rows.map((r) => {
     if (!KEYS.includes(r.key as StatKey) || !Number.isFinite(r.atLeast) || r.atLeast <= 0 ||
         r.counts.length !== REFERENCE_SEASONS || r.counts.some((n) => !Number.isInteger(n) || n < 0) ||
-        r.comparable !== (r.key !== "tackles")) throw new Error(`invalid milestone reference ${r.label}`);
+        r.comparable !== true) throw new Error(`invalid milestone reference ${r.label}`);
     const key = r.key as StatKey;
     const count = r.counts.reduce((n, x) => n + x, 0);
     const exposure = scope === "game" ? REFERENCE_GAMES : REFERENCE_SEASONS;

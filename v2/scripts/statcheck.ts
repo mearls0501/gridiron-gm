@@ -63,7 +63,7 @@ console.log(`  Receiving yards [~1,750]`);
 for (const p of top("recYds")) console.log(fmt(p, `${line(p).rec} rec, ${line(p).recYds} yds, ${line(p).recTd} TD`));
 console.log(`  Sacks  [~20]`);
 for (const p of top("sacks")) console.log(fmt(p, `${line(p).sacks} sacks, ${line(p).tackles} tkl`));
-console.log(`  Tackles  [~180]`);
+console.log(`  Tackles  [~110]`);
 for (const p of top("tackles")) console.log(fmt(p, `${line(p).tackles} tkl, ${line(p).ints} INT`));
 
 // ---- 3. Realism: single-game extremes ---------------------------------------
