@@ -455,6 +455,12 @@ export interface Team {
    */
   retirementDeadPending?: number;
   /**
+   * Void-year bonus from an expiring deal the user replaced in the tag
+   * window (re-sign or tag). The roll would have accelerated it onto the
+   * new league year; it is posted there after the FA-open wipe. Missing = 0.
+   */
+  rolloverDeadPending?: number;
+  /**
    * Base salary already paid this league year to players who have since been
    * traded or cut: their earned weeks stay on this club's books. Not dead
    * money. Wiped with `deadCap` at FA open. Missing = 0.

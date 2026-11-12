@@ -219,6 +219,9 @@ export function reapplyRetirementDead(state: GameState): void {
     const pending = t.retirementDeadPending ?? 0;
     if (pending > 0) addDeadCap(state, t.id, pending);
     t.retirementDeadPending = 0;
+    const rollover = t.rolloverDeadPending ?? 0;
+    if (rollover > 0) addDeadCap(state, t.id, rollover);
+    if (t.rolloverDeadPending !== undefined) delete t.rolloverDeadPending;
   }
 }
 

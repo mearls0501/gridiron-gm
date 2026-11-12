@@ -146,7 +146,8 @@ export function franchiseTagSalary(state: GameState, p: Player): number {
 
 /** Apply this club's one exclusive tag for the year. Same cap block as Sign. */
 export function applyFranchiseTag(
-  state: GameState, teamId: number, playerId: number, rng: Rng
+  state: GameState, teamId: number, playerId: number, rng: Rng,
+  meter: "closing" | "comingYear" = "closing",
 ): SignResult {
   if (clubHasFranchiseTag(state, teamId)) {
     return { ok: false, reason: "This club has already used its franchise tag this year." };
@@ -167,9 +168,14 @@ export function applyFranchiseTag(
   const currentHit = capHit(p.contract);
   const apy = franchiseTagSalary(state, p);
   const contract = startContractNow(state, makeContract(rng, apy, 1, state.season, defaultGuaranteedYears(apy, 1)));
-  const hit = capHit(contract);
-  const cap = teamCap(state, teamId);
-  const available = cap.space + currentHit;
+  // The user's Tag button reads the coming-year meter the header shows
+  // (`tagWindowCap`), where the expiring deal is already $0. CPU tags keep
+  // the closing-year check.
+  const comingYear = meter === "comingYear";
+  const hit = comingYear ? annualCapHit(contract) : capHit(contract);
+  const available = comingYear
+    ? tagWindowCap(state, teamId).space
+    : teamCap(state, teamId).space + currentHit;
   if (hit > available) {
     return {
       ok: false,
@@ -177,6 +183,7 @@ export function applyFranchiseTag(
     };
   }
 
+  if (comingYear) bookRolloverDead(state, teamId, p);
   p.contract = contract;
   if (!state.franchiseTags) state.franchiseTags = [];
   state.franchiseTags.push({
@@ -235,6 +242,28 @@ export function comingYearCapHit(state: GameState, p: Player): number {
 }
 
 /**
+ * Bonus `expireContracts` would book as dead for this player at the next
+ * roll: the void-year remainder of an expiring deal. $0 for a tagged
+ * tender, a deal that starts next league year, or 2+ years left.
+ */
+export function rolloverDeadAtExpiry(state: GameState, p: Player): number {
+  const c = p.contract;
+  if (!expiresAtRollover(c) || isFranchiseTagged(state, p.id)) return 0;
+  return Math.round(remainingBonusProration({ ...c!, yearsRemaining: 0 }));
+}
+
+/**
+ * A user-replaced expiring deal (tag-window re-sign or Tag) still owes the
+ * void remainder the roll would have accelerated. It posts on the new
+ * league year in `reapplyRetirementDead`.
+ */
+function bookRolloverDead(state: GameState, teamId: number, p: Player): void {
+  const leftover = rolloverDeadAtExpiry(state, p);
+  const t = state.teams[teamId];
+  if (leftover > 0 && t) t.rolloverDeadPending = (t.rolloverDeadPending ?? 0) + leftover;
+}
+
+/**
  * The tag-window meter: the coming league year on this year's ceiling.
  * Expiring deals are $0, closing-year dead and paid-out leave (the wipe at
  * FA open), and retirement acceleration, which survives it, stays.
@@ -243,13 +272,16 @@ export function comingYearCapHit(state: GameState, p: Player): number {
 export function tagWindowCap(state: GameState, teamId: number): CapSummary {
   const { cap, carryover } = teamCap(state, teamId);
   let charges = 0;
+  let rollover = 0;
   let players = 0;
   for (const p of state.players) {
     if (p.teamId !== teamId || p.retired || p.prospect) continue;
     charges += comingYearCapHit(state, p);
+    rollover += rolloverDeadAtExpiry(state, p);
     players++;
   }
-  const dead = state.teams[teamId]?.retirementDeadPending ?? 0;
+  const t = state.teams[teamId];
+  const dead = (t?.retirementDeadPending ?? 0) + (t?.rolloverDeadPending ?? 0) + rollover;
   return {
     cap,
     committed: charges + dead,
@@ -969,6 +1001,7 @@ export function applyOfficeExtension(
     };
   }
 
+  if (tagWindow) bookRolloverDead(state, teamId, p);
   if (!tagWindow) settlePaidWeeks(state, p, teamId);
   p.contract = contract;
   if (p.psychology?.holdout) resolveDemand(state, p.id);

@@ -1,6 +1,6 @@
 # Tag-window residuals: void bonus and the Tag button check
 
-**UNSIGNED.** Matt signs any change. Proposal only: no code, test, `scripts/`, or `docs/baselines.json` edit in this packet. No re-lock. No panel.
+**BUILT 2026-11-12.** Matt asked for this build ("do the tag-window residuals"). Changes 1–5 and decisions 1–4 were taken as proposed. Decisions 5–7 were left as written (see `HANDOFF.md`, 2026-11-12). No re-lock. No panel.
 
 Tree: branch `claude/gracious-allen-i8ij43`, head `72ac945` (main `9e74d34`, #229). Every file:line below is from this tree.
 
