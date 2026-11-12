@@ -1,5 +1,16 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-12 — Tag-window residuals: void bonus and the Tag button
+
+Matt asked for this on 2026-11-12 ("do the tag-window residuals"). Changes 1–5 of `docs/proposal-tag-window-residuals-2026-11-11.md` were built as written, and decisions 1–4 were taken as proposed. Decisions 5–7 were left as the doc describes. CPU tags over void deals still drop the remainder. The extension hole on deals with 2+ years left is reported, not fixed. The cut or trade of an expiring void deal in the tag window now shows on the meter as room. No `baselines.json` edit. No re-lock.
+
+- `rolloverDeadAtExpiry` and `bookRolloverDead` are in `offseason/contracts.ts`. Tag-window Meet asking books the replaced deal's void remainder to the new optional field `Team.rolloverDeadPending`. `reapplyRetirementDead` posts that field after the FA-open wipe and deletes it. Re-signing and walking now leave the same dead money after the roll.
+- `tagWindowCap.dead` now includes the walkers' void remainders and the pending rollover.
+- `applyFranchiseTag` takes an optional `meter` argument, `"closing"` by default. Only the Hub Tag button (`app/page.tsx`) passes `"comingYear"`. That path checks `tagWindowCap` and books a void remainder. CPU tags are byte-identical.
+- Seven cases were added to `lib/view/resignStep.test.ts`.
+
+Validation on this VM: `tsc --noEmit` passes. These tests pass: `resignStep`, `franchiseTag`, `retirementDead`, `contractOffice`, `tagExtension`, `capMechanics`, `deadIfCut` and `userOffers` (the seed-42 pair is unchanged).
+
 ## 2026-11-11 — Rookie guarantees, the tag-window cap meter, and the trim re-lock
 
 Signed, Matt, 2026-11-11. Both proposals were built as written. No `baselines.json` edit. No dial change.
