@@ -14,9 +14,11 @@ import { Rng } from "../core/rng";
 import { LEAGUE_MINIMUM, Player } from "../core/types";
 import {
   applyFranchiseTag, applyOfficeExtension, comingYearCapHit, expireContracts, expiringPlayers,
-  extensionAskingApy, isFranchiseTagged, officeExtensionTerms, submitOfficeOffer, tagWindowCap,
+  extensionAskingApy, franchiseTagSalary, isFranchiseTagged, officeExtensionTerms,
+  rolloverDeadAtExpiry, submitOfficeOffer, tagWindowCap,
 } from "../core/offseason/contracts";
-import { annualCapHit, capHit, teamCap } from "../core/select";
+import { reapplyRetirementDead } from "../core/offseason/progression";
+import { annualCapHit, capHit, clearDeadCap, teamCap } from "../core/select";
 import { runFreeAgencyOpen } from "../core/offseason";
 import {
   hubResignWalkWarning, resignPot, resignStepRows, resignWalkCount, screenCap, screenCapHit,
@@ -279,4 +281,152 @@ function ok(label: string) { console.log("ok   ", label); }
   st.phase = "offseason-fa";
   assert.equal(screenCap(st, st.userTeamId).dead, 24_200_000, "outside the window the screen is teamCap");
   ok("tag-window dead is retirement acceleration only; the team keeps its closing dead");
+}
+
+// Tag-window residuals (`docs/proposal-tag-window-residuals-2026-11-11.md`,
+// signed 2026-11-12). A user-replaced expiring deal still owes its void
+// remainder on the new league year, and the Tag button checks the meter.
+function plantVoid(st: ReturnType<typeof newGame>, p: Player): number {
+  assert.ok(p.contract);
+  p.contract.years = Math.max(p.contract.years, 2);
+  p.contract.signingBonus = 8_000_000;
+  p.contract.bonusProrationYears = p.contract.years + 4;
+  const L = rolloverDeadAtExpiry(st, p);
+  assert.ok(L > 0, "the planted deal has a void remainder");
+  return L;
+}
+
+function roll(st: ReturnType<typeof newGame>): void {
+  clearDeadCap(st);
+  reapplyRetirementDead(st);
+  expireContracts(st);
+}
+
+function voidState(seed: number) {
+  const st = newGame({ seed });
+  st.phase = "offseason-tag";
+  const me = st.userTeamId;
+  const p = plantExpiring(st, me, 68);
+  p.age = 30;
+  const L = plantVoid(st, p);
+  return { st, me, p, L };
+}
+
+{
+  // 1. Walked: the meter shows the remainder, and the roll books it.
+  const a = voidState(31);
+  const pending = a.st.teams[a.me].retirementDeadPending ?? 0;
+  assert.equal(tagWindowCap(a.st, a.me).dead, pending + a.L, "the walker's void remainder is on the meter");
+  roll(a.st);
+  const walkedDead = a.st.teams[a.me].deadCap ?? 0;
+  assert.equal(walkedDead, pending + a.L);
+
+  // 2. Extended: the same dollars, booked at the click and posted after the wipe.
+  const b = voidState(31);
+  const before = tagWindowCap(b.st, b.me);
+  const rng = b.st.rngState;
+  const r = submitOfficeOffer(b.st, b.me, b.p.id, true);
+  assert.equal(r.ok, true, r.message);
+  assert.equal(b.st.rngState, rng, "the click does not draw");
+  const after = tagWindowCap(b.st, b.me);
+  assert.equal(after.dead, before.dead, "the remainder moves to the pending field; meter dead holds");
+  assert.ok(b.p.contract);
+  assert.ok(Math.abs(after.space - (before.space - annualCapHit(b.p.contract))) <= 1, "the meter falls by year 1");
+  assert.equal(b.st.teams[b.me].rolloverDeadPending, b.L);
+  roll(b.st);
+  assert.equal(b.st.teams[b.me].deadCap ?? 0, walkedDead, "re-signed or walked, the same dead after the roll");
+  assert.equal("rolloverDeadPending" in b.st.teams[b.me], false, "the field is gone after it posts");
+  ok("a void remainder costs the same on the new league year whether he walks or re-signs");
+}
+
+{
+  // 3. No void years, no field.
+  const st = newGame({ seed: 32 });
+  st.phase = "offseason-tag";
+  const me = st.userTeamId;
+  const p = plantExpiring(st, me, 68);
+  p.age = 30;
+  assert.ok(p.contract);
+  p.contract.bonusProrationYears = p.contract.years;
+  assert.equal(rolloverDeadAtExpiry(st, p), 0);
+  const r = submitOfficeOffer(st, me, p.id, true);
+  assert.equal(r.ok, true, r.message);
+  assert.equal(st.teams[me].rolloverDeadPending, undefined);
+  assert.equal(st.teams.some((t) => "rolloverDeadPending" in t), false, "no team gains the key");
+  ok("a deal without void years books nothing extra");
+}
+
+function tagState(seed: number) {
+  const st = newGame({ seed });
+  st.phase = "offseason-tag";
+  const me = st.userTeamId;
+  const p = plantExpiring(st, me, 80);
+  p.age = 27;
+  assert.ok(p.contract);
+  p.contract.bonusProrationYears = p.contract.years;
+  return { st, me, p, tender: franchiseTagSalary(st, p) };
+}
+
+{
+  // 4. Stricter case: the closing book says no, the meter has room.
+  const { st, me, p, tender } = tagState(33);
+  const closing = teamCap(st, me).space + capHit(p.contract);
+  st.teams[me].deadCap = (st.teams[me].deadCap ?? 0) + closing - tender + 1_000_000;
+  assert.ok(teamCap(st, me).space + capHit(p.contract) < tender);
+  const meter = tagWindowCap(st, me).space;
+  assert.ok(meter > tender, "the meter has room for the tender");
+  const cpu = structuredClone(st);
+  const def = applyFranchiseTag(cpu, me, p.id, new Rng(cpu.rngState));
+  assert.equal(def.ok, false);
+  assert.match(def.reason ?? "", /Not enough cap space/);
+  const r = applyFranchiseTag(st, me, p.id, new Rng(st.rngState), "comingYear");
+  assert.equal(r.ok, true, r.reason ?? "");
+  assert.ok(p.contract);
+  assert.ok(Math.abs(tagWindowCap(st, me).space - (meter - annualCapHit(p.contract))) <= 1, "the meter falls by the tender");
+  ok("the Tag button allows a tender the coming-year meter has room for");
+}
+
+{
+  // 5. Looser case: the closing book says yes, the meter does not.
+  const { st, me, p, tender } = tagState(34);
+  const meter = tagWindowCap(st, me).space;
+  st.teams[me].retirementDeadPending = (st.teams[me].retirementDeadPending ?? 0) + meter - tender + 1_000_000;
+  assert.ok(tagWindowCap(st, me).space < tender);
+  assert.ok(teamCap(st, me).space + capHit(p.contract) >= tender, "the closing book still has room");
+  const cpu = structuredClone(st);
+  const r = applyFranchiseTag(st, me, p.id, new Rng(st.rngState), "comingYear");
+  assert.equal(r.ok, false);
+  const avail = (tagWindowCap(st, me).space / 1e6).toFixed(1);
+  assert.ok(!r.ok && (r.reason ?? "").includes(`$${avail}M available`), "the refusal quotes the meter");
+  const def = applyFranchiseTag(cpu, me, p.id, new Rng(cpu.rngState));
+  assert.equal(def.ok, true, "the CPU (default) check is unchanged");
+  ok("the Tag button refuses a tender the coming-year meter cannot hold");
+}
+
+{
+  // 6. Tag over a void deal: the user path books it; the default path does not.
+  const { st, me, p } = tagState(35);
+  const L = plantVoid(st, p);
+  const cpu = structuredClone(st);
+  const before = tagWindowCap(st, me).dead;
+  const r = applyFranchiseTag(st, me, p.id, new Rng(st.rngState), "comingYear");
+  assert.equal(r.ok, true, r.reason ?? "");
+  assert.equal(st.teams[me].rolloverDeadPending, L);
+  assert.equal(tagWindowCap(st, me).dead, before, "meter dead holds");
+  const def = applyFranchiseTag(cpu, me, p.id, new Rng(cpu.rngState));
+  assert.equal(def.ok, true);
+  assert.equal(cpu.teams[me].rolloverDeadPending, undefined, "CPU tags keep dropping it until signed");
+  ok("a user tag over a void deal books the remainder; CPU tags are unchanged");
+}
+
+{
+  // 7. Off-window: teamCap ignores the pending field.
+  const st = newGame({ seed: 36 });
+  st.phase = "offseason-fa";
+  const t = st.teams[st.userTeamId];
+  t.deadCap = 5_000_000;
+  t.rolloverDeadPending = 3_000_000;
+  assert.equal(screenCap(st, st.userTeamId).dead, 5_000_000);
+  assert.equal(teamCap(st, st.userTeamId).dead, 5_000_000);
+  ok("outside the tag window the pending rollover is not on the screen");
 }

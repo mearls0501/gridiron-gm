@@ -454,7 +454,7 @@ export default function Hub() {
                           onClick={() =>
                             apply((s) => {
                               const rng = new Rng(s.rngState);
-                              const r = applyFranchiseTag(s, s.userTeamId, p.id, rng);
+                              const r = applyFranchiseTag(s, s.userTeamId, p.id, rng, "comingYear");
                               s.rngState = rng.state;
                               return r.ok
                                 ? `${p.firstName} ${p.lastName} is franchise-tagged`
