@@ -1,5 +1,23 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-12 — Panel `a453c24`: GATE FAIL 4, read-only findings
+
+**UNSIGNED.** Docs only. No code, test, `scripts/`, `baselines.json`, re-lock, or dial. Full note: `docs/panel-a453c24-investigation.md`. The Studio log was not in the workspace; replays are from a Linux x64 VM.
+
+Studio `gate:full:serial`, 5 seeds, main `a453c24` (#222). Passed: `leadTackles` 111.2, `fgPct` 83.77, `staff.problems` 0, `milestonesOff` 10.0, `p0Failures` 0, drift, determinism, and the seed-42 `userOffers` pair. Failed: `trimidentity`, `verify` (exit and `verify.failures` 4), and `coherence` (seed 1).
+
+**Disagreements with signed packets.**
+
+1. **The signed `trimIdentity` re-locks are one machine's numbers.** 1587 / 19218870 (#222) is exactly what `a453c24` produces on a Linux x64 VM, and the lock head `0200ceb` has the same tree as `a453c24`. The Studio reads 1564 from that same code. It is not the camp nudge (1653 with it on) and not the gate's entry point. #229's 1600 / 2524091302 was measured the same way and will fail on the Studio for the same reason. I do not agree that either literal is a lock on the game. Each is a lock on the game as one kind of machine plays it after the first offseason.
+2. **"This VM has diverged from the Studio" is a determinism gap, not a VM quirk.** Three earlier panel notes recorded the same same-commit split on `verify` seed `20260727` and moved on. Year 0 agrees across the machines: `userOffers` held, and coherence on the VM reproduces the Studio's seed-1 82.07 and panel mean 88.12 at `a453c24`, and all five of its `ddc62bd` readings at `b5c2a21`. Something after the first free agency does not. `determinism` cannot see it because it compares a machine with itself. The cause is not found. The note has two probes for the Studio that would name the first step that differs; they need Matt's yes.
+3. **Sanchez was not one miss.** The accepted Sanchez line is the first of four failed bargain checks (five players) in the ten-season `verify` at `b5c2a21` on the VM, all post-carryover minimum rewrites. The five-season run stops before the other three. The Studio's four at `a453c24` (Ingersoll II, Moore II, Rodriguez, Grimaldi) are the same check with the same $0.9M hit. #222 changed the names, not the mechanism; the class is #214's. Whether accepting Sanchez accepted the class is Matt's call.
+
+**Coherence seed 1, 82.07.** Reproduced: 119 of 145. Same seed before #222: 89.61. Four seeds are inside and the mean rose from 87.65 to 88.12. The 26 unexplained games are the volume-without-a-talent-label shape of the seed-2 note. Recommend the same acceptance. Third panel running with one seed under 85, a different seed each time.
+
+**VM only.** The ten-season `verify` at `a453c24` on the VM also fails "healthy starters play a full season" once (2032, 55 of 442, 12.4% against 12%). It is not on the Studio summary. Not chased.
+
+**Not done.** An arm64 Node under emulation was refused by the session's permission check. No other Node major was tried. No Studio job was started.
+
 ## 2026-11-11 — Rookie guarantees, the tag-window cap meter, and the trim re-lock
 
 Signed, Matt, 2026-11-11. Both proposals were built as written. No `baselines.json` edit. No dial change.
