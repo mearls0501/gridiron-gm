@@ -147,7 +147,7 @@ until its rates are in `nfl-reference.md`.
 |---|---|---|
 | Onside kicks, blocked kicks, fair catches | `proposal-kicking-game-events-2026-11-11.md` | **Traced** 2026-11-13 (§5.14; kickoff rates by rule era). Now Matt's decisions: kickoff era, staging, Stage 2 re-lock. |
 | Special-teams tackles | `proposal-special-teams-tackles-2026-11-11.md` | **Traced** 2026-11-13 (§5.14: the 712.3 includes them; 44.6 a club-season; coverage-tackle rate 0.764 KR, 0.803 PR). Now Matt's sign. |
-| Per-position injury duration table (QB availability limitation) | `proposal-injury-duration-by-position-2026-11-11.md` | **QB traced** 2026-11-13 (§6.10: spell lengths; a third of QB1 missed games are not injuries, so the target is injury-only). Other positions' 17-game-era rows still untraced. Now Matt's decisions. |
+| Per-position injury duration table (QB availability limitation) | `proposal-injury-duration-by-position-2026-11-11.md` | **QB traced** 2026-11-13 (§6.10: spell lengths; a third of QB1 missed games are not injuries, so the target is injury-only). QB table refit to the injury-only targets 2026-11-13 (held-out seeds land; `main` QB1s miss 3.1 games a season today, more than the real all-cause 2.7). Other positions' 17-game-era rows still untraced. Now Matt's decisions. |
 | Benching a passer, trick plays | `proposal-qb-benching-and-trick-plays-2026-11-11.md` | The 21.4% second-passer split by cause is untraced; the sim's shape is off (too many blowout reliefs). |
 | 6-veteran PS cap, international slot | `proposal-practice-squad-veteran-and-international-2026-11-11.md` | CBA text not cited; the sim has no accrued seasons and no international players. Not urgent. |
 
