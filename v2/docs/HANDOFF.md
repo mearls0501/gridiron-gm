@@ -2,7 +2,7 @@
 
 ## 2026-11-13 — A league-minimum deal carries no signing bonus
 
-Asked for by Matt, 2026-11-13 ("fix the dead money from roster cuts next"). No `baselines.json` edit. Nothing in `scripts/` moved. **The fast gate is red on one row, `statcheck.leadRushYds`. Not re-locked. Read the last section before merging.**
+Asked for by Matt, 2026-11-13 ("fix the dead money from roster cuts next"). Nothing in `scripts/` moved. **One `baselines.json` row re-locked, signed by Matt the same day: `statcheck.leadRushYds` target 1726.8 → 1533.3, tol 400 unchanged. Read the last section.**
 
 `signingBonusFor` gave every deal at least 12% of its value as bonus. A one-year minimum carried $100K and a three-year minimum $350K, so `minimumCapHit` was $895K. CPU clubs sign about thirty minimum bodies to fill a camp and cut most at the 53. Seed 20260727, four seasons, CPU clubs: 4,244 freshly signed minimum players cut at the cutdown, $516M of the $949M all cuts booked.
 
@@ -26,7 +26,9 @@ Validation on this VM:
 - `calibrate.ts 300` — the single-game rows are identical to main. Year-0 rosters do not move.
 - `npm run gate` (fast tier) — **GATE FAIL, 1 problem**: `statcheck.leadRushYds` **1322** against 1726.8 ± 400, floor 1326.8. Every other step and metric passed.
 
-**The red row.** `leadRushYds` is one league's top rusher over one season. On 17 seeds (`GG_SEED` unset and 1–16) main reads a mean of **1568** and this branch **1533**; the 12-seed block alone reads 1552 and 1559. Main's own low is 1382. Both sit about 170 under the 1726.8 target, so the row was already close to its floor before this change, and the default seed fell 5 yards under. The 2026-08 note in this file already calls this metric out for moving 2396 → 1506 → 1791 across modest changes. This is not a rushing change. Not re-locked: the target is a panel mean and the panel is the Mac Studio's.
+**The red row.** `leadRushYds` is one league's top rusher over one season. On 17 seeds (`GG_SEED` unset and 1–16) main reads a mean of **1568** and this branch **1533**; the 12-seed block alone reads 1552 and 1559. Main's own low is 1382. Both sit about 170 under the 1726.8 target, so the row was already close to its floor before this change, and the default seed fell 5 yards under. The 2026-08 note in this file already calls this metric out for moving 2396 → 1506 → 1791 across modest changes. This is not a rushing change.
+
+Matt signed the re-lock ("re-lock the baseline and merge it"). The target is now **1533.3**, this branch's 17-seed mean on this VM. That is not the Mac Studio 5-seed panel the other statcheck rows are locked from, and the note on the row says so. Re-lock it from the panel when the panel next runs.
 
 ## 2026-11-13 — A trade prices the bonus it accelerates
 
