@@ -171,6 +171,10 @@ export function signingBonusFor(apy: number, years: number): number {
   // Capped lower than real NFL megadeals: at 45% a freshly-signed star carried
   // three times his cap hit in dead money, which made him literally un-cuttable
   // and turned one misclick into an unrecoverable franchise.
+  // A league-minimum deal is all base. Clubs sign about thirty of them to
+  // fill a camp and cut most at the 53; with the 12% floor below, each cut
+  // left $100K-$350K behind, about $3.5M of dead money a club every year.
+  if (apy <= LEAGUE_MINIMUM) return 0;
   const bonusPct = clamp(0.14 + (apy / 30_000_000) * 0.14, 0.12, 0.32);
   return Math.round((apy * years * bonusPct) / 50_000) * 50_000;
 }
