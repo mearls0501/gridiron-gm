@@ -10,7 +10,7 @@ import { applyGameWear, healWeek, healthySet, rollWeeklyInjuries } from "./injur
 import { generateUserOffers, pruneStaleTradeInbox, runCpuTrades } from "../trades";
 import { fillCpuIrReplacements } from "../irFill";
 import { dressEmergencyQuarterbacks } from "../emergencyQb";
-import { fillCpuRosterShortfall, freeActiveSlot, trimCpuRosterSanity } from "../offseason/contracts";
+import { coverCpuCapInSeason, fillCpuRosterShortfall, freeActiveSlot, trimCpuRosterSanity } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
 import { clearCallSheets, userSimOpts } from "../callSheet";
@@ -276,4 +276,5 @@ function applyCpuIrAndFill(state: GameState, rng: Rng, played?: Set<number>): vo
   if (played) tickIrGames(state, played);
   autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
   if (trimCpuRosterSanity(state)) fillCpuRosterShortfall(state, rng);
+  coverCpuCapInSeason(state, rng);
 }

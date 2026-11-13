@@ -15,6 +15,8 @@
  * Re-locked 2026-11-11, Matt, one time, after main b5c2a21 (#226, #223,
  * #225) was merged onto the tackle-credit branch: tag 1779302491,
  * FA 1323223106.
+ * Re-locked 2026-11-13, Matt, for the banked end-of-half kick range and
+ * the in-season CPU cap cover: tag 223486248, FA 2926585213.
  * Earlier: 979873515 / 651676524 (waiver clearing, signed 2026-10-23),
  * 2875380525 / 3306901598 (roster sanity, #197, 2026-10-23),
  * 1725353685 / 2028992364 (pro-rata salary, 2026-10-20),
@@ -126,11 +128,11 @@ console.log("ok    userOffers — successful inquiries add no parent RNG draws (
     }
   }
   assert.equal(st.phase, "offseason-tag");
-  assert.equal(st.rngState, 1779302491);
+  assert.equal(st.rngState, 223486248);
 
   advanceOffseason(st);
   assert.equal(st.phase, "offseason-fa");
-  assert.equal(st.rngState, 1323223106, "inquiry must not move the parent stream");
+  assert.equal(st.rngState, 2926585213, "inquiry must not move the parent stream");
 
   const offers = st.tradeOffers ?? [];
   assert.ok(offers.length >= 1, `free agency opened with no calls (${offers.length})`);

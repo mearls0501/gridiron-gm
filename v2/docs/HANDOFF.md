@@ -1,5 +1,28 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-13 — Field-goal range on the banked kick, the in-season cap cover, and a real restructure
+
+Signed, Matt, 2026-11-13, in three steps: fix the field-goal calibration, trace and re-lock, and fix the hatch with a real restructure. No `baselines.json` edit. Nothing in `scripts/` moved. `calibrate.fgPct` is back inside its band and is no longer a reported miss.
+
+**Banked kick.** Since #182 `takeLastKick` banks a field goal on any down with 45 seconds or fewer left in a half. That call used `inFieldGoalRange()`, which adds 7 yards at the end of a half. The stretch was written for fourth down. `inFieldGoalRange` now takes `stretch` (default true) and the banked kick passes false. Fourth down is unchanged. Over 300 calibrate games, tries from 60+ went from 63 (16 made) to 15 (7 made). `calibrate.fgPct` **81.99 → 84.97** against 86.029 ± 4. `calibrate.pts` 23.44.
+
+**In-season cap cover.** The new game results put Cleveland and Denver over the cap for consecutive weeks on seed 42, which `waiverClearing` case 5 catches. The CPU IR fill signs whether or not the deal fits. The backstop in `resolveWaivers` returns before it runs on an empty wire, and a cut it does make is undone by the refill when it saves less than the replacement costs. `coverCpuCapInSeason` runs after the weekly IR fill, regular season and playoffs. It releases the deal whose saving, net of a minimum replacement, buys the least ability, refills the spot, and repeats. It does not draw for a club under the cap. The user seat is skipped.
+
+**Carryover hatch.** `verify.ts 3` on seed 20260727 read 347/348: Pittsburgh reached 2028 with $65.9M dead and $15.0M over, no release saved money, and the cover rewrote Roberts, QB, 74, from $18.0M to the minimum. That is the miss recorded on 2026-11-02 and 2026-11-03 (Sanchez), now inside the three-season window. `coverAfterCarryover` now restructures first: `applyRestructure` where it is allowed, `applyVoidYears` where it is not, largest saving first, until the book and the refill are funded. The minimum rewrite is still the last resort behind it. Neither step draws. The cutdown's own last resort and `newGame` are untouched, so year-0 draws stay where they were.
+
+**Re-locks.** `userOffers` tag **223486248**, FA **2926585213** (was 1779302491 / 1323223106). `trimIdentity` **1606** cuts, rng **2799512845** (was 1600 / 2524091302). `divisionRank` reads seed **49**: official 3rd, point differential alone 2nd. Seed 42's first season no longer has that case. The restructure did not move the first two again.
+
+New `capMechanics` case 17: a planted $2M hole, a one-year $5M deal and a three-year $40M deal. The long deal is restructured, every dollar is still owed, the one-year deal is not rewritten, and nothing draws.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — pass, exit 0.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline. `verify` 348/348.
+- Not run: the 5-seed Mac Studio panel, `verify.ts 5`, and the wide CPU sweep.
+
+Open: Pittsburgh's book got there because a CPU club took on $40.7M of dead money inside one free-agency window while spending $111M of room. The restructure makes the cover honest. It does not stop the club from getting there.
+
 ## 2026-11-13 — Phase 1 leftovers: P2, the kickoff key, play art, P5
 
 Matt asked for this on 2026-11-13 ("do the phase 1 leftovers next"). The recommended packets of `docs/proposal-phase1-play-leftovers-2026-11-11.md` were built. No draw, no outcome change, no `baselines.json` edit, no re-lock.

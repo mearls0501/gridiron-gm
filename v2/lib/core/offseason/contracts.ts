@@ -2257,6 +2257,42 @@ export function enforceCap(state: GameState, teamId: number): void {
 }
 
 /**
+ * In season, CPU clubs only. An IR replacement is signed whether or not it
+ * fits, so a club with a thin book can end the week over the cap. The waiver
+ * backstop does not run on an empty wire, and a cut it does make is undone by
+ * the next refill when it saves less than the replacement costs.
+ *
+ * Release the deal whose saving, net of a minimum replacement, buys the least
+ * ability, then refill the open spot. Repeats until the book is legal or no
+ * release nets room. Does nothing, and does not draw, for a club under the cap.
+ */
+export function coverCpuCapInSeason(state: GameState, rng: Rng): void {
+  if (!inSeasonRosterPhase(state)) return;
+  const hold = rosterLimit(state.phase);
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    let guard = 0;
+    while (teamCap(state, t.id).space < 0 && guard++ < 20) {
+      const replacement = minimumCapHit(state, rng);
+      const target = state.players
+        .filter((p) => p.teamId === t.id && !p.retired && !p.prospect && p.contract)
+        .filter((p) => !isActiveRoster(p) || positionCount(state, t.id, p.pos) > POSITION_MIN[p.pos])
+        .map((p) => ({
+          p,
+          // An active release opens a spot that has to be paid for again.
+          net: capHit(p.contract) - deadMoney(p.contract) - (isActiveRoster(p) ? replacement : 0),
+          cost: Math.pow(Math.max(1, p.ovr - 45), 1.6),
+        }))
+        .filter((c) => c.net > 0)
+        .sort((a, b) => b.net / b.cost - a.net / a.cost || a.p.id - b.p.id)[0];
+      if (!target) break;
+      cutPlayer(state, target.p.id);
+      if (rosterCount(state, t.id) < hold) fillOpenActiveSlots(state, t.id, rng);
+    }
+  }
+}
+
+/**
  * Bring a team to a legal roster AND under the cap.
  *
  * These two constraints fight each other — cutting for cap space drops the
@@ -2342,7 +2378,8 @@ function rewriteLargestHits(state: GameState, teamId: number, rng: Rng, afterCar
 }
 
 /**
- * Release-first, then one rewrite strategy. Does not fill.
+ * Release-first, then real restructures, then one rewrite strategy as the
+ * last resort. Does not fill.
  *
  * The smallest hit is rewritten only when that one deal covers the cap hole
  * and still leaves a one-year minimum for every open active spot. A hit that
@@ -2360,6 +2397,30 @@ function coverAfterCarryover(state: GameState, teamId: number, rng: Rng): void {
   const refillFunded = () => spaceNow() >= 0 && spaceNow() >= spotsNow() * replacement;
   const byAsc = (a: Player, b: Player) => capHit(a.contract) - capHit(b.contract) || a.id - b.id;
   const byDesc = (a: Player, b: Player) => capHit(b.contract) - capHit(a.contract) || a.id - b.id;
+
+  // A real restructure before any rewrite: this year's base above the minimum
+  // becomes bonus spread over the years left, then void years stretch what
+  // bonus remains. The player keeps his money, so nobody ends up on a
+  // minimum deal he would never sign. Largest saving first. Neither draws.
+  let moves = 0;
+  while (moves++ < 40 && !refillFunded()) {
+    let best: { p: Player; savings: number; voids: boolean } | null = null;
+    for (const p of state.players) {
+      if (p.teamId !== teamId || p.retired || p.prospect || !p.contract) continue;
+      const r = restructurePreview(state, teamId, p);
+      const v = r.ok ? null : addVoidYearsPreview(state, teamId, p);
+      const savings = r.ok ? r.savings : v?.ok ? v.savings : 0;
+      if (savings <= 0) continue;
+      if (!best || savings > best.savings || (savings === best.savings && p.id < best.p.id)) {
+        best = { p, savings, voids: !r.ok };
+      }
+    }
+    if (!best) break;
+    const done = best.voids
+      ? applyVoidYears(state, teamId, best.p.id)
+      : applyRestructure(state, teamId, best.p.id);
+    if (!done.ok) break;
+  }
 
   let guard = 0;
   while (guard++ < 80 && !refillFunded()) {

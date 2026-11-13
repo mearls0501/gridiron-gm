@@ -11,7 +11,7 @@ import { recordGame } from "./records";
 import { applyGameWear, healWeek, healthySet } from "./injuries";
 import { fillCpuIrReplacements } from "../irFill";
 import { dressEmergencyQuarterbacks } from "../emergencyQb";
-import { fillCpuRosterShortfall, freeActiveSlot, trimCpuRosterSanity } from "../offseason/contracts";
+import { coverCpuCapInSeason, fillCpuRosterShortfall, freeActiveSlot, trimCpuRosterSanity } from "../offseason/contracts";
 import { autoActivateFromIr, autoDesignateIr, tickIrGames } from "../rosterStatus";
 import { clearInactives, declareGamedayInactives } from "../inactives";
 import { clearCallSheets, userSimOpts } from "../callSheet";
@@ -264,6 +264,7 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
   tickIrGames(state, played);
   autoActivateFromIr(state, (teamId) => freeActiveSlot(state, teamId));
   if (trimCpuRosterSanity(state)) fillCpuRosterShortfall(state, fillRng);
+  coverCpuCapInSeason(state, fillRng);
   clearInactives(state);
   clearCallSheets(state);
   clearSealedLive(state);
