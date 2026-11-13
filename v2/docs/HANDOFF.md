@@ -1,5 +1,33 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-13 — A league-minimum deal carries no signing bonus
+
+Asked for by Matt, 2026-11-13 ("fix the dead money from roster cuts next"). No `baselines.json` edit. Nothing in `scripts/` moved. **The fast gate is red on one row, `statcheck.leadRushYds`. Not re-locked. Read the last section before merging.**
+
+`signingBonusFor` gave every deal at least 12% of its value as bonus. A one-year minimum carried $100K and a three-year minimum $350K, so `minimumCapHit` was $895K. CPU clubs sign about thirty minimum bodies to fill a camp and cut most at the 53. Seed 20260727, four seasons, CPU clubs: 4,244 freshly signed minimum players cut at the cutdown, $516M of the $949M all cuts booked.
+
+`signingBonusFor` now returns 0 at or under `LEAGUE_MINIMUM`. The deal is all base and costs $795K. A drafted rookie at the floor keeps his slot bonus: `deadIfCut` pins the seventh-round deal at a $907,500 hit and $450,000 dead (rookie guarantee fix, signed 2026-11-11), so `makeContract` and `signingBonusFor` take a `drafted` flag and `rookieContract` sets it. Deals above the minimum are unchanged.
+
+Measured on this VM, CPU clubs, four seasons:
+
+| seed | dead from all cuts | fresh minimum cuts at the cutdown | drafted players cut |
+| :--- | ---: | ---: | ---: |
+| 20260727 | $949M → $497M | $516M → $133M | $178M → $153M |
+| 42 | $1,048M → $617M | $514M → $139M | $185M → $166M |
+
+What is left of the cutdown figure is bodies signed just above the minimum.
+
+`startSeasonCap` and `userFaReserve` asserted the $895,000 hit and the $100,000 bonus. They assert $795,000 and no bonus. **Re-locks:** `userOffers` tag **4252696365**, FA **2405063246**. `trimIdentity` **1568** cuts, rng **457073510**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `calibrate.ts 300` — the single-game rows are identical to main. Year-0 rosters do not move.
+- `npm run gate` (fast tier) — **GATE FAIL, 1 problem**: `statcheck.leadRushYds` **1322** against 1726.8 ± 400, floor 1326.8. Every other step and metric passed.
+
+**The red row.** `leadRushYds` is one league's top rusher over one season. On 17 seeds (`GG_SEED` unset and 1–16) main reads a mean of **1568** and this branch **1533**; the 12-seed block alone reads 1552 and 1559. Main's own low is 1382. Both sit about 170 under the 1726.8 target, so the row was already close to its floor before this change, and the default seed fell 5 yards under. The 2026-08 note in this file already calls this metric out for moving 2396 → 1506 → 1791 across modest changes. This is not a rushing change. Not re-locked: the target is a panel mean and the panel is the Mac Studio's.
+
 ## 2026-11-13 — A trade prices the bonus it accelerates
 
 Signed, Matt, 2026-11-13 ("fix the CPU dead money problem in free agency"). No `baselines.json` edit. Nothing in `scripts/` moved. This closes the open line at the end of the entry below.
