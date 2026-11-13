@@ -12,7 +12,7 @@
  *
  * Phase 1 PBP §7.1 (P4): /play opening kickoff stays row 1 across a snap
  * and coach-finish; user /game/[id] Drive Chart + text PBP; CPU Drive
- * Chart with no snap log (absence is a note, a CPU snap log fails).
+ * Chart; a CPU snap log only on the latest played week (P5, E3).
  *
  *   node scripts/e2e.mjs [baseUrl]
  */

@@ -1,6 +1,6 @@
 # Phase 1 leftovers: play art, durable /play, live opening kick, P2, P5
 
-**UNSIGNED.** Proposal only. This note changes no code, test, `scripts/` file, `docs/baselines.json`, `docs/nfl-reference.md`, or canary. Matt signs any change. No re-lock, no dial retune, no panel. The calibration freeze (`docs/HANDOFF.md` 1644–1646, Matt SIGNED 2026-10-08) stands.
+**BUILT 2026-11-13** on Matt's go-ahead ("do the phase 1 leftovers next"). Packets A, B (without `returnYards`), C, D1 and E3 were built as recommended. D2 and the formation tree stay deferred. See `HANDOFF.md` 2026-11-13. No re-lock, no dial retune, no panel.
 
 Tree: `/home/user/gridiron-gm/v2`, branch `claude/gracious-allen-i8ij43`, main at `9e74d34`. Line numbers below are from this tree.
 

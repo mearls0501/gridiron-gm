@@ -467,3 +467,75 @@ console.log("ok    liveGame — resume mid-game; same-seed box and plays match s
 }
 
 console.log("ok    liveGame — a finished /play game is the official week result");
+
+// Phase 1 leftover A2 (`docs/proposal-phase1-play-leftovers-2026-11-11.md`).
+// A reload after a depth-chart edit must not replay a different game: the
+// kickoff key voids the called game. A sealed game shows the seal.
+{
+  const st = newGame({ seed: 52 });
+  untilKickoff(st);
+  const g = userGame(st)!;
+  const rngBefore = st.rngState;
+  const live = createLiveGame(st, g.id);
+  for (let i = 0; i < 12; i++) {
+    const v = live.call(i % 2 ? "pass" : "run");
+    if (v.done) break;
+  }
+  setCallSheet(st, { snaps: live.snaps(), snapsKey: live.key() });
+  assert.equal(st.teams[st.userTeamId].callSheet?.snapsKey, live.key());
+
+  // No edit: same game, not stale.
+  const same = resumeLiveGame(cloneState(st), g.id);
+  assert.equal(same.stale, false);
+  assert.deepEqual(same.peek().plays, live.peek().plays, "an unchanged save replays the same game");
+
+  // Swap QB1 and QB2 on the user depth chart: the called game is void.
+  const edited = cloneState(st);
+  const qbs = edited.teams[edited.userTeamId].depthChart.QB;
+  assert.ok(qbs.length >= 2, "two quarterbacks on the chart");
+  [qbs[0], qbs[1]] = [qbs[1], qbs[0]];
+  const restarted = resumeLiveGame(edited, g.id);
+  assert.equal(restarted.stale, true, "a depth-chart edit after kickoff voids the called game");
+  const kick = restarted.peek();
+  assert.equal(kick.done, false);
+  assert.equal(kick.plays.length, 1, "the restarted session is at kickoff");
+  assert.deepEqual(restarted.snaps(), []);
+
+  // A save written before the key existed replays as today.
+  const legacy = cloneState(edited);
+  delete legacy.teams[legacy.userTeamId].callSheet!.snapsKey;
+  const old = resumeLiveGame(legacy, g.id);
+  assert.equal(old.stale, false);
+  assert.deepEqual(old.snaps(), live.snaps(), "no key, no check");
+
+  // Clearing the snaps clears the key.
+  const cleared = cloneState(st);
+  setCallSheet(cleared, { snaps: [] });
+  assert.equal(cleared.teams[cleared.userTeamId].callSheet?.snapsKey, undefined);
+
+  // Finished and sealed, then an edit: the done view is the seal.
+  const done = cloneState(st);
+  const full = createLiveGame(done, g.id);
+  const end = full.finishAuto();
+  assert.equal(end.done, true);
+  const seal = full.seal()!;
+  setCallSheet(done, { snaps: full.snaps(), snapsKey: full.key() });
+  writeSealedLive(done, seal);
+  const dq = done.teams[done.userTeamId].depthChart.QB;
+  [dq[0], dq[1]] = [dq[1], dq[0]];
+  const shown = resumeLiveGame(done, g.id);
+  const sv = shown.peek();
+  assert.equal(shown.stale, false);
+  assert.equal(sv.done, true, "a sealed game opens finished");
+  if (sv.done) {
+    assert.equal(sv.result.homeScore, seal.homeScore);
+    assert.equal(sv.result.awayScore, seal.awayScore);
+    assert.deepEqual(wire(sv.result.box), wire(seal.box), "the done view is the seal");
+  }
+  assert.deepEqual(wire(shown.seal()), wire(seal));
+
+  assert.equal(st.rngState, rngBefore, "no step draws on the save RNG");
+  assert.equal(edited.rngState, rngBefore);
+  assert.equal(done.rngState, rngBefore);
+  console.log("ok    liveGame — a stale kickoff key restarts the called game; a seal shows the seal");
+}

@@ -173,9 +173,12 @@ Out of the Phase 1 bar (intentional leftovers, not blockers for
 calling Phase 1 “visible”):
 
 - Madden formation tree / play art / timeout / defensive-call buttons
-- Persisting live `/play` mid-game across refresh (session is in-memory)
-- Live opening kickoff animation (engine still opens on implied TB)
-- Full snap log on every CPU box (save-size tradeoff)
+- ~~Persisting live `/play` mid-game across refresh~~ **Shipped** 2026-10-01
+  (HANDOFF "keep the called game"); kickoff key added 2026-11-13
+- Live opening kickoff in the engine (D2, deferred to kicking-game Stage 2).
+  The opening touchback is now shown with its kicker on `/play` (D1)
+- Full snap log on every CPU box (save-size tradeoff). Built 2026-11-13 as a
+  one-week window (P5, E3)
 
 ---
 
@@ -203,7 +206,7 @@ streams into one type.
 | Opening implied kickoff | First PBP row is always TB | Engine change if ever “live KO” — out of Phase 1 polish unless Matt asks |
 | ~~Stale ROADMAP “invisible” blurb~~ | Docs | **Closed** Wave 4.3 Packet 3 / P0 |
 | Drive Chart not interactive | Click drive → jump to PBP section | Pure UI; no engine |
-| `/play` refresh loses session | Noted leftover | Persist mid-game live state = save schema + design; not Phase 1 |
+| ~~`/play` refresh loses session~~ | **Closed** 2026-10-01; stale-replay key 2026-11-13 | — |
 
 ---
 

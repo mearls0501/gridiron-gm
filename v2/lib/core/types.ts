@@ -537,6 +537,12 @@ export interface CallSheet {
    * Consumed in order; leftover snaps use choosePass. Missing = Auto.
    */
   snaps?: SnapCall[];
+  /**
+   * Kickoff key for `snaps` (`liveKey`): what the called game reads, taken
+   * when the session opened. A reload whose key differs restarts at kickoff.
+   * Missing (an older save) replays as before.
+   */
+  snapsKey?: string;
 }
 
 export interface Coach {
@@ -670,6 +676,10 @@ export interface PlayEvent {
   yards: number;
   playerId?: number;
   targetId?: number;
+  /** Kickoff: the kicking club's kicker. Display only. */
+  kickerId?: number;
+  /** Interception or fumble returned for a touchdown on this snap: the returner. */
+  returnerId?: number;
   homeScore: number;
   awayScore: number;
 }
