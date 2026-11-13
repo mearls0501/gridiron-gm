@@ -1,5 +1,32 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-13 — A trade prices the bonus it accelerates
+
+Signed, Matt, 2026-11-13 ("fix the CPU dead money problem in free agency"). No `baselines.json` edit. Nothing in `scripts/` moved. This closes the open line at the end of the entry below.
+
+`playerTradeValue` priced a club's own player on `annualCapHit`, proration included, so the bonus read as a burden a trade would shed. `moveAsset` sheds none of it: every later year lands on the sender now. Seed 20260727, 2027: Pittsburgh signed Quarles, OT, 80, at 5yr / $29.3M and traded him to Baltimore in the same window for a 62 quarterback and three sevenths, about $40M dead.
+
+For the holding club only, the value now adds `acceleratedBonus` (uncharged bonus less this year's share) on the same per-cap ×340 scale as the contract surplus, clamped 0–70. The acquiring club's number does not move. `checkTrade` and `moveAsset` are untouched.
+
+Measured on this VM, CPU clubs, seeds 42 / 20260727 / 7, five seasons each, against the same code with the term off and against a second candidate (holder prices base only, bonus treated as sunk):
+
+| | trade dead money | largest single trade | trades per year |
+| :--- | ---: | ---: | ---: |
+| before | $1,069M | $39M–$53M | ~99 |
+| this change | $557M | $18M–$19M | ~87 |
+| bonus as sunk | $700M | $64M–$73M | ~86 |
+
+Not moved by this: the worst club still carries $45M–$80M dead in most seasons. Over four seasons on seed 20260727 CPU dead money was $3,527M, of which retirement acceleration is about half and cuts about $1,000M.
+
+`tradeReview` case 8 asserted the old rule (own club values him less with a bonus). It now asserts the new one and covers `acceleratedBonus`. **Re-locks:** `userOffers` tag **608048136**, FA **1223816500**. `trimIdentity` **1551** cuts, rng **2367991772**. `divisionRank` lost its case a second time (seed 49), so it no longer needs one club: it plays seed 42 and moves the seat onto whichever club point differential misplaces.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — pass, exit 0.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline. `verify` 348/348.
+- Not run: the 5-seed Mac Studio panel and `drift.ts 20`. `drift.tradesPerSeason` (min 30) was not measured by its own harness; the ~87 above is `seasonCounters.tradesExecutedLast` on three seeds.
+
 ## 2026-11-13 — Field-goal range on the banked kick, the in-season cap cover, and a real restructure
 
 Signed, Matt, 2026-11-13, in three steps: fix the field-goal calibration, trace and re-lock, and fix the hatch with a real restructure. No `baselines.json` edit. Nothing in `scripts/` moved. `calibrate.fgPct` is back inside its band and is no longer a reported miss.
