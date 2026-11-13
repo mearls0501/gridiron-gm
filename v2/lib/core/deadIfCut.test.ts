@@ -60,7 +60,7 @@ function ok(label: string) { console.log("ok   ", label); }
 // Finding 4. The forced-2 shape is the bug. The drafted deal must not use it.
 {
   const rng = new Rng(1);
-  const forced = makeContract(rng, LEAGUE_MINIMUM, 4, 2028, 2);
+  const forced = makeContract(rng, LEAGUE_MINIMUM, 4, 2028, 2, true);
   assert.equal(capHit(forced), 907_500);
   assert.equal(deadMoney(forced), 2_040_000);
   assert.equal(capSavingsFromCut(forced), -1_132_500);
