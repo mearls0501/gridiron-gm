@@ -257,6 +257,85 @@ Added by the 2026-11-11 review.
 9. **§6.5's QB reading.** Accept that the table reverses §6.5's "hurt rarely, out long" / "too many one-week absences" reading, and that the §6.5 text is rewritten with the code. Or require a sourced QB spell-length series (nflverse `snap_counts` 2021–2024) first.
 10. **Held-out seeds.** Require the fit to be re-read on seeds the weights were not picked on (for example 61–120) before it is quoted as the result.
 
+## Refit to the injury-only targets (2026-11-13)
+
+**Supersedes the `QB_TABLE` and `POSITION_RISK.QB` above.** `docs/nfl-reference.md`
+§6.10 (#237) shows that about a third of real QB1 missed games are not injuries
+(benched, healthy scratch, week-18 rest, off the roster). The table above was
+fitted to §6.8B's all-cause shares, so it asked injuries to carry benchings
+too. The engine only removes a quarterback for injury, so the target is
+§6.10's injury-only rows. Still a fit: the eleven ranges and weights and the
+risk are chosen, not sourced. The targets trace.
+
+**Targets** (§6.10, QB1 per team-season, 2021–24): mean games missed to
+injury **1.77**; missed none **48.4%**; at most one **60.2%**; four or more
+**22.7%**; injury spells per season **0.68**; spell length one game **40.2%**,
+two or three **33.3%**, four or more **26.4%**, eight or more 2.3% (a floor:
+spells are cut at season end, as the sim's are).
+
+**Refit table.** Same eleven descriptions. `POSITION_DURATION.QB` → 1 as above.
+
+```ts
+const QB_TABLE: InjuryEntry[] = [
+  { desc: "Ankle sprain", min: 1, max: 1, weight: 22 },
+  { desc: "Back spasms", min: 1, max: 1, weight: 10 },
+  { desc: "Shoulder soreness", min: 1, max: 1, weight: 8 },
+  { desc: "Hamstring strain", min: 1, max: 3, weight: 12 },
+  { desc: "Groin strain", min: 2, max: 3, weight: 11 },
+  { desc: "Calf strain", min: 2, max: 3, weight: 10 },
+  { desc: "Quad strain", min: 2, max: 4, weight: 6 },
+  { desc: "High ankle sprain", min: 3, max: 6, weight: 8 },
+  { desc: "Foot fracture", min: 5, max: 8, weight: 6 },
+  { desc: "Achilles tear", min: 22, max: 44, weight: 0.8 },
+  { desc: "Torn ACL", min: 22, max: 44, weight: 0.7 },
+];
+// POSITION_RISK.QB: 1.62 -> 0.90 (incidence falls with the injury-only target)
+```
+
+Changes from the table above: groin 2–3 (weight 11), calf 2–3 (weight 10),
+quad 2–4, high ankle sprain 3–6 (weight 8), foot fracture 5–8 (weight 6). The
+three one-week entries, hamstring and the two season-enders are unchanged.
+
+**Measurement.** Fresh leagues on `main` `37f6e45`, one regular season each,
+QB1 = the club's attempts leader, a game played = a box-score row for him,
+the §6.10 definitions. Scratch probe; the candidate tables were injected
+through a scratch-only hook, not committed.
+
+| seeds | candidate | mean missed | none | ≤ 1 | ≥ 4 | ≥ 8 | spells / season | spell 1 / 2–3 / 4+ / 8+ |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| 1–40 (fit) | `main` today | **3.10** | 31.5% | 37.5% | 46.5% | 9.1% | 1.002 | 21.8 / 36.9 / 41.3 / 3.8% |
+| 1–40 (fit) | table above, risk 1.72 | 2.69 | 31.8% | 47.3% | 34.8% | 8.1% | 1.017 | 42.5 / 29.4 / 28.0 / 4.8% |
+| 1–40 (fit) | **refit, risk 0.90** | 1.79 | 48.8% | 62.9% | 21.6% | 4.2% | 0.687 | 42.5 / 30.5 / 27.0 / 4.6% |
+| 61–100 (held out) | **refit, risk 0.90** | **1.81** | **47.2%** | **61.6%** | **22.3%** | 4.5% | **0.673** | **40.4 / 32.6 / 27.0** / 5.2% |
+| 61–100 (held out) | `main` today | 3.16 | 31.1% | 37.3% | 46.4% | 9.0% | 0.974 | 19.5 / 36.6 / 43.9 / 4.1% |
+| target | §6.10 | 1.77 | 48.4% | 60.2% | 22.7% | 2.3% | 0.68 | 40.2 / 33.3 / 26.4 / 2.3% |
+
+Each row is 1,280 QB1 team-seasons. Six candidates were tried on seeds 1–40
+(risk 1.10 and 0.95 with the table above; shorter tails; weight moved from
+four-plus entries to two-to-three). The refit is the last of them, read once
+on held-out seeds 61–100.
+
+**Residual.** Spells of eight games or more sit near 4.5–5% against a
+real 2.3% floor, and did not move with any table edit tried. They come from
+the two season-ending entries (1.6% of QB weekly injuries) and the in-game
+tiers (`INJURY_TIERS`), which have no position term and no source. Left as is.
+
+**Finding on `main`.** QB1s miss **3.10–3.16** games a season today, more
+than the real all-cause 2.71 (§6.10), against 2.73 when task/308 fitted 1.62 /
+1.78 (§6.8B). The engine has drifted toward more QB absence since that fit.
+
+**Not measured here:** `drift.playerWeeksLost`, `careers`, `statcheck`
+passing ranks (`qb20PassYds` will move with more QB1 games), the canaries
+(they will move), and the staff training lever on the new table. Those are
+the panel's (Decision 7).
+
+**Decisions this changes.** Decision 1: adopt the refit table, not the one
+above. Decision 2: `POSITION_RISK.QB` 1.62 → **0.90**, not 1.72. Decision 9:
+§6.10 now supplies a sourced spell-length series, and it supports one-week
+absences (40.2% of injury spells), so §6.5's "too many one-week absences"
+reading is contradicted by data rather than by the fit. Decision 10: done
+(seeds 61–100). Decisions 3–8 stand.
+
 ## Review (2026-11-11)
 
 Adversarial review. Every file:line above was opened on this tree. Only this doc was edited.
