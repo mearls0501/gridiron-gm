@@ -1934,14 +1934,14 @@ function* runGameSim(
    * a real-world rate near one. Range is the kicker's, and only desperation
    * stretches it.
    */
-  const inFieldGoalRange = (): boolean => {
+  const inFieldGoalRange = (stretch = true): boolean => {
     const k = off().starters.K[0];
     const distance = (100 - yardLine) + 17;
     const leg = (k ? 54.5 + (att(k, "kpw") - 50) * 0.16 : 49) + wx.kickRange;
     const endOfHalf = (quarter === 2 || quarter === 4 || overtime) && clock < 30;
     const desperate =
       quarter >= 4 && scoreDiffFor(offenseIsHome) < 0 && clock < 150;
-    const maxRange = leg + (endOfHalf || desperate ? 7 : 0);
+    const maxRange = leg + (stretch && (endOfHalf || desperate) ? 7 : 0);
     return distance <= maxRange;
   };
 
@@ -2062,7 +2062,7 @@ function* runGameSim(
 
     if (
       takeLastKick(quarter, clock, scoreDiffFor(offenseIsHome)) &&
-      off().starters.K.length > 0 && inFieldGoalRange()
+      off().starters.K.length > 0 && inFieldGoalRange(false)
     ) {
       attemptFieldGoal();
       continue;
