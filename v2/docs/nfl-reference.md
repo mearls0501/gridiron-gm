@@ -2109,6 +2109,131 @@ unmeasured here; this file has no run/pass split on a tackle.
 - 2019 `bd5d2e99c0b9f34a9d6fea7ebccd1c207112374b801412be03b776e158c34826` (1,155,384 bytes)
 - 2020 `c1206df91ca88c0c7ef37809bcef132267b75823c83f3620639d6510a4435411` (1,176,924 bytes)
 
+### 5.14 Kicking-game events and special-teams tackles — traced, not locked
+
+Traced 2026-11-13 for `docs/proposal-kicking-game-events-2026-11-11.md` and
+`docs/proposal-special-teams-tackles-2026-11-11.md`. Nothing here is built,
+gated or in `docs/baselines.json`. Every axis stays **ungated** until Matt
+signs a build.
+
+**Dataset.** The same four nflverse `play_by_play_YYYY.csv.gz` files as
+§5.13's own-tackle table (2021–2024, REG rows; SHA-256 and byte counts
+identical to that table). `play_deleted` was not set on any counted row.
+Games: 272 / 271 / 272 / 272. Kickoff rows are `kickoff_attempt` 1 (free kicks
+after a safety included). An onside kick is a kickoff whose `desc` contains
+"onside". A kickoff is *returned* when `kickoff_returner_player_id` is set
+and it is not a touchback, a fair catch or an onside kick. A punt is
+*returned* when `punt_returner_player_id` is set and it is not a fair catch,
+touchback or block. Return yards are `return_yards` on returned rows.
+
+#### Kickoff rule eras
+
+The window holds three kickoff rule sets. The rule statements below come from
+NFL announcements as reported in search excerpts; operations.nfl.com and
+nfl.com were not reachable from the session that wrote this, so the pages
+themselves were not read. Cite the rulebook before building on the geometry.
+
+- **2021–2022:** no kickoff rule change in the window; touchback at the 25
+  (the 2024 sources below describe the 30 as a change from the 25).
+- **2023:** a one-year trial approved 2023-05-23 (reported by CBS Sports,
+  https://www.cbssports.com/nfl/news/nfl-rule-changes-kickoffs-instant-replay-fourth-down-reviews-among-adjustments-for-2023,
+  and NBC Sports PFT,
+  https://nbcsports.com/nfl/profootballtalk/rumor-mill/news/nfl-approves-putting-ball-on-25-yard-line-following-fair-catches-on-kickoffs):
+  a kickoff fair caught behind the receiving team's 25 is spotted at the 25.
+- **2024:** the "Dynamic Kickoff" (NFL.com,
+  https://www.nfl.com/news/2024-nfl-season-explaining-rules-for-new-dynamic-kickoff;
+  NFL Football Operations,
+  https://operations.nfl.com/updates/football-ops/new-nfl-kickoff-rule/):
+  touchback at the 30; a kick landing short of the landing zone is treated
+  as out of bounds (ball at the 40); onside kicks only by a trailing team in
+  the fourth quarter, declared to the officials. A later operations update
+  says the Dynamic Kickoff was made permanent and lets a trailing team declare
+  an onside kick at any time; that is outside this window.
+
+The engine's touchback at the 25 (`TOUCHBACK_YARDLINE`, `game.ts`) matches
+the 2021–2022 era. Kickoff rates must name an era; they are not pooled.
+
+#### Kickoffs (non-onside)
+
+| era | kickoffs | per team-game | touchback | fair catch | returned | return TD / returned | return yards mean (sd, median) |
+|---|---:|---:|---:|---:|---:|---:|---|
+| 2021–22 | 5,369 | 5.05 | **0.5981** | 0.0002 | 0.3926 | 14 / 2,108 = **0.0066** | **22.51** (11.21, 21) |
+| 2023 | 2,657 | 4.96 | 0.7414 | 0.0342 | 0.2205 | 5 / 586 = 0.0085 | 23.06 (10.77, 22) |
+| 2024 | 2,753 | 5.15 | 0.6549 | 0.0004 | 0.3327 | 6 / 916 = 0.0066 | 27.57 (10.38, 26) |
+
+Per team-game counts all kickoffs, onside included. By season, touchbacks
+were 1,598 / 1,613 / 1,970 / 1,803 of 2,779 / 2,703 / 2,698 / 2,803 kickoffs.
+
+#### Onside kicks
+
+| era | attempts | recovered | rate | of which Q4 last 5:00, kicking side trailing |
+|---|---:|---:|---:|---|
+| 2021–23 | 154 | 14 | **0.0909** | 126 attempts, 10 recovered (0.0794) |
+| 2024 | 50 | 3 | 0.0600 | 44 attempts, 2 recovered |
+
+Across 2021–24, 197 of 204 onside attempts were by a trailing team and 170
+came in the last 5:00 of the fourth quarter. No recovery was returned for a
+touchdown (`own_kickoff_recovery_td` 0). By season: 57 / 56 / 41 / 50
+attempts, 9 / 3 / 2 / 3 recovered. The kicking side is `defteam` on a
+kickoff row; its margin is `-score_differential`.
+
+#### Punts (2021–24 pooled)
+
+No punt rule changed in the window that the rows show; by-season rates are
+stable (below), so punts pool.
+
+| quantity | value |
+|---|---|
+| punts / per team-game | 8,587 / **3.95** |
+| blocked | 42 / 8,587 = **0.0049** (12 / 12 / 6 / 12 by season); 0 returned for a TD, 3 safeties |
+| touchback | 614 = **0.0715** |
+| returned, of punts not a touchback and not blocked | 3,677 / 7,931 = **0.4636** |
+| fair catch / downed / out of bounds | 2,352 / 1,049 / 854; fair-catch share of the three = **0.5528** |
+| return TD / returned | 21 / 3,677 = **0.0057** |
+| return yards on returned punts | mean **9.28**, sd 9.57, median 8 |
+
+#### Field goals and extra points (2021–24 pooled)
+
+| kick | attempts | blocked | blocked / attempts | blocked / not made | blocked, returned for TD |
+|---|---:|---:|---:|---:|---:|
+| FG | 4,264 | 78 (15 / 28 / 17 / 18) | **0.0183** | 78 / 639 = **0.1221** | 0 |
+| XP | 4,854 | 31 (5 / 7 / 7 / 12) | **0.0064** | 31 / 247 = **0.1255** | — |
+
+Defensive two-point returns (`defensive_two_point_conv`): **3** in four
+seasons. `defensive_extra_point_conv`: 0.
+
+#### Special-teams tackles — the 712.3 already contains them
+
+Counting own tackles (§5.13's definition: a non-empty `solo_tackle_1/2` or
+`tackle_with_assist_1/2` id) per club-season by the tackler's
+`*_team` column over every REG play reproduces §5.13's weekly team total:
+**712.2** (n = 128; by year 721.3 / 724.9 / 722.1 / 680.7, against the
+weekly 721.4 / 724.9 / 722.1 / 680.7). Of that:
+
+| split | own tackles per club-season |
+|---|---:|
+| kickoff and punt plays (`kickoff_attempt` or `punt_attempt`) | **44.59** (48.75 / 48.12 / 38.75 / 42.72) |
+| every other play | **667.7** (672.6 / 676.8 / 683.3 / 638.0) |
+
+So the weekly 712.3 includes special-teams tackles, and a scrimmage-only
+engine should be read against **667.7**, not 712.3.
+
+Own-tackle rate on a live, non-TD return: kickoff **2,740 / 3,585 = 0.7643**
+(2021–23 0.7712, 2024 0.7440); punt **2,935 / 3,656 = 0.8028**.
+
+#### The engine's untraced constants against these rows (finding, not tuned)
+
+| `game.ts` | engine | traced |
+|---|---|---|
+| kickoff touchback | 0.62 | 0.5981 (2021–22) |
+| kickoff return TD | 0.0055 | 0.0066 |
+| kickoff return yards | normal(23, 8), 5–45 | mean 22.51, sd 11.21 (2021–22) |
+| punt returned, of landings not a touchback | 0.55 | 0.4636 |
+| punt return TD | 0.004 | 0.0057 |
+| punt return yards | normal(8, 7), 0–40 | mean 9.28, sd 9.57 |
+
+None of these constants is changed by this block.
+
 ## 6. Starter availability — how much time a real starter misses
 
 Added 2026-08-02 for `task/305-availability`. **PARTIAL: skill positions only.**
