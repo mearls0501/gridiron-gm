@@ -6,7 +6,7 @@ import {
 } from "./types";
 import {
   addDeadCap, annualCapHit, arrivingCapHit, capHit, departingPaidOut, isActiveRoster, positionCount,
-  remainingBonusProration, rosterCount, settlePaidWeeks, teamCap, teamRoster,
+  prorationYearsUncharged, remainingBonusProration, rosterCount, settlePaidWeeks, teamCap, teamRoster,
 } from "./select";
 import { Posture, REPLACEMENT_OVR, evaluate, frontOffice, teamOutlook } from "./frontOffice";
 import { askingPrice } from "./offseason/contracts";
@@ -261,11 +261,29 @@ export function playerTradeValue(
   const surplus = (market - hit) / Math.max(1, teamCap(state, teamId).cap);
   const contractAdj = clamp(surplus * 340, -70, 45);
 
+  // Moving him puts every later year of his bonus on this year's books
+  // (`moveAsset`). That room is a cost to the club that holds him, priced on
+  // the same scale as the contract surplus, so the return has to pay for it.
+  // Without it the proration above reads as a burden a trade would shed, and
+  // a club signs a free agent and ships him for seventh-round picks in the
+  // same window. The acquiring club does not carry the bonus, so its number
+  // does not move.
+  const accel = p.teamId === teamId ? acceleratedBonus(p.contract) : 0;
+  const accelAdj = clamp(accel / Math.max(1, teamCap(state, teamId).cap) * 340, 0, 70);
+
   // Somebody who cannot stay on the field is worth less than his rating.
   const health = p.injuryWeeks > 0 ? 1 - clamp(p.injuryWeeks / 30, 0, 0.55) : 1;
   const durable = 0.85 + (p.durability / 100) * 0.3;
 
-  return Math.max(0, (raw + contractAdj) * health * durable);
+  return Math.max(0, (raw + contractAdj) * health * durable) + accelAdj;
+}
+
+/** Bonus a trade would charge now that staying put would charge in later years. */
+export function acceleratedBonus(c: Player["contract"]): number {
+  if (!c) return 0;
+  const years = prorationYearsUncharged(c);
+  if (years <= 1) return 0;
+  return Math.round(remainingBonusProration(c) * (1 - 1 / years));
 }
 
 export function assetValue(
