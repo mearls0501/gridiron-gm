@@ -1,7 +1,7 @@
 # Gridiron GM — Roadmap
 
 Standing roadmap. Read after `AGENTS.md`, before `HANDOFF.md`. **Updated
-2026-11-11** against `main` at `aa114db` (#227). The last Studio panel on
+2026-11-13** against `main` at `2b5b81e` (#234). The last Studio panel on
 `main` is `ddc62bd` (#204, 2026-10-27). `HANDOFF.md` is the record; this file
 is the plan. Dispatch rules for parallel agents are in `ORCHESTRATION.md`.
 
@@ -66,7 +66,9 @@ entry.
 - **Stat tails.** Target share and tackle share bend past the NFL tails;
   primary tackle credit at the 2021–24 rate; no tackle on a scoring play
   (#222). Team tackles near **655** a season are accepted (Matt, 2026-11-11);
-  the engine credits no special-teams tackle.
+  the engine credits no special-teams tackle. The real 712.3 includes them:
+  44.6 a club-season come on kickoffs and punts, so the scrimmage-only
+  comparison is **667.7** (`nfl-reference.md` §5.14, 2026-11-13).
 - **Scouting.** Named scouts and a focus list, film / pro-day caps, risk grades
   with consequences, public athletic testing, scheme-fit grades, CPU drafting
   on believed fit, future classes alive before they are scouted, fogged trade
@@ -117,23 +119,17 @@ On a 4-core box, 2026-11-11, merge head `b5c2a21` plus the signed re-lock:
 
 ### Now — a Studio panel on `main`
 
-Run `npm run gate:full:serial` on the Mac Studio against `main` (`aa114db`)
+Run `npm run gate:full:serial` on the Mac Studio against `main` (`2b5b81e`)
 and post the GATE table to `HANDOFF.md`. It is the first `main` panel since
-`ddc62bd` and covers ten merges, including the
-BUG-A spend change (#214), the stat-tail bend (#222) and the Hall of Fame
-rules (#225). Read `drift`, `careers`, `calibrate.fgPct` and
-`drift.medianPayrollPct` first.
+`ddc62bd` and covers every merge since, including the BUG-A spend change
+(#214), the stat-tail bend (#222), the Hall of Fame rules (#225), rookie
+guarantees and the tag-window meter (#229, merged without a panel) and the
+Phase 1 leftovers (#234). Read `drift`, `careers`, `calibrate.fgPct` and
+`drift.medianPayrollPct` first. Protocol, unsigned:
+`docs/proposal-studio-panel-and-camp-nudge-2026-11-11.md`.
 
-### Next — two unsigned playtest proposals
-
-Both are written up with a diff and await Matt's sign:
-
-- **Dead-if-cut on rookie deals** (`docs/playtest-1028-dead-if-cut.md`).
-  `rookieContract` hands every pick two guaranteed years; the proposal routes
-  it through `defaultGuaranteedYears`. One argument, no dial.
-- **Tag-window re-sign cap space** (`docs/playtest-1028-resign-cap-space.md`).
-  The tag-window meter and Offer charge the closing year, not the coming one;
-  the proposal adds `tagWindowCap` and `screenCap`.
+The two playtest-1028 proposals (dead-if-cut on rookie deals, tag-window
+re-sign cap space) were signed and built in #229, with residuals in #232.
 
 ### Then — turn on the camp nudge?
 
@@ -144,11 +140,20 @@ it on. Design: `docs/preseason-games-design-2026-10-20.md`.
 
 ### Then — the long tail (Phase 6)
 
-Onside kicks, blocked kicks and fair catches (none in the sim today).
-Special-teams tackles (the gap from 655 to ~712 team tackles). Benching a
-passer for bad play. Trick plays. A per-position injury duration table
-(closes the QB availability limitation). The 6-veteran PS cap and
-international PS slot. Real, not urgent.
+Each item has an unsigned proposal (2026-11-11). Invariant 7 holds a build
+until its rates are in `nfl-reference.md`.
+
+| item | proposal | blocked on |
+|---|---|---|
+| Onside kicks, blocked kicks, fair catches | `proposal-kicking-game-events-2026-11-11.md` | **Traced** 2026-11-13 (§5.14; kickoff rates by rule era). Now Matt's decisions: kickoff era, staging, Stage 2 re-lock. |
+| Special-teams tackles | `proposal-special-teams-tackles-2026-11-11.md` | **Traced** 2026-11-13 (§5.14: the 712.3 includes them; 44.6 a club-season; coverage-tackle rate 0.764 KR, 0.803 PR). Now Matt's sign. |
+| Per-position injury duration table (QB availability limitation) | `proposal-injury-duration-by-position-2026-11-11.md` | **QB traced** 2026-11-13 (§6.10: spell lengths; a third of QB1 missed games are not injuries, so the target is injury-only). QB table refit to the injury-only targets 2026-11-13 (held-out seeds land; `main` QB1s miss 3.1 games a season today, more than the real all-cause 2.7). Other positions' 17-game-era rows still untraced. Now Matt's decisions. |
+| Benching a passer, trick plays | `proposal-qb-benching-and-trick-plays-2026-11-11.md` | The 21.4% second-passer split by cause is untraced; the sim's shape is off (too many blowout reliefs). |
+| 6-veteran PS cap, international slot | `proposal-practice-squad-veteran-and-international-2026-11-11.md` | CBA text not cited; the sim has no accrued seasons and no international players. Not urgent. |
+
+§5.14 also shows the engine's untraced kick constants against real rows (a
+finding, not tuned): punt return share 0.55 against 0.464, punt return TD
+0.004 against 0.0057, kickoff touchback 0.62 against 0.598 (2021–22).
 
 ### Phase 1 leftovers
 
@@ -165,7 +170,9 @@ engine live opening kick (**D2**, with kicking-game Stage 2), and
 
 The approved LLM use: scouting-report prose, season recaps, a press conference
 after a loss. Thin proxy so keys stay off the client; fully optional so offline
-play survives; never in a decision loop. Not started.
+play survives; never in a decision loop. Not started. Proposal:
+`proposal-narration-proxy-2026-11-11.md` — needs three signatures (an
+invariant 5 amendment, a monthly spend ceiling, raw HTTP or the SDK).
 
 ### Housekeeping
 

@@ -2,6 +2,8 @@
 
 **UNSIGNED.** Proposal only. This note changes no code, test, `scripts/` file, `docs/baselines.json`, `docs/milestone-reference.json`, or canary. Matt signs any change. No re-lock, no dial retune, no panel.
 
+**Traced 2026-11-13:** `docs/nfl-reference.md` §5.14 now holds the weekly 712.3 already includes 44.6 kick/punt tackles a club-season (scrimmage-only 667.7), and the own-tackle rate on a live return. The trace blocker below is cleared; the rest of this note is unchanged.
+
 Tree: `/home/user/gridiron-gm/v2`, branch `claude/gracious-allen-i8ij43`, main at `9e74d34`. Line numbers below are from this tree.
 
 ## Summary
