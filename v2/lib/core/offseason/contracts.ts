@@ -2257,6 +2257,42 @@ export function enforceCap(state: GameState, teamId: number): void {
 }
 
 /**
+ * In season, CPU clubs only. An IR replacement is signed whether or not it
+ * fits, so a club with a thin book can end the week over the cap. The waiver
+ * backstop does not run on an empty wire, and a cut it does make is undone by
+ * the next refill when it saves less than the replacement costs.
+ *
+ * Release the deal whose saving, net of a minimum replacement, buys the least
+ * ability, then refill the open spot. Repeats until the book is legal or no
+ * release nets room. Does nothing, and does not draw, for a club under the cap.
+ */
+export function coverCpuCapInSeason(state: GameState, rng: Rng): void {
+  if (!inSeasonRosterPhase(state)) return;
+  const hold = rosterLimit(state.phase);
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    let guard = 0;
+    while (teamCap(state, t.id).space < 0 && guard++ < 20) {
+      const replacement = minimumCapHit(state, rng);
+      const target = state.players
+        .filter((p) => p.teamId === t.id && !p.retired && !p.prospect && p.contract)
+        .filter((p) => !isActiveRoster(p) || positionCount(state, t.id, p.pos) > POSITION_MIN[p.pos])
+        .map((p) => ({
+          p,
+          // An active release opens a spot that has to be paid for again.
+          net: capHit(p.contract) - deadMoney(p.contract) - (isActiveRoster(p) ? replacement : 0),
+          cost: Math.pow(Math.max(1, p.ovr - 45), 1.6),
+        }))
+        .filter((c) => c.net > 0)
+        .sort((a, b) => b.net / b.cost - a.net / a.cost || a.p.id - b.p.id)[0];
+      if (!target) break;
+      cutPlayer(state, target.p.id);
+      if (rosterCount(state, t.id) < hold) fillOpenActiveSlots(state, t.id, rng);
+    }
+  }
+}
+
+/**
  * Bring a team to a legal roster AND under the cap.
  *
  * These two constraints fight each other — cutting for cap space drops the

@@ -137,7 +137,10 @@ function withoutPlace(records: TeamRecord[]): TeamRecord[] {
   assert.equal(presentSeasonReview(legacy).userFinish, "2nd in AFC East");
 }
 
-const st = newGame({ seed: 42 });
+// Seed 49: the user's club finishes 3rd on the tiebreak where point
+// differential alone would put it 2nd. Seed 42 held that case until the
+// banked end-of-half kick range changed its games (2026-11-13).
+const st = newGame({ seed: 49 });
 st.settings = defaultSettings();
 st.settings.firingEnabled = false;
 st.settings.pauseOnStartingQb = false;
@@ -154,7 +157,7 @@ assert.equal(divisionRankLabel(st, team.id, season), label);
 assert.notEqual(
   pointDiffRank(st, team.division, season),
   officialRank,
-  "seed 42's first season is a tie point differential gets wrong",
+  "seed 49's first season is a tie point differential gets wrong",
 );
 
 assert.equal(presentSeasonReview(st).userFinish, label);
