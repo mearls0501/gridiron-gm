@@ -711,6 +711,15 @@ export async function checkPhase1BoxScores(page, base, { fail, ok }, onPage) {
   }
   await league.click();
   await page.waitForTimeout(200);
+  // P5 (E3): a CPU box keeps its snap log only while its week is the latest
+  // played. Note whether week 2 has a result before reading week 1.
+  let laterWeekPlayed = false;
+  const week2 = page.getByRole("button", { name: "2", exact: true });
+  if (await week2.count()) {
+    await week2.click();
+    await page.waitForTimeout(250);
+    laterWeekPlayed = await page.evaluate(() => !!document.querySelector('tr a[href^="/game/"]'));
+  }
   const week1 = page.getByRole("button", { name: "1", exact: true });
   if (await week1.count()) {
     await week1.click();
@@ -740,11 +749,13 @@ export async function checkPhase1BoxScores(page, base, { fail, ok }, onPage) {
   else if (!cpuBox.hasStats) fail("CPU box score has no stat sections");
   else if (!cpuBox.hasDrive || cpuBox.poss < 1) {
     fail(`/game CPU: Drive Chart missing (${cpuHref})`);
+  } else if (cpuBox.hasPbp && laterWeekPlayed) {
+    fail(`/game CPU: week-1 snap log kept after a later week (${cpuBox.snaps} snaps at ${cpuHref}); P5 keeps the latest week only`);
   } else if (cpuBox.hasPbp) {
-    fail(`/game CPU: snap log present (${cpuBox.snaps} snaps at ${cpuHref}); P5 is not signed`);
+    ok(`/game CPU Drive Chart (${cpuBox.poss} possessions) + latest-week snap log (${cpuBox.snaps} snaps, P5)`);
   } else {
-    console.log("  note  CPU box snap log absent (OK — P5 not signed)");
-    ok(`/game CPU Drive Chart (${cpuBox.poss} possessions); no snap log`);
+    if (!laterWeekPlayed) fail(`/game CPU: latest-week CPU box has no snap log (${cpuHref}); P5 keeps it`);
+    else ok(`/game CPU Drive Chart (${cpuBox.poss} possessions); earlier-week snap log dropped (P5)`);
   }
 }
 

@@ -149,7 +149,20 @@ export function ensureCurrentRoundGames(state: GameState): Game[] {
   return games;
 }
 
+/**
+ * P5: a CPU game keeps its snap log for one week. Drop the logs of every
+ * played game the user club was not in. Reads nothing random.
+ */
+export function dropCpuPlays(state: GameState): void {
+  for (const g of state.games) {
+    if (!g.played || !g.boxScore?.plays) continue;
+    if (g.homeId === state.userTeamId || g.awayId === state.userTeamId) continue;
+    delete g.boxScore.plays;
+  }
+}
+
 export function simulatePlayoffRound(state: GameState, rng: Rng): void {
+  dropCpuPlays(state);
   resolveWaivers(state);
   if (trimCpuRosterSanity(state)) {
     const fillRng = new Rng(rng.int(1, 0x7ffffffe));
@@ -219,6 +232,7 @@ export function simulatePlayoffRound(state: GameState, rng: Rng): void {
     g.homeScore = result.homeScore;
     g.awayScore = result.awayScore;
     g.boxScore = result.box;
+    if (!g.boxScore.plays && result.plays.length) g.boxScore.plays = result.plays;
     g.played = true;
     applyGameStats(state, g);
     recordGame(state, g);

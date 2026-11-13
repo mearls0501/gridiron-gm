@@ -114,6 +114,10 @@ export function formatPlay(
   names: (id: number) => string,
   sides?: PlaySides,
 ): string {
+  if (e.returnerId !== undefined) {
+    const { returnerId, ...snap } = e;
+    return `${formatPlay(snap, names, sides)} — ${nameOf(returnerId, names) || "defender"} returns it for a TD`;
+  }
   const who = nameOf(e.playerId, names);
   const tgt = nameOf(e.targetId, names);
 

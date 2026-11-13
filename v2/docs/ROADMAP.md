@@ -152,9 +152,14 @@ international PS slot. Real, not urgent.
 
 ### Phase 1 leftovers
 
-Formation tree and play art; a `/play` session that survives refresh; a live
-opening kick; **P5** (snap log on every CPU box — save-size lead decision, not
-signed); **P2** (optional `PlayEvent` fields, not signed).
+Built 2026-11-13 (`docs/proposal-phase1-play-leftovers-2026-11-11.md`, packets
+A, B, C, D1, E3): play art as a field strip (no formation drawing), the
+`/play` kickoff key (the session already survived refresh, HANDOFF
+2026-10-01), the opening kick shown with its kicker, **P2** (`kickerId`,
+`returnerId`, defensive-TD row order) and **P5** as a one-week CPU snap log.
+Still out: a formation tree (no traced formation or personnel rates), the
+engine live opening kick (**D2**, with kicking-game Stage 2), and
+`returnYards` (the fumble-return distance and pick-six yards are wrong today).
 
 ### Phase 5 — narration
 

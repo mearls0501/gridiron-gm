@@ -931,6 +931,8 @@ function* runGameSim(
 
   const scoringPlays: ScoringPlay[] = [];
   const playLog: PlayEvent[] = [];
+  /** Set by `defensiveTd` so the snap row can name the returner. */
+  let lastDefTd: { id: number; home: boolean } | null = null;
   const emit = (
     e: Omit<PlayEvent, "q" | "clock" | "homeScore" | "awayScore"> &
       Partial<Pick<PlayEvent, "q" | "clock" | "homeScore" | "awayScore">>,
@@ -1118,6 +1120,8 @@ function* runGameSim(
   const kickoff = () => {
     const receivingIsHome = !offenseIsHome;
     const receiving = receivingIsHome ? ctxHome : ctxAway;
+    const kicking = receivingIsHome ? ctxAway : ctxHome;
+    const kickerId = kicking.starters.K[0]?.id;
     offenseIsHome = receivingIsHome;
 
     if (rng.chance(0.62)) {
@@ -1125,6 +1129,7 @@ function* runGameSim(
       emit({
         kind: "kickoff", result: "touchback", yards: 0,
         down: 1, toGo: 10, yardLine: TOUCHBACK_YARDLINE, offenseId: receiving.team.id,
+        ...(kickerId !== undefined ? { kickerId } : {}),
       });
       return;
     }
@@ -1145,7 +1150,6 @@ function* runGameSim(
       if (td) st.krTd++;
     }
 
-    const kicking = receivingIsHome ? ctxAway : ctxHome;
     kickExposure(kicking.starters.K[0], kicking, 0.25);
 
     if (td) {
@@ -1154,6 +1158,7 @@ function* runGameSim(
         kind: "kickoff", result: "td", yards: ret,
         down: 0, toGo: 0, yardLine: TOUCHBACK_YARDLINE, offenseId: receiving.team.id,
         playerId: returner?.id,
+        ...(kickerId !== undefined ? { kickerId } : {}),
       });
       attemptPat(receiving);
       // The team that just scored kicks off; kickoff() hands the ball to the
@@ -1168,6 +1173,7 @@ function* runGameSim(
       kind: "kickoff", result: "return", yards: ret,
       down: 1, toGo: Math.min(10, 100 - yardLine), yardLine, offenseId: receiving.team.id,
       playerId: returner?.id,
+      ...(kickerId !== undefined ? { kickerId } : {}),
     });
   };
 
@@ -1300,6 +1306,7 @@ function* runGameSim(
 
   /** Interception or fumble returned all the way. */
   const defensiveTd = (defender: Player, defCtx: Ctx, kind: "INT" | "fumble", retYds: number) => {
+    lastDefTd = { id: defender.id, home: defCtx.team.id === home.id };
     const st = statFor(defender, defCtx);
     st.defTd++;
     if (kind === "INT") st.intYds += retYds;
@@ -1963,10 +1970,15 @@ function* runGameSim(
   // -------------------------------------------------------------------------
 
   off().stats.possessions++;
-  emit({
-    kind: "kickoff", result: "touchback", yards: 0,
-    down: 1, toGo: 10, yardLine: TOUCHBACK_YARDLINE, offenseId: off().team.id,
-  });
+  const stubKickerId = () => (offenseIsHome ? ctxAway : ctxHome).starters.K[0]?.id;
+  {
+    const kickerId = stubKickerId();
+    emit({
+      kind: "kickoff", result: "touchback", yards: 0,
+      down: 1, toGo: 10, yardLine: TOUCHBACK_YARDLINE, offenseId: off().team.id,
+      ...(kickerId !== undefined ? { kickerId } : {}),
+    });
+  }
   let guard = 0;
 
   while (guard++ < 500) {
@@ -1990,9 +2002,11 @@ function* runGameSim(
         if (quarter === 3) {
           offenseIsHome = !receivedFirst;
           startDrive(TOUCHBACK_YARDLINE);
+          const kickerId = stubKickerId();
           emit({
             kind: "kickoff", result: "touchback", yards: 0,
             down: 1, toGo: 10, yardLine: TOUCHBACK_YARDLINE, offenseId: off().team.id,
+            ...(kickerId !== undefined ? { kickerId } : {}),
           });
         }
       }
@@ -2150,6 +2164,10 @@ function* runGameSim(
     const snapDown = down;
     const snapToGo = toGo;
     const snapYl = yardLine;
+    const snapAt = playLog.length;
+    const snapHome = homeScore;
+    const snapAway = awayScore;
+    lastDefTd = null;
     const outcome = doPass ? passPlay() : runPlay(sneak);
     creditSnaps(snapOff, snapDef);
     // After the snap is credited, so a man who goes down keeps the work he did.
@@ -2167,13 +2185,28 @@ function* runGameSim(
           : outcome.turnover ? (outcome.isPass ? "int" : "fumble")
           : kind === "pass" ? (outcome.yards === 0 ? "incomplete" : "complete")
           : outcome.yards < 0 ? "loss" : "gain");
-      emit({
+      const row = {
         kind, result, yards: outcome.yards,
         down: snapDown, toGo: snapToGo, yardLine: snapYl,
         offenseId: snapOff.team.id,
         playerId: outcome.passerId ?? outcome.scorerId ?? undefined,
         targetId: outcome.targetId ?? (outcome.isPass ? outcome.scorerId ?? undefined : undefined),
-      });
+      };
+      const defTd = lastDefTd as { id: number; home: boolean } | null;
+      if (defTd) {
+        // P2: the PAT and kickoff were logged inside the play function. Put
+        // the snap ahead of them, with the score the return made.
+        playLog.splice(snapAt, 0, {
+          q: quarter,
+          clock: Math.max(0, Math.round(clock)),
+          homeScore: snapHome + (defTd.home ? 6 : 0),
+          awayScore: snapAway + (defTd.home ? 0 : 6),
+          ...row,
+          returnerId: defTd.id,
+        });
+      } else {
+        emit(row);
+      }
     }
 
     if (outcome.scored) continue;

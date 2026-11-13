@@ -250,3 +250,95 @@ assert.equal(
   false,
 );
 console.log("ok    playByPlay — SD 32, NYS 29 · Loss (OT)");
+
+// Phase 1 leftover B, P2 (`docs/proposal-phase1-play-leftovers-2026-11-11.md`).
+// A defensive return TD's snap row comes before the PAT and kickoff, names
+// the returner, and carries the score the return made. Kickoff rows name the
+// kicker. No field changes a draw.
+{
+  const st = newGame({ seed: 12345 });
+  const rng = new Rng(999);
+  let defTd = 0;
+  let returned = 0;
+  let kicks = 0;
+  let kicked = 0;
+  for (let i = 0; i < 120; i++) {
+    const g = {
+      id: 9000 + i, season: st.season, week: 1, homeId: i % 32, awayId: (i * 7 + 3) % 32,
+      played: false, homeScore: 0, awayScore: 0, playoffRound: null, boxScore: null,
+    } as unknown as Parameters<typeof simulateGame>[1];
+    if (g.homeId === g.awayId) continue;
+    for (const p of st.players) { p.injuryWeeks = 0; p.injuryDesc = null; }
+    const r = simulateGame(st, g, rng);
+    for (const line of r.box.players) defTd += line.defTd;
+    for (let j = 0; j < r.plays.length; j++) {
+      const e = r.plays[j];
+      if (e.kind === "kickoff") {
+        kicks++;
+        if (e.kickerId !== undefined) kicked++;
+      }
+      if (e.returnerId === undefined) continue;
+      returned++;
+      assert.ok(e.result === "int" || e.result === "fumble", "a returner rides an int or fumble row");
+      const prev = r.plays[j - 1];
+      const next = r.plays[j + 1];
+      assert.ok(next && (next.kind === "xp" || next.kind === "two"), "the PAT follows the return");
+      assert.notEqual(next.offenseId, e.offenseId, "the defence kicks the PAT");
+      const delta = (e.homeScore + e.awayScore) - (prev.homeScore + prev.awayScore);
+      assert.equal(delta, 6, "the snap row carries the six the return made");
+    }
+  }
+  assert.ok(defTd > 0, "the sample has defensive touchdowns");
+  assert.equal(returned, defTd, "every defensive TD names its returner on the snap row");
+  assert.equal(kicked, kicks, "every kickoff row names the kicker");
+
+  const names = (id: number) => (id === 1 ? "Brady" : id === 2 ? "Smith" : id === 3 ? "Tucker" : "");
+  const base = {
+    q: 2, clock: 300, down: 2, toGo: 7, yardLine: 40, offenseId: 0, yards: 0, homeScore: 7, awayScore: 6,
+  };
+  assert.equal(
+    formatPlay({ ...base, kind: "pass", result: "int", playerId: 1, returnerId: 2 } as PlayEvent, names),
+    "Brady pass intercepted — Smith returns it for a TD",
+  );
+  assert.equal(
+    formatPlay({ ...base, kind: "run", result: "fumble", playerId: 1, returnerId: 2 } as PlayEvent, names),
+    "Brady run, fumble — Smith returns it for a TD",
+  );
+  assert.equal(
+    formatPlay({ ...base, kind: "kickoff", result: "touchback", kickerId: 3 } as PlayEvent, names),
+    "Kickoff — touchback",
+    "the kicker is not in the touchback text",
+  );
+  console.log("ok    playByPlay — P2 returner and kicker fields; the defensive TD row precedes its PAT");
+}
+
+// Phase 1 leftover E3, P5. A CPU box keeps its snap log for the latest week
+// only. The engine still returns it unpersisted; the week engine attaches it.
+{
+  const st = newGame({ seed: 46 });
+  startRegularSeason(st);
+  advance(st);
+  const w1 = st.week - 1;
+  const cpuOf = (week: number) =>
+    st.games.filter(
+      (g) => g.week === week && g.played && g.playoffRound === null
+        && g.homeId !== st.userTeamId && g.awayId !== st.userTeamId,
+    );
+  assert.ok(cpuOf(w1).length > 0);
+  assert.ok(cpuOf(w1).every((g) => (g.boxScore?.plays?.length ?? 0) > 20), "the latest week's CPU boxes keep their log");
+  advance(st);
+  const w2 = st.week - 1;
+  assert.notEqual(w2, w1);
+  assert.ok(cpuOf(w1).every((g) => g.boxScore?.plays === undefined), "an earlier week's CPU logs are dropped");
+  assert.ok(cpuOf(w1).every((g) => (g.boxScore?.drives?.length ?? 0) > 0), "the drive chart stays");
+  assert.ok(cpuOf(w2).every((g) => (g.boxScore?.plays?.length ?? 0) > 20));
+  const user = st.games.filter(
+    (g) => g.played && (g.homeId === st.userTeamId || g.awayId === st.userTeamId),
+  );
+  assert.ok(user.every((g) => (g.boxScore?.plays?.length ?? 0) > 0), "user boxes keep their log");
+  const back = decodeSave(encodeSave(st));
+  const bg = back.games.find((g) => g.id === cpuOf(w2)[0].id)!;
+  const wireOf = (v: unknown) => JSON.parse(JSON.stringify(v));
+  assert.deepEqual(wireOf(bg.boxScore?.plays), wireOf(cpuOf(w2)[0].boxScore!.plays), "codec round-trip keeps a CPU log");
+  console.log("ok    playByPlay — P5 CPU snap logs live one week");
+}

@@ -5,7 +5,7 @@ import { generateSchedule } from "../schedule";
 import { Game, GameState, Player, REGULAR_SEASON_WEEKS, TRADE_DEADLINE_WEEK } from "../types";
 import { applyGameStats } from "./stats";
 import { recordGame } from "./records";
-import { ensureCurrentRoundGames, initPlayoffs, simulatePlayoffRound } from "./playoffs";
+import { dropCpuPlays, ensureCurrentRoundGames, initPlayoffs, simulatePlayoffRound } from "./playoffs";
 import { applyGameWear, healWeek, healthySet, rollWeeklyInjuries } from "./injuries";
 import { generateUserOffers, pruneStaleTradeInbox, runCpuTrades } from "../trades";
 import { fillCpuIrReplacements } from "../irFill";
@@ -62,6 +62,7 @@ export type RegularKickoffObserver = (state: Readonly<GameState>, games: readonl
 
 /** Simulate every unplayed game in the current week. */
 export function simulateWeek(state: GameState, onKickoff?: RegularKickoffObserver): void {
+  dropCpuPlays(state);
   resolveWaivers(state);
   const rng = new Rng(state.rngState);
   refreshDepthCharts(state);
@@ -96,6 +97,7 @@ export function simulateWeek(state: GameState, onKickoff?: RegularKickoffObserve
     g.homeScore = result.homeScore;
     g.awayScore = result.awayScore;
     g.boxScore = result.box;
+    if (!g.boxScore.plays && result.plays.length) g.boxScore.plays = result.plays;
     g.played = true;
     applyGameStats(state, g);
     recordGame(state, g);
