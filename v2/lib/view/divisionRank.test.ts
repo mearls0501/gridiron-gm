@@ -137,10 +137,12 @@ function withoutPlace(records: TeamRecord[]): TeamRecord[] {
   assert.equal(presentSeasonReview(legacy).userFinish, "2nd in AFC East");
 }
 
-// Seed 49: the user's club finishes 3rd on the tiebreak where point
-// differential alone would put it 2nd. Seed 42 held that case until the
-// banked end-of-half kick range changed its games (2026-11-13).
-const st = newGame({ seed: 49 });
+// A season where some club's official place is not the one point
+// differential alone would give it. Which club that is moves every time a
+// sim rule changes (seed 42's user club, then seed 49's, each lasted one
+// change), so the seat is moved onto whichever club has the case after the
+// season is played. The chair is an id; nothing below reads owner state.
+const st = newGame({ seed: 42 });
 st.settings = defaultSettings();
 st.settings.firingEnabled = false;
 st.settings.pauseOnStartingQb = false;
@@ -148,8 +150,15 @@ advance(st);
 runSimTo(st, "champion");
 assert.equal(st.phase, "offseason-recap");
 
-const team = st.teams[st.userTeamId];
 const season = st.season;
+const seat = st.teams.find((t) => {
+  st.userTeamId = t.id;
+  const place = divisionStandings(st, t.division, season).findIndex((r) => r.teamId === t.id) + 1;
+  return pointDiffRank(st, t.division, season) !== place;
+});
+assert.ok(seat, "seed 42's first season has a club point differential misplaces");
+st.userTeamId = seat.id;
+const team = st.teams[st.userTeamId];
 const official = divisionStandings(st, team.division, season);
 const officialRank = official.findIndex((r) => r.teamId === team.id) + 1;
 const label = `${place(officialRank)} in ${team.division}`;
@@ -157,7 +166,7 @@ assert.equal(divisionRankLabel(st, team.id, season), label);
 assert.notEqual(
   pointDiffRank(st, team.division, season),
   officialRank,
-  "seed 49's first season is a tie point differential gets wrong",
+  "the seat is on a club point differential gets wrong",
 );
 
 assert.equal(presentSeasonReview(st).userFinish, label);
