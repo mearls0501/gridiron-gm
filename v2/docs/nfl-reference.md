@@ -2829,6 +2829,88 @@ unchanged. `capBustSeasons` 0.40 and `franchiseTagsPerSeason`
 
 ---
 
+### 6.10 QB1 absence spells and their causes, 17-game era — traced, not locked
+
+Traced 2026-11-13 for `docs/proposal-injury-duration-by-position-2026-11-11.md`
+("Numbers this proposal needs": QB absence-spell lengths, injury versus
+benching). Nothing here is built, gated or in `docs/baselines.json`.
+
+**Dataset.** nflverse, REG rows, 2021–2024, from
+<https://github.com/nflverse/nflverse-data/releases/download/>:
+
+| file | bytes | SHA-256 |
+|---|---|---|
+| player_stats/player_stats_2021.csv.gz | 350,019 | `a2fb266576a1bde5d7978005a5f6ccf83e3c023234da500d38cf6a14f40a01c8` |
+| player_stats/player_stats_2022.csv.gz | 343,167 | `2b7dca6814993b9fd6ad3d4fdc56131663311bbe83281126e1ac441620d824ba` |
+| player_stats/player_stats_2023.csv.gz | 345,781 | `b7590543f3c81dceb17d7577a1dce7b8ff1a9aacf0f562e3d7bbc7e60f37bc9b` |
+| player_stats/player_stats_2024.csv.gz | 339,361 | `629b77e0c88d361f8b5c4a850e7866013aa670b7a5a94b7f1d0c591adf18f971` |
+| injuries/injuries_2021.csv | 737,083 | `1049fb9ff0fe7cfcf3ba8bfe1f5a35d3aba985c461c8fb7bf5201735b6d34254` |
+| injuries/injuries_2022.csv | 752,433 | `5f0d60324e597edd1a2ced8540b04e40b51dd440591dd1df11b8d96343387c9e` |
+| injuries/injuries_2023.csv.gz | 140,729 | `fc8468eeeaff24151ee94d5d718116cee2baceee07b3ee151c4d42a6aec763e2` |
+| injuries/injuries_2024.csv.gz | 157,383 | `7fe70c7b1ec165e2fcdf57f29034f8ec104875071600e30eafdb1849591e2a45` |
+| weekly_rosters/roster_weekly_2021.csv | 15,242,660 | `88adfe0fba5cbedd260d7928ad373476d4fb168d0213cb52ef1163ed5d3056b7` |
+| weekly_rosters/roster_weekly_2022.csv | 14,790,824 | `bd6a50de334473c10f8058afa948fd0c6adc8a8b081da41c500cc0aa069c5312` |
+| weekly_rosters/roster_weekly_2023.csv | 14,612,235 | `1433f1f239784dde7fcb35349d211a9b83abfc0156337b72ec4f923abf715bd3` |
+| weekly_rosters/roster_weekly_2024.csv.gz | 699,786 | `330b9e00241091958d1667e6df02f57d4a7049530865aacbb7859b4db114cd72` |
+
+(The 2021–2022 injury and 2021–2023 weekly-roster files are published as
+plain `.csv`, not `.csv.gz`.)
+
+**Method.** §6.8B's: QB1 is his club's leader in REG attempts for that
+team-season (n = 128). A club game is a week in which any player has a REG
+row for that club. He *missed* a club game when he has no weekly row for that
+club that week. This reproduces §6.8B: mean **14.27** games (§6.8B 14.23),
+played all 17 **32.0%** (32%), 16+ **46.1%** (46%), under 14 **34.4%**
+(35%). The small gap is two 16-game team-seasons (the 2022 BUF–CIN game).
+
+**Cause of each missed game** (347 in all), from his weekly roster `status`
+on that club and his injury-report `report_status` that week, in this order:
+
+| cause | games | share |
+|---|---:|---:|
+| reserve list (`status` RES: IR, PUP, NFI and the like) | 96 | 0.277 |
+| report Out or Doubtful | 83 | 0.239 |
+| report Questionable, did not play | 47 | 0.135 |
+| **injury, the three above** | **226** | **0.651** |
+| on the roster (ACT or INA), not on the report, weeks 1–17 (benched or a healthy scratch) | 83 | 0.239 |
+| on the roster, not on the report, week 18 (rest) | 15 | 0.043 |
+| no roster row for that club that week (traded, cut, or not listed) | 23 | 0.066 |
+
+So about two thirds of real QB1 missed games are injuries, and a third are
+not. The non-injury rows are a classification, not a reading of intent: a QB
+on the roster and off the report who did not play may also have been nursing
+something unreported.
+
+**Injury-only availability, per QB1 team-season (n = 128).** This is the
+population an engine that only removes a quarterback for injury can be held
+to:
+
+| | value |
+|---|---|
+| games missed to injury, mean | **1.77** (all causes 2.71; non-injury 0.95) |
+| missed no game to injury | **48.4%** (62) |
+| missed at most one (16+ of 17) | **60.2%** |
+| missed four or more (under 14) | **22.7%** |
+| missed eight or more | 2.3% |
+| distribution 0/1/2/3/4/5/6/7/8/9 | 62 / 15 / 13 / 9 / 10 / 8 / 4 / 4 / 1 / 2 |
+
+**Spell lengths.** A spell is a run of consecutive club games missed.
+
+| spells | n | 1 game | 2–3 | 4+ | 8+ | mean | median |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| all causes | 136 (347 games) | **0.426** | 0.353 | 0.221 | 0.029 | 2.55 | 2 |
+| injury-classed games only | 87 (226 games) | **0.402** | 0.333 | 0.264 | 0.023 | 2.60 | 2 |
+
+Injury spells per QB1 team-season: **0.68**. Spells are cut off by the end
+of the regular season, so long injuries late in a year are undercounted and
+the 8+ share is a floor, not an estimate.
+
+**What this does and does not settle.** It gives the proposal's missing QB
+spell-length series and the injury/non-injury split. It does not give a
+weekly injury *incidence* for every quarterback (only absence-causing
+injuries to QB1s), a duration for injuries that did not cost a game, the
+in-game tier mix, or 17-game-era second moments for other positions.
+
 ## 7. People
 
 ### 7.1 Head-coach firings
