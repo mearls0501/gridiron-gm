@@ -315,53 +315,96 @@ step season phase         rng              players      rostered      cut rows i
 
 The last line is the lock: 1587 cuts, rng 19218870. The cut list is `CUTS` in `lib/core/trimIdentity.test.ts` at `a453c24`.
 
-## Addendum, 2026-11-14 — current main  on the VM
+## Addendum, 2026-11-14 — current main `61b3a70` on the VM
 
-Matt asked for both of these on 2026-11-14. Read-only, scratch copy of main  (#246), same Linux x64 VM, Node 22.23.4. No Studio job. Line numbers in this section are from .
+Matt asked for both of these on 2026-11-14. Read-only, scratch copy of main `61b3a70` (#246), same Linux x64 VM, Node 22.23.4. No Studio job. Line numbers in this section are from `61b3a70`.
 
 ### The trim lock and a fresh reference trace
 
- passes on the VM: . That is the 2026-11-14 lock. Since #229 the literal has been re-locked seven more times, each on a VM. Section 1 applies to every one of them: none has been read on the Studio.
+`npx tsx lib/core/trimIdentity.test.ts` passes on the VM: `1530 cuts, rng 3780634271`. That is the 2026-11-14 lock. Since #229 the literal has been re-locked seven more times, each on a VM. Section 1 applies to every one of them: none has been read on the Studio.
 
-Appendix C is the VM trace for . Run  from Appendix A on the Studio **at ** and diff against Appendix C, not Appendix B.
+Appendix C is the VM trace for `61b3a70`. Run `trimTrace.ts` from Appendix A on the Studio **at `61b3a70`** and diff against Appendix C, not Appendix B.
 
-### Ten-season : the bargains are gone, and one roster is at 69
+### Ten-season `verify`: the bargains are gone, and one roster is at 69
 
-, seed : **1062/1063**.
+`npx tsx scripts/verify.ts 10`, seed `20260727`: **1062/1063**.
 
-- **No bargain in ten seasons.** No "forced by the cap" row is behind any failed check. On this machine that check failed four times at  and once at . The restructure-first cover from #235 is doing what it was signed for here. The Studio plays a different league after year 0, so this is not yet the Studio's answer.
-- **New failure.** . Baltimore, a CPU club, opens 2033 with **69** on the active roster, 50.9M of space, and 34 hits under M.
+- **No bargain in ten seasons.** No "forced by the cap" row is behind any failed check. On this machine that check failed four times at `b5c2a21` and once at `a453c24`. The restructure-first cover from #235 is doing what it was signed for here. The Studio plays a different league after year 0, so this is not yet the Studio's answer.
+- **New failure.** `after 2032 offseason: all 32 rosters at exactly 53 — 1 teams off`. Baltimore, a CPU club, opens 2033 with **69** on the active roster, $150.9M of space, and 34 hits under $1M.
 
-VM champions at : 2026 New Orleans, 2027 Brooklyn, 2028 Atlanta, 2029 Hartford, 2030 Hartford, 2031 Nashville, 2032 Tampa Bay, 2033 Pittsburgh, 2034 San Diego, 2035 San Francisco.
+VM champions at `61b3a70`: 2026 New Orleans, 2027 Brooklyn, 2028 Atlanta, 2029 Hartford, 2030 Hartford, 2031 Nashville, 2032 Tampa Bay, 2033 Pittsburgh, 2034 San Diego, 2035 San Francisco.
 
 ### Why Baltimore is at 69
 
-Baltimore's count after each step of that offseason, active / all bodies:
+Baltimore's count after each step of that offseason:
 
-| after | active | bodies | space |
+| after | active | all bodies | space |
 |---|---:|---:|---:|
-| tag | 42 | 44 | 88.3M |
-| free agency | 50 | 52 | 66.3M |
-| draft, camp filled | 90 | 92 | 28.2M |
-| three preseason weeks | 90 | 97 | 24.2M |
-| Start the Season | **69** | 69 | 50.9M |
+| tag | 42 | 44 | $188.3M |
+| free agency | 50 | 52 | $166.3M |
+| draft, camp filled | 90 | 92 | $128.2M |
+| three preseason weeks | 90 | 97 | $124.2M |
+| Start the Season | **69** | 69 | $150.9M |
 
-Inside that last step the log reads, in order: nine waiver claims, each paired with a waive; **16** players "placed on the practice squad"; then 16 pairs of "BAL waived X" and "BAL signed Y (… 58–61 OVR) — … / \/bin/bash.8M per year", where every X is one of the 16 just placed on the practice squad; then one extension. 53 + 16 = 69.
+Inside that last step the log reads, in order: nine waiver claims, each paired with a waive; **16** players "placed on the practice squad"; then 16 pairs of "BAL waived X" and "BAL signed Y (58–61 OVR) at $0.8M per year", where every X is one of the 16 just placed on the practice squad; then one extension. 53 + 16 = 69.
 
-The writer is  ( 2004), called after the calendar rolls by  (2076;  353). It picks the worst player at each position from every body on the club (2018–2020: , not retired, not a prospect). That list includes the practice squad. It then cuts him and signs a free agent in his place (2058–2066). The new man has no , so he is active ( 35).  counts active players only (39). Replacing a practice-squad body with an active one adds one to the 53 each time. The guard in  checks for exactly 53 once, before the loop, and nothing after it trims.
+The writer is `spendToFloor` (`offseason/contracts.ts` 2004), called after the calendar rolls by `spendLegalCpuBackToFloor` (2076; `offseason/index.ts` 353). It picks the worst player at each position from every body on the club (2018–2020: `teamId`, not retired, not a prospect). That list includes the practice squad. It then cuts him and signs a free agent in his place (2058–2066). The new man has no `status`, so he is active (`select.ts` 35). `rosterCount` counts active players only (39). Replacing a practice-squad body with an active one adds one to the 53 each time. The guard in `spendLegalCpuBackToFloor` checks for exactly 53 once, before the loop, and nothing after it trims.
 
-Before the roll the same function is safe because the first cutdown  call follows it. After the roll nothing does:  (349) runs first, and it only acts on a club that is short or over the cap.
+Before the roll the same function is safe because a cutdown `reconcileRoster` call follows it. After the roll nothing does: `refillCpuRostersAfterWaivers` (349) runs first, and it only acts on a club that is short or over the cap.
 
-It needs a club that is legal, at 53, well under the 78% floor after the roll, and carrying a practice squad whose worst bodies a street free agent beats by two points.  came in with #214. This is the first run I have seen it leave a club over 53: neither VM run in section 2 has the line, and it is not on the Studio summary for . I have not shown which later merge made Baltimore's book this cheap. The 34 sub-\M hits and #241/#243 (minimum deals carry no bonus) point that way, but that is a guess.
+It needs a club that is legal, at 53, well under the spending floor after the roll, and carrying a practice squad whose worst bodies a street free agent beats by two points. `spendLegalCpuBackToFloor` came in with #214. This is the first run I have seen it leave a club over 53: neither VM run in section 2 has the line, and it is not on the Studio summary for `a453c24`. I have not shown which later merge made Baltimore's book this cheap. The 34 hits under $1M and #241/#243 (minimum deals carry no bonus) point that way, but that is a guess.
 
 ### Proposed — UNSIGNED
 
-In , choose the player to replace from the active roster only. One line, the roster filter at 2018–2020. It changes which swaps a club under the floor makes before the roll as well, so the seed-42 fingerprints may move and would need a signed re-lock. I have not built or measured it.
+In `spendToFloor`, choose the player to replace from the active roster only. One line, the roster filter at 2018–2020. It changes which swaps a club under the floor makes before the roll as well, so the seed-42 fingerprints may move and would need a signed re-lock. I have not built or measured it.
 
-Not proposed: a trim after . That would cut 16 players the club just signed and book their dead money.
+Not proposed: a trim after `spendLegalCpuBackToFloor`. That would cut 16 players the club just signed.
 
-## Appendix C — the VM's trace at 
+## Appendix C — the VM's trace at `61b3a70`
 
-
+```
+step season phase         rng              players      rostered      cut rows in log
+   0 2026 preseason        rng=2291626074   players=3009 rostered=1696 cutRows=0
+   1 2026 regular          rng=2568877029   players=3009 rostered=1696 cutRows=0
+  23 2026 offseason-recap  rng=2748412837   players=3021 rostered=1831 cutRows=38
+  24 2026 offseason-tag    rng=2748412837   players=3021 rostered=1710 cutRows=42
+  25 2026 offseason-fa     rng=20755560     players=3021 rostered=1307 cutRows=42
+  26 2026 offseason-draft  rng=4088433856   players=3021 rostered=1492 cutRows=42
+  27 2026 offseason-final  rng=450447221    players=3021 rostered=2359 cutRows=65
+  28 2026 offseason-final  rng=450447221    players=3021 rostered=2242 cutRows=293
+  29 2026 offseason-final  rng=450447221    players=3021 rostered=2242 cutRows=293
+  30 2026 offseason-final  rng=450447221    players=3021 rostered=2242 cutRows=293
+  31 2027 preseason        rng=4113578847   players=3687 rostered=2106 cutRows=1137
+  32 2027 regular          rng=4107175905   players=3687 rostered=2111 cutRows=1191
+  54 2027 offseason-recap  rng=708748799    players=3687 rostered=2115 cutRows=1232
+  55 2027 offseason-tag    rng=708748799    players=3687 rostered=1977 cutRows=1232
+  56 2027 offseason-fa     rng=3283965370   players=3687 rostered=1415 cutRows=1232
+  57 2027 offseason-draft  rng=1872098827   players=3687 rostered=1606 cutRows=1232
+  58 2027 offseason-final  rng=3754869328   players=3687 rostered=2734 cutRows=1276
+  59 2027 offseason-final  rng=3754869328   players=3687 rostered=2567 cutRows=1508
+  60 2027 offseason-final  rng=3754869328   players=3687 rostered=2567 cutRows=1508
+  61 2027 offseason-final  rng=3754869328   players=3687 rostered=2567 cutRows=1508
+  62 2028 preseason        rng=3123033658   players=4221 rostered=2105 cutRows=1378
+  63 2028 regular          rng=1944789682   players=4221 rostered=2094 cutRows=1406
+  85 2028 offseason-recap  rng=2116749190   players=4221 rostered=2110 cutRows=1572
+  86 2028 offseason-tag    rng=2116749190   players=4221 rostered=2006 cutRows=1572
+  87 2028 offseason-fa     rng=4259529982   players=4221 rostered=1442 cutRows=1572
+  88 2028 offseason-draft  rng=1719450793   players=4221 rostered=1657 cutRows=1572
+  89 2028 offseason-final  rng=4275269261   players=4221 rostered=2900 cutRows=1599
+  90 2028 offseason-final  rng=4275269261   players=4221 rostered=2809 cutRows=2023
+  91 2028 offseason-final  rng=4275269261   players=4221 rostered=2809 cutRows=2023
+  92 2028 offseason-final  rng=4275269261   players=4221 rostered=2809 cutRows=2023
+  93 2029 preseason        rng=3643433591   players=4631 rostered=2097 cutRows=1807
+  94 2029 regular          rng=839546537    players=4631 rostered=2094 cutRows=1844
+ 116 2029 offseason-recap  rng=2652749652   players=4631 rostered=2125 cutRows=1945
+ 117 2029 offseason-tag    rng=2652749652   players=4631 rostered=2004 cutRows=1946
+ 118 2029 offseason-fa     rng=2644258646   players=4631 rostered=1460 cutRows=1946
+ 119 2029 offseason-draft  rng=871473821    players=4631 rostered=1709 cutRows=1946
+ 120 2029 offseason-final  rng=117502645    players=4631 rostered=2977 cutRows=1974
+ 121 2029 offseason-final  rng=117502645    players=4631 rostered=2993 cutRows=2334
+ 122 2029 offseason-final  rng=117502645    players=4631 rostered=2993 cutRows=2334
+ 123 2029 offseason-final  rng=117502645    players=4631 rostered=2993 cutRows=2334
+ 124 2030 preseason        rng=3780634271   players=4977 rostered=2219 cutRows=1918
+```
 
 The last line is main's lock: 1530 cuts, rng 3780634271.
