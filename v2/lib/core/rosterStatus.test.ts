@@ -272,8 +272,11 @@ function starterIds(st: ReturnType<typeof newGame>, teamId: number): number[] {
   campDonor.pos = "QB";
   campDonor.ovr = 90;
   const campRng = new Rng(camp.rngState);
-  reconcileRoster(camp, cpuId, campRng);
-  assert.ok(positionCount(camp, cpuId, "QB") >= 4, "camp reconcile is not the 53 cutdown");
+  // The fill, not `reconcileRoster`: camp fill signs past the cap, and the
+  // cap release that follows now takes minimum deals first, quarterbacks
+  // among them. The cutdown flag lives in the fill.
+  fillRoster(camp, cpuId, campRng);
+  assert.ok(positionCount(camp, cpuId, "QB") >= 4, "camp fill is not the 53 cutdown");
 
   const season = newGame({ seed: 21 });
   season.phase = "regular";

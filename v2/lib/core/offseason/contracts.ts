@@ -1376,18 +1376,6 @@ function bestAffordable(
 }
 
 /**
- * A camp body past the 53 is optional, so a CPU club signs one only with the
- * room for him. `bestAffordable` floors its budget above the minimum so a
- * short club can always reach 53; past 53 that floor signed a club to 90 over
- * the cap, and the cap release that followed threw the same men back.
- * The user seat has its own ceiling in `signAtMarket`.
- */
-function campBodyFits(state: GameState, teamId: number, p: Player): boolean {
-  if (teamId === state.userTeamId) return true;
-  return trueAskingPrice(state, p) <= teamCap(state, teamId).space;
-}
-
-/**
  * Market signing that must fit. CPU post-carryover refill only.
  * `negotiatedApy` and `makeContract` do not draw. A miss falls through
  * to `signMinimum`, which also refuses when the minimum itself does not fit.
@@ -1636,7 +1624,7 @@ export function fillRoster(
     guard = 0;
     while (rosterCount(state, teamId) < limit && guard++ < 200) {
       const pick = bestAffordable(state, teamId, null);
-      if (!pick || !campBodyFits(state, teamId, pick)) break;
+      if (!pick) break;
       if (!signAtMarket(state, teamId, pick, rng)) break;
     }
   }
@@ -1678,7 +1666,7 @@ export function fillCampRosters(state: GameState, rng: Rng): void {
     for (const teamId of order) {
       if (rosterCount(state, teamId) >= CAMP_ROSTER_LIMIT) continue;
       const pick = bestAffordable(state, teamId, null);
-      if (!pick || !campBodyFits(state, teamId, pick)) continue;
+      if (!pick) continue;
       if (!signAtMarket(state, teamId, pick, rng)) continue;
       any = true;
     }
