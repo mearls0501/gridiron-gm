@@ -1,5 +1,33 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-14 — A cap release takes the deals with no dead money first
+
+Asked for by Matt, 2026-11-14 ("fix the dead money from cap-casualty cuts next", then "fix the roster churn at the bottom next"). Nothing in `scripts/` or `baselines.json` moved.
+
+A CPU club over the cap ranked releases by saving per rating point. A paid starter with a live bonus came out ahead of minimum deals that would have closed the hole. One trace released a 92 quarterback for $15M of room.
+
+- `capCutTier` (`offseason/contracts.ts`): 0 leaves no dead money, 1 saves more than it leaves, 2 the rest. `enforceCap` and `coverCpuCapInSeason` sort by tier, then by the old ratio.
+- `enforceCap`, club at 53 or under: an active release is priced net of `LEAGUE_MINIMUM`, the deal that refills the spot. Without this the tier order swapped one minimum deal for another and cuts rose 12-19%. If nobody clears room net of the refill, the old gross order runs so the club still reaches a legal book.
+
+Measured on this VM, CPU clubs, four seasons, cap releases only:
+
+| seed | bonus accelerated | releases of men 75+ | all CPU cuts |
+| :--- | ---: | ---: | ---: |
+| 20260727 | $187M → $98M | 23 → 18 | 7,042 → 6,868 |
+| 42 | $161M → $53M | 17 → 8 | 6,504 → 6,503 |
+
+Tried and withdrawn: stopping camp fill at the cap (`bestAffordable` floors its budget above the minimum, so a club is signed to 90 over the cap). Clubs then entered the new league year $20-45M over and the acceleration came back ($151M and $181M). The camp overfill is still there.
+
+`rosterStatus`: the camp quarterback check calls `fillRoster`, not `reconcileRoster`. The cap release in camp now takes minimum deals first, quarterbacks among them. The assertion is unchanged. `deadIfCut` has two new cases; both fail on the old order.
+
+**Re-lock:** `trimIdentity` **1584** cuts, rng **93739137**. `userOffers` tag **284096648**, free agency **395911736**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
 ## 2026-11-14 — Retirement accelerates the remaining bonus, not the guaranteed base
 
 Asked for by Matt, 2026-11-14 ("do A, charge the bonus only"). Nothing in `scripts/` or `baselines.json` moved.

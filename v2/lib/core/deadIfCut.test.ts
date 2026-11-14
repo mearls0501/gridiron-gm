@@ -13,10 +13,10 @@ import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { Rng } from "./rng";
 import { defaultGuaranteedYears, makeContract, signingBonusFor } from "./generate";
-import { capHit, capSavingsFromCut, deadMoney, remainingBonusProration, teamCap } from "./select";
-import { LEAGUE_MINIMUM } from "./types";
+import { addDeadCap, capHit, capSavingsFromCut, deadCapFor, deadMoney, remainingBonusProration, rosterCount, teamCap } from "./select";
+import { LEAGUE_MINIMUM, ROSTER_LIMIT } from "./types";
 import { rookieContract } from "./offseason/draft";
-import { cutAffordable, cutFreesNothing } from "./offseason/contracts";
+import { cutAffordable, cutFreesNothing, enforceCap } from "./offseason/contracts";
 
 function ok(label: string) { console.log("ok   ", label); }
 
@@ -119,4 +119,47 @@ function ok(label: string) { console.log("ok   ", label); }
   p.contract = makeContract(new Rng(1), LEAGUE_MINIMUM, 1, st.season, 0);
   assert.equal(cutFreesNothing(p), false, "a minimum deal has no dead money to weigh");
   ok("a cut that frees no room is told apart from one that does");
+}
+
+// A CPU club over the cap clears the room with deals that leave nothing
+// behind before it releases a man whose bonus accelerates.
+{
+  const st = newGame({ seed: 5 });
+  const teamId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  // The old order's first choice: a weak man on a rich deal with a bonus.
+  const rich = st.players
+    .filter((x) => x.teamId === teamId && !x.retired && !x.prospect && x.pos === "WR")
+    .sort((a, b) => a.ovr - b.ovr)[0];
+  rich.contract = makeContract(new Rng(1), 10_000_000, 3, st.season, 0);
+  assert.ok(remainingBonusProration(rich.contract) > 0 && capHit(rich.contract) > deadMoney(rich.contract));
+  addDeadCap(st, teamId, teamCap(st, teamId).space + 1_000_000);
+  assert.ok(teamCap(st, teamId).space < 0);
+  const deadBefore = deadCapFor(st, teamId);
+  const before = new Set(st.players.filter((x) => x.teamId === teamId).map((x) => x.id));
+  enforceCap(st, teamId);
+  assert.ok(teamCap(st, teamId).space >= 0, "the club is back under");
+  const gone = st.players.filter((x) => before.has(x.id) && x.teamId !== teamId);
+  assert.ok(gone.length > 0);
+  assert.equal(rich.teamId, teamId, "the man with the bonus is still here");
+  assert.equal(deadCapFor(st, teamId), deadBefore, "no bonus accelerated to clear a $1M hole");
+  ok("a cap release takes the deals with no dead money first");
+}
+
+// At 53 a released minimum deal is replaced by another minimum deal, so it
+// clears nothing. The club over the cap there releases a deal that does.
+{
+  const st = newGame({ seed: 5 });
+  const teamId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  assert.equal(rosterCount(st, teamId), ROSTER_LIMIT);
+  addDeadCap(st, teamId, teamCap(st, teamId).space + 1_000_000);
+  const before = st.players.filter((x) => x.teamId === teamId);
+  const hits = new Map(before.map((x) => [x.id, capHit(x.contract)]));
+  enforceCap(st, teamId);
+  assert.ok(teamCap(st, teamId).space >= 0);
+  const gone = before.filter((x) => x.teamId !== teamId);
+  assert.ok(gone.length > 0);
+  for (const g of gone) {
+    assert.ok(hits.get(g.id)! > LEAGUE_MINIMUM, "a minimum deal was not released at 53");
+  }
+  ok("at 53 a cap release is priced net of the minimum that refills the spot");
 }
