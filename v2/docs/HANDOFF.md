@@ -1,5 +1,40 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-14 — Retirements, starting deals and trades leave less dead money
+
+Asked for by Matt, 2026-11-14 ("do both, merge each once it passes", "fix the starting contract lengths too", "fix the dead money from trades next"). Nothing in `scripts/` or `baselines.json` moved.
+
+**Retirements.** About 60 men a season retired under contract with bonus left, most aged 28-33 and rated 65-74. A rostered 30-year-old rated 68 went about 9% of the time. `retirementChance` (`offseason/progression.ts`, now exported) is scaled by `BONUS_OWED_RETIRE_SCALE` 0.25 while a rostered man has bonus proration left. Unsigned men, and men whose bonus is charged out, are unchanged.
+
+**Starting deals.** `makeRosterForTeam` staggered every deal the same way whatever the age, so a man of thirty could open with four or five years left where a signing at that age gets two. He now opens with at most two left, and thirty-three with one. Length and money are unchanged; he is further in.
+
+**Trades.** `playerTradeValue` already charged the seller for the bonus a trade pulls forward, at the contract-surplus rate. `ACCEL_PRICE` is 680 points per share of the cap, was 340, clamped at 140.
+
+Measured on this VM, CPU clubs, four seasons, each step on top of the last:
+
+| | seed 20260727 | seed 42 |
+| :--- | ---: | ---: |
+| retirement dead money, retirement fix | $422M → $107M | $350M → $89M |
+| all dead money, retirement fix | $1,071M → $759M | $930M → $917M |
+| all dead money, + starting deals | $759M → $727M | $917M → $705M |
+| trade dead money, + trade price | $320M → $230M | $379M → $242M |
+| players traded, + trade price | 313 → 267 | 365 → 295 |
+| all dead money, + trade price | $727M → $606M | $705M → $659M |
+
+Not measured: total retirements, career lengths.
+
+`divisionRank` hard-coded seed 42 for a first season where point differential misplaces a club. That season no longer has one. It now takes the first of six seeds that does; the assertions are unchanged.
+
+New cases in `retirementDead`, `deadIfCut` and `tradeReview`.
+
+**Re-lock:** `trimIdentity` **1532** cuts, rng **1008900677**. `userOffers` tag **3242373722**, free agency **691387436**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — 74 pass on the first run; `divisionRank` failed, was fixed as above, and passes.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline, on the second run. The first ran the old `divisionRank` and failed on it alone.
+
 ## 2026-11-14 — A waiver claim accelerates no bonus; late-round slot bonuses at real size
 
 Asked for by Matt, 2026-11-14 ("fix the dead money from waiver claim cuts next", "fix the dead money from draft picks next"). Nothing in `scripts/` or `baselines.json` moved.

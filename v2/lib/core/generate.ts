@@ -443,7 +443,11 @@ function makeRosterForTeam(
     p.contract = makeContract(rng, apy, years, state.season, Math.min(guaranteed, years));
 
     // Stagger existing deals so they don't all expire in the same offseason.
-    const elapsed = rng.int(0, years - 1);
+    // An older man is further into his: nobody signs a thirty-year-old for
+    // more than two years in this league (`yearsForAgeAndOvr`), so he does
+    // not open the game with four left and most of a bonus still to charge.
+    const maxLeft = p.age >= 33 ? 1 : p.age >= 30 ? 2 : years;
+    const elapsed = rng.int(Math.max(0, years - maxLeft), years - 1);
     if (elapsed > 0) {
       p.contract.yearsRemaining = years - elapsed;
       p.contract.baseSalary = p.contract.baseSalary.slice(elapsed);
