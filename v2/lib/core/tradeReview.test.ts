@@ -23,7 +23,7 @@ import { newGame } from "./newGame";
 import { makeContract } from "./generate";
 import { Rng } from "./rng";
 import {
-  acceptOffer, acquiredCapHit, checkTrade, generateUserOffers, playerTradeValue, proposerStillWants,
+  acceleratedBonus, acceptOffer, acquiredCapHit, checkTrade, generateUserOffers, playerTradeValue, proposerStillWants,
 } from "./trades";
 import { teamOutlook } from "./frontOffice";
 import { startRegularSeason } from "./season/engine";
@@ -366,9 +366,21 @@ ok("stale picks: used and moved picks refused without mutation");
   user.contract = { ...c, signingBonus: 0, bonusProrationYears: 0 };
   const noBonus = { buy: playerTradeValue(st, cpuTeamId, user, buyer), own: playerTradeValue(st, st.userTeamId, user, own) };
   assert.equal(withBonus.buy, noBonus.buy, "the bonus does not change his price to a buyer");
-  assert.ok(noBonus.own >= withBonus.own, "his own club still feels the bonus in his cap hit");
+  // His own club used to read the proration as a burden a trade would shed.
+  // A trade sheds none of it: every later year lands now. With three years
+  // of bonus behind this one, that outweighs this year's share, so the club
+  // that holds him asks for more, not less.
+  const pulled = acceleratedBonus(c);
+  assert.equal(pulled, Math.round(remainingBonusProration(c) * 3 / 4), "three of four years would be pulled forward");
+  assert.ok(withBonus.own > noBonus.own, "his own club prices the bonus a trade would accelerate");
+
+  // In the last year of proration nothing is left to pull forward.
+  const last = { ...c, years: 4, yearsRemaining: 1, baseSalary: [c.baseSalary[0]] };
+  assert.equal(acceleratedBonus(last), 0, "nothing accelerates in the final proration year");
+  assert.equal(acceleratedBonus({ ...c, signingBonus: 0, bonusProrationYears: 0 }), 0);
+  assert.equal(acceleratedBonus(null), 0);
   user.contract = c;
 }
-ok("acquiring club prices base salary only; own club keeps capHit");
+ok("acquiring club prices base salary only; own club prices the bonus a trade accelerates");
 
 console.log("tradeReview: all passed");

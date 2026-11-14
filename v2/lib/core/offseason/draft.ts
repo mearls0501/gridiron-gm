@@ -328,7 +328,7 @@ export function rookieContract(
 ) {
   const slot = overallPick ?? midRoundOverall(round);
   const apy = rookieSlotApy(state, slot, round);
-  return makeContract(rng, apy, 4, state.season, defaultGuaranteedYears(apy, 4));
+  return makeContract(rng, apy, 4, state.season, defaultGuaranteedYears(apy, 4), true);
 }
 
 // ---------------------------------------------------------------------------

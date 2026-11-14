@@ -15,12 +15,22 @@
  * Re-locked 2026-11-11, Matt, one time, after main b5c2a21 (#226, #223,
  * #225) was merged onto the tackle-credit branch: tag 1779302491,
  * FA 1323223106.
+ * Re-locked 2026-11-13, Matt, for the banked end-of-half kick range and
+ * the in-season CPU cap cover: tag 223486248, FA 2926585213.
+ * Re-locked again the same day for the accelerated-bonus trade price:
+ * tag 608048136, FA 1223816500. That one does change which trades clear.
  * Earlier: 979873515 / 651676524 (waiver clearing, signed 2026-10-23),
  * 2875380525 / 3306901598 (roster sanity, #197, 2026-10-23),
  * 1725353685 / 2028992364 (pro-rata salary, 2026-10-20),
  * 2282341061 / 3785709883 (trade valuation), 3967213056 / 3639016065
  * (trade cap accounting), 1599887382 / 2847491416 (end-of-half kick),
  * 823515333 / 1063212815 before that. Offer logic is unchanged.
+ * Re-locked 2026-11-13, Matt, for the minimum deal with no signing bonus: tag 4252696365, FA 2405063246.
+ * Re-locked 2026-11-14, Matt, for the bonus ramp between one and two
+ * minimums and the legality check on the shop pass: tag 2748412837, FA 2612039437.
+ * 2026-11-14 re-lock (no cut that frees no room; no free agent signed to sit): tag 2748412837, FA 2612039437.
+ * 2026-11-14 re-lock (a franchise tender carries no signing bonus): tag 2748412837, FA 2612039437.
+ * 2026-11-14 re-lock (retirement charges the bonus only): tag 2748412837, FA 20755560.
  *
  * Run: npx tsx lib/core/userOffers.test.ts
  */
@@ -126,11 +136,11 @@ console.log("ok    userOffers — successful inquiries add no parent RNG draws (
     }
   }
   assert.equal(st.phase, "offseason-tag");
-  assert.equal(st.rngState, 1779302491);
+  assert.equal(st.rngState, 2748412837);
 
   advanceOffseason(st);
   assert.equal(st.phase, "offseason-fa");
-  assert.equal(st.rngState, 1323223106, "inquiry must not move the parent stream");
+  assert.equal(st.rngState, 20755560, "inquiry must not move the parent stream");
 
   const offers = st.tradeOffers ?? [];
   assert.ok(offers.length >= 1, `free agency opened with no calls (${offers.length})`);

@@ -205,9 +205,10 @@
       "note": "RE-LOCKED 2026-09-15 Wave 3.9 Packet 2 (Matt SIGNED). Mac Studio 5-seed panel at 748036a (#88) read 4730 (was 5085.8 +/-700). Target is the panel mean; tol 700 unchanged."
     },
     "statcheck.leadRushYds": {
-      "target": 1726.8,
+      "target": 1533.3,
       "tol": 400,
-      "nfl": 1800
+      "nfl": 1800,
+      "note": "RE-LOCKED 2026-11-13 (Matt SIGNED, with the minimum-deal bonus change). Was 1726.8. Target is the 17-seed mean on this VM (GG_SEED unset and 1-16) on the branch: 1533.3; main read 1568 on the same seeds, low 1382. tol 400 unchanged. Not a Mac Studio 5-seed panel; re-lock from the panel when it next runs."
     },
     "statcheck.leadRecYds": {
       "target": 1615.8,

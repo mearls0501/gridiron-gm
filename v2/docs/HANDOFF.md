@@ -1,5 +1,194 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-14 — Retirement accelerates the remaining bonus, not the guaranteed base
+
+Asked for by Matt, 2026-11-14 ("do A, charge the bonus only"). Nothing in `scripts/` or `baselines.json` moved.
+
+`chargeRetirementAcceleration` (`offseason/progression.ts`) charged `deadMoney`: the unamortized bonus plus every remaining guaranteed base year. A man who retires is not paid his salary, so the guaranteed base was dead money for nothing. It now charges `remainingBonusProration` only.
+
+Traced before the change, all clubs, four seasons:
+
+| seed | retirements with dead money | charged | bonus share (what is charged now) | guaranteed base (no longer charged) |
+| :--- | ---: | ---: | ---: | ---: |
+| 20260727 | 246 | $892M | $451M | $441M |
+| 42 | 238 | $1,034M | $475M | $559M |
+
+The "now" column is the bonus share of the old trace, not a re-run. The freed room changes later signings, so the live total will differ.
+
+`retirementDead` cases 1, 4 and 6 assert bonus-only.
+
+Not changed: who retires. Men with guaranteed years left still retire.
+
+**Re-lock:** `trimIdentity` **1530** cuts, rng **3780634271**. `userOffers` free agency rng **20755560**; the tag lock did not move.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
+## 2026-11-14 — A franchise tender carries no signing bonus
+
+Asked for by Matt, 2026-11-14 ("fix the tag accounting and leave the rest alone"). Nothing in `scripts/` or `baselines.json` moved.
+
+`applyFranchiseTag` built the tender with `makeContract`, which split about a quarter of it into a signing bonus. A bonus stays with the club that paid it when the man is traded (`moveAsset`). So a tag-and-trade left $8–9M of dead money on the tagging club and moved him to the other club at base only. Two cases across seeds 20260727 and 42 over four seasons, about $17M.
+
+The tender is now one year of base salary: `baseSalary: [apy]`, `signingBonus: 0`, `bonusProrationYears: 0`. The hit, the guarantee and the tag price are unchanged. `franchiseTag` case 1 asserts it.
+
+CPU trade behaviour is otherwise as it was. The trace is in the entry below.
+
+**Re-lock:** `trimIdentity` **1555** cuts, rng **3609848918**. `userOffers` did not move.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
+## 2026-11-14 — A CPU club does not pay a veteran in full to leave
+
+Asked for by Matt, 2026-11-14 ("fix the dead money from veteran cuts next"). Nothing in `scripts/` or `baselines.json` moved.
+
+Every CPU cut was traced over four seasons on seeds 20260727 and 42. Veteran-cut dead money is mostly quarterbacks. A club with its room full still bid on any free agent over the posture's star bar, signed him with a bonus and a guaranteed year, then waived him at the `QB_53_MAX` cutdown or swapped him out on a waiver claim. Those cuts owed more than the cap hit they removed.
+
+- `interest` (`offseason/freeAgency.ts`): with the position at its target, the club bids only on a man whose believed overall beats its last starter there (`lastStarterOvr`). The star bar still applies first.
+- `cutFreesNothing` (`offseason/contracts.ts`, exported): dead money is positive and at least his hit.
+- `firstAffordable` takes the first man whose cut frees room, then the first affordable, then the first. That covers `worstSurplus`, `cutWorstActiveAt` and `cutWorstActiveQuarterback`.
+- `worseSurplus` (waiver claim) and `upgradeRoster` do not release a man whose cut frees no room. Both are optional moves.
+
+Measured on this VM, CPU clubs, four seasons, deals above twice the minimum:
+
+| seed | cuts that free no room | bonus + guarantee exposed | bonus accelerated | of which QB |
+| :--- | ---: | ---: | ---: | ---: |
+| 20260727 | 16 → 1 | $410M → $264M | $286M → $264M | $153M → $109M |
+| 42 | 20 → 2 | $467M → $263M | $290M → $259M | $162M → $107M |
+
+Not changed: `enforceCap` releasing an expensive man to get under the cap (about $120M of bonus per four seasons). Those cuts save room.
+
+`deadIfCut` gains a block on `cutFreesNothing`. **Re-lock:** `trimIdentity` **1545** cuts, rng **2793437930**. `userOffers` did not move (tag 2748412837, FA 2612039437).
+
+Also traced, not changed: CPU trades put $337M / $405M on sellers over the same four seasons, about half of it bonus pulled forward from later years. `checkTrade` already counts it and `playerTradeValue` already prices it (2026-11-13). Matt chose to leave trade behaviour alone and fix only the franchise-tag bonus, which is the next entry up when it lands.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
+## 2026-11-14 — The signing bonus comes in between one and two league minimums
+
+Asked for by Matt, 2026-11-13 ("fix the dead money from cuts just above the minimum"). Nothing in `scripts/` or `baselines.json` moved.
+
+After the last entry a deal one dollar over `LEAGUE_MINIMUM` jumped straight to the 12% bonus floor. `signingBonusFor` now scales the bonus by `clamp((apy - LEAGUE_MINIMUM) / LEAGUE_MINIMUM, 0, 1)`: nothing at the minimum, the full bonus from twice the minimum up. A drafted rookie skips the ramp and keeps his slot bonus (`deadIfCut`, signed 2026-11-11). `deadIfCut` gains a block pinning the ramp.
+
+Measured on this VM before the legality fix below, CPU clubs, four seasons:
+
+| seed | undrafted cuts on deals ≤ 2x minimum | drafted cuts ≤ 2x minimum | all bonus-carrying cuts |
+| :--- | ---: | ---: | ---: |
+| 20260727 | $108M → $34M | $150M → $132M | $497M → $460M |
+| 42 | $106M → $36M | $151M → $148M | $617M → $595M |
+
+The undrafted slice was the smaller one. What is left is drafted late-round rookies (the pinned ~$450K slot bonus) and veteran cuts. Retirement acceleration is still about half of CPU dead money and is a signed rule.
+
+**A real bug surfaced on the new results.** `generateUserOffers` checked `checkTrade` on its fallback pass (`placeInquiries`) but not on the ordinary shop pass. Seed 42: PHX, $6.48M of room, called for a guard with a $7.52M base; Accept would have refused it. The shop loop now runs `checkTrade` before and after the reshape, as the fallback does. Legal offers are built exactly as before.
+
+**Re-locks:** `userOffers` tag **2748412837**, FA **2612039437**. `trimIdentity` **1601** cuts, rng **3915903688**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
+## 2026-11-13 — A league-minimum deal carries no signing bonus
+
+Asked for by Matt, 2026-11-13 ("fix the dead money from roster cuts next"). Nothing in `scripts/` moved. **One `baselines.json` row re-locked, signed by Matt the same day: `statcheck.leadRushYds` target 1726.8 → 1533.3, tol 400 unchanged. Read the last section.**
+
+`signingBonusFor` gave every deal at least 12% of its value as bonus. A one-year minimum carried $100K and a three-year minimum $350K, so `minimumCapHit` was $895K. CPU clubs sign about thirty minimum bodies to fill a camp and cut most at the 53. Seed 20260727, four seasons, CPU clubs: 4,244 freshly signed minimum players cut at the cutdown, $516M of the $949M all cuts booked.
+
+`signingBonusFor` now returns 0 at or under `LEAGUE_MINIMUM`. The deal is all base and costs $795K. A drafted rookie at the floor keeps his slot bonus: `deadIfCut` pins the seventh-round deal at a $907,500 hit and $450,000 dead (rookie guarantee fix, signed 2026-11-11), so `makeContract` and `signingBonusFor` take a `drafted` flag and `rookieContract` sets it. Deals above the minimum are unchanged.
+
+Measured on this VM, CPU clubs, four seasons:
+
+| seed | dead from all cuts | fresh minimum cuts at the cutdown | drafted players cut |
+| :--- | ---: | ---: | ---: |
+| 20260727 | $949M → $497M | $516M → $133M | $178M → $153M |
+| 42 | $1,048M → $617M | $514M → $139M | $185M → $166M |
+
+What is left of the cutdown figure is bodies signed just above the minimum.
+
+`startSeasonCap` and `userFaReserve` asserted the $895,000 hit and the $100,000 bonus. They assert $795,000 and no bonus. **Re-locks:** `userOffers` tag **4252696365**, FA **2405063246**. `trimIdentity` **1568** cuts, rng **457073510**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `calibrate.ts 300` — the single-game rows are identical to main. Year-0 rosters do not move.
+- `npm run gate` (fast tier) — **GATE FAIL, 1 problem**: `statcheck.leadRushYds` **1322** against 1726.8 ± 400, floor 1326.8. Every other step and metric passed.
+
+**The red row.** `leadRushYds` is one league's top rusher over one season. On 17 seeds (`GG_SEED` unset and 1–16) main reads a mean of **1568** and this branch **1533**; the 12-seed block alone reads 1552 and 1559. Main's own low is 1382. Both sit about 170 under the 1726.8 target, so the row was already close to its floor before this change, and the default seed fell 5 yards under. The 2026-08 note in this file already calls this metric out for moving 2396 → 1506 → 1791 across modest changes. This is not a rushing change.
+
+Matt signed the re-lock ("re-lock the baseline and merge it"). The target is now **1533.3**, this branch's 17-seed mean on this VM. That is not the Mac Studio 5-seed panel the other statcheck rows are locked from, and the note on the row says so. Re-lock it from the panel when the panel next runs.
+
+## 2026-11-13 — A trade prices the bonus it accelerates
+
+Signed, Matt, 2026-11-13 ("fix the CPU dead money problem in free agency"). No `baselines.json` edit. Nothing in `scripts/` moved. This closes the open line at the end of the entry below.
+
+`playerTradeValue` priced a club's own player on `annualCapHit`, proration included, so the bonus read as a burden a trade would shed. `moveAsset` sheds none of it: every later year lands on the sender now. Seed 20260727, 2027: Pittsburgh signed Quarles, OT, 80, at 5yr / $29.3M and traded him to Baltimore in the same window for a 62 quarterback and three sevenths, about $40M dead.
+
+For the holding club only, the value now adds `acceleratedBonus` (uncharged bonus less this year's share) on the same per-cap ×340 scale as the contract surplus, clamped 0–70. The acquiring club's number does not move. `checkTrade` and `moveAsset` are untouched.
+
+Measured on this VM, CPU clubs, seeds 42 / 20260727 / 7, five seasons each, against the same code with the term off and against a second candidate (holder prices base only, bonus treated as sunk):
+
+| | trade dead money | largest single trade | trades per year |
+| :--- | ---: | ---: | ---: |
+| before | $1,069M | $39M–$53M | ~99 |
+| this change | $557M | $18M–$19M | ~87 |
+| bonus as sunk | $700M | $64M–$73M | ~86 |
+
+Not moved by this: the worst club still carries $45M–$80M dead in most seasons. Over four seasons on seed 20260727 CPU dead money was $3,527M, of which retirement acceleration is about half and cuts about $1,000M.
+
+`tradeReview` case 8 asserted the old rule (own club values him less with a bonus). It now asserts the new one and covers `acceleratedBonus`. **Re-locks:** `userOffers` tag **608048136**, FA **1223816500**. `trimIdentity` **1551** cuts, rng **2367991772**. `divisionRank` lost its case a second time (seed 49), so it no longer needs one club: it plays seed 42 and moves the seat onto whichever club point differential misplaces.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — pass, exit 0.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline. `verify` 348/348.
+- Not run: the 5-seed Mac Studio panel and `drift.ts 20`. `drift.tradesPerSeason` (min 30) was not measured by its own harness; the ~87 above is `seasonCounters.tradesExecutedLast` on three seeds.
+
+## 2026-11-13 — Field-goal range on the banked kick, the in-season cap cover, and a real restructure
+
+Signed, Matt, 2026-11-13, in three steps: fix the field-goal calibration, trace and re-lock, and fix the hatch with a real restructure. No `baselines.json` edit. Nothing in `scripts/` moved. `calibrate.fgPct` is back inside its band and is no longer a reported miss.
+
+**Banked kick.** Since #182 `takeLastKick` banks a field goal on any down with 45 seconds or fewer left in a half. That call used `inFieldGoalRange()`, which adds 7 yards at the end of a half. The stretch was written for fourth down. `inFieldGoalRange` now takes `stretch` (default true) and the banked kick passes false. Fourth down is unchanged. Over 300 calibrate games, tries from 60+ went from 63 (16 made) to 15 (7 made). `calibrate.fgPct` **81.99 → 84.97** against 86.029 ± 4. `calibrate.pts` 23.44.
+
+**In-season cap cover.** The new game results put Cleveland and Denver over the cap for consecutive weeks on seed 42, which `waiverClearing` case 5 catches. The CPU IR fill signs whether or not the deal fits. The backstop in `resolveWaivers` returns before it runs on an empty wire, and a cut it does make is undone by the refill when it saves less than the replacement costs. `coverCpuCapInSeason` runs after the weekly IR fill, regular season and playoffs. It releases the deal whose saving, net of a minimum replacement, buys the least ability, refills the spot, and repeats. It does not draw for a club under the cap. The user seat is skipped.
+
+**Carryover hatch.** `verify.ts 3` on seed 20260727 read 347/348: Pittsburgh reached 2028 with $65.9M dead and $15.0M over, no release saved money, and the cover rewrote Roberts, QB, 74, from $18.0M to the minimum. That is the miss recorded on 2026-11-02 and 2026-11-03 (Sanchez), now inside the three-season window. `coverAfterCarryover` now restructures first: `applyRestructure` where it is allowed, `applyVoidYears` where it is not, largest saving first, until the book and the refill are funded. The minimum rewrite is still the last resort behind it. Neither step draws. The cutdown's own last resort and `newGame` are untouched, so year-0 draws stay where they were.
+
+**Re-locks.** `userOffers` tag **223486248**, FA **2926585213** (was 1779302491 / 1323223106). `trimIdentity` **1606** cuts, rng **2799512845** (was 1600 / 2524091302). `divisionRank` reads seed **49**: official 3rd, point differential alone 2nd. Seed 42's first season no longer has that case. The restructure did not move the first two again.
+
+New `capMechanics` case 17: a planted $2M hole, a one-year $5M deal and a three-year $40M deal. The long deal is restructured, every dollar is still owed, the one-year deal is not rewritten, and nothing draws.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — pass, exit 0.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline. `verify` 348/348.
+- Not run: the 5-seed Mac Studio panel, `verify.ts 5`, and the wide CPU sweep.
+
+Open: Pittsburgh's book got there because a CPU club took on $40.7M of dead money inside one free-agency window while spending $111M of room. The restructure makes the cover honest. It does not stop the club from getting there.
+
+## 2026-11-13 — Phase 1 leftovers: P2, the kickoff key, play art, P5
+
+Matt asked for this on 2026-11-13 ("do the phase 1 leftovers next"). The recommended packets of `docs/proposal-phase1-play-leftovers-2026-11-11.md` were built. No draw, no outcome change, no `baselines.json` edit, no re-lock.
+
+- **B (P2).** `PlayEvent` gains optional `kickerId` (every kickoff row, stubs included) and `returnerId` (int/fumble returned for a TD). The defensive-TD snap row is spliced ahead of the PAT and kickoff rows it caused, with the score the return made. `formatPlay` prints "… — Smith returns it for a TD". The kickoff touchback text is unchanged. **`returnYards` was left out**: the fumble-return distance is `100 - spot` and pick-six yards land in `intYds` twice (`sim/game.ts`, pre-existing, reported, not fixed). The 300-game calibrate loop (seed 12345, `Rng(999)`) ends on rng **3282470162** with identical scores before and after. All 81 defensive TDs now precede their PAT. `buildDrives` reads **6552 → 6402** drives on that loop (the spurious PAT and kickoff drives are gone). `box.drives` changes on every box with a defensive TD.
+- **A (durable `/play`).** The refresh leftover had shipped 2026-10-01; ROADMAP and spec rows are struck. New `liveKey` (FNV-1a over both depth charts, leans, each club's players with team, injury and IR/PS status, conditions and `rngState`), stored as `callSheet.snapsKey`. On reload a mismatched key voids the called game: `/play` opens at kickoff with a notice and clears the old snaps. A sealed game always shows the seal. The key covers fewer fields than the draft (not the whole team or player object) so unrelated writes do not void a game. Play Week does not check the key (`userSimOpts` unchanged).
+- **C + D1.** `lib/view/playArt.ts` and `components/PlayArt.tsx` draw a field strip from the event: line of scrimmage, line to gain, end spot, and a glyph. No formation. It shows in the `/play` Last snap cards and on a clicked `/game/[id]` play-by-play row. Before the first snap, `/play` shows the opening kickoff with its kicker. The engine still opens on a touchback (D2 deferred).
+- **E3 (P5).** `dropCpuPlays` at the top of `simulateWeek` and `simulatePlayoffRound`. The week engine attaches the engine's `plays` to CPU boxes. A CPU box keeps its snap log while its week is the latest played. `simulateGame` still does not persist CPU logs. `scripts/e2e-desks.mjs` `checkPhase1BoxScores` now accepts a latest-week CPU log and fails a kept earlier-week one (the signed `scripts/` edit). The save cost was estimated at about +0.40 MB mid-season and about +0.03 MB at recap; not re-measured on `drift`.
+- Tests: `liveGame.test.ts` (stale key, legacy save, seal view), `playByPlay.test.ts` (P2 order, kicker, golden lines, P5 window, codec), and new `lib/view/playArt.test.ts`, registered in `package.json` and as `playart` in both gate tiers.
 ## 2026-11-12 — Panel `a453c24`: GATE FAIL 4, read-only findings
 
 **UNSIGNED.** Docs only. No code, test, `scripts/`, `baselines.json`, re-lock, or dial. Full note: `docs/panel-a453c24-investigation.md`. The Studio log was not in the workspace; replays are from a Linux x64 VM.

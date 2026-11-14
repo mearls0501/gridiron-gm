@@ -15,6 +15,7 @@ import {
 } from "@/lib/core/snapIntent";
 import { SnapCall } from "@/lib/core/types";
 import { playerMap } from "@/lib/core/select";
+import { PlayArt } from "@/components/PlayArt";
 import {
   clockLabel, downDistance, driveBar, driveResultLabel, driveResultTone,
   formatVisiblePlay, playedResultLine, quarterLabel, spotLabel, visiblePlays, wentToOvertime,
@@ -40,6 +41,7 @@ export default function PlayPage() {
   const [committed, setCommitted] = useState(false);
   const [boundGameId, setBoundGameId] = useState<number | null>(null);
   const [lastSend, setLastSend] = useState<string | null>(null);
+  const [restarted, setRestarted] = useState(false);
   const committedRef = useRef(false);
   const heldFranchise = useRef<string | null>(null);
 
@@ -64,6 +66,10 @@ export default function PlayPage() {
     const g = userNextGame(s);
     if (!g || g.played) return;
     const live = resumeLiveGame(s, g.id);
+    // A stale called game is void: drop its snaps so Play Week does not
+    // replay them on a different game.
+    if (live.stale) useGame.getState().apply((x) => { setCallSheet(x, { snaps: [] }); });
+    setRestarted(live.stale);
     setBoundGameId(g.id);
     setSession(live);
     setView(live.peek());
@@ -138,9 +144,10 @@ export default function PlayPage() {
   const persistSnaps = (calls: SnapCall[]) => {
     const sealed = session?.seal() ?? null;
     apply((s) => {
-      setCallSheet(s, { snaps: calls });
+      setCallSheet(s, { snaps: calls, snapsKey: session?.key() });
       if (sealed) writeSealedLive(s, sealed);
     });
+    setRestarted(false);
   };
 
   const pick = (c: SnapCall, via?: string) => {
@@ -160,7 +167,7 @@ export default function PlayPage() {
     if (!session || !view?.done) return;
     const sealed = session.seal();
     apply((s) => {
-      setCallSheet(s, { snaps: view.calls });
+      setCallSheet(s, { snaps: view.calls, snapsKey: session.key() });
       if (sealed && !s.sealedLive) writeSealedLive(s, sealed);
       return "Play-the-Game calls set";
     });
@@ -190,6 +197,11 @@ export default function PlayPage() {
         <p className="text-xs text-[var(--color-muted)]">
           {us.city} {us.name} vs {opp.city} {opp.name} · your snaps only
         </p>
+        {restarted && (
+          <p className="text-xs text-[var(--color-warn)] mt-1" data-testid="play-restarted">
+            Your depth chart or roster changed after kickoff. The game restarted.
+          </p>
+        )}
       </div>
 
       <div className={hasLog ? "grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "max-w-3xl"}>
@@ -280,6 +292,25 @@ export default function PlayPage() {
                 {" · "}
                 {formatVisiblePlay(headline, nameOf, playSides)}
               </p>
+              <div className="mt-1.5">
+                <PlayArt event={headline.event} leftTeamId={state.userTeamId} />
+              </div>
+            </div>
+          )}
+          {!headline && view.plays[0]?.kind === "kickoff" && (
+            <div className="mb-3 px-3 py-2 rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-line-soft)]" data-testid="opening-kick">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-0.5">
+                Opening kickoff
+              </div>
+              <p className="text-sm">
+                {formatVisiblePlay({ event: view.plays[0], turnoverOnDowns: false }, nameOf, playSides)}
+                {view.plays[0].kickerId !== undefined && nameOf(view.plays[0].kickerId) && (
+                  <span className="text-xs text-[var(--color-muted)]"> · kicked by {nameOf(view.plays[0].kickerId)}</span>
+                )}
+              </p>
+              <div className="mt-1.5">
+                <PlayArt event={view.plays[0]} leftTeamId={state.userTeamId} label="Opening kickoff" />
+              </div>
             </div>
           )}
           <div className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-1.5">
@@ -367,6 +398,9 @@ export default function PlayPage() {
       {view && headline && view.done && (
         <Card title="Last snap">
           <p className="text-sm">{formatVisiblePlay(headline, nameOf, playSides)}</p>
+          <div className="mt-1.5">
+            <PlayArt event={headline.event} leftTeamId={state.userTeamId} />
+          </div>
         </Card>
       )}
 

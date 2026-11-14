@@ -167,7 +167,13 @@ export function applyFranchiseTag(
   ensureFranchiseTagSnapshot(state);
   const currentHit = capHit(p.contract);
   const apy = franchiseTagSalary(state, p);
-  const contract = startContractNow(state, makeContract(rng, apy, 1, state.season, defaultGuaranteedYears(apy, 1)));
+  // A tender is one year of salary. No signing bonus: a bonus stays with the
+  // club that paid it when he is traded (`moveAsset`), so a tag-and-trade left
+  // a quarter of the tender behind as dead money and moved him at a discount.
+  const tender = makeContract(rng, apy, 1, state.season, defaultGuaranteedYears(apy, 1));
+  const contract = startContractNow(state, {
+    ...tender, baseSalary: [apy], signingBonus: 0, bonusProrationYears: 0,
+  });
   // The user's Tag button reads the coming-year meter the header shows
   // (`tagWindowCap`), where the expiring deal is already $0. CPU tags keep
   // the closing-year check.
@@ -699,9 +705,24 @@ export function cutRefusal(state: GameState, p: Player): string | null {
     `${formatMoney(Math.max(0, room))} of room. Clear cap space first.`;
 }
 
-/** The first player in `sorted` (worst first) the club can afford to cut, else the first. */
+/**
+ * Waiving him frees no room: bonus and guarantee together are at least his
+ * hit. The club pays the same or more to have him gone, so he is not the
+ * surplus body while anybody else is.
+ */
+export function cutFreesNothing(p: Player): boolean {
+  if (!p.contract) return false;
+  const dead = deadMoney(p.contract);
+  return dead > 0 && capHit(p.contract) - dead <= 0;
+}
+
+/**
+ * The first player in `sorted` (worst first) whose cut frees room, else the
+ * first the club can afford to cut, else the first.
+ */
 function firstAffordable(state: GameState, sorted: Player[]): Player | undefined {
-  return sorted.find((p) => cutAffordable(state, p)) ?? sorted[0];
+  return sorted.find((p) => !cutFreesNothing(p) && cutAffordable(state, p))
+    ?? sorted.find((p) => cutAffordable(state, p)) ?? sorted[0];
 }
 
 export function cutPlayer(state: GameState, playerId: number): CutResult {
@@ -2159,6 +2180,8 @@ export function upgradeRoster(state: GameState, teamId: number, rng: Rng): numbe
     const worstAt = new Map<Position, Player>();
     for (const p of roster) {
       if (positionCount(state, teamId, p.pos) <= POSITION_MIN[p.pos]) continue;
+      // An upgrade is a choice. Not one that pays a man in full to leave.
+      if (cutFreesNothing(p)) continue;
       const cur = worstAt.get(p.pos);
       if (!cur || held(p) < held(cur)) worstAt.set(p.pos, p);
     }
@@ -2257,6 +2280,42 @@ export function enforceCap(state: GameState, teamId: number): void {
 }
 
 /**
+ * In season, CPU clubs only. An IR replacement is signed whether or not it
+ * fits, so a club with a thin book can end the week over the cap. The waiver
+ * backstop does not run on an empty wire, and a cut it does make is undone by
+ * the next refill when it saves less than the replacement costs.
+ *
+ * Release the deal whose saving, net of a minimum replacement, buys the least
+ * ability, then refill the open spot. Repeats until the book is legal or no
+ * release nets room. Does nothing, and does not draw, for a club under the cap.
+ */
+export function coverCpuCapInSeason(state: GameState, rng: Rng): void {
+  if (!inSeasonRosterPhase(state)) return;
+  const hold = rosterLimit(state.phase);
+  for (const t of state.teams) {
+    if (t.id === state.userTeamId) continue;
+    let guard = 0;
+    while (teamCap(state, t.id).space < 0 && guard++ < 20) {
+      const replacement = minimumCapHit(state, rng);
+      const target = state.players
+        .filter((p) => p.teamId === t.id && !p.retired && !p.prospect && p.contract)
+        .filter((p) => !isActiveRoster(p) || positionCount(state, t.id, p.pos) > POSITION_MIN[p.pos])
+        .map((p) => ({
+          p,
+          // An active release opens a spot that has to be paid for again.
+          net: capHit(p.contract) - deadMoney(p.contract) - (isActiveRoster(p) ? replacement : 0),
+          cost: Math.pow(Math.max(1, p.ovr - 45), 1.6),
+        }))
+        .filter((c) => c.net > 0)
+        .sort((a, b) => b.net / b.cost - a.net / a.cost || a.p.id - b.p.id)[0];
+      if (!target) break;
+      cutPlayer(state, target.p.id);
+      if (rosterCount(state, t.id) < hold) fillOpenActiveSlots(state, t.id, rng);
+    }
+  }
+}
+
+/**
  * Bring a team to a legal roster AND under the cap.
  *
  * These two constraints fight each other — cutting for cap space drops the
@@ -2342,7 +2401,8 @@ function rewriteLargestHits(state: GameState, teamId: number, rng: Rng, afterCar
 }
 
 /**
- * Release-first, then one rewrite strategy. Does not fill.
+ * Release-first, then real restructures, then one rewrite strategy as the
+ * last resort. Does not fill.
  *
  * The smallest hit is rewritten only when that one deal covers the cap hole
  * and still leaves a one-year minimum for every open active spot. A hit that
@@ -2360,6 +2420,30 @@ function coverAfterCarryover(state: GameState, teamId: number, rng: Rng): void {
   const refillFunded = () => spaceNow() >= 0 && spaceNow() >= spotsNow() * replacement;
   const byAsc = (a: Player, b: Player) => capHit(a.contract) - capHit(b.contract) || a.id - b.id;
   const byDesc = (a: Player, b: Player) => capHit(b.contract) - capHit(a.contract) || a.id - b.id;
+
+  // A real restructure before any rewrite: this year's base above the minimum
+  // becomes bonus spread over the years left, then void years stretch what
+  // bonus remains. The player keeps his money, so nobody ends up on a
+  // minimum deal he would never sign. Largest saving first. Neither draws.
+  let moves = 0;
+  while (moves++ < 40 && !refillFunded()) {
+    let best: { p: Player; savings: number; voids: boolean } | null = null;
+    for (const p of state.players) {
+      if (p.teamId !== teamId || p.retired || p.prospect || !p.contract) continue;
+      const r = restructurePreview(state, teamId, p);
+      const v = r.ok ? null : addVoidYearsPreview(state, teamId, p);
+      const savings = r.ok ? r.savings : v?.ok ? v.savings : 0;
+      if (savings <= 0) continue;
+      if (!best || savings > best.savings || (savings === best.savings && p.id < best.p.id)) {
+        best = { p, savings, voids: !r.ok };
+      }
+    }
+    if (!best) break;
+    const done = best.voids
+      ? applyVoidYears(state, teamId, best.p.id)
+      : applyRestructure(state, teamId, best.p.id);
+    if (!done.ok) break;
+  }
 
   let guard = 0;
   while (guard++ < 80 && !refillFunded()) {

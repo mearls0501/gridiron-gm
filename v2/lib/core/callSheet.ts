@@ -76,6 +76,11 @@ export function setCallSheet(state: GameState, patch: Partial<CallSheet>): void 
     if (!patch.snaps || patch.snaps.length === 0) delete next.snaps;
     else next.snaps = patch.snaps;
   }
+  if ("snapsKey" in patch) {
+    if (!patch.snapsKey) delete next.snapsKey;
+    else next.snapsKey = patch.snapsKey;
+  }
+  if (!next.snaps) delete next.snapsKey;
   if (next.passLean == null && next.aggression == null && !next.snaps) {
     delete team.callSheet;
   } else {

@@ -504,4 +504,52 @@ function rollToNextPreseason(st: ReturnType<typeof newGame>): void {
   ok("a CPU club under 55% after the cover is spent back to the floor and stays legal");
 }
 
+// (17) A deal with years left is restructured, not rewritten. The base above
+// the minimum becomes bonus over the remaining term, the player keeps every
+// dollar, and nobody is put on a one-year minimum.
+{
+  const st = newGame({ seed: 42 });
+  const cpu = st.teams.find((t) => t.id !== st.userTeamId);
+  assert.ok(cpu);
+  const roster = st.players.filter(
+    (p) => p.teamId === cpu.id && !p.retired && !p.prospect && p.contract,
+  );
+  const [small, large] = roster.slice().sort((a, b) => a.id - b.id);
+  const locked = (hit: number, years = 1) => ({
+    years,
+    yearsRemaining: years,
+    baseSalary: Array.from({ length: years }, () => hit),
+    signingBonus: 0,
+    bonusProrationYears: years,
+    signedSeason: st.season,
+    guaranteedYears: years,
+  });
+  for (const p of roster) p.contract = locked(795_000);
+  small.contract = locked(5_000_000);
+  large.contract = locked(40_000_000, 3);
+  const info = teamCap(st, cpu.id);
+  st.teams[cpu.id].deadCap = info.cap + info.carryover - (info.committed - info.dead) + 2_000_000;
+  assert.ok(teamCap(st, cpu.id).space < 0, "planted hole");
+  const owed = (c: NonNullable<Player["contract"]>) =>
+    c.baseSalary.reduce((sum, x) => sum + x, 0) + leftover(c);
+  const owedBefore = owed(large.contract);
+  const hitBefore = capHit(large.contract);
+  const logAt = st.log.length;
+  const rng = new Rng(st.rngState);
+  const rngAt = rng.state;
+  reconcileRoster(st, cpu.id, rng, undefined, false, true);
+  assert.equal(rng.state, rngAt, "a restructure does not draw");
+  assert.ok(teamCap(st, cpu.id).space >= 0, "the hole closed");
+  assert.equal(large.contract?.years, 3, "the deal keeps its term");
+  assert.equal(large.contract?.yearsRemaining, 3);
+  assert.ok(capHit(large.contract) < hitBefore, "this year's hit came down");
+  assert.ok(Math.abs(owed(large.contract!) - owedBefore) <= 3, "every dollar is still owed");
+  assert.equal(large.contract?.baseSalary[1], 40_000_000, "later years are untouched");
+  assert.equal(small.contract?.baseSalary[0], 5_000_000, "the one-year deal was not rewritten");
+  const added = st.log.slice(logAt).map((e) => e.text);
+  assert.ok(added.some((t) => t.includes("restructured") && t.includes("converted")), "the restructure is logged");
+  assert.ok(!added.some((t) => t.includes("to the league minimum")), "no forced minimum rewrite");
+  ok("post-carryover cover restructures a multi-year deal before any minimum rewrite");
+}
+
 console.log("\ncapMechanics: all passed");

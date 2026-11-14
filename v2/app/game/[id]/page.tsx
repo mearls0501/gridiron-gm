@@ -12,6 +12,7 @@ import {
   clockString, fgPct, krAverage, passerRating, prAverage, puntAverage, ypc, ypr,
 } from "@/lib/core/season/stats";
 import { playerMap } from "@/lib/core/select";
+import { PlayArt } from "@/components/PlayArt";
 import {
   Card, Cell, Empty, Pill, PlayerLink, PosBadge, Row, Stat, Table, Tabs, TeamMark, cx,
 } from "@/components/ui";
@@ -291,6 +292,7 @@ export default function GamePage() {
   const id = Number(Array.isArray(raw) ? raw[0] : raw);
   const [driveFocus, setDriveFocus] = useState<{ gameId: number; n: number } | null>(null);
   const [view, setView] = useState<BoxView>("summary");
+  const [artKey, setArtKey] = useState<string | null>(null);
   const pbpScroller = useRef<HTMLDivElement>(null);
   const driveNodes = useRef(new Map<number, HTMLDivElement>());
   const selectedDrive = driveFocus?.gameId === id ? driveFocus.n : null;
@@ -756,11 +758,21 @@ export default function GamePage() {
                         Drive {d.n} · {t.abbr} · {driveResultLabel(d.result)}
                       </div>
                       {snaps.map((row, i) => (
+                        <div key={`${d.n}-${i}`}>
                         <div
-                          key={`${d.n}-${i}`}
                           data-snap="true"
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={artKey === `${d.n}-${i}`}
+                          onClick={() => setArtKey(artKey === `${d.n}-${i}` ? null : `${d.n}-${i}`)}
+                          onKeyDown={(ev) => {
+                            if (ev.key === "Enter" || ev.key === " ") {
+                              ev.preventDefault();
+                              setArtKey(artKey === `${d.n}-${i}` ? null : `${d.n}-${i}`);
+                            }
+                          }}
                           className={cx(
-                            "px-3 py-1.5 text-sm flex gap-3",
+                            "px-3 py-1.5 text-sm flex gap-3 cursor-pointer",
                             on
                               ? "bg-[var(--color-accent-dim)] shadow-[inset_3px_0_0_var(--color-accent)]"
                               : row.event.offenseId === userTeamId && "bg-[var(--color-accent-dim)]/20",
@@ -773,6 +785,12 @@ export default function GamePage() {
                             {downDistance(row.event)}
                           </span>
                           <span className="min-w-0 truncate">{formatVisiblePlay(row, nameOf, playSides)}</span>
+                        </div>
+                        {artKey === `${d.n}-${i}` && (
+                          <div className="px-3 pb-2">
+                            <PlayArt event={row.event} leftTeamId={game.awayId} />
+                          </div>
+                        )}
                         </div>
                       ))}
                     </div>
