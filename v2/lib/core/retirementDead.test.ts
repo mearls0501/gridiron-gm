@@ -17,7 +17,7 @@ import { Contract, Player, PRACTICE_SQUAD_LIMIT } from "./types";
 import { applyVoidYears, cutPlayer, expireContracts } from "./offseason/contracts";
 import { runFreeAgencyOpen } from "./offseason";
 import {
-  chargeRetirementAcceleration, reapplyRetirementDead, runProgression,
+  chargeRetirementAcceleration, reapplyRetirementDead, retirementChance, runProgression,
 } from "./offseason/progression";
 import { placeOnPs } from "./rosterStatus";
 import { resolveWaivers } from "./waivers";
@@ -323,4 +323,27 @@ function fatDeal(): Contract {
   assert.equal(st.teams[teamId].deadCap, dead);
   assert.equal(st.teams[teamId].retirementDeadPending ?? 0, 0);
   ok("runFreeAgencyOpen keeps retirement dead and wipes the prior-year extra");
+}
+
+// A rostered man with bonus still to earn out retires a quarter as often.
+// Unsigned, or with the bonus charged out, the chance is the old one.
+{
+  const st = newGame({ seed: 7 });
+  const p = rostered(st, st.teams.find((t) => t.id !== st.userTeamId)!.id);
+  p.age = 31;
+  p.ovr = 68;
+  const c = p.contract!;
+  p.contract = { ...c, years: 3, yearsRemaining: 3, baseSalary: [2_000_000, 2_000_000, 2_000_000], signingBonus: 3_000_000, bonusProrationYears: 3 };
+  assert.ok(remainingBonusProration(p.contract) > 0);
+  const owed = retirementChance(p);
+  p.contract = { ...p.contract, signingBonus: 0, bonusProrationYears: 0 };
+  const plain = retirementChance(p);
+  assert.ok(plain > 0);
+  assert.ok(Math.abs(owed - plain * 0.25) < 1e-12, "a quarter of the chance while bonus is owed");
+  p.contract = { ...p.contract, signingBonus: 3_000_000, bonusProrationYears: 3 };
+  const team = p.teamId;
+  p.teamId = null;
+  assert.ok(retirementChance(p) > plain, "a man without a club is not held by a bonus");
+  p.teamId = team;
+  ok("a rostered man with bonus left on his deal retires a quarter as often");
 }
