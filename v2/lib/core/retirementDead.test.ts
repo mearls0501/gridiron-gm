@@ -1,7 +1,9 @@
 /**
- * Retirement accelerates remaining proration + guaranteed base onto dead cap.
+ * Retirement accelerates remaining bonus proration onto dead cap.
  *
- * Same figure as a waiver clear (`deadMoney`). Posted at the retirement,
+ * Bonus only: a man who retires is not paid the guaranteed base he walks
+ * away from, so this is less than a waiver clear (`deadMoney`) by exactly
+ * that base (Matt signed 2026-11-14). Posted at the retirement,
  * then re-posted after `clearDeadCap` so it is the new league year's dead
  * money. Cuts, expires, and a player who does not retire do not take this path.
  *
@@ -65,7 +67,7 @@ function fatDeal(): Contract {
   };
 }
 
-// (1) Retire with leftover bonus and guarantees → deadMoney, both pieces.
+// (1) Retire with leftover bonus and guarantees → the bonus, not the guarantee.
 {
   const st = newGame({ seed: 41 });
   const teamId = st.userTeamId;
@@ -79,9 +81,10 @@ function fatDeal(): Contract {
   st.teams[teamId].retirementDeadPending = 0;
 
   const dead = chargeRetirementAcceleration(st, p);
-  assert.equal(dead, parts.total);
-  assert.equal(st.teams[teamId].deadCap, parts.total);
-  assert.equal(st.teams[teamId].retirementDeadPending, parts.total);
+  assert.equal(dead, Math.round(parts.proration));
+  assert.equal(dead, parts.total - parts.guaranteed, "a cut would also owe the guaranteed base; a retirement does not");
+  assert.equal(st.teams[teamId].deadCap, dead);
+  assert.equal(st.teams[teamId].retirementDeadPending, dead);
   assert.equal(p.contract?.signingBonus, 10_000_000, "charge happens before the contract is cleared");
   assert.equal(p.teamId, teamId);
   for (const t of st.teams) {
@@ -89,7 +92,7 @@ function fatDeal(): Contract {
     assert.equal(t.deadCap, 0);
     assert.equal(t.retirementDeadPending ?? 0, 0);
   }
-  ok("retirement charges proration + guaranteed base via deadMoney");
+  ok("retirement charges the remaining bonus and not the guaranteed base");
 }
 
 // (2) Zero leftover → no charge.
@@ -139,7 +142,7 @@ function fatDeal(): Contract {
   st.waivers = [{ playerId: p.id, originalTeamId: teamId }];
   st.teams[teamId].deadCap = 0;
   const dead = chargeRetirementAcceleration(st, p);
-  assert.equal(dead, deadMoney(fatDeal()));
+  assert.equal(dead, Math.round(remainingBonusProration(fatDeal())));
   assert.equal(st.teams[teamId].deadCap, dead);
   ok("waiver-wire retirement charges the original club");
 }
@@ -182,7 +185,7 @@ function fatDeal(): Contract {
   p.pot = 40;
   p.ceiling = 40;
   silenceExcept(st, p);
-  const expected = deadMoney(p.contract);
+  const expected = Math.round(remainingBonusProration(p.contract));
   st.teams[teamId].deadCap = 0;
   const snap = JSON.parse(JSON.stringify(st)) as typeof st;
 
@@ -202,7 +205,7 @@ function fatDeal(): Contract {
     assert.equal(s.teams[teamId].retirementDeadPending, expected);
   }
   assert.ok(retired, "an old rostered player retired inside the seed search");
-  ok("runProgression charges deadMoney before clearing the contract");
+  ok("runProgression charges the remaining bonus before clearing the contract");
 }
 
 // (7) A player who does not retire is untouched. Expire and waiver clears

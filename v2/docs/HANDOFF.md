@@ -1,5 +1,32 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-14 — Retirement accelerates the remaining bonus, not the guaranteed base
+
+Asked for by Matt, 2026-11-14 ("do A, charge the bonus only"). Nothing in `scripts/` or `baselines.json` moved.
+
+`chargeRetirementAcceleration` (`offseason/progression.ts`) charged `deadMoney`: the unamortized bonus plus every remaining guaranteed base year. A man who retires is not paid his salary, so the guaranteed base was dead money for nothing. It now charges `remainingBonusProration` only.
+
+Traced before the change, all clubs, four seasons:
+
+| seed | retirements with dead money | charged | bonus share (what is charged now) | guaranteed base (no longer charged) |
+| :--- | ---: | ---: | ---: | ---: |
+| 20260727 | 246 | $892M | $451M | $441M |
+| 42 | 238 | $1,034M | $475M | $559M |
+
+The "now" column is the bonus share of the old trace, not a re-run. The freed room changes later signings, so the live total will differ.
+
+`retirementDead` cases 1, 4 and 6 assert bonus-only.
+
+Not changed: who retires. Men with guaranteed years left still retire.
+
+**Re-lock:** `trimIdentity` **1530** cuts, rng **3780634271**. `userOffers` free agency rng **20755560**; the tag lock did not move.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
 ## 2026-11-14 — A franchise tender carries no signing bonus
 
 Asked for by Matt, 2026-11-14 ("fix the tag accounting and leave the rest alone"). Nothing in `scripts/` or `baselines.json` moved.

@@ -4,7 +4,7 @@ import { AttrKey, GameState, Player, SeasonHistory } from "../types";
 import { isReceivingLeaderPos, playedSnaps } from "../season/stats";
 import { healOffseason } from "../season/injuries";
 import { leagueStandings, stampDivisionPlaces } from "../season/standings";
-import { addDeadCap, computeRecords, deadMoney } from "../select";
+import { addDeadCap, computeRecords, remainingBonusProration } from "../select";
 import { REPLACEMENT_OVR } from "../frontOffice";
 import {
   ceilingRecovery, declineMultiplier, developmentMultiplier, schemeDevelopmentMultiplier,
@@ -193,8 +193,14 @@ export interface OffseasonReport {
 
 /**
  * Accelerate a retirement onto the club's dead cap before the contract is
- * cleared. Same composition as a waiver clear: `deadMoney` (remaining bonus
- * proration, void-year remainder included, plus remaining guaranteed base).
+ * cleared: the remaining bonus proration, void-year remainder included.
+ *
+ * Bonus only. The bonus was paid at signing and its uncharged years land
+ * now. Guaranteed base does not: a man who retires is not paid the salary he
+ * walks away from, so it is not the figure a cut or a waiver clear charges
+ * (`deadMoney`). Matt SIGNED 2026-09-27 "retirement accelerates remaining
+ * proration as dead money, per the CBA", and 2026-11-14 "charge the bonus
+ * only".
  *
  * The amount is also remembered on the team. `clearDeadCap` at FA open wipes
  * every prior-year dollar, including this post; `reapplyRetirementDead` puts
@@ -205,7 +211,7 @@ export function chargeRetirementAcceleration(state: GameState, p: Player): numbe
     ?? state.waivers?.find((w) => w.playerId === p.id)?.originalTeamId
     ?? null;
   if (teamId === null) return 0;
-  const dead = deadMoney(p.contract);
+  const dead = p.contract ? Math.round(remainingBonusProration(p.contract)) : 0;
   if (dead <= 0) return 0;
   addDeadCap(state, teamId, dead);
   const t = state.teams[teamId];

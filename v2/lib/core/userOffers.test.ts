@@ -30,6 +30,7 @@
  * minimums and the legality check on the shop pass: tag 2748412837, FA 2612039437.
  * 2026-11-14 re-lock (no cut that frees no room; no free agent signed to sit): tag 2748412837, FA 2612039437.
  * 2026-11-14 re-lock (a franchise tender carries no signing bonus): tag 2748412837, FA 2612039437.
+ * 2026-11-14 re-lock (retirement charges the bonus only): tag 2748412837, FA 20755560.
  *
  * Run: npx tsx lib/core/userOffers.test.ts
  */
@@ -139,7 +140,7 @@ console.log("ok    userOffers — successful inquiries add no parent RNG draws (
 
   advanceOffseason(st);
   assert.equal(st.phase, "offseason-fa");
-  assert.equal(st.rngState, 2612039437, "inquiry must not move the parent stream");
+  assert.equal(st.rngState, 20755560, "inquiry must not move the parent stream");
 
   const offers = st.tradeOffers ?? [];
   assert.ok(offers.length >= 1, `free agency opened with no calls (${offers.length})`);
