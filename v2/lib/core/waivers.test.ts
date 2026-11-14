@@ -257,6 +257,36 @@ function makeUnclaimable(p: Player): void {
   assert.equal(st.waivers, undefined);
 }
 
+// A full club claiming a man releases one whose deal has no signing bonus
+// left. It does not pull a bonus forward to swap bodies off the wire.
+{
+  const st = newGame({ seed: 10 });
+  st.phase = "regular";
+  st.week = 8;
+  const cpuId = waiverPriority(st).find((id) => id !== st.userTeamId)!;
+  const wrs = clubPlayers(st, cpuId).filter((x) => x.pos === "WR" && !x.status).sort((a, b) => a.ovr - b.ovr);
+  assert.ok(wrs.length >= 4);
+  // Everybody in the room carries a bonus except the second-worst.
+  for (const w of wrs) w.contract = makeContract(new Rng(1), 3_000_000, 3, st.season, 0);
+  const free = wrs[1];
+  free.contract = makeContract(new Rng(1), LEAGUE_MINIMUM, 1, st.season, 0);
+  assert.ok(remainingBonusProration(wrs[0].contract) > 0);
+  assert.equal(remainingBonusProration(free.contract), 0);
+  const deadBefore = st.teams[cpuId].deadCap ?? 0;
+
+  const p = weakest(st, st.userTeamId);
+  p.pos = "WR";
+  p.ovr = 92;
+  p.pot = 92;
+  p.ceiling = 92;
+  assert.equal(cutPlayer(st, p.id).ok, true);
+  resolveWaivers(st);
+  assert.equal(p.teamId, cpuId, "the first club in the order claims him");
+  assert.equal(free.teamId, null, "the man with no bonus made the room");
+  assert.equal(wrs[0].teamId, cpuId, "the worst man kept his place; his bonus stayed spread");
+  assert.equal(st.teams[cpuId].deadCap ?? 0, deadBefore, "the claim accelerated nothing");
+}
+
 // Headless draft + camp fill + Start the Season: extras hit waivers first,
 // then the claim-cut chain settles so the desk is not the whole dump.
 {

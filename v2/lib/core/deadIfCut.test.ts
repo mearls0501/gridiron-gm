@@ -68,9 +68,10 @@ function ok(label: string) { console.log("ok   ", label); }
   const st = newGame({ seed: 42 });
   const drafted = rookieContract(st, 7, new Rng(1), 224);
   assert.equal(drafted.guaranteedYears, 0);
-  assert.equal(capHit(drafted), 907_500);
-  assert.equal(deadMoney(drafted), 450_000);
-  assert.equal(capSavingsFromCut(drafted), 457_500);
+  // Round seven: a $100K slot bonus on a minimum base.
+  assert.equal(capHit(drafted), 820_000);
+  assert.equal(deadMoney(drafted), 100_000);
+  assert.equal(capSavingsFromCut(drafted), 720_000);
 
   const me = st.userTeamId;
   const p = st.players.find((x) => x.teamId === me && x.contract && !x.retired)!;
@@ -98,7 +99,13 @@ function ok(label: string) { console.log("ok   ", label); }
   assert.equal(signingBonusFor(M * 1.5, 2, true), 350_000, "a drafted deal is not ramped");
   assert.equal(signingBonusFor(M * 2, 3), signingBonusFor(M * 2, 3, true), "the whole share at 2x");
   assert.equal(signingBonusFor(5_000_000, 3), 2_450_000, "deals above 2x are unchanged");
-  assert.equal(signingBonusFor(M, 4, true), 450_000, "the seventh-round slot bonus stays");
+  assert.equal(signingBonusFor(M, 4, true), 450_000, "a drafted deal with no round keeps the general share");
+  // Late-round slots are sized like the real ones (Matt, 2026-11-14).
+  assert.equal(signingBonusFor(M, 4, true, 7), 100_000, "round seven");
+  assert.equal(signingBonusFor(M, 4, true, 6), 150_000, "round six");
+  assert.equal(signingBonusFor(M, 4, true, 5), 250_000, "round five");
+  assert.equal(signingBonusFor(M, 4, true, 4), 450_000, "round four is unchanged");
+  assert.equal(signingBonusFor(M, 4, false, 7), 0, "a round means nothing on an undrafted deal");
   for (let apy = M; apy < M * 2; apy += 50_000) {
     assert.ok(signingBonusFor(apy + 50_000, 3) >= signingBonusFor(apy, 3), `bonus never falls as pay rises (${apy})`);
   }

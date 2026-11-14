@@ -1,5 +1,36 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-14 — A waiver claim accelerates no bonus; late-round slot bonuses at real size
+
+Asked for by Matt, 2026-11-14 ("fix the dead money from waiver claim cuts next", "fix the dead money from draft picks next"). Nothing in `scripts/` or `baselines.json` moved.
+
+**Claims.** `worseSurplus` (`waivers.ts`) compared the incoming man with the club's worst at his position and released that man, bonus or not. About 250 of 2,100 claim cuts over four seasons pulled a bonus forward. The released man must now have no bonus proration left. The club looks to the next-worst, or passes. He can still go at the cutdown.
+
+**Slot bonuses.** Every drafted deal paid about 14% as signing bonus: $450K in round seven, where the real slot is near $100K. `LATE_ROUND_BONUS_SHARE` (`generate.ts`): round five 8%, six 5%, seven 2.5%, which rounds to $250K, $150K, $100K. Rounds one to four are unchanged. `signingBonusFor` and `makeContract` take the round; `rookieContract` passes it. This replaces "the seventh-round slot bonus stays". Matt's go-ahead, 2026-11-14: "merge the rookie bonus fix too once it passes".
+
+A rookie's base does not go under the minimum, so the smaller bonus is not made up in base. A round-seven first-year hit is $820K, was $907.5K.
+
+Measured on this VM, CPU clubs, four seasons, each fix on its own over the entry below:
+
+| | seed 20260727 | seed 42 |
+| :--- | ---: | ---: |
+| bonus accelerated by claim cuts | $119M → $0 | $106M → $0 |
+| waiver claims | 2,221 → 1,791 | 2,036 → 1,774 |
+| bonus accelerated by cutting round 5-7 picks | $89M → $29M | $92M → $33M |
+| bonus accelerated by all CPU cuts, both fixes | $432M → $279M | $410M → $252M |
+
+Tried on the same traces and not built, because two seeds could not tell them from noise: a club not releasing a veteran it paid that year; passing over a costly release in season; not drafting or signing into a room already full of bonus deals; shorter terms for men under 72.
+
+`waivers` has a new case that fails on the old behaviour. `deadIfCut` asserts the slot by round and the new round-seven hit, dead money and saving.
+
+**Re-lock:** `trimIdentity` **1400** cuts, rng **571563341**. `userOffers` tag **1614125276**, free agency **3117494098**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
 ## 2026-11-14 — A cap release takes the deals with no dead money first
 
 Asked for by Matt, 2026-11-14 ("fix the dead money from cap-casualty cuts next", then "fix the roster churn at the bottom next"). Nothing in `scripts/` or `baselines.json` moved.
