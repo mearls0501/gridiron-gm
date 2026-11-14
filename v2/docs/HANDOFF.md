@@ -1,5 +1,35 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-14 — A CPU club does not pay a veteran in full to leave
+
+Asked for by Matt, 2026-11-14 ("fix the dead money from veteran cuts next"). Nothing in `scripts/` or `baselines.json` moved.
+
+Every CPU cut was traced over four seasons on seeds 20260727 and 42. Veteran-cut dead money is mostly quarterbacks. A club with its room full still bid on any free agent over the posture's star bar, signed him with a bonus and a guaranteed year, then waived him at the `QB_53_MAX` cutdown or swapped him out on a waiver claim. Those cuts owed more than the cap hit they removed.
+
+- `interest` (`offseason/freeAgency.ts`): with the position at its target, the club bids only on a man whose believed overall beats its last starter there (`lastStarterOvr`). The star bar still applies first.
+- `cutFreesNothing` (`offseason/contracts.ts`, exported): dead money is positive and at least his hit.
+- `firstAffordable` takes the first man whose cut frees room, then the first affordable, then the first. That covers `worstSurplus`, `cutWorstActiveAt` and `cutWorstActiveQuarterback`.
+- `worseSurplus` (waiver claim) and `upgradeRoster` do not release a man whose cut frees no room. Both are optional moves.
+
+Measured on this VM, CPU clubs, four seasons, deals above twice the minimum:
+
+| seed | cuts that free no room | bonus + guarantee exposed | bonus accelerated | of which QB |
+| :--- | ---: | ---: | ---: | ---: |
+| 20260727 | 16 → 1 | $410M → $264M | $286M → $264M | $153M → $109M |
+| 42 | 20 → 2 | $467M → $263M | $290M → $259M | $162M → $107M |
+
+Not changed: `enforceCap` releasing an expensive man to get under the cap (about $120M of bonus per four seasons). Those cuts save room.
+
+`deadIfCut` gains a block on `cutFreesNothing`. **Re-lock:** `trimIdentity` **1545** cuts, rng **2793437930**. `userOffers` did not move (tag 2748412837, FA 2612039437).
+
+Also traced, not changed: CPU trades put $337M / $405M on sellers over the same four seasons, about half of it bonus pulled forward from later years. `checkTrade` already counts it and `playerTradeValue` already prices it (2026-11-13). Matt chose to leave trade behaviour alone and fix only the franchise-tag bonus, which is the next entry up when it lands.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
 ## 2026-11-14 — The signing bonus comes in between one and two league minimums
 
 Asked for by Matt, 2026-11-13 ("fix the dead money from cuts just above the minimum"). Nothing in `scripts/` or `baselines.json` moved.
