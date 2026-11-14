@@ -1,5 +1,23 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-14 — A franchise tender carries no signing bonus
+
+Asked for by Matt, 2026-11-14 ("fix the tag accounting and leave the rest alone"). Nothing in `scripts/` or `baselines.json` moved.
+
+`applyFranchiseTag` built the tender with `makeContract`, which split about a quarter of it into a signing bonus. A bonus stays with the club that paid it when the man is traded (`moveAsset`). So a tag-and-trade left $8–9M of dead money on the tagging club and moved him to the other club at base only. Two cases across seeds 20260727 and 42 over four seasons, about $17M.
+
+The tender is now one year of base salary: `baseSalary: [apy]`, `signingBonus: 0`, `bonusProrationYears: 0`. The hit, the guarantee and the tag price are unchanged. `franchiseTag` case 1 asserts it.
+
+CPU trade behaviour is otherwise as it was. The trace is in the entry below.
+
+**Re-lock:** `trimIdentity` **1555** cuts, rng **3609848918**. `userOffers` did not move.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
 ## 2026-11-14 — A CPU club does not pay a veteran in full to leave
 
 Asked for by Matt, 2026-11-14 ("fix the dead money from veteran cuts next"). Nothing in `scripts/` or `baselines.json` moved.
