@@ -4,7 +4,7 @@ import { placeOnPs, clearRosterSlot } from "./rosterStatus";
 import { compareTeamsCore, leagueStandings } from "./season/standings";
 import { evaluate, teamOutlook, TeamOutlook } from "./frontOffice";
 import { POSITION_VALUE } from "./ratings";
-import { cutPlayer, draftCapitalHold, enforceCap } from "./offseason/contracts";
+import { cutFreesNothing, cutPlayer, draftCapitalHold, enforceCap } from "./offseason/contracts";
 
 const TIME = typeof process !== "undefined" && process.env.WAIVER_TIME === "1";
 let resolvePass = 0;
@@ -173,7 +173,8 @@ function worseSurplus(state: GameState, idx: WaiverIdx, teamId: number, incoming
   const incomingWorth = bodyWorth(state, teamId, incoming, outlook);
   const roster = bag.members.filter((p) => p.pos === incoming.pos && isActiveRoster(p));
   if (roster.length <= POSITION_MIN[incoming.pos]) return null;
-  const worst = roster.slice().sort((a, b) => bodyWorth(state, teamId, a, outlook) - bodyWorth(state, teamId, b, outlook))[0];
+  // A claim is a choice. The man it replaces is one whose cut frees room.
+  const worst = roster.filter((p) => !cutFreesNothing(p)).sort((a, b) => bodyWorth(state, teamId, a, outlook) - bodyWorth(state, teamId, b, outlook))[0];
   if (!worst) return null;
   if (bodyWorth(state, teamId, worst, outlook) < incomingWorth) return worst;
   return null;

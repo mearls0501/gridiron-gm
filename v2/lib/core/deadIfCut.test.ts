@@ -16,7 +16,7 @@ import { defaultGuaranteedYears, makeContract, signingBonusFor } from "./generat
 import { capHit, capSavingsFromCut, deadMoney, remainingBonusProration, teamCap } from "./select";
 import { LEAGUE_MINIMUM } from "./types";
 import { rookieContract } from "./offseason/draft";
-import { cutAffordable } from "./offseason/contracts";
+import { cutAffordable, cutFreesNothing } from "./offseason/contracts";
 
 function ok(label: string) { console.log("ok   ", label); }
 
@@ -103,4 +103,20 @@ function ok(label: string) { console.log("ok   ", label); }
     assert.ok(signingBonusFor(apy + 50_000, 3) >= signingBonusFor(apy, 3), `bonus never falls as pay rises (${apy})`);
   }
   ok("signing bonus ramps in from the minimum to twice the minimum; drafted deals keep theirs");
+}
+
+// A club choosing whom to waive passes over a man whose cut frees no room.
+// A fresh deal with a guaranteed year owes its bonus and that year; a deal
+// with no guarantee past the bonus saves his base; a minimum deal owes nothing.
+{
+  const st = newGame({ seed: 5 });
+  const p = st.players.find((x) => x.teamId === st.userTeamId && !x.retired && !x.prospect)!;
+  p.contract = makeContract(new Rng(1), 10_000_000, 3, st.season, 2);
+  assert.ok(capHit(p.contract) - deadMoney(p.contract) <= 0);
+  assert.equal(cutFreesNothing(p), true, "bonus plus two guaranteed years is more than this year's hit");
+  p.contract = makeContract(new Rng(1), 10_000_000, 3, st.season, 0);
+  assert.equal(cutFreesNothing(p), false, "with no guaranteed year the base comes off");
+  p.contract = makeContract(new Rng(1), LEAGUE_MINIMUM, 1, st.season, 0);
+  assert.equal(cutFreesNothing(p), false, "a minimum deal has no dead money to weigh");
+  ok("a cut that frees no room is told apart from one that does");
 }
