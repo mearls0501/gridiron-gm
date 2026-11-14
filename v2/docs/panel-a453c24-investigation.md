@@ -314,3 +314,54 @@ step season phase         rng              players      rostered      cut rows i
 ```
 
 The last line is the lock: 1587 cuts, rng 19218870. The cut list is `CUTS` in `lib/core/trimIdentity.test.ts` at `a453c24`.
+
+## Addendum, 2026-11-14 — current main  on the VM
+
+Matt asked for both of these on 2026-11-14. Read-only, scratch copy of main  (#246), same Linux x64 VM, Node 22.23.4. No Studio job. Line numbers in this section are from .
+
+### The trim lock and a fresh reference trace
+
+ passes on the VM: . That is the 2026-11-14 lock. Since #229 the literal has been re-locked seven more times, each on a VM. Section 1 applies to every one of them: none has been read on the Studio.
+
+Appendix C is the VM trace for . Run  from Appendix A on the Studio **at ** and diff against Appendix C, not Appendix B.
+
+### Ten-season : the bargains are gone, and one roster is at 69
+
+, seed : **1062/1063**.
+
+- **No bargain in ten seasons.** No "forced by the cap" row is behind any failed check. On this machine that check failed four times at  and once at . The restructure-first cover from #235 is doing what it was signed for here. The Studio plays a different league after year 0, so this is not yet the Studio's answer.
+- **New failure.** . Baltimore, a CPU club, opens 2033 with **69** on the active roster, 50.9M of space, and 34 hits under M.
+
+VM champions at : 2026 New Orleans, 2027 Brooklyn, 2028 Atlanta, 2029 Hartford, 2030 Hartford, 2031 Nashville, 2032 Tampa Bay, 2033 Pittsburgh, 2034 San Diego, 2035 San Francisco.
+
+### Why Baltimore is at 69
+
+Baltimore's count after each step of that offseason, active / all bodies:
+
+| after | active | bodies | space |
+|---|---:|---:|---:|
+| tag | 42 | 44 | 88.3M |
+| free agency | 50 | 52 | 66.3M |
+| draft, camp filled | 90 | 92 | 28.2M |
+| three preseason weeks | 90 | 97 | 24.2M |
+| Start the Season | **69** | 69 | 50.9M |
+
+Inside that last step the log reads, in order: nine waiver claims, each paired with a waive; **16** players "placed on the practice squad"; then 16 pairs of "BAL waived X" and "BAL signed Y (… 58–61 OVR) — … / \/bin/bash.8M per year", where every X is one of the 16 just placed on the practice squad; then one extension. 53 + 16 = 69.
+
+The writer is  ( 2004), called after the calendar rolls by  (2076;  353). It picks the worst player at each position from every body on the club (2018–2020: , not retired, not a prospect). That list includes the practice squad. It then cuts him and signs a free agent in his place (2058–2066). The new man has no , so he is active ( 35).  counts active players only (39). Replacing a practice-squad body with an active one adds one to the 53 each time. The guard in  checks for exactly 53 once, before the loop, and nothing after it trims.
+
+Before the roll the same function is safe because the first cutdown  call follows it. After the roll nothing does:  (349) runs first, and it only acts on a club that is short or over the cap.
+
+It needs a club that is legal, at 53, well under the 78% floor after the roll, and carrying a practice squad whose worst bodies a street free agent beats by two points.  came in with #214. This is the first run I have seen it leave a club over 53: neither VM run in section 2 has the line, and it is not on the Studio summary for . I have not shown which later merge made Baltimore's book this cheap. The 34 sub-\M hits and #241/#243 (minimum deals carry no bonus) point that way, but that is a guess.
+
+### Proposed — UNSIGNED
+
+In , choose the player to replace from the active roster only. One line, the roster filter at 2018–2020. It changes which swaps a club under the floor makes before the roll as well, so the seed-42 fingerprints may move and would need a signed re-lock. I have not built or measured it.
+
+Not proposed: a trim after . That would cut 16 players the club just signed and book their dead money.
+
+## Appendix C — the VM's trace at 
+
+
+
+The last line is main's lock: 1530 cuts, rng 3780634271.

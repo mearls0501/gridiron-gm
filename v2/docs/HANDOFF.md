@@ -1,5 +1,13 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-14 — Main  on the VM: bargains gone, one roster at 69
+
+**UNSIGNED.** Docs only, read-only replays on a Linux x64 VM. Matt asked for both runs. Detail and the reference trace: the addendum and Appendix C of .
+
+-  passes on the VM at 1530 / 3780634271. Every re-lock since #222 was measured on a VM and none has been read on the Studio. The 2026-11-12 entry's first disagreement still stands.
+- , seed 20260727: **1062/1063**. No minimum-rewrite bargain in ten seasons, against four failed checks at . #235's restructure-first cover holds on this machine.
+- **New.** Baltimore, CPU, opens 2033 with **69** active. After the roll,  calls , which picks its worst-at-position from every body on the club, practice squad included, cuts him, and signs an active replacement. Sixteen swaps, 53 + 16. Nothing trims after it. Proposed, not built: have  replace active players only. It may move the seed-42 fingerprints.
+
 ## 2026-11-14 — Retirement accelerates the remaining bonus, not the guaranteed base
 
 Asked for by Matt, 2026-11-14 ("do A, charge the bonus only"). Nothing in `scripts/` or `baselines.json` moved.
