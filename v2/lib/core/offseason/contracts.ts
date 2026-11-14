@@ -2256,7 +2256,19 @@ function extendOwnPlayer(
   return true;
 }
 
-/** Bring a team under the cap by releasing the worst value-for-money contracts. */
+/**
+ * How much of a cap release is thrown away. 0: nothing owed after he goes.
+ * 1: he saves more than he leaves behind. 2: he leaves behind more than he
+ * saves. A club clearing room works down the first before it touches the next.
+ */
+function capCutTier(dead: number, savings: number): number {
+  return dead <= 0 ? 0 : dead < savings ? 1 : 2;
+}
+
+/**
+ * Bring a team under the cap by releasing the worst value-for-money contracts.
+ * Deals that leave no dead money go first, whatever the ratio says.
+ */
 export function enforceCap(state: GameState, teamId: number): void {
   let guard = 0;
   while (teamCap(state, teamId).space < 0 && guard++ < 60) {
@@ -2266,13 +2278,13 @@ export function enforceCap(state: GameState, teamId: number): void {
     // Cut the player whose cap hit buys the least ability, protecting minimums.
     const candidates = roster
       .filter((p) => !isActiveRoster(p) || positionCount(state, teamId, p.pos) > POSITION_MIN[p.pos])
-      .map((p) => ({
-        p,
-        savings: capHit(p.contract) - deadMoney(p.contract),
-        cost: Math.pow(Math.max(1, p.ovr - 45), 1.6),
-      }))
+      .map((p) => {
+        const dead = deadMoney(p.contract);
+        const savings = capHit(p.contract) - dead;
+        return { p, savings, tier: capCutTier(dead, savings), cost: Math.pow(Math.max(1, p.ovr - 45), 1.6) };
+      })
       .filter((c) => c.savings > 0)
-      .sort((a, b) => b.savings / b.cost - a.savings / a.cost);
+      .sort((a, b) => a.tier - b.tier || b.savings / b.cost - a.savings / a.cost);
 
     if (candidates.length === 0) break;
     cutPlayer(state, candidates[0].p.id);
@@ -2300,14 +2312,14 @@ export function coverCpuCapInSeason(state: GameState, rng: Rng): void {
       const target = state.players
         .filter((p) => p.teamId === t.id && !p.retired && !p.prospect && p.contract)
         .filter((p) => !isActiveRoster(p) || positionCount(state, t.id, p.pos) > POSITION_MIN[p.pos])
-        .map((p) => ({
-          p,
+        .map((p) => {
+          const dead = deadMoney(p.contract);
           // An active release opens a spot that has to be paid for again.
-          net: capHit(p.contract) - deadMoney(p.contract) - (isActiveRoster(p) ? replacement : 0),
-          cost: Math.pow(Math.max(1, p.ovr - 45), 1.6),
-        }))
+          const net = capHit(p.contract) - dead - (isActiveRoster(p) ? replacement : 0);
+          return { p, net, tier: capCutTier(dead, net), cost: Math.pow(Math.max(1, p.ovr - 45), 1.6) };
+        })
         .filter((c) => c.net > 0)
-        .sort((a, b) => b.net / b.cost - a.net / a.cost || a.p.id - b.p.id)[0];
+        .sort((a, b) => a.tier - b.tier || b.net / b.cost - a.net / a.cost || a.p.id - b.p.id)[0];
       if (!target) break;
       cutPlayer(state, target.p.id);
       if (rosterCount(state, t.id) < hold) fillOpenActiveSlots(state, t.id, rng);
