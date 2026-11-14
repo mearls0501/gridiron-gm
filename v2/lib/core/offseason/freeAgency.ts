@@ -3,9 +3,9 @@ import { defaultGuaranteedYears, makeContract, signingBonusFor } from "../genera
 import { assignJerseyOnJoin } from "../jersey";
 import { POSITION_VALUE } from "../ratings";
 import {
-  FaBid, FaState, GameState, LEAGUE_MINIMUM, Player, POSITION_TARGET, Position, ROSTER_LIMIT,
+  FaBid, FaState, GameState, LEAGUE_MINIMUM, Player, POSITION_TARGET, Position, ROSTER_LIMIT, STARTERS,
 } from "../types";
-import { capHit, formatMoney, isOnWaivers, positionCount, rosterCount, teamCap } from "../select";
+import { capHit, formatMoney, isActiveRoster, isOnWaivers, positionCount, rosterCount, teamCap } from "../select";
 import { askingPrice, negotiatedApy, suggestedYears } from "./contracts";
 import {
   FrontOffice, Posture, SPEND_FLOOR, evaluate, frontOffice, spendBudget, teamOutlook,
@@ -32,6 +32,15 @@ function teamNeed(state: GameState, teamId: number, pos: Position): number {
   return clamp((want - have) / Math.max(1, want), -0.4, 1);
 }
 
+/** Overall of the last man in the starting group here, 0 if the group is short. */
+function lastStarterOvr(state: GameState, teamId: number, pos: Position): number {
+  const ovrs = state.players
+    .filter((x) => x.teamId === teamId && x.pos === pos && !x.retired && !x.prospect && isActiveRoster(x))
+    .map((x) => x.ovr)
+    .sort((a, b) => b - a);
+  return ovrs[STARTERS[pos] - 1] ?? 0;
+}
+
 /**
  * Does this club want this player, and how badly.
  *
@@ -53,6 +62,10 @@ function interest(
   // a rebuilding club will not sign a 31-year-old to sit behind someone.
   const starBar = posture === "contend" ? 76 : posture === "retool" ? 79 : 84;
   if (need <= 0 && view.ovr < starBar) return 0;
+  // Covered means covered: with the room full he has to beat a man who plays.
+  // A good quarterback signed to sit fourth is waived at the cutdown with his
+  // bonus and guarantee still owed.
+  if (need <= 0 && view.ovr <= lastStarterOvr(state, teamId, p.pos)) return 0;
   if (posture === "rebuild" && p.age >= 30 && view.ovr < 82) return 0;
 
   const value = evaluate(state, teamId, believed, posture, POSITION_VALUE[p.pos]);

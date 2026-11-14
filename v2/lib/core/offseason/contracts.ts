@@ -699,9 +699,24 @@ export function cutRefusal(state: GameState, p: Player): string | null {
     `${formatMoney(Math.max(0, room))} of room. Clear cap space first.`;
 }
 
-/** The first player in `sorted` (worst first) the club can afford to cut, else the first. */
+/**
+ * Waiving him frees no room: bonus and guarantee together are at least his
+ * hit. The club pays the same or more to have him gone, so he is not the
+ * surplus body while anybody else is.
+ */
+export function cutFreesNothing(p: Player): boolean {
+  if (!p.contract) return false;
+  const dead = deadMoney(p.contract);
+  return dead > 0 && capHit(p.contract) - dead <= 0;
+}
+
+/**
+ * The first player in `sorted` (worst first) whose cut frees room, else the
+ * first the club can afford to cut, else the first.
+ */
 function firstAffordable(state: GameState, sorted: Player[]): Player | undefined {
-  return sorted.find((p) => cutAffordable(state, p)) ?? sorted[0];
+  return sorted.find((p) => !cutFreesNothing(p) && cutAffordable(state, p))
+    ?? sorted.find((p) => cutAffordable(state, p)) ?? sorted[0];
 }
 
 export function cutPlayer(state: GameState, playerId: number): CutResult {
@@ -2159,6 +2174,8 @@ export function upgradeRoster(state: GameState, teamId: number, rng: Rng): numbe
     const worstAt = new Map<Position, Player>();
     for (const p of roster) {
       if (positionCount(state, teamId, p.pos) <= POSITION_MIN[p.pos]) continue;
+      // An upgrade is a choice. Not one that pays a man in full to leave.
+      if (cutFreesNothing(p)) continue;
       const cur = worstAt.get(p.pos);
       if (!cur || held(p) < held(cur)) worstAt.set(p.pos, p);
     }
