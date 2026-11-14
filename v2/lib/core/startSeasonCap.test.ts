@@ -48,7 +48,7 @@ function plantOverCap(st: GameState, teamId: number): { stars: Player[]; camp: P
     assert.ok(capSavingsFromCut(p.contract) < 0);
   }
   camp.contract = makeContract(r, LEAGUE_MINIMUM, 1, st.season, 0);
-  assert.equal(capHit(camp.contract), 895_000);
+  assert.equal(capHit(camp.contract), 795_000);
   assert.ok(capSavingsFromCut(camp.contract) > 0);
   const room = teamCap(st, teamId).space;
   st.teams[teamId].deadCap = (st.teams[teamId].deadCap ?? 0) + Math.max(0, room) + 900_000_000;
@@ -80,7 +80,7 @@ function dealSnapshot(p: Player): string {
   for (const p of stars) {
     assert.equal(p.teamId, uid, `${p.lastName} was waived`);
     assert.equal(dealSnapshot(p), deals.get(p.id));
-    assert.notEqual(capHit(p.contract), 895_000);
+    assert.notEqual(capHit(p.contract), 795_000);
   }
   assert.equal(camp.teamId, uid, "the minimum body was a phantom waive");
   assert.equal(dealSnapshot(camp), campDeal);
@@ -106,9 +106,9 @@ ok("over-cap user at Start the Season: no rewrite, no phantom waive, blocked");
     assert.equal(p.teamId, cpu.id, `${p.lastName} should stay and be rewritten`);
     assert.equal(p.contract?.years, 1);
     assert.equal(p.contract?.yearsRemaining, 1);
-    assert.equal(capHit(p.contract), 895_000);
+    assert.equal(capHit(p.contract), 795_000);
     assert.equal(p.contract?.baseSalary[0], 795_000);
-    assert.equal(p.contract?.signingBonus, 100_000);
+    assert.equal(p.contract?.signingBonus, 0, "a minimum deal is all base");
   }
   assert.ok(st.log.some((e) => e.text.includes(`${cpu.abbr} restructured`) && e.text.includes("to the league minimum")));
 }

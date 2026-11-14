@@ -62,8 +62,8 @@ function reachFa(st: GameState): void {
 }
 
 const minHit = capHit(makeContract(new Rng(1), LEAGUE_MINIMUM, 1, 2026, 0));
-assert.equal(minHit, 895_000, "one-year minimum cap hit is the bonus stacked on the floored base");
-ok("actual one-year minimum cap hit is 895000");
+assert.equal(minHit, 795_000, "a one-year minimum is all base: no bonus stacked on the floor");
+ok("actual one-year minimum cap hit is 795000");
 
 {
   const st = newGame({ seed: 42, startSeason: 2026 });
