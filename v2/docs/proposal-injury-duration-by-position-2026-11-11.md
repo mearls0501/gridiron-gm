@@ -2,6 +2,8 @@
 
 **UNSIGNED.** This is a proposal. It changes no code, test, `scripts/` file, `docs/baselines.json` entry or canary. Matt signs any change. No re-lock, no band, no panel.
 
+**Traced 2026-11-14:** `docs/nfl-reference.md` §6.11 now holds 17-game-era availability for every group, with causes and injury spells. Outside QB, 83–94% of missed games are injuries, and half of every non-QB group's injury spells are one game (50–54%), so the rounding floor this note describes for RB, WR, LB, CB and S (no one-week weekly injury) misses more there than at QB. Decision 4's missing number now exists.
+
 **Traced 2026-11-13:** `docs/nfl-reference.md` §6.10 now holds QB1 absence-spell lengths and the injury/non-injury split (2021–24). Two findings bear on this note: about a third of real QB1 missed games are not injuries (0.95 of 2.71 a season), so §6.8B's all-cause shares are not an injury-only target (injury-only: 48.4% miss none, 60.2% miss at most one, 22.7% miss four or more); and real injury spells run 40.2% one game, 33.3% two or three, 26.4% four or more, 2.3% eight or more (a floor; spells are cut at season end), against this note's `QB_TABLE` 45.6% / 25.2% / 29.2% / 9.6%. The rest of this note is unchanged.
 
 Tree: branch `claude/gracious-allen-i8ij43`, main `9e74d34`. All line numbers below are from this tree. (The branch head is the merge commit `72ac945`. `git diff 9e74d34 72ac945` over `lib/`, `scripts/`, `docs/baselines.json`, `docs/nfl-reference.md` and `AGENTS.md` is empty, so the line numbers hold on either.)
