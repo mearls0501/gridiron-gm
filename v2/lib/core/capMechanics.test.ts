@@ -552,4 +552,46 @@ function rollToNextPreseason(st: ReturnType<typeof newGame>): void {
   ok("post-carryover cover restructures a multi-year deal before any minimum rewrite");
 }
 
+// (18) The spend-back replaces active players only. Verify seed 20260727 on
+// main 61b3a70: Baltimore opened 2033 with 69 active, because each swap cut
+// a practice-squad body and signed an active one.
+{
+  const st = newGame({ seed: 42 });
+  const cpu = st.teams.find((t) => t.id !== st.userTeamId);
+  assert.ok(cpu);
+  const minimum = () => ({
+    years: 1,
+    yearsRemaining: 1,
+    baseSalary: [795_000],
+    signingBonus: 0,
+    bonusProrationYears: 1,
+    signedSeason: st.season,
+    guaranteedYears: 0,
+  });
+  for (const p of clubActive(st, cpu.id)) p.contract = minimum();
+  // The weakest street bodies go on the practice squad, so a free agent
+  // beats every one of them.
+  const squad = st.players
+    .filter((p) => p.teamId === null && !p.retired && !p.prospect)
+    .sort((a, b) => a.ovr - b.ovr || a.id - b.id)
+    .slice(0, 16);
+  assert.equal(squad.length, 16);
+  for (const p of squad) {
+    p.teamId = cpu.id;
+    p.status = "ps";
+    p.contract = minimum();
+  }
+  const cap = teamCap(st, cpu.id).cap;
+  assert.ok(payroll(st, cpu.id) < cap * SPEND_FLOOR, "planted book is under the floor");
+  assert.equal(rosterCount(st, cpu.id), ROSTER_LIMIT);
+  spendLegalCpuBackToFloor(st, new Rng(st.rngState));
+  assert.ok(payroll(st, cpu.id) >= cap * SPEND_FLOOR, "the club still spends to the floor");
+  assert.equal(rosterCount(st, cpu.id), ROSTER_LIMIT, "the spend-back keeps 53 with a practice squad on the club");
+  for (const p of squad) {
+    assert.equal(p.teamId, cpu.id, `${p.lastName} is still on the club`);
+    assert.equal(p.status, "ps", `${p.lastName} is still on the practice squad`);
+  }
+  ok("the spend-back swaps active players and leaves the practice squad alone");
+}
+
 console.log("\ncapMechanics: all passed");
