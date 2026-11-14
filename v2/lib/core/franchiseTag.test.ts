@@ -49,6 +49,11 @@ function plantExpiring(st: ReturnType<typeof newGame>, teamId: number): Player {
   assert.equal(p.contract.years, 1);
   assert.equal(p.contract.yearsRemaining, 1);
   assert.ok(capHit(p.contract) > 0);
+  // The tender is all salary. A bonus would stay behind as dead money on a
+  // tag-and-trade and move him to the other club at a discount.
+  assert.equal(p.contract.signingBonus, 0, "a tender carries no signing bonus");
+  assert.equal(p.contract.baseSalary.length, 1);
+  assert.equal(p.contract.baseSalary[0], capHit(p.contract), "the whole hit is base");
 
   expireContracts(st);
   assert.equal(p.teamId, st.userTeamId, "tagged player must not expire");

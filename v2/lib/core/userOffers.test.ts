@@ -29,6 +29,7 @@
  * Re-locked 2026-11-14, Matt, for the bonus ramp between one and two
  * minimums and the legality check on the shop pass: tag 2748412837, FA 2612039437.
  * 2026-11-14 re-lock (no cut that frees no room; no free agent signed to sit): tag 2748412837, FA 2612039437.
+ * 2026-11-14 re-lock (a franchise tender carries no signing bonus): tag 2748412837, FA 2612039437.
  *
  * Run: npx tsx lib/core/userOffers.test.ts
  */

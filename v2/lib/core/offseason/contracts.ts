@@ -167,7 +167,13 @@ export function applyFranchiseTag(
   ensureFranchiseTagSnapshot(state);
   const currentHit = capHit(p.contract);
   const apy = franchiseTagSalary(state, p);
-  const contract = startContractNow(state, makeContract(rng, apy, 1, state.season, defaultGuaranteedYears(apy, 1)));
+  // A tender is one year of salary. No signing bonus: a bonus stays with the
+  // club that paid it when he is traded (`moveAsset`), so a tag-and-trade left
+  // a quarter of the tender behind as dead money and moved him at a discount.
+  const tender = makeContract(rng, apy, 1, state.season, defaultGuaranteedYears(apy, 1));
+  const contract = startContractNow(state, {
+    ...tender, baseSalary: [apy], signingBonus: 0, bonusProrationYears: 0,
+  });
   // The user's Tag button reads the coming-year meter the header shows
   // (`tagWindowCap`), where the expiring deal is already $0. CPU tags keep
   // the closing-year check.
