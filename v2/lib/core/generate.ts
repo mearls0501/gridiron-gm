@@ -166,7 +166,19 @@ export function defaultGuaranteedYears(apy: number, years: number): number {
  * it, and duplicating this formula there would let the two drift apart.
  * Deterministic: no RNG, same inputs always give the same bonus.
  */
-export function signingBonusFor(apy: number, years: number, drafted = false): number {
+/**
+ * Share of a late-round rookie deal paid as signing bonus. The general
+ * formula gives every drafted deal about 14%, which is right for round four
+ * and several times the real slot from round five down (2024: about $100K in
+ * round seven, $150K-$250K in round six, $250K-$400K in round five, on deals
+ * of about $4.1M-$4.4M). These are the men cut in their first two camps, so
+ * the difference was most of the dead money draft picks left behind.
+ */
+const LATE_ROUND_BONUS_SHARE: Record<number, number> = { 5: 0.08, 6: 0.05, 7: 0.025 };
+
+export function signingBonusFor(apy: number, years: number, drafted = false, round?: number): number {
+  const late = drafted && round !== undefined ? LATE_ROUND_BONUS_SHARE[round] : undefined;
+  if (late !== undefined) return Math.round((apy * years * late) / 50_000) * 50_000;
   // Bigger deals carry proportionally more bonus.
   // Capped lower than real NFL megadeals: at 45% a freshly-signed star carried
   // three times his cap hit in dead money, which made him literally un-cuttable
@@ -185,10 +197,10 @@ export function signingBonusFor(apy: number, years: number, drafted = false): nu
 
 export function makeContract(
   rng: Rng, apy: number, years: number, season: number, guaranteedYears = 0,
-  drafted = false,
+  drafted = false, round?: number,
 ): Contract {
   const total = apy * years;
-  const signingBonus = signingBonusFor(apy, years, drafted);
+  const signingBonus = signingBonusFor(apy, years, drafted, round);
   const prorationYears = Math.min(years, 5);
   const annualProration = signingBonus / prorationYears;
 
