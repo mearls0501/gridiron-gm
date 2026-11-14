@@ -13,10 +13,10 @@ import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { Rng } from "./rng";
 import { defaultGuaranteedYears, makeContract, signingBonusFor } from "./generate";
-import { addDeadCap, capHit, capSavingsFromCut, deadCapFor, deadMoney, remainingBonusProration, teamCap } from "./select";
-import { LEAGUE_MINIMUM } from "./types";
+import { addDeadCap, capHit, capSavingsFromCut, deadCapFor, deadMoney, remainingBonusProration, rosterCount, teamCap } from "./select";
+import { CAMP_ROSTER_LIMIT, LEAGUE_MINIMUM, ROSTER_LIMIT } from "./types";
 import { rookieContract } from "./offseason/draft";
-import { cutAffordable, cutFreesNothing, enforceCap } from "./offseason/contracts";
+import { cutAffordable, cutFreesNothing, enforceCap, fillRoster } from "./offseason/contracts";
 
 function ok(label: string) { console.log("ok   ", label); }
 
@@ -143,4 +143,35 @@ function ok(label: string) { console.log("ok   ", label); }
   assert.equal(rich.teamId, teamId, "the man with the bonus is still here");
   assert.equal(deadCapFor(st, teamId), deadBefore, "no bonus accelerated to clear a $1M hole");
   ok("a cap release takes the deals with no dead money first");
+}
+
+// At 53 a released minimum deal is replaced by another minimum deal, so it
+// clears nothing. The club over the cap there releases a deal that does.
+{
+  const st = newGame({ seed: 5 });
+  const teamId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  assert.equal(rosterCount(st, teamId), ROSTER_LIMIT);
+  addDeadCap(st, teamId, teamCap(st, teamId).space + 1_000_000);
+  const before = st.players.filter((x) => x.teamId === teamId);
+  const hits = new Map(before.map((x) => [x.id, capHit(x.contract)]));
+  enforceCap(st, teamId);
+  assert.ok(teamCap(st, teamId).space >= 0);
+  const gone = before.filter((x) => x.teamId !== teamId);
+  assert.ok(gone.length > 0);
+  for (const g of gone) {
+    assert.ok(hits.get(g.id)! > LEAGUE_MINIMUM, "a minimum deal was not released at 53");
+  }
+  ok("at 53 a cap release is priced net of the minimum that refills the spot");
+}
+
+// Camp bodies past the 53 are signed only with the room for them.
+{
+  const st = newGame({ seed: 21 });
+  st.phase = "offseason-final";
+  const teamId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  assert.ok(teamCap(st, teamId).space > 0);
+  fillRoster(st, teamId, new Rng(st.rngState), CAMP_ROSTER_LIMIT);
+  assert.ok(rosterCount(st, teamId) > ROSTER_LIMIT, "camp still fills past 53");
+  assert.ok(teamCap(st, teamId).space >= 0, "camp fill did not sign the club over the cap");
+  ok("a CPU club does not sign camp bodies it has no room for");
 }

@@ -32,6 +32,7 @@
  * 2026-11-14 re-lock (a franchise tender carries no signing bonus): tag 2748412837, FA 2612039437.
  * 2026-11-14 re-lock (retirement charges the bonus only): tag 2748412837, FA 20755560.
  * 2026-11-14 cap releases take no-dead-money deals first: tag 284096648, FA 395911736.
+ * 2026-11-14 camp bodies must fit; a cap release at 53 is net of the refill: tag 284096648, FA 395911736.
  *
  * Run: npx tsx lib/core/userOffers.test.ts
  */

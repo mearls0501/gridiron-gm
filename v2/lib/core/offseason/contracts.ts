@@ -1376,6 +1376,18 @@ function bestAffordable(
 }
 
 /**
+ * A camp body past the 53 is optional, so a CPU club signs one only with the
+ * room for him. `bestAffordable` floors its budget above the minimum so a
+ * short club can always reach 53; past 53 that floor signed a club to 90 over
+ * the cap, and the cap release that followed threw the same men back.
+ * The user seat has its own ceiling in `signAtMarket`.
+ */
+function campBodyFits(state: GameState, teamId: number, p: Player): boolean {
+  if (teamId === state.userTeamId) return true;
+  return trueAskingPrice(state, p) <= teamCap(state, teamId).space;
+}
+
+/**
  * Market signing that must fit. CPU post-carryover refill only.
  * `negotiatedApy` and `makeContract` do not draw. A miss falls through
  * to `signMinimum`, which also refuses when the minimum itself does not fit.
@@ -1624,7 +1636,7 @@ export function fillRoster(
     guard = 0;
     while (rosterCount(state, teamId) < limit && guard++ < 200) {
       const pick = bestAffordable(state, teamId, null);
-      if (!pick) break;
+      if (!pick || !campBodyFits(state, teamId, pick)) break;
       if (!signAtMarket(state, teamId, pick, rng)) break;
     }
   }
@@ -1666,7 +1678,7 @@ export function fillCampRosters(state: GameState, rng: Rng): void {
     for (const teamId of order) {
       if (rosterCount(state, teamId) >= CAMP_ROSTER_LIMIT) continue;
       const pick = bestAffordable(state, teamId, null);
-      if (!pick) continue;
+      if (!pick || !campBodyFits(state, teamId, pick)) continue;
       if (!signAtMarket(state, teamId, pick, rng)) continue;
       any = true;
     }
@@ -2276,15 +2288,25 @@ export function enforceCap(state: GameState, teamId: number): void {
       (p) => p.teamId === teamId && !p.retired && !p.prospect && p.contract
     );
     // Cut the player whose cap hit buys the least ability, protecting minimums.
-    const candidates = roster
+    // At 53 or under, an active release opens a spot that is filled again at
+    // the minimum. Releasing a minimum deal there clears nothing and only
+    // turns the bottom of the roster over.
+    const refill = rosterCount(state, teamId) <= ROSTER_LIMIT ? LEAGUE_MINIMUM : 0;
+    const priced = roster
       .filter((p) => !isActiveRoster(p) || positionCount(state, teamId, p.pos) > POSITION_MIN[p.pos])
       .map((p) => {
         const dead = deadMoney(p.contract);
-        const savings = capHit(p.contract) - dead;
-        return { p, savings, tier: capCutTier(dead, savings), cost: Math.pow(Math.max(1, p.ovr - 45), 1.6) };
-      })
-      .filter((c) => c.savings > 0)
-      .sort((a, b) => a.tier - b.tier || b.savings / b.cost - a.savings / a.cost);
+        const gross = capHit(p.contract) - dead;
+        const savings = gross - (isActiveRoster(p) ? refill : 0);
+        return { p, dead, gross, savings, tier: capCutTier(dead, savings), cost: Math.pow(Math.max(1, p.ovr - 45), 1.6) };
+      });
+    const nets = priced.filter((c) => c.savings > 0);
+    // Nobody clears room net of his replacement: the old gross order, so a
+    // club that can still reach a legal book does.
+    const candidates = (nets.length > 0
+      ? nets
+      : priced.filter((c) => c.gross > 0).map((c) => ({ ...c, savings: c.gross, tier: capCutTier(c.dead, c.gross) }))
+    ).sort((a, b) => a.tier - b.tier || b.savings / b.cost - a.savings / a.cost);
 
     if (candidates.length === 0) break;
     cutPlayer(state, candidates[0].p.id);
