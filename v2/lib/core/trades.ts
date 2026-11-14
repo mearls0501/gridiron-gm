@@ -1513,7 +1513,13 @@ export function generateUserOffers(state: GameState, rng: Rng, max = 2): TradeOf
     const built = proposeTrade(state, from, state.userTeamId, rng);
     if (!built) continue;
     if (state.tradeOffers.some((o) => o.fromTeamId === from)) continue;
+    // A call the calling club cannot complete is not a call. The inquiry
+    // pass below already refuses one; this pass did not, so a club with
+    // $6.5M of room could leave a $7.5M ask in the inbox that Accept then
+    // refused. A legal call draws exactly as before.
+    if (!checkTrade(state, built).ok) continue;
     const offer = reshapeUserOffer(state, built, shapeRng, seen) ?? built;
+    if (!checkTrade(state, offer).ok) continue;
     offer.id = state.nextTradeId ?? 1;
     state.nextTradeId = (state.nextTradeId ?? 1) + 1;
     seen.add(giveShapeKey(offer.give));

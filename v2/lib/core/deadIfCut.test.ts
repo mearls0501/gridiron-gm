@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { Rng } from "./rng";
-import { defaultGuaranteedYears, makeContract } from "./generate";
+import { defaultGuaranteedYears, makeContract, signingBonusFor } from "./generate";
 import { capHit, capSavingsFromCut, deadMoney, remainingBonusProration, teamCap } from "./select";
 import { LEAGUE_MINIMUM } from "./types";
 import { rookieContract } from "./offseason/draft";
@@ -82,4 +82,25 @@ function ok(label: string) { console.log("ok   ", label); }
   assert.equal(cutAffordable(st, p), true, "a positive save is allowed while over the cap");
   assert.equal(st.rngState, parent, "the read does not draw");
   ok("a minimum rookie saves room and is not on the forced two-year guarantee");
+}
+
+// The bonus share comes in between one minimum and two. A deal at the floor
+// is all base, so cutting a camp body leaves nothing; a deal a dollar over is
+// not suddenly 12% bonus. Drafted rookies keep the whole slot bonus, and
+// nothing changes from twice the minimum up.
+{
+  const M = LEAGUE_MINIMUM;
+  assert.equal(signingBonusFor(M, 1), 0);
+  assert.equal(signingBonusFor(M, 3), 0);
+  assert.equal(deadMoney(makeContract(new Rng(1), M, 3, 2028, 0)), 0, "a cut minimum deal leaves nothing");
+  assert.equal(signingBonusFor(M * 1.25, 3), 100_000, "a quarter of the share at 1.25x");
+  assert.equal(signingBonusFor(M * 1.5, 2), 150_000, "half of it at 1.5x");
+  assert.equal(signingBonusFor(M * 1.5, 2, true), 350_000, "a drafted deal is not ramped");
+  assert.equal(signingBonusFor(M * 2, 3), signingBonusFor(M * 2, 3, true), "the whole share at 2x");
+  assert.equal(signingBonusFor(5_000_000, 3), 2_450_000, "deals above 2x are unchanged");
+  assert.equal(signingBonusFor(M, 4, true), 450_000, "the seventh-round slot bonus stays");
+  for (let apy = M; apy < M * 2; apy += 50_000) {
+    assert.ok(signingBonusFor(apy + 50_000, 3) >= signingBonusFor(apy, 3), `bonus never falls as pay rises (${apy})`);
+  }
+  ok("signing bonus ramps in from the minimum to twice the minimum; drafted deals keep theirs");
 }

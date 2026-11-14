@@ -171,13 +171,16 @@ export function signingBonusFor(apy: number, years: number, drafted = false): nu
   // Capped lower than real NFL megadeals: at 45% a freshly-signed star carried
   // three times his cap hit in dead money, which made him literally un-cuttable
   // and turned one misclick into an unrecoverable franchise.
-  // A league-minimum deal is all base. Clubs sign about thirty of them to
-  // fill a camp and cut most at the 53; with the 12% floor below, each cut
-  // left $100K-$350K behind, about $3.5M of dead money a club every year.
-  // A drafted rookie at the floor keeps his slot bonus (`rookieContract`).
-  if (apy <= LEAGUE_MINIMUM && !drafted) return 0;
   const bonusPct = clamp(0.14 + (apy / 30_000_000) * 0.14, 0.12, 0.32);
-  return Math.round((apy * years * bonusPct) / 50_000) * 50_000;
+  // A league-minimum deal is all base. Clubs sign about thirty of them to
+  // fill a camp and cut most at the 53; with the 12% floor above, each cut
+  // left $100K-$350K behind, about $3.5M of dead money a club every year.
+  // The bonus share then comes in over the next minimum's worth of pay, so
+  // a deal a dollar over the floor is not suddenly 12% bonus: nothing at
+  // the minimum, a quarter of the share at 1.25x, all of it from 2x up.
+  // A drafted rookie keeps his whole slot bonus (`rookieContract`).
+  const ramp = drafted ? 1 : clamp((apy - LEAGUE_MINIMUM) / LEAGUE_MINIMUM, 0, 1);
+  return Math.round((apy * years * bonusPct * ramp) / 50_000) * 50_000;
 }
 
 export function makeContract(

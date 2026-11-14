@@ -1,5 +1,30 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-14 — The signing bonus comes in between one and two league minimums
+
+Asked for by Matt, 2026-11-13 ("fix the dead money from cuts just above the minimum"). Nothing in `scripts/` or `baselines.json` moved.
+
+After the last entry a deal one dollar over `LEAGUE_MINIMUM` jumped straight to the 12% bonus floor. `signingBonusFor` now scales the bonus by `clamp((apy - LEAGUE_MINIMUM) / LEAGUE_MINIMUM, 0, 1)`: nothing at the minimum, the full bonus from twice the minimum up. A drafted rookie skips the ramp and keeps his slot bonus (`deadIfCut`, signed 2026-11-11). `deadIfCut` gains a block pinning the ramp.
+
+Measured on this VM before the legality fix below, CPU clubs, four seasons:
+
+| seed | undrafted cuts on deals ≤ 2x minimum | drafted cuts ≤ 2x minimum | all bonus-carrying cuts |
+| :--- | ---: | ---: | ---: |
+| 20260727 | $108M → $34M | $150M → $132M | $497M → $460M |
+| 42 | $106M → $36M | $151M → $148M | $617M → $595M |
+
+The undrafted slice was the smaller one. What is left is drafted late-round rookies (the pinned ~$450K slot bonus) and veteran cuts. Retirement acceleration is still about half of CPU dead money and is a signed rule.
+
+**A real bug surfaced on the new results.** `generateUserOffers` checked `checkTrade` on its fallback pass (`placeInquiries`) but not on the ordinary shop pass. Seed 42: PHX, $6.48M of room, called for a guard with a $7.52M base; Accept would have refused it. The shop loop now runs `checkTrade` before and after the reshape, as the fallback does. Legal offers are built exactly as before.
+
+**Re-locks:** `userOffers` tag **2748412837**, FA **2612039437**. `trimIdentity` **1601** cuts, rng **3915903688**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
 ## 2026-11-13 — A league-minimum deal carries no signing bonus
 
 Asked for by Matt, 2026-11-13 ("fix the dead money from roster cuts next"). Nothing in `scripts/` moved. **One `baselines.json` row re-locked, signed by Matt the same day: `statcheck.leadRushYds` target 1726.8 → 1533.3, tol 400 unchanged. Read the last section.**
