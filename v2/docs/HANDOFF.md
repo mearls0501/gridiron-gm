@@ -16,7 +16,7 @@ The `a453c24` findings stay in that note. Against current main:
 
 - **(a) Accepted.** Seed-1 coherence 82.07 at `a453c24` (119 of 145) is noise. No change. Not re-measured on `5b922ec`.
 - **(b) The $0.9M bargain class is treated as fixed by #235**, pending the next Studio panel. The evidence remains the one `61b3a70` ten-season run. This does not sign #248, and it does not say the ten-season book was re-read at `5b922ec`.
-- **(c) Pin Node 22.23.4.** `v2/.nvmrc` containing `22.23.4`, and `v2/package.json` `"engines": { "node": "22.23.4" }`. Not in this draft. A separate PR from main applies those two files. No re-lock.
+- **(c) Pin Node 22.23.4.** `v2/.nvmrc` containing `22.23.4`, and `v2/package.json` `"engines": { "node": "22.23.4" }`. Not in this draft. [#252](https://github.com/mearls0501/gridiron-gm/pull/252) applies those two files. No re-lock.
 - **(d)** Matt is running the three read-only Studio checks. Results come later.
 
 ## 2026-11-14 — Carryover: CPU clubs budget against half of it; the bank ceiling is 8%

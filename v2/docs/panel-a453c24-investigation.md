@@ -71,7 +71,7 @@ The 69-man mechanism is still in the code at `5b922ec`. `spendToFloor` (2004) bu
 
 1. **(a) Coherence seed 1, 82.07. Accepted as noise.** 119 of 145 at `a453c24`. No change. Not re-measured on `5b922ec`. The separate idea of grading the panel mean was not part of this signature.
 2. **(b) The $0.9M bargain class is treated as fixed by #235**, pending the next Studio panel. The evidence is one ten-season VM run at `61b3a70` with no bargain. There is no Studio panel of that cover yet, and no ten-season run at `5b922ec`. The same `61b3a70` run is where Baltimore opened at 69. This signature does not sign #248.
-3. **(c) Pin Node 22.23.4.** `v2/.nvmrc` containing `22.23.4`, and `v2/package.json` `"engines": { "node": "22.23.4" }`. This draft does not add the files. A separate PR from main does. No re-lock.
+3. **(c) Pin Node 22.23.4.** `v2/.nvmrc` containing `22.23.4`, and `v2/package.json` `"engines": { "node": "22.23.4" }`. This draft does not add the files. [#252](https://github.com/mearls0501/gridiron-gm/pull/252) does. No re-lock.
 4. **(d) The three read-only checks below.** Matt is running them. Results are not in this note.
 
 ### Three read-only Studio checks
@@ -239,7 +239,7 @@ How to read it.
 
 ### Node pin — signed 2026-11-15, 4:29 PM EST
 
-Matt signed the pin. This draft does not add the files. A separate PR from main adds them, and nothing else:
+Matt signed the pin. This draft does not add the files. [#252](https://github.com/mearls0501/gridiron-gm/pull/252) adds them, and nothing else:
 
 - `v2/.nvmrc` containing `22.23.4`.
 - `v2/package.json` `"engines": { "node": "22.23.4" }`. npm warns on a mismatch. It does not refuse one unless `engine-strict` is set. `engine-strict` is not part of the signature.
