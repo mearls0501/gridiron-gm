@@ -34,6 +34,7 @@
  * 2026-11-14 cap releases take no-dead-money deals first, net of the refill at 53: tag 284096648, FA 395911736.
  * 2026-11-14 a claim releases a man with no bonus left; late-round slot bonuses at real size: tag 1614125276, FA 3117494098.
  * 2026-11-14 bonus-owed men retire less; older starting deals near their end; trade acceleration at twice the price: tag 3242373722, FA 691387436.
+ * 2026-11-14 CPU budgets half its carryover; the bank ceiling is 8%: tag 3242373722, FA 691387436.
  *
  * Run: npx tsx lib/core/userOffers.test.ts
  */
