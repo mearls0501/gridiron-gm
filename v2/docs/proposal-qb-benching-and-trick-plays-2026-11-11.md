@@ -2,6 +2,8 @@
 
 **UNSIGNED.** Proposal only. This note changes no code, test, `scripts/` file, `docs/baselines.json`, or canary. Matt signs any change. No re-lock, no dial retune, no panel.
 
+**Traced 2026-11-14:** `docs/nfl-reference.md` §5.4c splits the real 21.4% of team-games with a second passer: trick plays 6.0 points, blowout relief 6.1, benching or extended relief 3.6, starter hurt 3.3, gadget snap or one series 2.4. Benching and trick plays together are 9.6 points, not most of the 21.4.
+
 Tree: `/home/user/gridiron-gm/v2`, branch `claude/gracious-allen-i8ij43` at `72ac945` (main at `9e74d34`). Line numbers below are from this tree.
 
 ## Summary

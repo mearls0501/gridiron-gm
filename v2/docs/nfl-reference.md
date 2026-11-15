@@ -1301,6 +1301,36 @@ Team attempts by margin also confirm the game-script direction that is already
 in the engine: a club losing by 9-16 throws 37.7 times, one winning by 25+
 throws 29.3.
 
+### 5.4c Second passers by cause, 17-game era — traced, not locked
+
+Traced 2026-11-14 for `docs/proposal-qb-benching-and-trick-plays-2026-11-11.md`
+("the split of the 21.4% by cause"). Nothing here is built or gated.
+
+**Dataset.** §5.14's four nflverse `play_by_play` files (2021–24, REG; same
+hashes), with §6.10's weekly rosters (passer position) and injury reports. A
+pass is `pass_attempt` 1, not a sack, not a two-point try, with a
+`passer_player_id`. A team-game's leader is the passer with the most
+attempts. This reproduces §5.4b: **21.34%** of 2,174 team-games have more
+than one passer (§5.4b 21.4%).
+
+**Each multi-passer team-game, classed in this order** (n = 464):
+
+| cause | rule | games | of multi-passer | of all team-games |
+|---|---|---:|---:|---:|
+| trick play | every extra passer is not a QB | 130 | 28.0% | **6.0%** |
+| blowout relief | every backup-QB pass in Q4 with the margin 17+ | 132 | 28.4% | **6.1%** |
+| starter hurt | leader on the next week's report (Out, Doubtful, Questionable) or reserve list, or no pass in the club's next game | 71 | 15.3% | **3.3%** |
+| benching or extended relief | none of the above; backup QB 4+ attempts | 78 | 16.8% | **3.6%** |
+| gadget snap or one series | none of the above; backup QB 1–3 attempts | 53 | 11.4% | **2.4%** |
+
+So `AGENTS.md`'s untraced claim that benching and trick plays are "most of"
+the 21.4% does not hold: trick plays are 6.0 points and benching at most 3.6.
+Blowout relief alone is as large as trick plays. The blowout rule here uses
+the final-quarter margin at the play, not §5.4b's final margin, so the two
+tables slice the same games differently. "Benching" is a classification, not
+intent: a backup with four or more attempts in a close game may also mean an
+unreported knock.
+
 ### 5.5 The backfield split, on the denominator the engine actually sets
 
 Added 2026-08-03 for `task/306-carry-share`, which was opened to cut the sim's
@@ -2910,6 +2940,67 @@ spell-length series and the injury/non-injury split. It does not give a
 weekly injury *incidence* for every quarterback (only absence-causing
 injuries to QB1s), a duration for injuries that did not cost a game, the
 in-game tier mix, or 17-game-era second moments for other positions.
+
+### 6.11 Established-starter availability by group, 17-game era, with causes — traced, not locked
+
+Traced 2026-11-14 for `docs/proposal-injury-duration-by-position-2026-11-11.md`
+("17-game-era second moments for RB, WR, TE, OL, DL, LB, DB"). Nothing here is
+built, gated or in `docs/baselines.json`.
+
+**Dataset.** nflverse `snap_counts_YYYY.csv.gz`, 2021–2024, REG, from
+<https://github.com/nflverse/nflverse-data/releases/download/snap_counts/>,
+joined to §6.10's weekly-roster and injury-report files (same hashes):
+
+| file | bytes | SHA-256 |
+|---|---|---|
+| snap_counts_2021.csv.gz | 498,521 | `dcf6b6fb032c83ed11b8a4cf2d06f4c9745161df99b425b3974d502b6a8b6a08` |
+| snap_counts_2022.csv.gz | 495,661 | `1fd9fdc2362bc362bfc56acec6410a1a680987065d8c7068b0bdd7e0289d3cab` |
+| snap_counts_2023.csv.gz | 500,319 | `11fbfcfaaf3e0eeef4cbf159821a0e48d9824e84fccbab26b8e50c6f67ad8830` |
+| snap_counts_2024.csv.gz | 502,822 | `fe1d819db55d6e333057a8efcec52e8506ef111c7961b0e0411310393bb912bb` |
+
+**Method.** §6.5's, restricted to the 17-game era: an established starter is
+a player with `offense_pct` or `defense_pct` ≥ 0.5 (fractions, §6.5) in at
+least 8 REG appearances for one club in a season (n = 2,893 player-club-
+seasons). Games missed are the club's REG weeks minus his appearances. Groups:
+OL = T, G, C; DL = DE, DT, NT; DB = CB, FS, SS. Each missed week is classed
+with §6.10's rules from the weekly roster and injury report, linked by
+`pfr_id`, or, where the roster leaves `pfr_id` blank (every offensive
+lineman), by normalized name and club; 21 player-seasons stay unmatched.
+
+**All causes.**
+
+| group | n | mean games | 17 | 16+ | 14+ | under 14 | missed a season |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| QB | 129 | 14.32 | 33.3% | 46.5% | 65.1% | 34.9% | 2.67 |
+| RB | 114 | 15.25 | 34.2% | 57.9% | 81.6% | 18.4% | 1.73 |
+| WR | 371 | 15.12 | 39.6% | 59.8% | 79.0% | 21.0% | 1.86 |
+| TE | 157 | 15.39 | 42.0% | 61.8% | 84.1% | 15.9% | 1.59 |
+| OL | 671 | 15.12 | 41.0% | 57.7% | 78.8% | 21.2% | 1.86 |
+| DL | 398 | 15.70 | 48.5% | 70.6% | 87.9% | 12.1% | 1.28 |
+| LB | 390 | 15.38 | 44.4% | 64.1% | 82.6% | 17.4% | 1.61 |
+| DB | 663 | 15.02 | 34.4% | 52.5% | 78.0% | 22.0% | 1.97 |
+
+**Injury share of missed games.** QB **64.2%** (§6.10: 65.1%); RB 94.4%;
+WR 90.9%; TE 90.8%; OL 83.0%; DL 86.3%; LB 85.5%; DB 88.0%. Outside QB, a
+missed game is almost always an injury; healthy benching is 1–8%.
+
+**Injury-only, per player-club-season.**
+
+| group | injury games missed | none | ≤ 1 | ≥ 4 | ≥ 8 | other missed | injury spells a season | spell 1 / 2–3 / 4+ / 8+ | mean spell |
+|---|---:|---:|---:|---:|---:|---:|---:|---|---:|
+| QB | 1.71 | 51.2% | 62.0% | 21.7% | 3.1% | 0.95 | 0.651 | 40.5 / 33.3 / 26.2 / 3.6% | 2.63 |
+| RB | 1.63 | 39.5% | 59.6% | 17.5% | 0.9% | 0.10 | 0.833 | 50.5 / 35.8 / 13.7 / 1.1% | 1.96 |
+| WR | 1.69 | 43.9% | 64.7% | 19.4% | 2.7% | 0.17 | 0.755 | 50.7 / 30.4 / 18.9 / 1.8% | 2.24 |
+| TE | 1.45 | 45.2% | 65.6% | 12.7% | 0.0% | 0.15 | 0.675 | 50.0 / 34.0 / 16.0 / 0.0% | 2.14 |
+| OL | 1.55 | 48.9% | 64.7% | 16.2% | 3.0% | 0.32 | 0.732 | 51.7 / 32.2 / 16.1 / 2.2% | 2.11 |
+| DL | 1.11 | 54.3% | 74.1% | 10.1% | 0.5% | 0.18 | 0.553 | 53.6 / 32.3 / 14.1 / 0.5% | 2.00 |
+| LB | 1.37 | 49.5% | 69.0% | 14.6% | 1.3% | 0.23 | 0.662 | 51.9 / 32.9 / 15.1 / 1.6% | 2.08 |
+| DB | 1.73 | 40.4% | 57.9% | 19.3% | 1.1% | 0.24 | 0.857 | 53.5 / 31.2 / 15.3 / 0.5% | 2.02 |
+
+Spells are cut at season end (8+ is a floor). **Half of every non-QB group's
+injury spells are a single game** (50–54%), more than the QB's 40.5%. The
+QB row agrees with §6.10's QB1 rows (a slightly different population: every
+established starter, not the attempts leader).
 
 ## 7. People
 
