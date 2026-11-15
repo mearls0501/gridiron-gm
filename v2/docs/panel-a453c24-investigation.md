@@ -67,11 +67,12 @@ The ten-season reading that the bargains were gone is the addendum below, at `61
 
 The 69-man mechanism is still in the code at `5b922ec`. `spendToFloor` (2004) builds its candidate list from every body on the club (`teamId`, not retired, not a prospect; lines 2018–2020). It does not require an active player. `spendLegalCpuBackToFloor` (2076) calls it after the roll. Draft #248 (`claude/spend-to-floor-active-only`, head `76f4f1e`, base `61b3a70`) is the proposed filter. It is still a draft. It is not on main.
 
-### Decisions still needing Matt's sign-off
+### Decisions signed 2026-11-15, 4:29 PM EST
 
-1. **Coherence seed 1, 82.07.** Section 3. 119 of 145 at `a453c24`. The note recommends accepting it as noise, the same call as seed 2. Not signed. Not re-measured on `5b922ec`.
-2. **The $0.9M bargain class.** Treat it as fixed by #235's restructure-first cover, or not. The evidence is one ten-season VM run at `61b3a70` with no bargain. There is no Studio panel of that cover, and no ten-season run at `5b922ec`. The same `61b3a70` run is where Baltimore opened at 69. Signing "fixed" does not sign #248.
-3. **A Node pin.** Proposal only, in the section below. Not applied. Not a re-lock.
+1. **(a) Coherence seed 1, 82.07. Accepted as noise.** 119 of 145 at `a453c24`. No change. Not re-measured on `5b922ec`. The separate idea of grading the panel mean was not part of this signature.
+2. **(b) The $0.9M bargain class is treated as fixed by #235**, pending the next Studio panel. The evidence is one ten-season VM run at `61b3a70` with no bargain. There is no Studio panel of that cover yet, and no ten-season run at `5b922ec`. The same `61b3a70` run is where Baltimore opened at 69. This signature does not sign #248.
+3. **(c) Pin Node 22.23.4.** `v2/.nvmrc` containing `22.23.4`, and `v2/package.json` `"engines": { "node": "22.23.4" }`. This draft does not add the files. A separate PR from main does. No re-lock.
+4. **(d) The three read-only checks below.** Matt is running them. Results are not in this note.
 
 ### Three read-only Studio checks
 
@@ -236,19 +237,15 @@ How to read it.
 - `cuts 1423` and `rng=3000811523` is what Node 24.22.1 printed on this Linux x64 VM, from the same script. That is the Node-major split measured here. It is not a Studio reading, and it is not a reason to re-lock.
 - Anything else: do not edit the test. Compare fingerprint lines, not only `rng=`. On this VM the two Nodes matched through step 26 and differed at step 27 with the **same** rng (3648421777) and a different roster, as written above. A Studio file that parts at a different step is a different split. Appendix B is `a453c24`. Appendix C is `61b3a70`. Neither is the reference for this commit.
 
-### Proposal: pin the Node version
+### Node pin — signed 2026-11-15, 4:29 PM EST
 
-Not applied. No file in this PR adds the pin.
-
-The lock and the agent VMs that name a version are on Node 22.23.4. Check 2 shows Node 24.22.1's `Math.pow` does not hash to the same value, on the same Linux x64 machine. A pin makes that visible before the next re-lock. It does not make two Node majors agree.
-
-Proposed, and only if Matt signs it:
+Matt signed the pin. This draft does not add the files. A separate PR from main adds them, and nothing else:
 
 - `v2/.nvmrc` containing `22.23.4`.
-- `v2/package.json` `"engines": { "node": "22.23.4" }`. npm warns on a mismatch. It does not refuse one unless `engine-strict` is set. Leave `engine-strict` off unless Matt wants the install to fail.
+- `v2/package.json` `"engines": { "node": "22.23.4" }`. npm warns on a mismatch. It does not refuse one unless `engine-strict` is set. `engine-strict` is not part of the signature.
 - Nothing at the repo root. The app and the test script are under `v2/`.
 
-Do not re-lock `trimIdentity` in the same change. The pin is a record of the Node the current literal was measured on.
+The lock and the agent VMs that name a version are on Node 22.23.4. Check 2 shows Node 24.22.1's `Math.pow` does not hash to the same value, on the same Linux x64 machine. A pin makes that visible before the next re-lock. It does not make two Node majors agree. Do not re-lock `trimIdentity` with the pin. The pin records the Node the current literal was measured on.
 
 The Studio log `gate-full-5seed.log` was not in this workspace. Everything below is the panel summary, the code, and replays on a 4-core Linux VM (x64, Node 22.23.4) from a scratch copy of `a453c24`. Where the VM did not replay a Studio line, that is said.
 
@@ -362,9 +359,11 @@ Those are the five names the `a76092b` replay printed. So on this machine main a
 
 ### Proposed — UNSIGNED
 
+**Signed 2026-11-15, 4:29 PM EST.** Matt treats the $0.9M bargain class as fixed by #235, pending the next Studio panel. No edit to the check. This does not sign #248.
+
 Do not edit the bargain check. The two shapes in `docs/panel-a76092b-investigation.md` 139–144 still stand and neither is signed: stop the rewrite and live with a short roster, or spend back up after a rewrite. Nothing on this panel adds a third.
 
-If Matt's acceptance of Sanchez was acceptance of the post-carryover rewrite as a class, these four are that class and can be accepted the same way. If it was acceptance of one deal, then this is the second panel in a row to read four, and the hatch is routine, not rare. That is Matt's call. I would not call it noise. It is a signed mechanism, and it fired in four of ten offseasons on the Studio on two panels running.
+If Matt's acceptance of Sanchez was acceptance of the post-carryover rewrite as a class, these four are that class and can be accepted the same way. If it was acceptance of one deal, then this is the second panel in a row to read four, and the hatch is routine, not rare. The signature above takes the class as fixed by #235, pending the next Studio panel. I would not call the four Studio lines noise. They were a signed mechanism.
 
 Before either, paste the four `FAIL  no free agent signed…` lines and the four matching "restructured … after carryover" log rows from the Studio. If any of the four lacks the "after carryover" suffix, it is the cutdown hatch instead, and that would be new.
 
@@ -413,6 +412,8 @@ Nothing in the 26 is a broken box score. No line is out of range for its carries
 Three panels in a row have one seed under 85, and a different seed each time: seed 4 at 82.0 on `89bca4d`, seed 2 at 83.7 on `ddc62bd`, seed 1 at 82.07 here. The ten readings in the first table run 82.07 to 94.03, with a standard deviation near 3.8 around a mean near 88. At that spread about one reading in five lands under 85, so a five-seed panel with a per-seed floor fails more often than it passes on unchanged behaviour. This is the case `AGENTS.md` describes under "When a guard is the thing that is wrong".
 
 ### Proposed — UNSIGNED
+
+**Signed 2026-11-15, 4:29 PM EST.** Matt accepted seed 1 at 82.07 as noise. No change.
 
 Accept seed 1 as noise, the same call as seed 2.
 

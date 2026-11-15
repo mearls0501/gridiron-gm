@@ -2,17 +2,22 @@
 
 ## 2026-11-15 — Panel note brought up to main `5b922ec`
 
-**UNSIGNED.** Docs only. No code, test, `scripts/`, `baselines.json`, re-lock, or dial. The calibration freeze stands. Full note: `docs/panel-a453c24-investigation.md`, the section "Status on main `5b922ec`".
+**Docs only.** Matt signed (a), (b), and (c) on 2026-11-15, 4:29 PM EST, recorded below. This draft is not a merge. No code, test, `scripts/`, `baselines.json`, re-lock, or dial. The calibration freeze stands. Full note: `docs/panel-a453c24-investigation.md`, the section "Status on main `5b922ec`".
 
 The `a453c24` findings stay in that note. Against current main:
 
 - `trimIdentity` on `5b922ec` locks **1443** cuts, rng **1785272726**. That is the 13th re-lock since the #218 hoist (1506 / 2450416366). The Studio has read this test once, at `a453c24`, and got 1564 against the then-lock 1587. The current literal has not been read on the Studio, and neither has any of the 12 re-locks after #222.
 - This VM is Linux x64, Node 22.23.4 (V8 12.4.254.21-node.57, ICU 78.3). `npx tsc --noEmit` exited 0. `npm test` exited 0. The trim line was `ok    trim identity — seed 42 opens 2030, 1443 cuts, rng 1785272726`. A read-only trace of the same walk printed `cuts 1443` and `rng=1785272726`, and the id list equalled `CUTS`.
-- The same test file on Node 24.22.1 (V8 13.6.233.17-node.58, ICU 78.3), same machine and same commit, exited 1: `cut count 1423` against 1443. The same trace script printed `cuts 1423` and `rng=3000811523`. The two traces matched through the 2026 draft step and differed on the next line, with the parent rng still equal. `Math.pow` over 200,000 inputs hashes differently on the two Nodes (`d029b384abaa89d69799538968ba17a5` on 22.23.4, `444c7b55d5286c8b394fa0f71da211b8` on 24.22.1). `exp`, `log`, `cos`, `sqrt`, and `localeCompare` matched. The repo has no `.nvmrc`, no `.node-version`, and no `engines` field. The re-lock commits do not name a Node version. The runs in the panel note that name a version name 22.23.4.
+- The same test file on Node 24.22.1 (V8 13.6.233.17-node.58, ICU 78.3), same machine and same commit, exited 1: `cut count 1423` against 1443. The same trace script printed `cuts 1423` and `rng=3000811523`. The two traces matched through the 2026 draft step and differed on the next line, with the parent rng still equal. `Math.pow` over 200,000 inputs hashes differently on the two Nodes (`d029b384abaa89d69799538968ba17a5` on 22.23.4, `444c7b55d5286c8b394fa0f71da211b8` on 24.22.1). `exp`, `log`, `cos`, `sqrt`, and `localeCompare` matched. When this entry was written the repo had no `.nvmrc`, no `.node-version`, and no `engines` field. The re-lock commits do not name a Node version. The runs in the panel note that name a version name 22.23.4.
 - #235 (`8ac573b`) is on main. `coverAfterCarryover` still restructures before `rewriteToMinimum`. The ten-season run with no bargain, and Baltimore opening 2033 with 69 active, is the `61b3a70` reading below. It was not re-run at `5b922ec`. `spendToFloor` still picks from every body on the club, practice squad included. The fix is draft #248. It is not merged.
-- Three read-only Studio checks are in the note, for a detached worktree of `origin/main`. They do not run the gate and they do not write a tracked file or `baselines.json`. A Node pin (`v2/.nvmrc` and `v2/package.json` `engines`, both `22.23.4`) is proposed and not applied.
+- Three read-only Studio checks are in the note, for a detached worktree of `origin/main`. They do not run the gate and they do not write a tracked file or `baselines.json`. Matt is running them (2026-11-15). The results are not in this note.
 
-**Still Matt's call.** (a) Accept coherence seed 1 at 82.07 (119 of 145 at `a453c24`) as noise, or not. (b) Treat the $0.9M bargain class as fixed by #235, pending a panel. The evidence is the one `61b3a70` ten-season run. (c) Pin Node at 22.23.4, or not.
+**Signed by Matt, 2026-11-15, 4:29 PM EST.**
+
+- **(a) Accepted.** Seed-1 coherence 82.07 at `a453c24` (119 of 145) is noise. No change. Not re-measured on `5b922ec`.
+- **(b) The $0.9M bargain class is treated as fixed by #235**, pending the next Studio panel. The evidence remains the one `61b3a70` ten-season run. This does not sign #248, and it does not say the ten-season book was re-read at `5b922ec`.
+- **(c) Pin Node 22.23.4.** `v2/.nvmrc` containing `22.23.4`, and `v2/package.json` `"engines": { "node": "22.23.4" }`. Not in this draft. A separate PR from main applies those two files. No re-lock.
+- **(d)** Matt is running the three read-only Studio checks. Results come later.
 
 ## 2026-11-14 — Carryover: CPU clubs budget against half of it; the bank ceiling is 8%
 
