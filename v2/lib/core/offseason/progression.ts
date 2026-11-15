@@ -176,12 +176,23 @@ export function developPlayer(state: GameState, p: Player, rng: Rng): number {
 }
 
 /** Probability a player hangs it up this offseason. */
-function retirementChance(p: Player): number {
+export function retirementChance(p: Player): number {
   if (p.age < 28) return 0;
   const ageFactor = Math.pow((p.age - 27) / 10, 1.8);
   const abilityFactor = clamp((72 - p.ovr) / 40, -0.25, 1);
   const noContract = p.teamId === null ? 0.22 : 0;
-  return clamp(ageFactor * 0.55 + abilityFactor * 0.30 + noContract, 0, 0.97);
+  const chance = clamp(ageFactor * 0.55 + abilityFactor * 0.30 + noContract, 0, 0.97);
+  // A man with signing bonus still to earn out plays on. Retiring means
+  // handing it back, and the club carries what is left of it as dead money.
+  // He goes when the deal is done or the club lets him go.
+  return owedBonus(p) ? chance * BONUS_OWED_RETIRE_SCALE : chance;
+}
+
+/** How much less often a rostered man with bonus left on his deal retires. */
+const BONUS_OWED_RETIRE_SCALE = 0.25;
+
+function owedBonus(p: Player): boolean {
+  return p.teamId !== null && !!p.contract && remainingBonusProration(p.contract) > 0;
 }
 
 export interface OffseasonReport {

@@ -2,7 +2,253 @@
 
 Read-only. No sim change, no test change, no `scripts/` edit, no `baselines.json` edit, no re-lock, no dial. Nothing here is signed. Matt signs any fix.
 
-Head under test: main `a453c24` (#222). Studio `gate:full:serial`, 5 seeds, 2026-11-11, **GATE FAIL, 4 problems**. Comparison panel: `ddc62bd`.
+The sections from "0. The four problems" through Appendix C are the 2026-11-12 panel at `a453c24` and the 2026-11-14 addendum at `61b3a70`. They are not a description of current main. Current main is the next section.
+
+Head under test for those sections: main `a453c24` (#222). Studio `gate:full:serial`, 5 seeds, 2026-11-11, **GATE FAIL, 4 problems**. Comparison panel: `ddc62bd`.
+
+## Status on main `5b922ec`, 2026-11-15
+
+Checked against `origin/main` `5b922ec` (#251). Docs only. No re-lock. The calibration freeze stands.
+
+### The lock
+
+`lib/core/trimIdentity.test.ts` on that commit locks **1443** cuts and rng **1785272726** (`CUTS` is 1443 ids; `RNG_AFTER` is 1785272726). `docs/HANDOFF.md` records the same pair for #251. The count is the length of `CUTS`, not a new measurement.
+
+The test file's header lists every literal since the #218 hoist. The hoist lock was 1506 / 2450416366 and is not a re-lock. After it, the literal was re-locked **13** times. Each of these 13 values is a commit on `main`, and each commit's `RNG_AFTER` is a different number:
+
+| | commit | cuts | rng | read on the Studio |
+|---|---|---:|---:|---|
+| hoist, #218 | `f69ecea` | 1506 | 2450416366 | no |
+| 1, #222 | `a453c24` | 1587 | 19218870 | yes: the panel in section 1 read **1564** |
+| 2, #229 | `9e74d34` | 1600 | 2524091302 | no |
+| 3, #235 | `8ac573b` | 1606 | 2799512845 | no |
+| 4, #238 | `00aa818` | 1551 | 2367991772 | no |
+| 5, #241 | `ab90614` | 1568 | 457073510 | no |
+| 6, #243 | `995fd2a` | 1601 | 3915903688 | no |
+| 7, #244 | `7aec8c0` | 1545 | 2793437930 | no |
+| 8, #245 | `21d51e9` | 1555 | 3609848918 | no |
+| 9, #246 | `61b3a70` | 1530 | 3780634271 | no |
+| 10, #247 | `df6e8c1` | 1584 | 93739137 | no |
+| 11, #249 | `ed69556` | 1400 | 571563341 | no |
+| 12, #250 | `3929425` | 1532 | 1008900677 | no |
+| 13, #251 | `5b922ec` | 1443 | 1785272726 | no |
+
+"About 12" is 13. The Studio has run this test once, on the `a453c24` panel, and that reading disagreed with the lock then in force. The current literal, and the 12 re-locks after #222, have not been read on the Studio.
+
+The re-lock commits do not name a Node version. They say "this VM". The runs in this note that name one, and #248's report, name Node 22.23.4. This refresh was run on Node 22.23.4 (below). One scratchpad probe in `docs/proposal-studio-panel-and-camp-nudge-2026-11-11.md` names Node 22.22.0; that probe did not re-lock. There is no `.nvmrc`, no `.node-version`, and no `engines` field in `package.json` or `v2/package.json`. Nothing in the repo pins Node.
+
+### What this VM read
+
+Linux x64, 4 cores. Worktree of `5b922ec`, `v2/`. No source, baseline, or lock was edited.
+
+- Node **v22.23.4**, V8 12.4.254.21-node.57, ICU 78.3. `npx tsc --noEmit` exited 0.
+- `npm test` on that same Node exited 0 (20:09:34Z–20:43:33Z). The trim line was `ok    trim identity — seed 42 opens 2030, 1443 cuts, rng 1785272726`.
+- Node **v24.22.1**, V8 13.6.233.17-node.58, ICU 78.3, same machine, same commit. `trimIdentity.test.ts` exited 1: `cut count 1423` against 1443. The assertion stops at the count, so that run did not read the rng. Wall time 2m 40s (19:38:00Z–19:40:40Z), with `npm test` also running.
+- The check-3 script, same commit, `GG_CAMP_NUDGE` and `GG_SEED` unset. Node 22.23.4, 2m 30s: `cuts 1443`, and `rng=1785272726` on the `2030 preseason` line. The id list equalled `CUTS`. Node 24.22.1, 2m 24s: `cuts 1423`, `rng=3000811523` on that line. The two traces matched through step 26 (`2026 offseason-draft`, rng 2871135022). Step 27 (`2026 offseason-final`) still had rng 3648421777 on both, and the roster did not: Node 22 had rostered 2424, ovrSum 153255, salSum 12072774426, log 1894, cutRows 84; Node 24 had rostered 2422, ovrSum 153164, salSum 12070639426, log 1897, cutRows 86. The parent rng had not moved to a different value at the end of the first step whose roster differed.
+
+`Math.pow` is not the same build on those two Nodes. The probe in check 2, 200,000 values, on this VM:
+
+| | Node 22.23.4 | Node 24.22.1 |
+|---|---|---|
+| pow / `**` | `d029b384abaa89d69799538968ba17a5` | `444c7b55d5286c8b394fa0f71da211b8` |
+| exp | `a6fcbb2a8e64049e8af24be6862cfaab` | same |
+| log | `a081b19d2ac5974f7e4a7ee7b575eb3e` | same |
+| cos | `757e3100ca2f75917fb3cd9aaa940bdb` | same |
+| sqrt | `00082db8f9ef2ef6354fadf094c848cb` | same |
+| localeCompare | Davis \| Davis II \| Davis Jr. \| de la Cruz \| Delacruz \| O'Neil \| Oneil \| Smith \| Smith-Jones \| St. James \| Stjames | same |
+
+`sqrt` matching is the copy check. `pow` differing is a real last-bit change on one machine. It is not, by itself, the cut list.
+
+### The four bargains, and Baltimore at 69
+
+#235 merged as `8ac573b`. On `5b922ec`, `coverAfterCarryover` (`lib/core/offseason/contracts.ts` 2436) still restructures first (`applyRestructure` / `applyVoidYears`, lines 2446–2468) and keeps `rewriteToMinimum` as the last resort (2478–2498).
+
+The ten-season reading that the bargains were gone is the addendum below, at `61b3a70`: `verify.ts 10`, seed 20260727, **1062/1063**, no minimum-rewrite bargain, and Baltimore, a CPU club, opening 2033 with **69** active. That run has not been repeated at `5b922ec`. #247, #249, #250 and #251 landed after it and changed cap and carryover behaviour. This note does not claim the ten-season book is clean on current main.
+
+The 69-man mechanism is still in the code at `5b922ec`. `spendToFloor` (2004) builds its candidate list from every body on the club (`teamId`, not retired, not a prospect; lines 2018–2020). It does not require an active player. `spendLegalCpuBackToFloor` (2076) calls it after the roll. Draft #248 (`claude/spend-to-floor-active-only`, head `76f4f1e`, base `61b3a70`) is the proposed filter. It is still a draft. It is not on main.
+
+### Decisions still needing Matt's sign-off
+
+1. **Coherence seed 1, 82.07.** Section 3. 119 of 145 at `a453c24`. The note recommends accepting it as noise, the same call as seed 2. Not signed. Not re-measured on `5b922ec`.
+2. **The $0.9M bargain class.** Treat it as fixed by #235's restructure-first cover, or not. The evidence is one ten-season VM run at `61b3a70` with no bargain. There is no Studio panel of that cover, and no ten-season run at `5b922ec`. The same `61b3a70` run is where Baltimore opened at 69. Signing "fixed" does not sign #248.
+3. **A Node pin.** Proposal only, in the section below. Not applied. Not a re-lock.
+
+### Three read-only Studio checks
+
+Run these on the Mac Studio, from a detached worktree of `origin/main`, not from the everyday checkout. They replace the three commands in the old proposal, which point at `~/Projects/gg-a453c24-panel` and at Appendix B. Do not run those.
+
+Run the blocks with bash. They do not run the gate, `verify`, or `gate:lock`. They do not write a tracked file or `baselines.json`. Logs and the two scripts go under `~/Projects/gg-panels/`, which is outside the clone. The clone path is the one already written in `docs/proposal-studio-panel-and-camp-nudge-2026-11-11.md`. If the clone is somewhere else, set `REPO` to it.
+
+#### Setup
+
+```bash
+REPO=~/Projects/gridiron-gm
+cd "$REPO"
+git fetch origin
+SHA=$(git rev-parse origin/main)
+WT=~/Projects/gg-trim-$SHA
+LOG=~/Projects/gg-panels/trim-$SHA
+mkdir -p "$LOG"
+git worktree add --detach "$WT" "$SHA"
+```
+
+If `git worktree add` reports that `$WT` already exists, use it only when `git -C "$WT" rev-parse HEAD` prints `$SHA` and `git -C "$WT" status --short` prints nothing. Otherwise pick a new path.
+
+#### Check 1 — which tree, which Node
+
+Runtime: a few seconds, plus `git fetch`. No sim.
+
+```bash
+cd "$WT"
+{
+  echo "sha=$(git rev-parse HEAD)"
+  echo "status:"
+  git status --short
+  echo "node=$(node -v)"
+  echo "v8=$(node -p process.versions.v8)"
+  echo "icu=$(node -p process.versions.icu)"
+  echo "platform=$(node -p process.platform)/$(node -p process.arch)"
+  echo "cores=$(sysctl -n hw.ncpu)"
+  echo "uname=$(uname -mrs)"
+} | tee "$LOG/identity.txt"
+```
+
+Capture `$LOG/identity.txt`.
+
+How to read it. `status:` must be empty. A dirty worktree is not a reading. Record the full `sha`. `5b922ec` was main when this section was written; a later main is the right tree, and the lock in `v2/lib/core/trimIdentity.test.ts` on that sha is the number to compare in check 3. Record `node`, `v8`, `icu`, and `platform`. The commit does not record a Node version. The comparison machine for this section is Linux x64, Node 22.23.4, V8 12.4.254.21-node.57, ICU 78.3, which is where the Node 22 trace above was read. A different Node major is the first fact to put next to a different cut count. This check does not say whether the sim agrees.
+
+#### Dependencies, once
+
+Checks 2 and 3 need `tsx`. If `$WT/v2/node_modules/.bin/tsx` is missing:
+
+```bash
+(cd "$WT/v2" && npm ci)
+git -C "$WT" status --short
+```
+
+`npm ci` writes gitignored `node_modules` only. The status command must still print nothing. Do not commit. This is not one of the three checks.
+
+#### Check 2 — math last bits
+
+Runtime: under a second on this VM (200,000 values).
+
+The script is written outside the repo.
+
+```bash
+cat > "$LOG/mathprobe.js" << 'EOF'
+const crypto = require("crypto");
+let s = 12345;
+const r = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
+const fns = { pow: (x, y) => Math.pow(x, y), starstar: (x, y) => x ** y, exp: (x, y) => Math.exp(-y * 3), log: (x) => Math.log(x), cos: (x) => Math.cos(x), sqrt: (x) => Math.sqrt(x) };
+const h = Object.fromEntries(Object.keys(fns).map((k) => [k, crypto.createHash("md5")]));
+const b = Buffer.alloc(8);
+for (let i = 0; i < 200000; i++) {
+  const x = 0.01 + r() * 120, y = 0.1 + r() * 3;
+  for (const k in fns) { b.writeDoubleBE(fns[k](x, y)); h[k].update(b); }
+}
+console.log(`node ${process.version} v8 ${process.versions.v8} ${process.platform}/${process.arch} icu ${process.versions.icu}`);
+for (const k in h) console.log(k.padEnd(9), h[k].digest("hex"));
+console.log("localeCompare", ["O'Neil", "Oneil", "St. James", "Stjames", "Davis II", "Davis", "Davis Jr.", "de la Cruz", "Delacruz", "Smith-Jones", "Smith"].sort((a, c) => a.localeCompare(c)).join(" | "));
+EOF
+node "$LOG/mathprobe.js" | tee "$LOG/mathprobe.txt"
+```
+
+Capture `$LOG/mathprobe.txt`.
+
+How to read it.
+
+- `sqrt` must be `00082db8f9ef2ef6354fadf094c848cb`. If it is not, the script was copied wrong. Stop.
+- Compare the other five hashes and the `localeCompare` line with the table above.
+- `pow` equal to the Node 22.23.4 hash means this Node's `Math.pow` matches that build on these inputs. `pow` equal to the Node 24.22.1 hash means it matches the other build. On this Linux box those two hashes differ. The cut counts those two Nodes actually produced are the `trimIdentity` lines above, not this table.
+- `exp`, `log`, `cos`, and `localeCompare` matched across those two Nodes here. A Studio line that differs on one of those is a new split, not the one measured here.
+- This probe does not run the season. A matching `pow` does not prove the cut list matches.
+
+#### Check 3 — the seed-42 walk to the 2030 cut
+
+Runtime: one core, a few minutes. The same walk as `trimIdentity.test.ts`. On this 4-core VM, with the two Nodes running together and `npm test` also running, the script took 2m 30s on Node 22.23.4 and 2m 24s on Node 24.22.1. The `a453c24` test on a quieter run printed in 3m 41s.
+
+This is not a panel and not the gate. `GG_CAMP_NUDGE` and `GG_SEED` are unset. The script lives under `$LOG`, with absolute imports, so nothing is written into the worktree. Stdout goes to `$LOG`.
+
+```bash
+cat > "$LOG/trimTrace.ts" << EOF
+import { newGame } from "$WT/v2/lib/core/newGame";
+import { advance } from "$WT/v2/lib/core/season/engine";
+import { advanceOffseason, isOffseason } from "$WT/v2/lib/core/offseason";
+import { preseasonWeeksLeft } from "$WT/v2/lib/core/preseason";
+import type { GameState } from "$WT/v2/lib/core/types";
+
+const TARGET = 2030;
+
+function fp(st: GameState): string {
+  let rostered = 0, ovr = 0, cap = 0, cuts = 0;
+  for (const p of st.players) {
+    if (p.teamId !== null && !p.prospect && !p.retired) {
+      rostered++; ovr += p.ovr;
+      cap += p.contract ? (p.contract.baseSalary[0] ?? 0) + p.contract.signingBonus : 0;
+    }
+  }
+  for (const e of st.log) if (e.cut) cuts++;
+  return \`rng=\${st.rngState} players=\${st.players.length} rostered=\${rostered} ovrSum=\${ovr} salSum=\${cap} log=\${st.log.length} cutRows=\${cuts}\`;
+}
+let step = 0;
+function mark(st: GameState, what: string): void {
+  console.log(\`\${String(step++).padStart(4)} \${st.season} \${st.phase.padEnd(18)} wk=\${String(st.week ?? "").padEnd(3)} \${what.padEnd(10)} \${fp(st)}\`);
+}
+
+console.log(\`node \${process.version} v8 \${process.versions.v8} \${process.platform}/\${process.arch} GG_CAMP_NUDGE=\${process.env.GG_CAMP_NUDGE ?? ""} GG_SEED=\${process.env.GG_SEED ?? ""}\`);
+const st = newGame({ seed: 42 });
+mark(st, "newGame");
+advance(st); mark(st, "advance");
+outer: while (true) {
+  let g = 0;
+  while (st.phase === "regular" && g++ < 40) { advance(st); mark(st, "advance"); }
+  let p = 0;
+  while (st.phase !== "offseason-recap" && p++ < 12) { advance(st); mark(st, "advance"); }
+  let o = 0;
+  while (isOffseason(st.phase) && o++ < 20) {
+    const weeks = st.phase === "offseason-final" ? preseasonWeeksLeft(st) : -1;
+    if (st.phase === "offseason-final" && weeks === 0 && st.season + 1 === TARGET) break outer;
+    advanceOffseason(st); mark(st, "offseason");
+  }
+  if (st.phase !== "preseason") throw new Error(\`stuck in \${st.season} \${st.phase}\`);
+  advance(st); mark(st, "advance");
+}
+const before = new Set(st.log);
+advanceOffseason(st); mark(st, "CUTDOWN");
+const cuts = st.log.flatMap((e) => (e.cut && typeof e.playerId === "number" && !before.has(e) ? [e.playerId] : []));
+console.log(\`cuts \${cuts.length}\`);
+console.log(cuts.join(","));
+EOF
+env -u GG_CAMP_NUDGE -u GG_SEED "$WT/v2/node_modules/.bin/tsx" "$LOG/trimTrace.ts" > "$LOG/trim-trace.txt"
+git -C "$WT" status --short
+tail -n 5 "$LOG/trim-trace.txt"
+```
+
+The `git status` line must print nothing. If it prints `trimTrace.ts` or `trim-trace.txt`, the redirect or the script path was inside the worktree. Delete that file and do not commit it.
+
+Capture the whole `$LOG/trim-trace.txt`. The header line, the `2030 preseason` line, and the `cuts N` line are the three that decide the result. The comma-separated ids are the cut list.
+
+How to read it.
+
+- The header must show an empty `GG_CAMP_NUDGE` and an empty `GG_SEED`. If either is set, the walk is not the test's walk. Re-run the command as written.
+- On `5b922ec` the locked endpoint is **1443** cuts and rng **1785272726**. That is `cuts 1443`, and `rng=1785272726` on the `2030 preseason` line. This VM's Node 22.23.4 trace printed that pair, and its id list equalled `CUTS`.
+- If the Studio prints that pair, this machine matches the lock through the opening-2030 cut. Stop. Do not re-lock.
+- `cuts 1423` and `rng=3000811523` is what Node 24.22.1 printed on this Linux x64 VM, from the same script. That is the Node-major split measured here. It is not a Studio reading, and it is not a reason to re-lock.
+- Anything else: do not edit the test. Compare fingerprint lines, not only `rng=`. On this VM the two Nodes matched through step 26 and differed at step 27 with the **same** rng (3648421777) and a different roster, as written above. A Studio file that parts at a different step is a different split. Appendix B is `a453c24`. Appendix C is `61b3a70`. Neither is the reference for this commit.
+
+### Proposal: pin the Node version
+
+Not applied. No file in this PR adds the pin.
+
+The lock and the agent VMs that name a version are on Node 22.23.4. Check 2 shows Node 24.22.1's `Math.pow` does not hash to the same value, on the same Linux x64 machine. A pin makes that visible before the next re-lock. It does not make two Node majors agree.
+
+Proposed, and only if Matt signs it:
+
+- `v2/.nvmrc` containing `22.23.4`.
+- `v2/package.json` `"engines": { "node": "22.23.4" }`. npm warns on a mismatch. It does not refuse one unless `engine-strict` is set. Leave `engine-strict` off unless Matt wants the install to fail.
+- Nothing at the repo root. The app and the test script are under `v2/`.
+
+Do not re-lock `trimIdentity` in the same change. The pin is a record of the Node the current literal was measured on.
 
 The Studio log `gate-full-5seed.log` was not in this workspace. Everything below is the panel summary, the code, and replays on a 4-core Linux VM (x64, Node 22.23.4) from a scratch copy of `a453c24`. Where the VM did not replay a Studio line, that is said.
 
@@ -57,15 +303,12 @@ It happened again on this panel (section 2). Each note treated it as a property 
 
 ### Consequence for #229
 
-#229 moved the lock to **1600 / 2524091302**, measured the same way, on a VM (`docs/HANDOFF.md` 11–13). The next Studio panel on `main` will fail `trimidentity` again, for this reason and not for a new one.
+#229 moved the lock to **1600 / 2524091302**, measured the same way, on a VM. That sentence described main on the day it was written. The literal has been re-locked since. The current lock and the Studio commands are in the 2026-11-15 section. Do not treat 1600 as the current literal.
 
 ### Proposed — UNSIGNED
 
 1. **Do not re-lock.** A Studio-measured literal would turn the test red on every agent VM, which is where it runs after each edit. A VM-measured literal is red on the Studio. Until the split is explained, this canary can only be green on one kind of machine.
-2. **Three read-only commands on the Studio**, none of them a panel. They need Matt's yes because the third is a four-minute single-core run. Appendix A has the two probe files.
-   - `node -v`, and `git -C ~/Projects/gg-a453c24-panel status --short` and `rev-parse HEAD`.
-   - `node mathprobe.js` (one second). Compare the six hashes with the VM's in Appendix A.
-   - `npx tsx trimTrace.ts > trim-trace-studio.txt` from the worktree's `v2/`. It replays the same seed-42 walk and prints `rngState` and a roster fingerprint after every step, 125 lines, then the cut list. The first line that differs from the VM's table in Appendix B names the week or the offseason phase where the two machines part. The cut list then gives the first differing cut.
+2. **Three read-only commands on the Studio**, none of them a panel. The commands originally written here pointed at `~/Projects/gg-a453c24-panel` and at Appendix B. Do not run those. The commands for a worktree of current main are in the 2026-11-15 section. Appendix A is the historical probe text; the 2026-11-15 check 2 is the same probe, written outside the repo.
 3. **Then one decision**, with that step in hand: fix the machine-dependent operation so one literal holds everywhere, or sign the canary as a per-machine check.
 
 I would not accept this one as noise. It is deterministic on each machine. It also means a save file from an Apple Silicon browser may not replay on an x64 one after the first offseason, which is what invariant 1 is for.
@@ -315,15 +558,15 @@ step season phase         rng              players      rostered      cut rows i
 
 The last line is the lock: 1587 cuts, rng 19218870. The cut list is `CUTS` in `lib/core/trimIdentity.test.ts` at `a453c24`.
 
-## Addendum, 2026-11-14 — current main `61b3a70` on the VM
+## Addendum, 2026-11-14 — main `61b3a70` on the VM
 
-Matt asked for both of these on 2026-11-14. Read-only, scratch copy of main `61b3a70` (#246), same Linux x64 VM, Node 22.23.4. No Studio job. Line numbers in this section are from `61b3a70`.
+This was current main on 2026-11-14. It is not current main. Matt asked for both of these that day. Read-only, scratch copy of main `61b3a70` (#246), same Linux x64 VM, Node 22.23.4. No Studio job. Line numbers in this section are from `61b3a70`.
 
 ### The trim lock and a fresh reference trace
 
-`npx tsx lib/core/trimIdentity.test.ts` passes on the VM: `1530 cuts, rng 3780634271`. That is the 2026-11-14 lock. Since #229 the literal has been re-locked seven more times, each on a VM. Section 1 applies to every one of them: none has been read on the Studio.
+`npx tsx lib/core/trimIdentity.test.ts` passes on the VM: `1530 cuts, rng 3780634271`. That is the 2026-11-14 lock at this commit. Since #229 the literal had been re-locked seven more times, each on a VM, and none of those seven had been read on the Studio. Four more re-locks landed after this addendum. The full count is in the 2026-11-15 section.
 
-Appendix C is the VM trace for `61b3a70`. Run `trimTrace.ts` from Appendix A on the Studio **at `61b3a70`** and diff against Appendix C, not Appendix B.
+Appendix C is the VM trace for `61b3a70` only. Do not diff a Studio run of current main against Appendix B or Appendix C.
 
 ### Ten-season `verify`: the bargains are gone, and one roster is at 69
 

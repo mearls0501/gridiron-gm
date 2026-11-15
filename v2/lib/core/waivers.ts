@@ -1,5 +1,5 @@
 import { GameState, Player, POSITION_ACTIVE_MAX, POSITION_MIN, PRACTICE_SQUAD_LIMIT, rosterLimit, salaryCap, WaiverClaim } from "./types";
-import { addDeadCap, capHit, deadMoney, getPlayer, isActiveRoster, rosterCount, startSeason, teamCap } from "./select";
+import { addDeadCap, capHit, deadMoney, getPlayer, isActiveRoster, remainingBonusProration, rosterCount, startSeason, teamCap } from "./select";
 import { placeOnPs, clearRosterSlot } from "./rosterStatus";
 import { compareTeamsCore, leagueStandings } from "./season/standings";
 import { evaluate, teamOutlook, TeamOutlook } from "./frontOffice";
@@ -173,8 +173,10 @@ function worseSurplus(state: GameState, idx: WaiverIdx, teamId: number, incoming
   const incomingWorth = bodyWorth(state, teamId, incoming, outlook);
   const roster = bag.members.filter((p) => p.pos === incoming.pos && isActiveRoster(p));
   if (roster.length <= POSITION_MIN[incoming.pos]) return null;
-  // A claim is a choice. The man it replaces is one whose cut frees room.
-  const worst = roster.filter((p) => !cutFreesNothing(p)).sort((a, b) => bodyWorth(state, teamId, a, outlook) - bodyWorth(state, teamId, b, outlook))[0];
+  // A claim is a choice. The man it replaces is one whose cut frees room
+  // and pulls no signing bonus forward: a club does not eat a bonus to swap
+  // one body for another off the wire. He can still go at the cutdown.
+  const worst = roster.filter((p) => !cutFreesNothing(p) && remainingBonusProration(p.contract) <= 0).sort((a, b) => bodyWorth(state, teamId, a, outlook) - bodyWorth(state, teamId, b, outlook))[0];
   if (!worst) return null;
   if (bodyWorth(state, teamId, worst, outlook) < incomingWorth) return worst;
   return null;

@@ -445,7 +445,7 @@ export interface Team {
   /**
    * Unused cap space carried into this league year. Missing = 0 so older
    * saves and year-0 generation load unchanged. The snapshot banks at most
-   * 20% of the cap (`CAP_CARRYOVER_MAX_SHARE`). See `docs/nfl-reference.md` §4.
+   * 8% of the cap (`CAP_CARRYOVER_MAX_SHARE`). See `docs/nfl-reference.md` §4.
    */
   capCarryover?: number;
   /**

@@ -142,21 +142,30 @@ function withoutPlace(records: TeamRecord[]): TeamRecord[] {
 // sim rule changes (seed 42's user club, then seed 49's, each lasted one
 // change), so the seat is moved onto whichever club has the case after the
 // season is played. The chair is an id; nothing below reads owner state.
-const st = newGame({ seed: 42 });
-st.settings = defaultSettings();
-st.settings.firingEnabled = false;
-st.settings.pauseOnStartingQb = false;
-advance(st);
-runSimTo(st, "champion");
-assert.equal(st.phase, "offseason-recap");
-
-const season = st.season;
-const seat = st.teams.find((t) => {
-  st.userTeamId = t.id;
-  const place = divisionStandings(st, t.division, season).findIndex((r) => r.teamId === t.id) + 1;
-  return pointDiffRank(st, t.division, season) !== place;
-});
-assert.ok(seat, "seed 42's first season has a club point differential misplaces");
+// One seed lasted one change each time, so the season is taken from the
+// first of a few seeds that has the case.
+function seasonWithCase() {
+  for (const seed of [42, 49, 7, 11, 23, 101]) {
+    const st = newGame({ seed });
+    st.settings = defaultSettings();
+    st.settings.firingEnabled = false;
+    st.settings.pauseOnStartingQb = false;
+    advance(st);
+    runSimTo(st, "champion");
+    assert.equal(st.phase, "offseason-recap");
+    const season = st.season;
+    const seat = st.teams.find((t) => {
+      st.userTeamId = t.id;
+      const place = divisionStandings(st, t.division, season).findIndex((r) => r.teamId === t.id) + 1;
+      return pointDiffRank(st, t.division, season) !== place;
+    });
+    if (seat) return { st, season, seat };
+  }
+  return null;
+}
+const found = seasonWithCase();
+assert.ok(found, "one of the seeds has a first season where point differential misplaces a club");
+const { st, season, seat } = found;
 st.userTeamId = seat.id;
 const team = st.teams[st.userTeamId];
 const official = divisionStandings(st, team.division, season);

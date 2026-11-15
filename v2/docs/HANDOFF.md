@@ -1,10 +1,154 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-15 — Panel note brought up to main `5b922ec`
+
+**UNSIGNED.** Docs only. No code, test, `scripts/`, `baselines.json`, re-lock, or dial. The calibration freeze stands. Full note: `docs/panel-a453c24-investigation.md`, the section "Status on main `5b922ec`".
+
+The `a453c24` findings stay in that note. Against current main:
+
+- `trimIdentity` on `5b922ec` locks **1443** cuts, rng **1785272726**. That is the 13th re-lock since the #218 hoist (1506 / 2450416366). The Studio has read this test once, at `a453c24`, and got 1564 against the then-lock 1587. The current literal has not been read on the Studio, and neither has any of the 12 re-locks after #222.
+- This VM is Linux x64, Node 22.23.4 (V8 12.4.254.21-node.57, ICU 78.3). `npx tsc --noEmit` exited 0. `npm test` exited 0. The trim line was `ok    trim identity — seed 42 opens 2030, 1443 cuts, rng 1785272726`. A read-only trace of the same walk printed `cuts 1443` and `rng=1785272726`, and the id list equalled `CUTS`.
+- The same test file on Node 24.22.1 (V8 13.6.233.17-node.58, ICU 78.3), same machine and same commit, exited 1: `cut count 1423` against 1443. The same trace script printed `cuts 1423` and `rng=3000811523`. The two traces matched through the 2026 draft step and differed on the next line, with the parent rng still equal. `Math.pow` over 200,000 inputs hashes differently on the two Nodes (`d029b384abaa89d69799538968ba17a5` on 22.23.4, `444c7b55d5286c8b394fa0f71da211b8` on 24.22.1). `exp`, `log`, `cos`, `sqrt`, and `localeCompare` matched. The repo has no `.nvmrc`, no `.node-version`, and no `engines` field. The re-lock commits do not name a Node version. The runs in the panel note that name a version name 22.23.4.
+- #235 (`8ac573b`) is on main. `coverAfterCarryover` still restructures before `rewriteToMinimum`. The ten-season run with no bargain, and Baltimore opening 2033 with 69 active, is the `61b3a70` reading below. It was not re-run at `5b922ec`. `spendToFloor` still picks from every body on the club, practice squad included. The fix is draft #248. It is not merged.
+- Three read-only Studio checks are in the note, for a detached worktree of `origin/main`. They do not run the gate and they do not write a tracked file or `baselines.json`. A Node pin (`v2/.nvmrc` and `v2/package.json` `engines`, both `22.23.4`) is proposed and not applied.
+
+**Still Matt's call.** (a) Accept coherence seed 1 at 82.07 (119 of 145 at `a453c24`) as noise, or not. (b) Treat the $0.9M bargain class as fixed by #235, pending a panel. The evidence is the one `61b3a70` ten-season run. (c) Pin Node at 22.23.4, or not.
+
+## 2026-11-14 — Carryover: CPU clubs budget against half of it; the bank ceiling is 8%
+
+Asked for by Matt, 2026-11-14 ("investigate why clubs enter the new year over the cap", "merge the carryover fix once it passes", "do A at 8%", "ship the 8% ceiling"). Nothing in `scripts/` or `baselines.json` moved.
+
+**Why clubs opened a league year over the cap.** Carryover is a one-year credit. At the roll, last year's is replaced by what the club left unused. Every CPU club was logged before and after every roll: the carryover swap is the whole change in room at that moment. A club carrying $60.7M that left $10.3M unused lost $50.4M of room overnight and went from $10M under to $40M over. 5 of 124 club-rolls on seed 20260727 and 8 of 124 on seed 42.
+
+`spendBudget` (`frontOffice.ts`) counted the whole carry. It now counts `CARRYOVER_SPEND_SHARE` 0.5 of it, so the room a club leaves replaces the credit it spent. Roster upgrades and extensions at the end of the offseason spend from room directly and are not under this budget.
+
+**The ceiling.** `CAP_CARRYOVER_MAX_SHARE` (`select.ts`) is 0.08, was 0.20 and marked pending sign-off. CPU clubs spend about 92% of the cap each year and held the rest: the average carry was $57M a club by the fourth season, at the old ceiling. It applies to the user's club too.
+
+Measured on this VM, CPU clubs, four seasons:
+
+| | seed 20260727 | seed 42 |
+| :--- | ---: | ---: |
+| clubs over the cap at a roll, half budget | 5 → 4 | 8 → 2 |
+| size of those holes, half budget | $70M → $53M | $116M → $6M |
+| bonus accelerated by cap releases, half budget | $81M → $63M | $117M → $54M |
+| average carry by season, 20% ceiling | $20M, $34M, $47M, $57M | $21M, $32M, $43M, $58M |
+| average carry by season, 8% ceiling | $16M, $21M, $23M, $26M | $15M, $20M, $21M, $24M |
+| clubs over the cap at a roll, + 8% ceiling | 4 → 1 | 2 → 3 |
+| all dead money, both | $606M → $641M | $659M → $563M |
+
+The ceiling stops the stockpile. The cap still binds almost nobody. League payroll settles near 88-89% of the cap by the fourth season: a new deal is signed at market, and a year later it sits about 10% under, because the cap and the market grow 6% a year and a deal's hit grows less, and because the men still on old deals are the ones who got better. Rostered players priced at the current market come to 100-104% of the cap.
+
+Tried for that and not built: raising `targetSpend` to 0.90-0.99 (payroll did not move); base steps of 6% a year inside a deal (payroll did not move). A premium on CPU bids scaled to unused room raised payroll about three points a season and put back some cap releases. Not built; Matt's call is open.
+
+`capMechanics` cases 4, 8 and 13 assert the new rules.
+
+**Re-lock:** `trimIdentity` **1443** cuts, rng **1785272726**. `userOffers` did not move.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
+## 2026-11-14 — Retirements, starting deals and trades leave less dead money
+
+Asked for by Matt, 2026-11-14 ("do both, merge each once it passes", "fix the starting contract lengths too", "fix the dead money from trades next"). Nothing in `scripts/` or `baselines.json` moved.
+
+**Retirements.** About 60 men a season retired under contract with bonus left, most aged 28-33 and rated 65-74. A rostered 30-year-old rated 68 went about 9% of the time. `retirementChance` (`offseason/progression.ts`, now exported) is scaled by `BONUS_OWED_RETIRE_SCALE` 0.25 while a rostered man has bonus proration left. Unsigned men, and men whose bonus is charged out, are unchanged.
+
+**Starting deals.** `makeRosterForTeam` staggered every deal the same way whatever the age, so a man of thirty could open with four or five years left where a signing at that age gets two. He now opens with at most two left, and thirty-three with one. Length and money are unchanged; he is further in.
+
+**Trades.** `playerTradeValue` already charged the seller for the bonus a trade pulls forward, at the contract-surplus rate. `ACCEL_PRICE` is 680 points per share of the cap, was 340, clamped at 140.
+
+Measured on this VM, CPU clubs, four seasons, each step on top of the last:
+
+| | seed 20260727 | seed 42 |
+| :--- | ---: | ---: |
+| retirement dead money, retirement fix | $422M → $107M | $350M → $89M |
+| all dead money, retirement fix | $1,071M → $759M | $930M → $917M |
+| all dead money, + starting deals | $759M → $727M | $917M → $705M |
+| trade dead money, + trade price | $320M → $230M | $379M → $242M |
+| players traded, + trade price | 313 → 267 | 365 → 295 |
+| all dead money, + trade price | $727M → $606M | $705M → $659M |
+
+Not measured: total retirements, career lengths.
+
+`divisionRank` hard-coded seed 42 for a first season where point differential misplaces a club. That season no longer has one. It now takes the first of six seeds that does; the assertions are unchanged.
+
+New cases in `retirementDead`, `deadIfCut` and `tradeReview`.
+
+**Re-lock:** `trimIdentity` **1532** cuts, rng **1008900677**. `userOffers` tag **3242373722**, free agency **691387436**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — 74 pass on the first run; `divisionRank` failed, was fixed as above, and passes.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline, on the second run. The first ran the old `divisionRank` and failed on it alone.
+
+## 2026-11-14 — A waiver claim accelerates no bonus; late-round slot bonuses at real size
+
+Asked for by Matt, 2026-11-14 ("fix the dead money from waiver claim cuts next", "fix the dead money from draft picks next"). Nothing in `scripts/` or `baselines.json` moved.
+
+**Claims.** `worseSurplus` (`waivers.ts`) compared the incoming man with the club's worst at his position and released that man, bonus or not. About 250 of 2,100 claim cuts over four seasons pulled a bonus forward. The released man must now have no bonus proration left. The club looks to the next-worst, or passes. He can still go at the cutdown.
+
+**Slot bonuses.** Every drafted deal paid about 14% as signing bonus: $450K in round seven, where the real slot is near $100K. `LATE_ROUND_BONUS_SHARE` (`generate.ts`): round five 8%, six 5%, seven 2.5%, which rounds to $250K, $150K, $100K. Rounds one to four are unchanged. `signingBonusFor` and `makeContract` take the round; `rookieContract` passes it. This replaces "the seventh-round slot bonus stays". Matt's go-ahead, 2026-11-14: "merge the rookie bonus fix too once it passes".
+
+A rookie's base does not go under the minimum, so the smaller bonus is not made up in base. A round-seven first-year hit is $820K, was $907.5K.
+
+Measured on this VM, CPU clubs, four seasons, each fix on its own over the entry below:
+
+| | seed 20260727 | seed 42 |
+| :--- | ---: | ---: |
+| bonus accelerated by claim cuts | $119M → $0 | $106M → $0 |
+| waiver claims | 2,221 → 1,791 | 2,036 → 1,774 |
+| bonus accelerated by cutting round 5-7 picks | $89M → $29M | $92M → $33M |
+| bonus accelerated by all CPU cuts, both fixes | $432M → $279M | $410M → $252M |
+
+Tried on the same traces and not built, because two seeds could not tell them from noise: a club not releasing a veteran it paid that year; passing over a costly release in season; not drafting or signing into a room already full of bonus deals; shorter terms for men under 72.
+
+`waivers` has a new case that fails on the old behaviour. `deadIfCut` asserts the slot by round and the new round-seven hit, dead money and saving.
+
+**Re-lock:** `trimIdentity` **1400** cuts, rng **571563341**. `userOffers` tag **1614125276**, free agency **3117494098**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
+## 2026-11-14 — A cap release takes the deals with no dead money first
+
+Asked for by Matt, 2026-11-14 ("fix the dead money from cap-casualty cuts next", then "fix the roster churn at the bottom next"). Nothing in `scripts/` or `baselines.json` moved.
+
+A CPU club over the cap ranked releases by saving per rating point. A paid starter with a live bonus came out ahead of minimum deals that would have closed the hole. One trace released a 92 quarterback for $15M of room.
+
+- `capCutTier` (`offseason/contracts.ts`): 0 leaves no dead money, 1 saves more than it leaves, 2 the rest. `enforceCap` and `coverCpuCapInSeason` sort by tier, then by the old ratio.
+- `enforceCap`, club at 53 or under: an active release is priced net of `LEAGUE_MINIMUM`, the deal that refills the spot. Without this the tier order swapped one minimum deal for another and cuts rose 12-19%. If nobody clears room net of the refill, the old gross order runs so the club still reaches a legal book.
+
+Measured on this VM, CPU clubs, four seasons, cap releases only:
+
+| seed | bonus accelerated | releases of men 75+ | all CPU cuts |
+| :--- | ---: | ---: | ---: |
+| 20260727 | $187M → $98M | 23 → 18 | 7,042 → 6,868 |
+| 42 | $161M → $53M | 17 → 8 | 6,504 → 6,503 |
+
+Tried and withdrawn: stopping camp fill at the cap (`bestAffordable` floors its budget above the minimum, so a club is signed to 90 over the cap). Clubs then entered the new league year $20-45M over and the acceleration came back ($151M and $181M). The camp overfill is still there.
+
+`rosterStatus`: the camp quarterback check calls `fillRoster`, not `reconcileRoster`. The cap release in camp now takes minimum deals first, quarterbacks among them. The assertion is unchanged. `deadIfCut` has two new cases; both fail on the old order.
+
+**Re-lock:** `trimIdentity` **1584** cuts, rng **93739137**. `userOffers` tag **284096648**, free agency **395911736**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
 ## 2026-11-14 — Main `61b3a70` on the VM: bargains gone, one roster at 69
 
 **UNSIGNED.** Docs only, read-only replays on a Linux x64 VM. Matt asked for both runs. Detail and the reference trace: the addendum and Appendix C of `docs/panel-a453c24-investigation.md`.
 
-- `trimIdentity` passes on the VM at 1530 / 3780634271. Every re-lock since #222 was measured on a VM and none has been read on the Studio. The 2026-11-12 entry's first disagreement still stands.
+- `trimIdentity` passes on the VM at 1530 / 3780634271. That was the lock at `61b3a70`. It is not the lock now; see the 2026-11-15 entry. Every re-lock since #222 was measured on a VM. The Studio had read the test once, at `a453c24` (1564 against 1587), and had not read any later literal. The 2026-11-12 entry's first disagreement still stands.
 - `verify.ts 10`, seed 20260727: **1062/1063**. No minimum-rewrite bargain in ten seasons, against four failed checks at `b5c2a21`. #235's restructure-first cover holds on this machine.
 - **New.** Baltimore, CPU, opens 2033 with **69** active. After the roll, `spendLegalCpuBackToFloor` calls `spendToFloor`, which picks its worst-at-position from every body on the club, practice squad included, cuts him, and signs an active replacement. Sixteen swaps, 53 + 16. Nothing trims after it. Proposed, not built: have `spendToFloor` replace active players only. It may move the seed-42 fingerprints.
 
@@ -197,6 +341,7 @@ Matt asked for this on 2026-11-13 ("do the phase 1 leftovers next"). The recomme
 - **C + D1.** `lib/view/playArt.ts` and `components/PlayArt.tsx` draw a field strip from the event: line of scrimmage, line to gain, end spot, and a glyph. No formation. It shows in the `/play` Last snap cards and on a clicked `/game/[id]` play-by-play row. Before the first snap, `/play` shows the opening kickoff with its kicker. The engine still opens on a touchback (D2 deferred).
 - **E3 (P5).** `dropCpuPlays` at the top of `simulateWeek` and `simulatePlayoffRound`. The week engine attaches the engine's `plays` to CPU boxes. A CPU box keeps its snap log while its week is the latest played. `simulateGame` still does not persist CPU logs. `scripts/e2e-desks.mjs` `checkPhase1BoxScores` now accepts a latest-week CPU log and fails a kept earlier-week one (the signed `scripts/` edit). The save cost was estimated at about +0.40 MB mid-season and about +0.03 MB at recap; not re-measured on `drift`.
 - Tests: `liveGame.test.ts` (stale key, legacy save, seal view), `playByPlay.test.ts` (P2 order, kicker, golden lines, P5 window, codec), and new `lib/view/playArt.test.ts`, registered in `package.json` and as `playart` in both gate tiers.
+
 ## 2026-11-12 — Panel `a453c24`: GATE FAIL 4, read-only findings
 
 **UNSIGNED.** Docs only. No code, test, `scripts/`, `baselines.json`, re-lock, or dial. Full note: `docs/panel-a453c24-investigation.md`. The Studio log was not in the workspace; replays are from a Linux x64 VM.
@@ -213,7 +358,7 @@ Studio `gate:full:serial`, 5 seeds, main `a453c24` (#222). Passed: `leadTackles`
 
 **VM only.** The ten-season `verify` at `a453c24` on the VM also fails "healthy starters play a full season" once (2032, 55 of 442, 12.4% against 12%). It is not on the Studio summary. Not chased.
 
-**Not done.** An arm64 Node under emulation was refused by the session's permission check. No other Node major was tried. No Studio job was started.
+**Not done.** An arm64 Node under emulation was refused by the session's permission check. No other Node major was tried. No Studio job was started. A Node 24.22.1 reading of the later lock is in the 2026-11-15 entry.
 
 ## 2026-11-12 — Tag-window residuals: void bonus and the Tag button
 
