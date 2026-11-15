@@ -1,5 +1,41 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-14 — Carryover: CPU clubs budget against half of it; the bank ceiling is 8%
+
+Asked for by Matt, 2026-11-14 ("investigate why clubs enter the new year over the cap", "merge the carryover fix once it passes", "do A at 8%", "ship the 8% ceiling"). Nothing in `scripts/` or `baselines.json` moved.
+
+**Why clubs opened a league year over the cap.** Carryover is a one-year credit. At the roll, last year's is replaced by what the club left unused. Every CPU club was logged before and after every roll: the carryover swap is the whole change in room at that moment. A club carrying $60.7M that left $10.3M unused lost $50.4M of room overnight and went from $10M under to $40M over. 5 of 124 club-rolls on seed 20260727 and 8 of 124 on seed 42.
+
+`spendBudget` (`frontOffice.ts`) counted the whole carry. It now counts `CARRYOVER_SPEND_SHARE` 0.5 of it, so the room a club leaves replaces the credit it spent. Roster upgrades and extensions at the end of the offseason spend from room directly and are not under this budget.
+
+**The ceiling.** `CAP_CARRYOVER_MAX_SHARE` (`select.ts`) is 0.08, was 0.20 and marked pending sign-off. CPU clubs spend about 92% of the cap each year and held the rest: the average carry was $57M a club by the fourth season, at the old ceiling. It applies to the user's club too.
+
+Measured on this VM, CPU clubs, four seasons:
+
+| | seed 20260727 | seed 42 |
+| :--- | ---: | ---: |
+| clubs over the cap at a roll, half budget | 5 → 4 | 8 → 2 |
+| size of those holes, half budget | $70M → $53M | $116M → $6M |
+| bonus accelerated by cap releases, half budget | $81M → $63M | $117M → $54M |
+| average carry by season, 20% ceiling | $20M, $34M, $47M, $57M | $21M, $32M, $43M, $58M |
+| average carry by season, 8% ceiling | $16M, $21M, $23M, $26M | $15M, $20M, $21M, $24M |
+| clubs over the cap at a roll, + 8% ceiling | 4 → 1 | 2 → 3 |
+| all dead money, both | $606M → $641M | $659M → $563M |
+
+The ceiling stops the stockpile. The cap still binds almost nobody. League payroll settles near 88-89% of the cap by the fourth season: a new deal is signed at market, and a year later it sits about 10% under, because the cap and the market grow 6% a year and a deal's hit grows less, and because the men still on old deals are the ones who got better. Rostered players priced at the current market come to 100-104% of the cap.
+
+Tried for that and not built: raising `targetSpend` to 0.90-0.99 (payroll did not move); base steps of 6% a year inside a deal (payroll did not move). A premium on CPU bids scaled to unused room raised payroll about three points a season and put back some cap releases. Not built; Matt's call is open.
+
+`capMechanics` cases 4, 8 and 13 assert the new rules.
+
+**Re-lock:** `trimIdentity` **1443** cuts, rng **1785272726**. `userOffers` did not move.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
 ## 2026-11-14 — Retirements, starting deals and trades leave less dead money
 
 Asked for by Matt, 2026-11-14 ("do both, merge each once it passes", "fix the starting contract lengths too", "fix the dead money from trades next"). Nothing in `scripts/` or `baselines.json` moved.
