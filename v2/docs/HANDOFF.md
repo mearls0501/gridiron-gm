@@ -1,5 +1,31 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-16 — Spend to the floor replaces active players only, remeasured after main 93cfb23
+
+Unsigned. Do not merge. Nothing in `scripts/` or `baselines.json` moved, and no fingerprint was re-locked.
+
+`claude/spend-to-floor-active-only` was merged with main `93cfb23` (the Node 22.23.4 pin and the cap commits through #252). The merge was clean. `spendToFloor` still chooses the man it replaces from the active roster only. Main's cap-cut order and the half-carryover / 8% bank are unchanged.
+
+Node `v22.23.4` on this VM.
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — exit 0. 352 `ok` lines.
+- `npx tsx scripts/verify.ts 5` (seed 20260727) — 552/552, `verify.failures` 0.
+- `npx tsx scripts/determinism.ts 2` — pass, `determinism.failures` 0.
+
+**Fingerprints held.** Same locks as this main:
+
+- `userOffers` tag **3242373722**, free agency **691387436**.
+- `trimIdentity` **1443** cuts, rng **1785272726**.
+
+**Roster.** The ceiling is 53 except in camp (`offseason-draft` and `offseason-final`), where it is 90. Active count is `rosterCount`.
+
+Seed 20260727, the 2033 preseason where Baltimore had 69 on main `61b3a70`: Baltimore 53, and every club 53. From the 2026 open through that 2033 open, the most men on any active roster while the ceiling was 53 was 53 each year. Camp peaked at 87 in 2026 and 90 after that. No sample crossed the ceiling for its phase.
+
+Seeds 42, 7, and 1, thirty season-loops each (2026 through the 2056 preseason), the same advance path as `verify.ts`. The repo has no script that walks those three seeds for thirty seasons; `sweep.ts` is a different seed list and two seasons. On all three, the most men while the ceiling was 53 was 53 in every season. Camp peaked at 86 or 87 in 2026 and at 90 after that. No ceiling break.
+
+No disagreement with the filter. The gate was not re-run on this head.
+
 ## 2026-11-14 — Carryover: CPU clubs budget against half of it; the bank ceiling is 8%
 
 Asked for by Matt, 2026-11-14 ("investigate why clubs enter the new year over the cap", "merge the carryover fix once it passes", "do A at 8%", "ship the 8% ceiling"). Nothing in `scripts/` or `baselines.json` moved.
