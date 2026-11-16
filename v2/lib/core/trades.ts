@@ -248,6 +248,14 @@ export function acquiredCapHit(c: Player["contract"]): number {
   return c && c.yearsRemaining > 0 ? c.baseSalary[0] ?? 0 : 0;
 }
 
+/**
+ * Value points per share of the cap a trade pulls forward. Twice the 340 the
+ * contract surplus uses: room spent on a man who is gone buys nothing, where
+ * an overpaid man still plays. At 340 CPU clubs moved about 230 bonus deals
+ * in four seasons and pulled $160M forward doing it.
+ */
+export const ACCEL_PRICE = 680;
+
 export function playerTradeValue(
   state: GameState, teamId: number, p: Player, posture: Posture
 ): number {
@@ -269,7 +277,7 @@ export function playerTradeValue(
   // same window. The acquiring club does not carry the bonus, so its number
   // does not move.
   const accel = p.teamId === teamId ? acceleratedBonus(p.contract) : 0;
-  const accelAdj = clamp(accel / Math.max(1, teamCap(state, teamId).cap) * 340, 0, 70);
+  const accelAdj = clamp(accel / Math.max(1, teamCap(state, teamId).cap) * ACCEL_PRICE, 0, 140);
 
   // Somebody who cannot stay on the field is worth less than his rating.
   const health = p.injuryWeeks > 0 ? 1 - clamp(p.injuryWeeks / 30, 0, 0.55) : 1;

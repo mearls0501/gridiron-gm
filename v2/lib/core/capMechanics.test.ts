@@ -17,7 +17,7 @@ import {
   addVoidYearsPreview, applyVoidYears, expireContracts, MAX_VOID_YEARS, reconcileRoster,
   runCpuVoidYears, spendLegalCpuBackToFloor, spendToFloor,
 } from "./offseason/contracts";
-import { payroll, SPEND_FLOOR, spendBudget, targetSpend, teamOutlook } from "./frontOffice";
+import { CARRYOVER_SPEND_SHARE, payroll, SPEND_FLOOR, spendBudget, targetSpend, teamOutlook } from "./frontOffice";
 import { acceptGmChair } from "./owner";
 import { advance } from "./season/engine";
 import { advanceOffseason, isOffseason } from "./offseason";
@@ -119,7 +119,11 @@ function ok(label: string) { console.log("ok   ", label); }
 {
   const st = newGame({ seed: 24 });
   const teamId = st.userTeamId;
+  // Under the 8% ceiling a generated club can open with more room than it
+  // may bank. Take the leftover down to $10M so this case is the in-full one.
+  st.teams[teamId].deadCap = (st.teams[teamId].deadCap ?? 0) + teamCap(st, teamId).space - 10_000_000;
   const before = teamCap(st, teamId);
+  assert.equal(before.space, 10_000_000);
   assert.equal(before.carryover, 0);
   const snap = captureCapCarryover(st);
   const raw = Math.max(0, before.space);
@@ -193,7 +197,8 @@ function ok(label: string) { console.log("ok   ", label); }
   ok("zero carryover spendBudget is today's target times the cap");
 }
 
-// (8) A carried stock raises the CPU budget by the whole field. The ceiling does not move.
+// (8) A carried stock raises the CPU budget by half the field: what the club
+// leaves unused replaces the credit next year. The ceiling does not move.
 {
   const st = newGame({ seed: 42 });
   const cpu = st.teams.find((t) => t.id !== st.userTeamId);
@@ -203,9 +208,10 @@ function ok(label: string) { console.log("ok   ", label); }
   const today = targetSpend(st, cpu.id, posture) * cap;
   cpu.capCarryover = 200_000_000;
   assert.equal(teamCap(st, cpu.id).cap, cap, "ceiling unchanged");
-  assert.equal(spendBudget(st, cpu.id, posture), today + 200_000_000);
+  assert.equal(CARRYOVER_SPEND_SHARE, 0.5);
+  assert.equal(spendBudget(st, cpu.id, posture), today + 100_000_000);
   assert.ok(spendBudget(st, cpu.id, posture) > today);
-  ok("carryover raises the CPU spend budget by the full stock");
+  ok("carryover raises the CPU spend budget by half the stock");
 }
 
 // (9) The floor does not spend the stock. A later edit that only touches spendToFloor is not this fix.
@@ -412,15 +418,17 @@ function rollToNextPreseason(st: ReturnType<typeof newGame>): void {
 }
 
 // (13) The bank ceiling. Amounts inside it roll in full. Amounts above it
-// bank at 20% of the cap, for the user and for a CPU club. The chair then
+// bank at 8% of the cap, for the user and for a CPU club. The chair then
 // inherits that bank, not the raw stockpile.
 {
   const cap = 255_400_000;
   const limit = Math.round(cap * CAP_CARRYOVER_MAX_SHARE);
   assert.equal(capCarryoverBank(6_348_893, cap), 6_348_893);
-  assert.equal(capCarryoverBank(50_096_964, cap), 50_096_964);
+  assert.equal(CAP_CARRYOVER_MAX_SHARE, 0.08);
+  assert.equal(capCarryoverBank(limit, cap), limit);
+  assert.equal(capCarryoverBank(50_096_964, cap), limit, "the largest real roll is over the ceiling now (Matt, 2026-11-14)");
   assert.equal(capCarryoverBank(1_847_600_000, cap), limit);
-  assert.ok(50_096_964 <= limit, "the 2025 NFL max roll fits under the ceiling");
+  assert.ok(6_348_893 <= limit, "the 2025 NFL median roll fits under the ceiling");
 
   const st = newGame({ seed: 42 });
   const sf = st.teams.find((t) => t.abbr === "SF");

@@ -276,15 +276,16 @@ export function teamCap(state: GameState, teamId: number): CapSummary {
  * Most unused room a club may bank, as a share of the cap the snapshot
  * is taken against.
  *
- * The CBA carries unused room in full (`docs/nfl-reference.md` §4).
- * Observed rolls are a small share of the cap. Over The Cap's 2025
- * carryover list (2024 unused room): max $50,096,964 (49ers), 19.6% of
- * the $255.4M 2024 cap; median $6,348,893 (2.5%). A ceiling at 20%
- * keeps every one of those rolls. A yearly haircut would cut the
- * ordinary median, which the league does not do. Proposed; pending
- * Matt's sign-off.
+ * The CBA carries unused room in full (`docs/nfl-reference.md` §4), and
+ * the largest real roll on Over The Cap's 2025 list is $50,096,964 (49ers),
+ * 19.6% of the $255.4M 2024 cap. This sat at 20% to keep that roll. But the
+ * median there is $6,348,893 (2.5%), and here every CPU club banked about
+ * 8% of the cap a year and held it: the average carry was $57M by the
+ * fourth season, at the ceiling, and the cap bound almost nobody.
+ * At 8% the carry is one ordinary year of unused room, not three.
+ * Matt SIGNED 2026-11-14: "do A at 8%", "ship the 8% ceiling".
  */
-export const CAP_CARRYOVER_MAX_SHARE = 0.20;
+export const CAP_CARRYOVER_MAX_SHARE = 0.08;
 
 /** Bank unused room, floored at 0 and capped at `CAP_CARRYOVER_MAX_SHARE` of `cap`. */
 export function capCarryoverBank(unused: number, cap: number): number {

@@ -13,10 +13,10 @@ import assert from "node:assert/strict";
 import { newGame } from "./newGame";
 import { Rng } from "./rng";
 import { defaultGuaranteedYears, makeContract, signingBonusFor } from "./generate";
-import { capHit, capSavingsFromCut, deadMoney, remainingBonusProration, teamCap } from "./select";
-import { LEAGUE_MINIMUM } from "./types";
+import { addDeadCap, capHit, capSavingsFromCut, deadCapFor, deadMoney, remainingBonusProration, rosterCount, teamCap } from "./select";
+import { LEAGUE_MINIMUM, ROSTER_LIMIT } from "./types";
 import { rookieContract } from "./offseason/draft";
-import { cutAffordable, cutFreesNothing } from "./offseason/contracts";
+import { cutAffordable, cutFreesNothing, enforceCap } from "./offseason/contracts";
 
 function ok(label: string) { console.log("ok   ", label); }
 
@@ -68,9 +68,10 @@ function ok(label: string) { console.log("ok   ", label); }
   const st = newGame({ seed: 42 });
   const drafted = rookieContract(st, 7, new Rng(1), 224);
   assert.equal(drafted.guaranteedYears, 0);
-  assert.equal(capHit(drafted), 907_500);
-  assert.equal(deadMoney(drafted), 450_000);
-  assert.equal(capSavingsFromCut(drafted), 457_500);
+  // Round seven: a $100K slot bonus on a minimum base.
+  assert.equal(capHit(drafted), 820_000);
+  assert.equal(deadMoney(drafted), 100_000);
+  assert.equal(capSavingsFromCut(drafted), 720_000);
 
   const me = st.userTeamId;
   const p = st.players.find((x) => x.teamId === me && x.contract && !x.retired)!;
@@ -98,7 +99,13 @@ function ok(label: string) { console.log("ok   ", label); }
   assert.equal(signingBonusFor(M * 1.5, 2, true), 350_000, "a drafted deal is not ramped");
   assert.equal(signingBonusFor(M * 2, 3), signingBonusFor(M * 2, 3, true), "the whole share at 2x");
   assert.equal(signingBonusFor(5_000_000, 3), 2_450_000, "deals above 2x are unchanged");
-  assert.equal(signingBonusFor(M, 4, true), 450_000, "the seventh-round slot bonus stays");
+  assert.equal(signingBonusFor(M, 4, true), 450_000, "a drafted deal with no round keeps the general share");
+  // Late-round slots are sized like the real ones (Matt, 2026-11-14).
+  assert.equal(signingBonusFor(M, 4, true, 7), 100_000, "round seven");
+  assert.equal(signingBonusFor(M, 4, true, 6), 150_000, "round six");
+  assert.equal(signingBonusFor(M, 4, true, 5), 250_000, "round five");
+  assert.equal(signingBonusFor(M, 4, true, 4), 450_000, "round four is unchanged");
+  assert.equal(signingBonusFor(M, 4, false, 7), 0, "a round means nothing on an undrafted deal");
   for (let apy = M; apy < M * 2; apy += 50_000) {
     assert.ok(signingBonusFor(apy + 50_000, 3) >= signingBonusFor(apy, 3), `bonus never falls as pay rises (${apy})`);
   }
@@ -119,4 +126,64 @@ function ok(label: string) { console.log("ok   ", label); }
   p.contract = makeContract(new Rng(1), LEAGUE_MINIMUM, 1, st.season, 0);
   assert.equal(cutFreesNothing(p), false, "a minimum deal has no dead money to weigh");
   ok("a cut that frees no room is told apart from one that does");
+}
+
+// A CPU club over the cap clears the room with deals that leave nothing
+// behind before it releases a man whose bonus accelerates.
+{
+  const st = newGame({ seed: 5 });
+  const teamId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  // The old order's first choice: a weak man on a rich deal with a bonus.
+  const rich = st.players
+    .filter((x) => x.teamId === teamId && !x.retired && !x.prospect && x.pos === "WR")
+    .sort((a, b) => a.ovr - b.ovr)[0];
+  rich.contract = makeContract(new Rng(1), 10_000_000, 3, st.season, 0);
+  assert.ok(remainingBonusProration(rich.contract) > 0 && capHit(rich.contract) > deadMoney(rich.contract));
+  addDeadCap(st, teamId, teamCap(st, teamId).space + 1_000_000);
+  assert.ok(teamCap(st, teamId).space < 0);
+  const deadBefore = deadCapFor(st, teamId);
+  const before = new Set(st.players.filter((x) => x.teamId === teamId).map((x) => x.id));
+  enforceCap(st, teamId);
+  assert.ok(teamCap(st, teamId).space >= 0, "the club is back under");
+  const gone = st.players.filter((x) => before.has(x.id) && x.teamId !== teamId);
+  assert.ok(gone.length > 0);
+  assert.equal(rich.teamId, teamId, "the man with the bonus is still here");
+  assert.equal(deadCapFor(st, teamId), deadBefore, "no bonus accelerated to clear a $1M hole");
+  ok("a cap release takes the deals with no dead money first");
+}
+
+// At 53 a released minimum deal is replaced by another minimum deal, so it
+// clears nothing. The club over the cap there releases a deal that does.
+{
+  const st = newGame({ seed: 5 });
+  const teamId = st.teams.find((t) => t.id !== st.userTeamId)!.id;
+  assert.equal(rosterCount(st, teamId), ROSTER_LIMIT);
+  addDeadCap(st, teamId, teamCap(st, teamId).space + 1_000_000);
+  const before = st.players.filter((x) => x.teamId === teamId);
+  const hits = new Map(before.map((x) => [x.id, capHit(x.contract)]));
+  enforceCap(st, teamId);
+  assert.ok(teamCap(st, teamId).space >= 0);
+  const gone = before.filter((x) => x.teamId !== teamId);
+  assert.ok(gone.length > 0);
+  for (const g of gone) {
+    assert.ok(hits.get(g.id)! > LEAGUE_MINIMUM, "a minimum deal was not released at 53");
+  }
+  ok("at 53 a cap release is priced net of the minimum that refills the spot");
+}
+
+// A new game does not open with an older man deep in a long deal. Thirty
+// and up has at most two years left, thirty-three and up one, the same
+// terms a signing at that age gets.
+{
+  for (const seed of [5, 21, 42]) {
+    const st = newGame({ seed });
+    const signed = st.players.filter((x) => x.teamId !== null && !x.retired && !x.prospect && x.contract);
+    assert.ok(signed.some((x) => x.age >= 33) && signed.some((x) => x.age >= 30 && x.age < 33));
+    for (const x of signed) {
+      if (x.age >= 33) assert.ok(x.contract!.yearsRemaining <= 1, `seed ${seed}: ${x.age} with ${x.contract!.yearsRemaining} left`);
+      else if (x.age >= 30) assert.ok(x.contract!.yearsRemaining <= 2, `seed ${seed}: ${x.age} with ${x.contract!.yearsRemaining} left`);
+    }
+    assert.ok(signed.some((x) => x.age < 30 && x.contract!.yearsRemaining >= 4), "younger men still open on long deals");
+  }
+  ok("starting deals for men thirty and over are near their end");
 }

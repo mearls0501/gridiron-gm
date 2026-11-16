@@ -1,5 +1,135 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-14 — Carryover: CPU clubs budget against half of it; the bank ceiling is 8%
+
+Asked for by Matt, 2026-11-14 ("investigate why clubs enter the new year over the cap", "merge the carryover fix once it passes", "do A at 8%", "ship the 8% ceiling"). Nothing in `scripts/` or `baselines.json` moved.
+
+**Why clubs opened a league year over the cap.** Carryover is a one-year credit. At the roll, last year's is replaced by what the club left unused. Every CPU club was logged before and after every roll: the carryover swap is the whole change in room at that moment. A club carrying $60.7M that left $10.3M unused lost $50.4M of room overnight and went from $10M under to $40M over. 5 of 124 club-rolls on seed 20260727 and 8 of 124 on seed 42.
+
+`spendBudget` (`frontOffice.ts`) counted the whole carry. It now counts `CARRYOVER_SPEND_SHARE` 0.5 of it, so the room a club leaves replaces the credit it spent. Roster upgrades and extensions at the end of the offseason spend from room directly and are not under this budget.
+
+**The ceiling.** `CAP_CARRYOVER_MAX_SHARE` (`select.ts`) is 0.08, was 0.20 and marked pending sign-off. CPU clubs spend about 92% of the cap each year and held the rest: the average carry was $57M a club by the fourth season, at the old ceiling. It applies to the user's club too.
+
+Measured on this VM, CPU clubs, four seasons:
+
+| | seed 20260727 | seed 42 |
+| :--- | ---: | ---: |
+| clubs over the cap at a roll, half budget | 5 → 4 | 8 → 2 |
+| size of those holes, half budget | $70M → $53M | $116M → $6M |
+| bonus accelerated by cap releases, half budget | $81M → $63M | $117M → $54M |
+| average carry by season, 20% ceiling | $20M, $34M, $47M, $57M | $21M, $32M, $43M, $58M |
+| average carry by season, 8% ceiling | $16M, $21M, $23M, $26M | $15M, $20M, $21M, $24M |
+| clubs over the cap at a roll, + 8% ceiling | 4 → 1 | 2 → 3 |
+| all dead money, both | $606M → $641M | $659M → $563M |
+
+The ceiling stops the stockpile. The cap still binds almost nobody. League payroll settles near 88-89% of the cap by the fourth season: a new deal is signed at market, and a year later it sits about 10% under, because the cap and the market grow 6% a year and a deal's hit grows less, and because the men still on old deals are the ones who got better. Rostered players priced at the current market come to 100-104% of the cap.
+
+Tried for that and not built: raising `targetSpend` to 0.90-0.99 (payroll did not move); base steps of 6% a year inside a deal (payroll did not move). A premium on CPU bids scaled to unused room raised payroll about three points a season and put back some cap releases. Not built; Matt's call is open.
+
+`capMechanics` cases 4, 8 and 13 assert the new rules.
+
+**Re-lock:** `trimIdentity` **1443** cuts, rng **1785272726**. `userOffers` did not move.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
+## 2026-11-14 — Retirements, starting deals and trades leave less dead money
+
+Asked for by Matt, 2026-11-14 ("do both, merge each once it passes", "fix the starting contract lengths too", "fix the dead money from trades next"). Nothing in `scripts/` or `baselines.json` moved.
+
+**Retirements.** About 60 men a season retired under contract with bonus left, most aged 28-33 and rated 65-74. A rostered 30-year-old rated 68 went about 9% of the time. `retirementChance` (`offseason/progression.ts`, now exported) is scaled by `BONUS_OWED_RETIRE_SCALE` 0.25 while a rostered man has bonus proration left. Unsigned men, and men whose bonus is charged out, are unchanged.
+
+**Starting deals.** `makeRosterForTeam` staggered every deal the same way whatever the age, so a man of thirty could open with four or five years left where a signing at that age gets two. He now opens with at most two left, and thirty-three with one. Length and money are unchanged; he is further in.
+
+**Trades.** `playerTradeValue` already charged the seller for the bonus a trade pulls forward, at the contract-surplus rate. `ACCEL_PRICE` is 680 points per share of the cap, was 340, clamped at 140.
+
+Measured on this VM, CPU clubs, four seasons, each step on top of the last:
+
+| | seed 20260727 | seed 42 |
+| :--- | ---: | ---: |
+| retirement dead money, retirement fix | $422M → $107M | $350M → $89M |
+| all dead money, retirement fix | $1,071M → $759M | $930M → $917M |
+| all dead money, + starting deals | $759M → $727M | $917M → $705M |
+| trade dead money, + trade price | $320M → $230M | $379M → $242M |
+| players traded, + trade price | 313 → 267 | 365 → 295 |
+| all dead money, + trade price | $727M → $606M | $705M → $659M |
+
+Not measured: total retirements, career lengths.
+
+`divisionRank` hard-coded seed 42 for a first season where point differential misplaces a club. That season no longer has one. It now takes the first of six seeds that does; the assertions are unchanged.
+
+New cases in `retirementDead`, `deadIfCut` and `tradeReview`.
+
+**Re-lock:** `trimIdentity` **1532** cuts, rng **1008900677**. `userOffers` tag **3242373722**, free agency **691387436**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — 74 pass on the first run; `divisionRank` failed, was fixed as above, and passes.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline, on the second run. The first ran the old `divisionRank` and failed on it alone.
+
+## 2026-11-14 — A waiver claim accelerates no bonus; late-round slot bonuses at real size
+
+Asked for by Matt, 2026-11-14 ("fix the dead money from waiver claim cuts next", "fix the dead money from draft picks next"). Nothing in `scripts/` or `baselines.json` moved.
+
+**Claims.** `worseSurplus` (`waivers.ts`) compared the incoming man with the club's worst at his position and released that man, bonus or not. About 250 of 2,100 claim cuts over four seasons pulled a bonus forward. The released man must now have no bonus proration left. The club looks to the next-worst, or passes. He can still go at the cutdown.
+
+**Slot bonuses.** Every drafted deal paid about 14% as signing bonus: $450K in round seven, where the real slot is near $100K. `LATE_ROUND_BONUS_SHARE` (`generate.ts`): round five 8%, six 5%, seven 2.5%, which rounds to $250K, $150K, $100K. Rounds one to four are unchanged. `signingBonusFor` and `makeContract` take the round; `rookieContract` passes it. This replaces "the seventh-round slot bonus stays". Matt's go-ahead, 2026-11-14: "merge the rookie bonus fix too once it passes".
+
+A rookie's base does not go under the minimum, so the smaller bonus is not made up in base. A round-seven first-year hit is $820K, was $907.5K.
+
+Measured on this VM, CPU clubs, four seasons, each fix on its own over the entry below:
+
+| | seed 20260727 | seed 42 |
+| :--- | ---: | ---: |
+| bonus accelerated by claim cuts | $119M → $0 | $106M → $0 |
+| waiver claims | 2,221 → 1,791 | 2,036 → 1,774 |
+| bonus accelerated by cutting round 5-7 picks | $89M → $29M | $92M → $33M |
+| bonus accelerated by all CPU cuts, both fixes | $432M → $279M | $410M → $252M |
+
+Tried on the same traces and not built, because two seeds could not tell them from noise: a club not releasing a veteran it paid that year; passing over a costly release in season; not drafting or signing into a room already full of bonus deals; shorter terms for men under 72.
+
+`waivers` has a new case that fails on the old behaviour. `deadIfCut` asserts the slot by round and the new round-seven hit, dead money and saving.
+
+**Re-lock:** `trimIdentity` **1400** cuts, rng **571563341**. `userOffers` tag **1614125276**, free agency **3117494098**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
+## 2026-11-14 — A cap release takes the deals with no dead money first
+
+Asked for by Matt, 2026-11-14 ("fix the dead money from cap-casualty cuts next", then "fix the roster churn at the bottom next"). Nothing in `scripts/` or `baselines.json` moved.
+
+A CPU club over the cap ranked releases by saving per rating point. A paid starter with a live bonus came out ahead of minimum deals that would have closed the hole. One trace released a 92 quarterback for $15M of room.
+
+- `capCutTier` (`offseason/contracts.ts`): 0 leaves no dead money, 1 saves more than it leaves, 2 the rest. `enforceCap` and `coverCpuCapInSeason` sort by tier, then by the old ratio.
+- `enforceCap`, club at 53 or under: an active release is priced net of `LEAGUE_MINIMUM`, the deal that refills the spot. Without this the tier order swapped one minimum deal for another and cuts rose 12-19%. If nobody clears room net of the refill, the old gross order runs so the club still reaches a legal book.
+
+Measured on this VM, CPU clubs, four seasons, cap releases only:
+
+| seed | bonus accelerated | releases of men 75+ | all CPU cuts |
+| :--- | ---: | ---: | ---: |
+| 20260727 | $187M → $98M | 23 → 18 | 7,042 → 6,868 |
+| 42 | $161M → $53M | 17 → 8 | 6,504 → 6,503 |
+
+Tried and withdrawn: stopping camp fill at the cap (`bestAffordable` floors its budget above the minimum, so a club is signed to 90 over the cap). Clubs then entered the new league year $20-45M over and the acceleration came back ($151M and $181M). The camp overfill is still there.
+
+`rosterStatus`: the camp quarterback check calls `fillRoster`, not `reconcileRoster`. The cap release in camp now takes minimum deals first, quarterbacks among them. The assertion is unchanged. `deadIfCut` has two new cases; both fail on the old order.
+
+**Re-lock:** `trimIdentity` **1584** cuts, rng **93739137**. `userOffers` tag **284096648**, free agency **395911736**.
+
+Validation on this VM:
+
+- `npx tsc --noEmit` — pass.
+- All 75 files in the `npm test` chain — pass.
+- `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
 ## 2026-11-14 — Retirement accelerates the remaining bonus, not the guaranteed base
 
 Asked for by Matt, 2026-11-14 ("do A, charge the bonus only"). Nothing in `scripts/` or `baselines.json` moved.

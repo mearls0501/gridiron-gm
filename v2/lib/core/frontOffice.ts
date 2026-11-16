@@ -306,9 +306,18 @@ export function targetSpend(state: GameState, teamId: number, posture: Posture):
  * and the next capture added a fresh slice. The capture banks at most
  * `CAP_CARRYOVER_MAX_SHARE` of the cap. Zero carryover is the old product.
  */
+/**
+ * Share of carried room a CPU club budgets against. The carry is a one-year
+ * credit: next year's is whatever is left unused now. A club that commits
+ * all of it to multi-year deals opens the next league year over the cap by
+ * about that amount and releases real contracts to get back under. At a
+ * half, the room it leaves replaces the credit it spent.
+ */
+export const CARRYOVER_SPEND_SHARE = 0.5;
+
 export function spendBudget(state: GameState, teamId: number, posture: Posture): number {
   const cap = teamCap(state, teamId);
-  return targetSpend(state, teamId, posture) * cap.cap + cap.carryover;
+  return targetSpend(state, teamId, posture) * cap.cap + cap.carryover * CARRYOVER_SPEND_SHARE;
 }
 
 /**
