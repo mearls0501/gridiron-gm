@@ -1,5 +1,28 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-17 — Matt signed the 93cfb23 panel
+
+Signed by Matt, 2026-11-17, 9:09 AM EST. Nothing in `scripts/` or `baselines.json` moved. No re-lock. The values below are accepted. They are not new locks. A re-lock still needs Matt's sign-off on the numbers the next Studio panel reads. The write-up is `docs/panel-93cfb23-investigation.md`.
+
+**#248 is merged.** Squash `f39d9c0` on main: spend to the floor by replacing active players only. The six bad sweep leagues on the `93cfb23` panel were that bug. Fingerprints held at the merge: trim **1443** / **1785272726**, userOffers tag **3242373722**, free agency **691387436**.
+
+**Accepted as noise. No retune.**
+
+- Seed 3 home win **50.985%** (floor 51.439). #250 starting deals and the trade-acceleration price together.
+- Seed 1 coherence **82.86%** (floor 85). The same pair. The earlier signature on 82.07 still stands.
+- Seed 1 `EDGE.prs` points **27.0 → 27.5**, wrong sign. #235 field-goal range. Seeds 2–5 have the right sign.
+
+**Accepted for now. Re-lock from the next Studio panel, and that re-lock is not signed yet.**
+
+- `careers.path2BurnInTop10PrPct` **19/114** (16.67), cap 16.
+- `staff.leagueOvrDelta` **1.36**, cap 1.2. Seeds 1.50 / 1.42 / 1.10 / 1.00 / 1.80.
+
+Node `v22.23.4`.
+
+## 2026-11-17 — Panel 93cfb23: one real roster bug, five signatures
+
+The investigation, written before the signature above. Six sweep leagues, one bug: `spendToFloor` was replacing practice-squad bodies. Denver, 2028 preseason, Julian Lewis, OT, practice squad, cut for Preston Yeager, OT. #248 cleared all six on this VM. The other rows are the noise and the two "accepted for now" readings in the entry above. Do not tune them.
+
 ## 2026-11-16 — Spend to the floor replaces active players only, remeasured after main 93cfb23
 
 Unsigned. Do not merge. Nothing in `scripts/` or `baselines.json` moved, and no fingerprint was re-locked.
