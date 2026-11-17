@@ -4,7 +4,7 @@ Read-only investigation of the 5-seed `gate:full:serial` on main `93cfb23` (the 
 
 Nothing here edits `scripts/`, `docs/baselines.json`, a dial, or a lock. Node on every run was **v22.23.4** (`v2/.nvmrc`). Harnesses are the ones the gate calls, on the failing seed, except the sweep diagnosis which walks the same 25×2 loop as `scripts/sweep.ts` and names the club.
 
-Draft PR **#248** (`ae3fd14`, branch `claude/spend-to-floor-active-only`, already contains `93cfb23`) is the roster fix. It stays a draft. This note does not mark it ready and does not merge it.
+Matt signed this panel on 2026-11-17 at 9:09 AM EST. **#248** is squash-merged to main as `f39d9c0`. The three noise rows below are accepted with no retune. The careers pool and the staff mean are accepted for now and are not re-locked. A re-lock still needs Matt's sign-off on the values the next Studio panel reads. `docs/baselines.json` was not edited.
 
 ## What the panel reported
 
@@ -94,7 +94,7 @@ Any two leave the club at 53. The three signed rules together are what put Washi
 
 No second roster bug showed up. No further fix. #248's own note, after the merge of `93cfb23`, already records the fingerprints holding: trim identity **1443** cuts, rng **1785272726**; userOffers tag **3242373722**, free agency **691387436**. Not re-locked. This investigation did not re-run `tsc`, `npm test`, `verify.ts 5` or `determinism.ts 2` on that head. Those four are in the #248 handoff from the same Node.
 
-Classification: **real bug**. The defect is old. #250 exposes four of the six leagues, #251 the other two. Both commits are signed cap rules. The illegal 53 is not a consequence to accept. The fix is the active-only filter, already on #248.
+Classification: **real bug**. The defect is old. #250 exposes four of the six leagues, #251 the other two. Both commits are signed cap rules. The illegal 53 is not a consequence to accept. The fix is the active-only filter. Matt signed it and it is squash-merged to main as `f39d9c0`.
 
 ## 2 and 5. Home win, seed 3 — signed #250, both spending hunks
 
@@ -127,7 +127,7 @@ The printed line on `93cfb23` is `home win rate 50.985% outside locked 51.439–
 
 Neither signed rule alone crosses the line. Together they do, and the float matches #250 exactly. The home-field code was not touched.
 
-Classification: **expected consequence of a signed change**, one seed, four tenths under the floor. Not a home-field bug. Matt should sign seed 3 at 50.985% as noise. Do not retune the band and do not undo either hunk.
+Classification: **expected consequence of a signed change**, one seed, four tenths under the floor. Not a home-field bug. Matt signed seed 3 at 50.985% as noise on 2026-11-17. No retune. The band stays.
 
 ## 3. Coherence, seed 1 — same pair of hunks, back to a number Matt already signed
 
@@ -158,7 +158,7 @@ Split the same way as the home-win rate:
 | trade price only | 88.667 (pass) |
 | both | **82.857** (the panel) |
 
-Classification: **seed noise, the same miss Matt already signed**, landed again by the signed #250 pair. 82.86 is not a new coherence bug. #235 had cleared it. Do not retune the floor. Sign 82.86 the way 82.07 was signed.
+Classification: **seed noise, the same miss Matt already signed**, landed again by the signed #250 pair. 82.86 is not a new coherence bug. #235 had cleared it. Matt signed 82.86 the same way on 2026-11-17. No retune. The floor stays 85.
 
 ## 4. Leverage, seed 1 — the field-goal commit crossed a 1% line
 
@@ -184,7 +184,7 @@ The other four panel seeds on `93cfb23`, same 150 games:
 
 `wrongSign` is 1 on seed 1 and 0 on the rest, so the panel mean is 0.20 and the max of 0 fails. The attribute is not working backwards. On the seed where the probe was already a null (+0.1, counted as no effect, which is inside `leverage.noEffect` max 1), the field-goal rule moved the paired points by four tenths and the 1% relative test called it a wrong sign.
 
-Classification: **seed noise**, exposed by signed #235. Do not retune pass rush and do not widen `wrongSign`. Sign seed 1's +0.5 as noise.
+Classification: **seed noise**, exposed by signed #235. Matt signed seed 1's +0.5 as noise on 2026-11-17. No retune. Pass rush and `wrongSign` stay as they are.
 
 ## 6. Careers burn-in — the pool's 19 is not the same 19
 
@@ -212,7 +212,7 @@ Seed 1 along the way, same harness:
 
 The burn-in formula was not edited between these commits. Who has a bottom-third starter season in years 1–3, and who later posts a top-10 passer rating on a new club, follows from the roster and cap rules that did change.
 
-Classification: **expected consequence of the signed cap and cut rules**, 0.67 over a cap of 16 on a k-of-n that moved by a handful of QBs. Not a path-2 bug. Matt should sign the new pool (accept 19/114, or re-lock the max from a panel he chooses). Do not tune the scene, the starter bar, or the band to pull 16.67 back under 16.
+Classification: **expected consequence of the signed cap and cut rules**, 0.67 over a cap of 16 on a k-of-n that moved by a handful of QBs. Not a path-2 bug. Matt signed **19/114 (16.67)** on 2026-11-17 as accepted for now. The max in `baselines.json` is still 16. Re-lock it from the next Studio panel. That re-lock is not signed yet. Do not tune the scene or the starter bar to pull 16.67 back under 16.
 
 ## 7. Staff league OVR — seed 1's 1.50 is #251
 
@@ -238,7 +238,7 @@ The two leagues in the harness differ only in the staff split. Both live under t
 
 Seeds 2–5 were not re-run here. The panel's own list is 1.50 / 1.42 / 1.10 / 1.00 / 1.80, mean 1.36. Seed 1's jump is +0.61 from `a453c24`'s 0.889. Spread across five seeds that is only +0.12 on the mean, and the mean rose by about +0.72, so the other seeds rose too. They were not bisected. The commit that produces the reported seed-1 number is #251.
 
-Classification: **expected consequence of signed #251**. Do not undo the half-budget or the 8% ceiling to chase 1.2, and do not touch `staff.ts`. Matt should re-lock `staff.leagueOvrDelta` from a panel, or accept 1.36 against the standing max. The max was the panel mean when it was signed. It is a panel mean again.
+Classification: **expected consequence of signed #251**. Do not undo the half-budget or the 8% ceiling to chase 1.2, and do not touch `staff.ts`. Matt signed the panel mean **1.36** on 2026-11-17 as accepted for now. The max in `baselines.json` is still 1.2. Re-lock it from the next Studio panel. That re-lock is not signed yet.
 
 ## Fingerprints
 
@@ -250,20 +250,19 @@ No new code in this investigation. #248, the one code change that clears a red r
 | userOffers tag | 3242373722 | same |
 | userOffers free agency | 691387436 | same |
 
-Nothing to re-lock. Matt still has to sign #248. The signature is for the filter, not for a moved canary.
+Nothing was re-locked. The canaries did not move, and Matt's signature on #248 was for the filter.
 
-## What to sign, and the order
+## Signed 2026-11-17, 9:09 AM EST
 
-No baseline edit belongs in any of these branches.
+No baseline edit. `docs/baselines.json` is unchanged.
 
-1. **#248** (`ae3fd14`). The only code fix. Illegal 53s on all six panel leagues go to 0. Fingerprints held. Leave it a draft until Matt signs it, then it is the one to merge. The other reds are not a reason to hold the roster fix.
-2. **Nothing else merges as code.** Home win, coherence, leverage, careers and staff are signatures, not patches.
-3. **This note**, whenever, in a docs-only draft. It does not change a sim. One merge at a time, so it waits behind #248 if both are in the queue.
+1. **#248 is merged.** Squash `f39d9c0` on main. Illegal 53s on all six panel leagues were the bug. Fingerprints held.
+2. **Accepted as noise. No retune.**
+   - Seed 3 home win **50.985%**, from the signed #250 pair (starting deals and trade acceleration together).
+   - Seed 1 coherence **82.86%**, the same pair, the same kind of miss as the signed 82.07.
+   - Seed 1 `EDGE.prs` **27.0 → 27.5**, wrong sign, from the signed #235 field-goal range. Seeds 2–5 have the right sign.
+3. **Accepted for now. Not re-locked.** The next Studio panel is where these get a new lock, and that re-lock still needs Matt's sign-off on the values.
+   - `careers.path2BurnInTop10PrPct` **19/114 (16.67)**. The cap stays 16 until then.
+   - `staff.leagueOvrDelta` **1.36**. The cap stays 1.2 until then. Seed 1 is 1.499 with or without the roster fix.
 
-Signatures, in words:
-
-- Accept seed 3 home win 50.985% as noise from the signed #250 pair (starting deals and trade acceleration together).
-- Accept seed 1 coherence 82.86% as the same noise as the signed 82.07. #250 put it back there after #235 and #249 had cleared it.
-- Accept seed 1 `EDGE.prs` +0.5 as noise from the signed #235 field-goal range. Seeds 2–5 have the right sign.
-- Accept the careers pool 19/114, or re-lock that one max from a panel. The per-seed events moved. Do not tune the path.
-- Re-lock `staff.leagueOvrDelta`, or accept a mean of 1.36, as the consequence of the signed #251 budget. Seed 1 is 1.499 with or without the roster fix.
+This note stays a docs draft. It does not merge itself.

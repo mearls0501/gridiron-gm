@@ -1,22 +1,53 @@
 # HANDOFF — 2026-08-02
 
-## 2026-11-17 — Panel 93cfb23: one real roster bug, five signatures
+## 2026-11-17 — Matt signed the 93cfb23 panel
 
-Read-only except the note. Nothing in `scripts/` or `baselines.json` moved. No re-lock, no dial, no merge. The write-up is `docs/panel-93cfb23-investigation.md`.
+Signed by Matt, 2026-11-17, 9:09 AM EST. Nothing in `scripts/` or `baselines.json` moved. No re-lock. The values below are accepted. They are not new locks. A re-lock still needs Matt's sign-off on the numbers the next Studio panel reads. The write-up is `docs/panel-93cfb23-investigation.md`.
 
-The 5-seed `gate:full:serial` on `93cfb23` failed seven ways. One of them is the sweep: six leagues, one bug. The other rows are a signed rule moving one seed, or a probe that was already a null. Do not tune them.
+**#248 is merged.** Squash `f39d9c0` on main: spend to the floor by replacing active players only. The six bad sweep leagues on the `93cfb23` panel were that bug. Fingerprints held at the merge: trim **1443** / **1785272726**, userOffers tag **3242373722**, free agency **691387436**.
 
-**The bug.** `spendToFloor` replaces the worst body at a position, practice squad included. Cutting a practice-squad man and signing an active one adds a man to the 53. Nothing trims after the post-waiver spend-back. Draft PR **#248** (`ae3fd14`) keeps the replacement on the active roster. On this VM it clears all six bad sweep leagues (bad=0 on each). Denver was traced: 2028 preseason, Julian Lewis, OT, practice squad, cut for Preston Yeager, OT. Active 53→54, practice squad 16→15. Washington, Kansas City, Cleveland and Charlotte are the same path at the full #250 commit (all three hunks together; any two leave Washington at 53). Denver and Pittsburgh appear at #251. Fingerprints on #248 held: trim **1443** / **1785272726**, userOffers tag **3242373722**, free agency **691387436**. Not re-locked. Unsigned. Do not mark it ready.
+**Accepted as noise. No retune.**
 
-**Sign, do not retune.**
+- Seed 3 home win **50.985%** (floor 51.439). #250 starting deals and the trade-acceleration price together.
+- Seed 1 coherence **82.86%** (floor 85). The same pair. The earlier signature on 82.07 still stands.
+- Seed 1 `EDGE.prs` points **27.0 → 27.5**, wrong sign. #235 field-goal range. Seeds 2–5 have the right sign.
 
-- Seed 3 home win **50.985%** (floor 51.439). #250 starting deals and the trade-acceleration price together. Either one alone stays inside the band.
-- Seed 1 coherence **82.86%**. Same pair of hunks. Matt already signed 82.07 on `a453c24` as noise. #235 had lifted this seed to 88.5; #249 had it back over 85.
-- Seed 1 `EDGE.prs` points **27.0 → 27.5**. #235 field-goal range. Seeds 2–5 swing the right way (−2.0, −1.7, −0.7, −1.0). It was +0.1, no effect, on `a453c24`.
-- `staff.leagueOvrDelta` seed 1 **0.441 → 1.499** at #251 (half the carryover in the CPU budget, 8% bank). #248 does not move it. The cap is the panel mean.
-- `careers.path2BurnInTop10PrPct` pool **19/114**. Seed 1 on this VM is 1/26 on `a453c24` and 3/19 on `93cfb23`. The pool numerator staying at 19 is not the same 19 events.
+**Accepted for now. Re-lock from the next Studio panel, and that re-lock is not signed yet.**
+
+- `careers.path2BurnInTop10PrPct` **19/114** (16.67), cap 16.
+- `staff.leagueOvrDelta` **1.36**, cap 1.2. Seeds 1.50 / 1.42 / 1.10 / 1.00 / 1.80.
 
 Node `v22.23.4`.
+
+## 2026-11-17 — Panel 93cfb23: one real roster bug, five signatures
+
+The investigation, written before the signature above. Six sweep leagues, one bug: `spendToFloor` was replacing practice-squad bodies. Denver, 2028 preseason, Julian Lewis, OT, practice squad, cut for Preston Yeager, OT. #248 cleared all six on this VM. The other rows are the noise and the two "accepted for now" readings in the entry above. Do not tune them.
+
+## 2026-11-16 — Spend to the floor replaces active players only, remeasured after main 93cfb23
+
+Unsigned. Do not merge. Nothing in `scripts/` or `baselines.json` moved, and no fingerprint was re-locked.
+
+`claude/spend-to-floor-active-only` was merged with main `93cfb23` (the Node 22.23.4 pin and the cap commits through #252). The merge was clean. `spendToFloor` still chooses the man it replaces from the active roster only. Main's cap-cut order and the half-carryover / 8% bank are unchanged.
+
+Node `v22.23.4` on this VM.
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — exit 0. 352 `ok` lines.
+- `npx tsx scripts/verify.ts 5` (seed 20260727) — 552/552, `verify.failures` 0.
+- `npx tsx scripts/determinism.ts 2` — pass, `determinism.failures` 0.
+
+**Fingerprints held.** Same locks as this main:
+
+- `userOffers` tag **3242373722**, free agency **691387436**.
+- `trimIdentity` **1443** cuts, rng **1785272726**.
+
+**Roster.** The ceiling is 53 except in camp (`offseason-draft` and `offseason-final`), where it is 90. Active count is `rosterCount`.
+
+Seed 20260727, the 2033 preseason where Baltimore had 69 on main `61b3a70`: Baltimore 53, and every club 53. From the 2026 open through that 2033 open, the most men on any active roster while the ceiling was 53 was 53 each year. Camp peaked at 87 in 2026 and 90 after that. No sample crossed the ceiling for its phase.
+
+Seeds 42, 7, and 1, thirty season-loops each (2026 through the 2056 preseason), the same advance path as `verify.ts`. The repo has no script that walks those three seeds for thirty seasons; `sweep.ts` is a different seed list and two seasons. On all three, the most men while the ceiling was 53 was 53 in every season. Camp peaked at 86 or 87 in 2026 and at 90 after that. No ceiling break.
+
+No disagreement with the filter. The gate was not re-run on this head.
 
 ## 2026-11-14 — Carryover: CPU clubs budget against half of it; the bank ceiling is 8%
 
