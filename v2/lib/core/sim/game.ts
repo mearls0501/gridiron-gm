@@ -1466,7 +1466,8 @@ function* runGameSim(
         if (recoverer) {
           statFor(recoverer, d).fr++;
           if (rng.chance(0.12 + (spot < 30 ? 0.08 : 0))) {
-            defensiveTd(recoverer, d, "fumble", 100 - spot);
+            // `spot` is offence-relative, so the defence is `spot` yards out.
+            defensiveTd(recoverer, d, "fumble", spot);
             return { ...NO_PLAY(rng.int(8, 16)), scored: true, result: "fumble", scorerId: carrier.id };
           }
         }
@@ -1770,11 +1771,14 @@ function* runGameSim(
         ds.ints++;
         ds.passDef++;
         const retYds = Math.round(clamp(rng.normal(12, 12), 0, 99));
-        ds.intYds += retYds;
         if (rng.chance(0.15)) {
-          defensiveTd(defender, d, "INT", Math.max(retYds, 20));
+          // A pick-six covers the field from the catch. The catch is at the
+          // line of scrimmage, or deeper when the drawn return is longer.
+          // `defensiveTd` books the yards, once.
+          defensiveTd(defender, d, "INT", Math.max(retYds, clamp(yardLine, 1, 99)));
           return { ...NO_PLAY(rng.int(8, 18)), scored: true, isPass: true, result: "int", passerId: qb.id, targetId: target.id };
         }
+        ds.intYds += retYds;
       }
       return {
         yards: 0, timeUsed: rng.int(8, 20), turnover: true, touchdown: false,

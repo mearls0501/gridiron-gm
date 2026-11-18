@@ -164,7 +164,8 @@ A, B, C, D1, E3): play art as a field strip (no formation drawing), the
 `returnerId`, defensive-TD row order) and **P5** as a one-week CPU snap log.
 Still out: a formation tree (no traced formation or personnel rates), the
 engine live opening kick (**D2**, with kicking-game Stage 2), and
-`returnYards` (the fumble-return distance and pick-six yards are wrong today).
+`returnYards` as a `PlayEvent` field (the fumble-return distance and pick-six
+yards behind it were fixed 2026-11-18).
 
 ### Phase 5 — narration
 
