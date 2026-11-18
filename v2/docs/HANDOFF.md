@@ -1,5 +1,18 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-18 — Return yards on fumble returns and pick-sixes
+
+Unsigned. Matt asked for the fix ("fix the return yards on fumble returns and pick-sixes"). The two defects are the ones reported in `docs/proposal-phase1-play-leftovers-2026-11-11.md` (Packet B review caveat). Nothing in `scripts/` or `baselines.json` moved. No dial, no re-lock, no panel.
+
+- **Fumble return.** `defensiveTd` was handed `100 - spot`. `spot` is offence-relative, so the defence is `spot` yards from the end zone. A fumble at the offence's 9 printed a 91-yard return. It now prints 9.
+- **Pick-six.** The drawn return went into `intYds`, and `defensiveTd` then added `max(return, 20)` to the same line again. Neither figure looked at the field. The return is now `max(drawn return, line of scrimmage)`: the catch is at the line, or deeper when the drawn return is longer. It is booked once, in `defensiveTd`. The floor of 20 is gone. An interception that is not returned for a score is unchanged, as is the catch-point pick.
+
+No draw was added, removed or reordered. 300 games, seed 12345, `Rng(999)`, before and after: rng **2955187877** on both, the same 454 interceptions, the same summed tackles, yards and defensive TDs. Only `intYds` moves, **6225 → 6831**. On that loop the 37 pick-sixes average **21.8 → 51.5** yards and the 28 fumble-return TDs **47.4 → 52.6**. Neither average is a calibrated number: no return-distance block is in `nfl-reference.md`, and the engine models no depth of throw. `intYds` and the `scoringPlays` description are read only by the box score, the stats page and the record text.
+
+`playByPlay.test.ts` now asserts, on its 120-game sample, that a fumble return is within three yards of the snap's offence-relative line, that a pick-six is at least the line of scrimmage, and that a pick-six books its yards once.
+
+Ran on Node v22.23.5 (the pin is 22.23.4; this box does not have it): `tsc --noEmit` pass, `playByPlay.test.ts` pass, `verify.ts 2` 246/246, `determinism.ts 1` deterministic with 0 banned API uses, `liveGame.test.ts` and `userOffers.test.ts` pass, trim identity **1443** cuts / rng **1785272726** unchanged. `node scripts/e2e.mjs` passed on the tree before the change. The full `npm test` was not finished here: it hit the cloud session's background limit before this change, with no failure printed. `returnYards` is still not a `PlayEvent` field. The numbers behind it are now right, so that is a display decision.
+
 ## 2026-11-17 — Matt signed the 93cfb23 panel
 
 Signed by Matt, 2026-11-17, 9:09 AM EST. Nothing in `scripts/` or `baselines.json` moved. No re-lock. The values below are accepted. They are not new locks. A re-lock still needs Matt's sign-off on the numbers the next Studio panel reads. The write-up is `docs/panel-93cfb23-investigation.md`.

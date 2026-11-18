@@ -262,6 +262,8 @@ console.log("ok    playByPlay — SD 32, NYS 29 · Loss (OT)");
   let returned = 0;
   let kicks = 0;
   let kicked = 0;
+  let sixYds = 0;
+  let sixLineYds = 0;
   for (let i = 0; i < 120; i++) {
     const g = {
       id: 9000 + i, season: st.season, week: 1, homeId: i % 32, awayId: (i * 7 + 3) % 32,
@@ -270,6 +272,7 @@ console.log("ok    playByPlay — SD 32, NYS 29 · Loss (OT)");
     if (g.homeId === g.awayId) continue;
     for (const p of st.players) { p.injuryWeeks = 0; p.injuryDesc = null; }
     const r = simulateGame(st, g, rng);
+    let returnedHere = 0;
     for (const line of r.box.players) defTd += line.defTd;
     for (let j = 0; j < r.plays.length; j++) {
       const e = r.plays[j];
@@ -286,11 +289,27 @@ console.log("ok    playByPlay — SD 32, NYS 29 · Loss (OT)");
       assert.notEqual(next.offenseId, e.offenseId, "the defence kicks the PAT");
       const delta = (e.homeScore + e.awayScore) - (prev.homeScore + prev.awayScore);
       assert.equal(delta, 6, "the snap row carries the six the return made");
+      // The return covers the field it had. `yardLine` is offence-relative,
+      // so the defence starts that far out: a fumble within three yards past
+      // the line, a pick at the line or deeper.
+      const desc = r.box.scoringPlays.filter((s) => /(interception|fumble) return TD/.test(s.desc))[returnedHere++].desc;
+      const yds = Number(/(\d+) yd (interception|fumble) return TD/.exec(desc)![1]);
+      if (e.result === "fumble") {
+        assert.ok(yds >= e.yardLine && yds <= e.yardLine + 3, `fumble return ${yds} from the ${e.yardLine}`);
+      } else {
+        assert.ok(yds >= e.yardLine && yds <= 99, `pick-six ${yds} from the ${e.yardLine}`);
+        const line = r.box.players.find((l) => l.playerId === e.returnerId)!;
+        assert.ok(line.intYds >= yds, "the pick-six yards are in the box");
+        sixYds += yds;
+        sixLineYds += line.ints === 1 ? line.intYds : yds;
+      }
     }
   }
   assert.ok(defTd > 0, "the sample has defensive touchdowns");
   assert.equal(returned, defTd, "every defensive TD names its returner on the snap row");
   assert.equal(kicked, kicks, "every kickoff row names the kicker");
+  assert.ok(sixYds > 0, "the sample has pick-sixes");
+  assert.equal(sixLineYds, sixYds, "a pick-six books its return yards once");
 
   const names = (id: number) => (id === 1 ? "Brady" : id === 2 ? "Smith" : id === 3 ? "Tucker" : "");
   const base = {
