@@ -11,7 +11,7 @@ No draw was added, removed or reordered. 300 games, seed 12345, `Rng(999)`, befo
 
 `playByPlay.test.ts` now asserts, on its 120-game sample, that a fumble return is within three yards of the snap's offence-relative line, that a pick-six is at least the line of scrimmage, and that a pick-six books its yards once.
 
-Ran on Node v22.23.5 (the pin is 22.23.4; this box does not have it): `tsc --noEmit` pass, `playByPlay.test.ts` pass, `node scripts/e2e.mjs` passed on the tree before the change. The full `npm test` was not finished here: it hit the cloud session's background limit before this change, with no failure printed. `returnYards` is still not a `PlayEvent` field. The numbers behind it are now right, so that is a display decision.
+Ran on Node v22.23.5 (the pin is 22.23.4; this box does not have it): `tsc --noEmit` pass, `playByPlay.test.ts` pass, `verify.ts 2` 246/246, `determinism.ts 1` deterministic with 0 banned API uses, `liveGame.test.ts` and `userOffers.test.ts` pass, trim identity **1443** cuts / rng **1785272726** unchanged. `node scripts/e2e.mjs` passed on the tree before the change. The full `npm test` was not finished here: it hit the cloud session's background limit before this change, with no failure printed. `returnYards` is still not a `PlayEvent` field. The numbers behind it are now right, so that is a display decision.
 
 ## 2026-11-17 — Matt signed the 93cfb23 panel
 
