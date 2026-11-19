@@ -1,5 +1,11 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-19 — Blocks on the season stats page
+
+Unsigned. Display only. Matt asked for it ("do 1 then 2", item 1: finish the Stage 1 loose ends). `app/stats/page.tsx` gains a Blk column on the Defense tab, sortable like the others. Both pages read `blk ?? 0`, so a line built before the field existed shows 0. Nothing in `lib/core`, `scripts/` or `baselines.json` moved.
+
+Ran: `tsc --noEmit` pass; `next build` pass; the browser suite (`scripts/e2e.mjs`) **E2E PASSED**. Looked at in a browser on a fresh franchise: the Defense tab shows the Blk column with counts after ten weeks (one linebacker at 2), and the game box's Player stats view shows the Blk header. No box with a block in it turned up in the 13 user games opened, so a non-zero Blk cell on the game box was not seen.
+
 ## 2026-11-19 — Kicking-game Stage 1: blocked kicks and fair catches, as labels
 
 Signed by Matt, 2026-11-19, and merged as #258 on his "merge it and mark it signed". Matt signed lines A–C of `docs/decisions-kicking-game-2026-11-19.md` and asked for the build ("sign all six and build stage 1"). `docs/baselines.json` did not move. No canary moved. No dial, no band, no panel.
@@ -34,7 +40,7 @@ Shares in that sample: FG 20 / 168 = 0.119 (traced 0.122), XP 18 / 138 = 0.130 (
 
 **Canaries.** Unmoved, as the design requires: `trimIdentity` 1412 cuts, rng 3165849988; `userOffers` passes on its locked literals.
 
-**Not built** (signed out or Stage 2): blocked punts, onside kicks, kickoff fair catches, block returns, a defensive two-point return, a fair-catch count, an attribute tilt. `blk` is on the game box only; the season stats page does not show it yet.
+**Not built** (signed out or Stage 2): blocked punts, onside kicks, kickoff fair catches, block returns, a defensive two-point return, a fair-catch count, an attribute tilt. `blk` was on the game box only; the season stats page got it the same day (entry above).
 
 Ran: `tsc --noEmit` pass; `kickingEvents`, `coverageTackle`, `targetShare`, `playByPlay`, `trimIdentity` and `userOffers` tests pass. Fast gate (`gate:serial`, this box, Node 22.23.5): **GATE PASS**, **71** metrics within baseline, exit **0**. Not run: `gate:full`, the Studio panel, the browser suite.
 
