@@ -2,7 +2,7 @@
 
 ## 2026-11-19 — Return yards on the play-by-play row
 
-Unsigned. Matt asked for it ("do the return-yards display"). This is the `returnYards` field that Packet B left out on 2026-11-13 because the distances behind it were wrong. #254 fixed them. Nothing in `scripts/` or `baselines.json` moved. No dial, no re-lock, no panel.
+Signed by Matt, 2026-11-19, and merged as #256 on his "merge it and mark it signed". Matt asked for it ("do the return-yards display"). This is the `returnYards` field that Packet B left out on 2026-11-13 because the distances behind it were wrong. #254 fixed them. Nothing in `scripts/` or `baselines.json` moved. No dial, no re-lock, no panel.
 
 - `PlayEvent` gains optional `returnYards`, set on the same int/fumble row that carries `returnerId`. It is the number the scoring line already prints.
 - `formatPlay` prints "Brady pass intercepted — Smith returns it 40 yd for a TD". A box saved before the field existed has no `returnYards` and keeps the old text, "… returns it for a TD".
