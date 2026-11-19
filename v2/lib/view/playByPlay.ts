@@ -115,8 +115,9 @@ export function formatPlay(
   sides?: PlaySides,
 ): string {
   if (e.returnerId !== undefined) {
-    const { returnerId, ...snap } = e;
-    return `${formatPlay(snap, names, sides)} — ${nameOf(returnerId, names) || "defender"} returns it for a TD`;
+    const { returnerId, returnYards, ...snap } = e;
+    const how = returnYards === undefined ? "returns it" : `returns it ${returnYards} yd`;
+    return `${formatPlay(snap, names, sides)} — ${nameOf(returnerId, names) || "defender"} ${how} for a TD`;
   }
   const who = nameOf(e.playerId, names);
   const tgt = nameOf(e.targetId, names);

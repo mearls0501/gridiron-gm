@@ -932,7 +932,7 @@ function* runGameSim(
   const scoringPlays: ScoringPlay[] = [];
   const playLog: PlayEvent[] = [];
   /** Set by `defensiveTd` so the snap row can name the returner. */
-  let lastDefTd: { id: number; home: boolean } | null = null;
+  let lastDefTd: { id: number; yards: number; home: boolean } | null = null;
   const emit = (
     e: Omit<PlayEvent, "q" | "clock" | "homeScore" | "awayScore"> &
       Partial<Pick<PlayEvent, "q" | "clock" | "homeScore" | "awayScore">>,
@@ -1306,7 +1306,7 @@ function* runGameSim(
 
   /** Interception or fumble returned all the way. */
   const defensiveTd = (defender: Player, defCtx: Ctx, kind: "INT" | "fumble", retYds: number) => {
-    lastDefTd = { id: defender.id, home: defCtx.team.id === home.id };
+    lastDefTd = { id: defender.id, yards: retYds, home: defCtx.team.id === home.id };
     const st = statFor(defender, defCtx);
     st.defTd++;
     if (kind === "INT") st.intYds += retYds;
@@ -2196,7 +2196,7 @@ function* runGameSim(
         playerId: outcome.passerId ?? outcome.scorerId ?? undefined,
         targetId: outcome.targetId ?? (outcome.isPass ? outcome.scorerId ?? undefined : undefined),
       };
-      const defTd = lastDefTd as { id: number; home: boolean } | null;
+      const defTd = lastDefTd as { id: number; yards: number; home: boolean } | null;
       if (defTd) {
         // P2: the PAT and kickoff were logged inside the play function. Put
         // the snap ahead of them, with the score the return made.
@@ -2207,6 +2207,7 @@ function* runGameSim(
           awayScore: snapAway + (defTd.home ? 0 : 6),
           ...row,
           returnerId: defTd.id,
+          returnYards: defTd.yards,
         });
       } else {
         emit(row);
