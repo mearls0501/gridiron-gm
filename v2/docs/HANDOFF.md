@@ -9,7 +9,7 @@ Unsigned. Matt asked for it ("do the return-yards display"). This is the `return
 
 No draw moves. 300 games, seed 12345, `Rng(999)`: rng **2955187877** and every summed stat are identical to the #254 tree. Save cost is one short number on each defensive-TD row of a persisted snap log.
 
-`playByPlay.test.ts` asserts the row's `returnYards` equals the yards on the scoring line for every defensive TD in its 120-game sample, and both display strings. Ran on Node v22.23.5 (the pin is 22.23.4): `tsc --noEmit` pass, `playByPlay.test.ts` pass, `liveGame.test.ts` pass. The gate, the full `npm test` and the browser suites were not run on this change.
+`playByPlay.test.ts` asserts the row's `returnYards` equals the yards on the scoring line for every defensive TD in its 120-game sample, and both display strings. Ran on Node v22.23.5 (the pin is 22.23.4): `tsc --noEmit` pass, `playByPlay.test.ts` pass, `liveGame.test.ts` pass, `next build` pass, `node scripts/e2e.mjs` passed. The gate, the full `npm test` and `e2e-interact.mjs` were not run on this change.
 
 `ROADMAP.md` was brought up to 2026-11-19 in the same change: the `93cfb23` panel and its signatures, the canaries as #248 left them, and the two rows waiting on a re-lock.
 
