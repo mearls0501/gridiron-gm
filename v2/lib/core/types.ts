@@ -218,6 +218,8 @@ export interface SeasonStatLine {
   // Defense
   tackles: number; tfl: number; sacks: number; ints: number; intYds: number;
   passDef: number; ff: number; fr: number; defTd: number; safeties: number;
+  /** Blocked field goals and extra points. */
+  blk: number;
 
   // Kicking
   fgm: number; fga: number; xpm: number; xpa: number; longFg: number;
@@ -652,6 +654,8 @@ export type PlayResult =
   | "td"
   | "good"
   | "miss"
+  | "blocked"
+  | "fair_catch"
   | "fail"
   | "gain"
   | "loss"

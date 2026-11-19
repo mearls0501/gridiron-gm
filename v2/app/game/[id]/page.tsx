@@ -143,10 +143,10 @@ const GROUPS: Group[] = [
   {
     key: "defense",
     label: "Defense",
-    head: ["Tkl", "TFL", "Sacks", "INT", "INT Yds", "PD", "FF", "FR", "TD"],
+    head: ["Tkl", "TFL", "Sacks", "INT", "INT Yds", "PD", "FF", "FR", "Blk", "TD"],
     qualifies: (s) =>
       s.tackles > 0 || s.sacks > 0 || s.ints > 0 || s.tfl > 0 ||
-      s.passDef > 0 || s.ff > 0 || s.fr > 0 || s.defTd > 0,
+      s.passDef > 0 || s.ff > 0 || s.fr > 0 || s.defTd > 0 || s.blk > 0,
     rank: (s) => s.tackles + s.sacks * 3 + s.ints * 4 + s.defTd * 6,
     cells: (s) => (
       <>
@@ -158,6 +158,7 @@ const GROUPS: Group[] = [
         <Cell>{s.passDef}</Cell>
         <Cell>{s.ff}</Cell>
         <Cell>{s.fr}</Cell>
+        <Cell>{s.blk}</Cell>
         <Cell>{s.defTd}</Cell>
       </>
     ),

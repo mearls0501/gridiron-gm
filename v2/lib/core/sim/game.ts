@@ -291,6 +291,25 @@ export function creditsCoverage(scoring: boolean, kind: CoverageKind, roll: numb
   return roll < coverageCreditRate(kind);
 }
 
+/**
+ * Kick events that relabel a play the engine already rolled. A blocked field
+ * goal or extra point is a share of the kicks that were not made. A punt fair
+ * catch is a share of the punts that were not returned and not a touchback.
+ * Counts are 2021–2024 REG (nfl-reference.md §5.14). None changes an outcome.
+ */
+export type KickEventKind = "fgBlocked" | "xpBlocked" | "puntFairCatch";
+
+export const KICK_EVENT: Record<KickEventKind, { events: number; plays: number }> = {
+  fgBlocked: { events: 78, plays: 639 },
+  xpBlocked: { events: 31, plays: 247 },
+  puntFairCatch: { events: 2352, plays: 4255 },
+};
+
+export function kickEventRate(kind: KickEventKind): number {
+  const row = KICK_EVENT[kind];
+  return row.plays > 0 ? row.events / row.plays : 0;
+}
+
 const PLAYOFF_ROUND_INDEX: Record<PlayoffRound, number> = { WC: 0, DIV: 1, CONF: 2, SB: 3 };
 
 /**
@@ -549,6 +568,11 @@ function* runGameSim(
     (state.seed ^ Math.imul((game.id + 1) >>> 0, 0x9e3779b9) ^ 0x5c07e4a6) >>> 0,
   );
 
+  // Its own stream. A kick-event label must not move `rng` or either credit stream.
+  const kickEventRng = new Rng(
+    (state.seed ^ Math.imul((game.id + 1) >>> 0, 0x9e3779b9) ^ 0x2c1b3c6d) >>> 0,
+  );
+
   /**
    * A child stream for the play-economy mechanics — receiver carries and
    * kneel-downs. One parent draw seeds it, so however many decisions those
@@ -630,6 +654,27 @@ function* runGameSim(
     statFor(p, ctx).tackles++;
     gameTackles.set(ctx.team.id, (gameTackles.get(ctx.team.id) ?? 0) + 1);
     opts?.onCoverageTackle?.(ctx.team.id, p.id, kind);
+  };
+  /** One coin on the kick-event stream. A zero rate draws nothing. */
+  const kickEvent = (kind: KickEventKind): boolean => {
+    const rate = kickEventRate(kind);
+    return rate > 0 && kickEventRng.chance(rate);
+  };
+  /**
+   * Credit a blocked kick to a DT, EDGE or LB starter on the depth chart who
+   * has taken a snap this game. That man already has a box row, so the credit
+   * adds no row. Nobody is credited when no such man exists.
+   */
+  const creditBlock = (ctx: Ctx) => {
+    const front = [
+      ...ctx.starters.DT.slice(0, STARTERS.DT),
+      ...ctx.starters.EDGE.slice(0, STARTERS.EDGE),
+      ...ctx.starters.LB.slice(0, STARTERS.LB),
+    ].filter((p) => !ctx.out.has(p.id) && (pstats.get(p.id)?.snaps ?? 0) >= 0.5);
+    if (front.length === 0) return;
+    const p = kickEventRng.pick(front);
+    statFor(p, ctx).blk++;
+    opts?.onKickBlock?.(ctx.team.id, p.id);
   };
   const playScores = (yl: number, yds: number) => yl + yds >= 100 || yl + yds <= 0;
   /** Bend a weighted tackle draw. A sack or a forced fumble still names the man who made the stop. */
@@ -1160,8 +1205,10 @@ function* runGameSim(
       award(ctx.team.id, 1, "Extra point good");
       emit({ kind: "xp", result: "good", yards: 0, down: 0, toGo: 0, yardLine, offenseId: ctx.team.id, playerId: k.id });
     } else {
-      record(ctx.team.id, "Extra point MISSED");
-      emit({ kind: "xp", result: "miss", yards: 0, down: 0, toGo: 0, yardLine, offenseId: ctx.team.id, playerId: k.id });
+      const blocked = kickEvent("xpBlocked");
+      if (blocked) creditBlock(isHome ? ctxAway : ctxHome);
+      record(ctx.team.id, blocked ? "Extra point BLOCKED" : "Extra point MISSED");
+      emit({ kind: "xp", result: blocked ? "blocked" : "miss", yards: 0, down: 0, toGo: 0, yardLine, offenseId: ctx.team.id, playerId: k.id });
     }
   };
 
@@ -1271,9 +1318,11 @@ function* runGameSim(
       });
       kickoff();
     } else {
-      record(ctx.team.id, `${k.lastName} ${distance} yd field goal is NO GOOD`);
+      const blocked = kickEvent("fgBlocked");
+      if (blocked) creditBlock(def());
+      record(ctx.team.id, `${k.lastName} ${distance} yd field goal is ${blocked ? "BLOCKED" : "NO GOOD"}`);
       emit({
-        kind: "fg", result: "miss", yards: distance,
+        kind: "fg", result: blocked ? "blocked" : "miss", yards: distance,
         down, toGo, yardLine, offenseId: ctx.team.id, playerId: k.id,
       });
       changePossession(clamp(100 - Math.max(yardLine - 8, 20), 1, 99));
@@ -1353,7 +1402,7 @@ function* runGameSim(
     }
 
     emit({
-      kind: "punt", result: "gain", yards: Math.round(gross),
+      kind: "punt", result: kickEvent("puntFairCatch") ? "fair_catch" : "gain", yards: Math.round(gross),
       down, toGo, yardLine, offenseId: ctx.team.id, playerId: p?.id,
     });
     changePossession(spot);

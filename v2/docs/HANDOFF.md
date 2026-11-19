@@ -1,5 +1,60 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-19 — Kicking-game Stage 1: blocked kicks and fair catches, as labels
+
+Signed by Matt, 2026-11-19, and merged as #258 on his "merge it and mark it signed". Matt signed lines A–C of `docs/decisions-kicking-game-2026-11-19.md` and asked for the build ("sign all six and build stage 1"). `docs/baselines.json` did not move. No canary moved. No dial, no band, no panel.
+
+**What it does.** Three labels on plays the engine already rolls, at the §5.14 counts:
+
+| label | carved from | rate |
+|---|---|---|
+| blocked field goal | a field goal that was not made | 78 / 639 |
+| blocked extra point | an extra point that was not made | 31 / 247 |
+| punt fair catch | a punt that was not returned and not a touchback | 2,352 / 4,255 |
+
+The make chance, the miss spot, the punt spot and possession are untouched. A blocked kick credits one `blk` to a DT, EDGE or LB starter on the depth chart who has taken a snap that game. He already has a box row, so no row is added. A fair catch credits nothing.
+
+**Stream.** `kickEventRng`, keyed (seed, game id) with its own salt. No draw on the parent, the tackle-credit stream or the coverage stream.
+
+**Files.** `lib/core/sim/game.ts` (`KICK_EVENT`, `kickEventRate`, the three label sites, `creditBlock`), `lib/core/types.ts` (`blk`; `"blocked"` and `"fair_catch"` results), `lib/core/season/stats.ts` (`blk` in `STAT_KEYS`), `lib/core/callSheet.ts` (`onKickBlock`, a read-only observer), `lib/view/playByPlay.ts` (three strings), `app/game/[id]/page.tsx` (a Blk column on the defence table). New test `lib/core/sim/kickingEvents.test.ts`, registered in `package.json` and in `scripts/gate.ts` FAST and FULL as `kickevents`.
+
+**Parity, measured.** 300 calibrate-style games, seed 12345, `Rng(999)`, before and after on the same tree:
+
+| | before | after |
+|---|---:|---:|
+| parent rng state | 3913391126 | 3913391126 |
+| hash of scores, box rows (less `blk`), plays (labels folded back) | 6348687e1a60fa47 | 6348687e1a60fa47 |
+| box rows | 22,167 | 22,167 |
+| FG not made | 168 miss | 148 miss + **20** blocked |
+| XP not made | 138 miss | 120 miss + **18** blocked |
+| punts unreturned | 680 | 298 + **382** fair catch |
+| `blk` credits | 0 | 38 |
+
+Shares in that sample: FG 20 / 168 = 0.119 (traced 0.122), XP 18 / 138 = 0.130 (0.125), fair catch 382 / 680 = 0.562 (0.553). The proposal's old literal (3282470162) predates #257 and was not used.
+
+**Canaries.** Unmoved, as the design requires: `trimIdentity` 1412 cuts, rng 3165849988; `userOffers` passes on its locked literals.
+
+**Not built** (signed out or Stage 2): blocked punts, onside kicks, kickoff fair catches, block returns, a defensive two-point return, a fair-catch count, an attribute tilt. `blk` is on the game box only; the season stats page does not show it yet.
+
+Ran: `tsc --noEmit` pass; `kickingEvents`, `coverageTackle`, `targetShare`, `playByPlay`, `trimIdentity` and `userOffers` tests pass. Fast gate (`gate:serial`, this box, Node 22.23.5): **GATE PASS**, **71** metrics within baseline, exit **0**. Not run: `gate:full`, the Studio panel, the browser suite.
+
+## 2026-11-19 — Kicking-game decisions written up
+
+Signed by Matt, 2026-11-19: all six lines ("sign all six and build stage 1"). Docs only. Matt asked for it ("write up the kicking-game decisions"). New file: `docs/decisions-kicking-game-2026-11-19.md`. No code, test, `scripts/` file, `baselines.json` row, reference row or canary moved.
+
+It is the short form of `docs/proposal-kicking-game-events-2026-11-11.md`, read against §5.14 and `main` at `937db70`. The six lines:
+
+- **A. Era.** 2021–22 for kickoffs, the 2021–23 row for onside (14 / 154). No kickoff fair catch.
+- **B1. Stage 1.** Labels only: blocked FG (78 / 639 of non-made), blocked XP (31 / 247), punt fair catch (2,352 / 4,255 of unreturned), a `blk` stat. No canary moves. Can be built before the Studio panel.
+- **B2. Stage 2 scope.** Blocked punts (42 / 8,587; 3 safeties) and onside kicks. No block-return touchdown (0 of 78 and 0 of 42 traced), no defensive two-point return, no user prompt, no attribute tilt.
+- **B3. Onside attempt.** Not buildable yet: §5.14 has attempts (0.077 a team-game) but no rate over qualifying kickoffs. Trace that row and roll a coin; do not fit a clock threshold.
+- **B4. Blocked punt.** Counts as a punt, not as a turnover. Rule geometry and the punter's yards still need a rulebook citation in §4.
+- **C. Re-lock.** Freeze exception for the four canary literals only, after the owed Studio panel, measured on Node 22.23.4.
+
+Stale in the old proposal: its parity literal and its four canary values predate #257.
+
+Ran: nothing. No code changed.
+
 ## 2026-11-19 — Special-teams tackles
 
 Signed by Matt, 2026-11-19, and merged as #257 on his "merge it and mark it signed". Matt asked for the build ("do the special-teams tackles next"). Proposal: `docs/proposal-special-teams-tackles-2026-11-11.md`. The rates are §5.14 of `nfl-reference.md`, traced 2026-11-13. `docs/baselines.json` did not move. No dial, no band, no panel. Four canary literals were re-measured and written into their tests; the signature covers that re-lock. Still owed: a Studio panel (`tails`, `drift`, `careers`) and a check of the four literals on the pinned Node 22.23.4.

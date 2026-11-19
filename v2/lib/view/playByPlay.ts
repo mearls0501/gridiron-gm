@@ -131,10 +131,12 @@ export function formatPlay(
       if (e.result === "touchback") return `Punt ${e.yards} yds — touchback`;
       if (e.result === "td") return `${who || "Returner"} ${e.yards} yd punt return TD`;
       if (e.result === "return") return `Punt ${e.yards} yds — ${who || "returner"} returns`;
+      if (e.result === "fair_catch") return `Punt ${e.yards} yds — fair catch`;
       return `Punt ${e.yards} yds`;
     case "fg":
-      return `${who || "Kicker"} ${e.yards} yd field goal is ${e.result === "good" ? "GOOD" : "NO GOOD"}`;
+      return `${who || "Kicker"} ${e.yards} yd field goal is ${e.result === "good" ? "GOOD" : e.result === "blocked" ? "BLOCKED" : "NO GOOD"}`;
     case "xp":
+      if (e.result === "blocked") return "Extra point BLOCKED";
       return e.result === "good" ? "Extra point good" : "Extra point MISSED";
     case "two":
       return e.result === "good" ? "Two-point conversion GOOD" : "Two-point conversion FAILED";
