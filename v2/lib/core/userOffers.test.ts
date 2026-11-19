@@ -35,6 +35,7 @@
  * 2026-11-14 a claim releases a man with no bonus left; late-round slot bonuses at real size: tag 1614125276, FA 3117494098.
  * 2026-11-14 bonus-owed men retire less; older starting deals near their end; trade acceleration at twice the price: tag 3242373722, FA 691387436.
  * 2026-11-14 CPU budgets half its carryover; the bank ceiling is 8%: tag 3242373722, FA 691387436.
+ * 2026-11-19 coverage tackles on live kick and punt returns (§5.14): tag 4171186477, FA 108340363.
  *
  * Run: npx tsx lib/core/userOffers.test.ts
  */
@@ -140,11 +141,11 @@ console.log("ok    userOffers — successful inquiries add no parent RNG draws (
     }
   }
   assert.equal(st.phase, "offseason-tag");
-  assert.equal(st.rngState, 3242373722);
+  assert.equal(st.rngState, 4171186477);
 
   advanceOffseason(st);
   assert.equal(st.phase, "offseason-fa");
-  assert.equal(st.rngState, 691387436, "inquiry must not move the parent stream");
+  assert.equal(st.rngState, 108340363, "inquiry must not move the parent stream");
 
   const offers = st.tradeOffers ?? [];
   assert.ok(offers.length >= 1, `free agency opened with no calls (${offers.length})`);

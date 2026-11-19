@@ -28,6 +28,11 @@ export interface SnapInfo {
 
 export interface SimOpts {
   /**
+   * Told of each coverage tackle as it is credited. Reads only. It draws
+   * nothing and writes nothing, so a game plays the same with or without it.
+   */
+  onCoverageTackle?: (teamId: number, playerId: number, kind: "kickoff" | "punt") => void;
+  /**
    * User-club offensive snaps only. Bulk-sim / Play Week omit this.
    * `"auto"` (or a short list) falls through to choosePass.
    */
