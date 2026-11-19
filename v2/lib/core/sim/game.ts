@@ -267,6 +267,30 @@ export function creditsTackle(scoring: boolean, kind: TackleCreditKind, roll: nu
   return roll < tackleCreditRate(kind);
 }
 
+/**
+ * Coverage tackle on a live, non-scoring kick or punt return. The stop goes to
+ * one man on the kicking club at the 2021–2024 REG own-tackle rate on such a
+ * return (nfl-reference.md §5.14). A touchback, a fair catch, a downed punt
+ * and a return touchdown credit nobody.
+ */
+export type CoverageKind = "kickoff" | "punt";
+
+export const COVERAGE_TACKLE_CREDIT: Record<CoverageKind, { credited: number; plays: number }> = {
+  kickoff: { credited: 2740, plays: 3585 },
+  punt: { credited: 2935, plays: 3656 },
+};
+
+export function coverageCreditRate(kind: CoverageKind): number {
+  const row = COVERAGE_TACKLE_CREDIT[kind];
+  return row.plays > 0 ? row.credited / row.plays : 0;
+}
+
+/** A return touchdown credits nothing. Any other live return credits when `roll` is under the traced rate. */
+export function creditsCoverage(scoring: boolean, kind: CoverageKind, roll: number): boolean {
+  if (scoring) return false;
+  return roll < coverageCreditRate(kind);
+}
+
 const PLAYOFF_ROUND_INDEX: Record<PlayoffRound, number> = { WC: 0, DIV: 1, CONF: 2, SB: 3 };
 
 /**
@@ -520,6 +544,11 @@ function* runGameSim(
     (state.seed ^ Math.imul((game.id + 1) >>> 0, 0x9e3779b9) ^ 0x71a0c1e5) >>> 0,
   );
 
+  // Its own stream. A coverage draw must not move `rng` or re-roll a scrimmage credit.
+  const coverageRng = new Rng(
+    (state.seed ^ Math.imul((game.id + 1) >>> 0, 0x9e3779b9) ^ 0x5c07e4a6) >>> 0,
+  );
+
   /**
    * A child stream for the play-economy mechanics — receiver carries and
    * kneel-downs. One parent draw seeds it, so however many decisions those
@@ -577,6 +606,30 @@ function* runGameSim(
     if (!tackleCreditRng.chance(tackleCreditRate(kind))) return;
     statFor(p, ctx).tackles++;
     gameTackles.set(ctx.team.id, (gameTackles.get(ctx.team.id) ?? 0) + 1);
+  };
+  /**
+   * Coverage tackle for the kicking club: the depth-chart slots past the
+   * starters at LB, S and CB, or those whole units when no backup is dressed.
+   * No hit. A zero rate draws nothing.
+   */
+  const creditCoverageTackle = (ctx: Ctx, kind: CoverageKind) => {
+    const rate = coverageCreditRate(kind);
+    if (!(rate > 0)) return;
+    if (!creditsCoverage(false, kind, coverageRng.next())) return;
+    const dressed = (unit: Player[]) => unit.filter((p) => !ctx.out.has(p.id));
+    const backups = dressed([
+      ...ctx.starters.LB.slice(STARTERS.LB),
+      ...ctx.starters.S.slice(STARTERS.S),
+      ...ctx.starters.CB.slice(STARTERS.CB),
+    ]);
+    const unit = backups.length
+      ? backups
+      : dressed([...ctx.starters.LB, ...ctx.starters.S, ...ctx.starters.CB]);
+    if (unit.length === 0) return;
+    const p = coverageRng.weighted(unit, (x) => Math.max(1, sc(x, "tkl") - 34));
+    statFor(p, ctx).tackles++;
+    gameTackles.set(ctx.team.id, (gameTackles.get(ctx.team.id) ?? 0) + 1);
+    opts?.onCoverageTackle?.(ctx.team.id, p.id, kind);
   };
   const playScores = (yl: number, yds: number) => yl + yds >= 100 || yl + yds <= 0;
   /** Bend a weighted tackle draw. A sack or a forced fumble still names the man who made the stop. */
@@ -1168,6 +1221,7 @@ function* runGameSim(
       return;
     }
 
+    if (returner) creditCoverageTackle(kicking, "kickoff");
     startDrive(clamp(TOUCHBACK_YARDLINE + (ret - 23), 5, 60));
     emit({
       kind: "kickoff", result: "return", yards: ret,
@@ -1288,6 +1342,7 @@ function* runGameSim(
         kickoff();
         return;
       }
+      if (returner) creditCoverageTackle(ctx, "punt");
       spot = clamp(spot + ret, 1, 99);
       emit({
         kind: "punt", result: "return", yards: Math.round(gross),

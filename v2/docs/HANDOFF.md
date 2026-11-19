@@ -1,5 +1,40 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-19 — Special-teams tackles
+
+Unsigned. Matt asked for the build ("do the special-teams tackles next"). Proposal: `docs/proposal-special-teams-tackles-2026-11-11.md`. The rates are §5.14 of `nfl-reference.md`, traced 2026-11-13. `docs/baselines.json` did not move. No dial, no band, no panel. Four canary literals were re-measured and written into their tests; that re-lock needs Matt's signature.
+
+A live kickoff or punt return that does not score now credits one tackle to a coverage man on the kicking club, at the traced own-tackle rate: kickoff **2,740 / 3,585**, punt **2,935 / 3,656** (`COVERAGE_TACKLE_CREDIT` in `sim/game.ts`). A touchback, a fair catch, a downed punt and a return touchdown credit nobody.
+
+The proposal's eight decisions, as built. Matt did not rule on them one by one, so each is here to be signed or reversed.
+
+1. **Trace.** Done before this build (§5.14).
+2. **Field.** `tackles`. §5.14 shows the weekly 712.3 includes kick and punt tackles, so the wider sim number is the right comparison.
+3. **Pool.** The depth-chart slots past the starters at LB, S and CB (LB3–4, S3, CB4), weight `max(1, tkl − 34)`. The whole LB, S and CB units only when no backup is dressed. Not traced; a design choice.
+4. **No hit.** A coverage tackle adds no injury exposure.
+5. **Staging.** Landed with the traced rows, not as zero-row plumbing.
+6. **Re-lock.** Measured on this build, Node v22.23.5 (the pin is 22.23.4): `userOffers` seed 42 tag **3242373722 → 4171186477**, FA **691387436 → 108340363**; `trimIdentity` seed 42 opening 2030 **1443 → 1412** cuts, rng **1785272726 → 3165849988**. Not signed. Re-measure on the pinned Node before signing.
+7. **Return volume.** The 0.62 touchback and 0.55 punt-return shares are unchanged.
+8. **Stream.** A separate per-game coverage stream, not `tackleCreditRng`. The proposal's diff shared the scrimmage stream, which would have re-rolled every later scrimmage credit in the game. With its own stream the scrimmage coins land where they did. The parent stream still moves, through `gameTackles` and the season prior in `tackleDrawWeight`.
+
+One regular season, 272 games, the same build with the rows at zero against the rows filled:
+
+| seed | team tackles, rows zero (min–max) | rows filled (min–max) | leader | max game |
+|---|---|---|---|---|
+| 1 | 658.0 (614–786) | 700.0 (618–795) | 122 → 107 | 14 → 15 |
+| 2 | 653.1 (593–712) | 696.6 (630–753) | 104 → 104 | 14 → 14 |
+| 3 | 656.5 (576–731) | 700.5 (589–754) | 118 → 120 | 15 → 13 |
+| 4 | 655.7 (591–722) | 699.3 (641–763) | 116 → 114 | 18 → 17 |
+| 5 | 657.8 (605–732) | 701.3 (638–766) | 115 → 116 | 15 → 19 |
+
+Mean **656.2 → 699.5**, +43.3 a club-season against the traced 44.6. The real total is 712.3. The gap that is left is not tuned: the return volume the credit multiplies is the engine's own untraced 0.62 and 0.55. Seed 2's parent rng did not move in the regular season; the other four did, so their leader and max-game columns are a different league, not coverage credit on the leader. Every leader is inside the signed 92–128.
+
+`SimOpts` gains `onCoverageTackle`, a read-only observer the tests use to count coverage credits apart from scrimmage credits. It draws nothing and writes nothing.
+
+Tests. New `lib/core/sim/coverageTackle.test.ts`, registered in `package.json` and in `scripts/gate.ts` FAST and FULL (the #47 convention): the §5.14 counts; a return touchdown credits nobody; zero rows credit nobody; credits never exceed the live returns a club covered; 482 credits on 609 returns (0.791) over 96 games, all 482 to depth-chart backups (LB 249, S 121, CB 112); in the 95 of 96 games whose snaps are unchanged, team tackles equal scrimmage credits plus coverage credits; a linebacker makes coverage stops in the third slot and none in the first. `targetShare.test.ts` asserted that a defence's tackles never exceed the offence's live stops. That guard now subtracts coverage credits through the observer; the claim about scrimmage credits is unchanged.
+
+Ran: `tsc --noEmit` pass; `coverageTackle`, `tackleShare`, `targetShare`, `playByPlay`, `trimIdentity` and `userOffers` tests pass.
+
 ## 2026-11-19 — Return yards on the play-by-play row
 
 Signed by Matt, 2026-11-19, and merged as #256 on his "merge it and mark it signed". Matt asked for it ("do the return-yards display"). This is the `returnYards` field that Packet B left out on 2026-11-13 because the distances behind it were wrong. #254 fixed them. Nothing in `scripts/` or `baselines.json` moved. No dial, no re-lock, no panel.

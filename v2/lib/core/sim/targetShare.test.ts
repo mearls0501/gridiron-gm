@@ -121,14 +121,18 @@ function tackleGap(st: GameState, seed: number): {
   let games = 0;
   for (const game of st.games.filter((g) => g.week === 1)) {
     const copy = JSON.parse(JSON.stringify(st)) as GameState;
-    const result = simulateGame(copy, game, new Rng(seed * 1000 + game.id));
+    // A coverage tackle on a kick or punt return is not a scrimmage stop.
+    const coverage = new Map<number, number>();
+    const result = simulateGame(copy, game, new Rng(seed * 1000 + game.id), {
+      onCoverageTackle: (teamId) => coverage.set(teamId, (coverage.get(teamId) ?? 0) + 1),
+    });
     const kneels = kneelsByOffense(result.plays);
     for (const [offId, defId] of [[game.homeId, game.awayId], [game.awayId, game.homeId]] as const) {
       const off = result.box.players.filter((p) => p.teamId === offId);
       const def = result.box.players.filter((p) => p.teamId === defId);
       const stops = sum(off, "rushAtt") - (kneels.get(offId) ?? 0) + sum(off, "rec") + sum(off, "sacked");
       const scores = sum(off, "rushTd") + sum(off, "recTd");
-      const credited = sum(def, "tackles");
+      const credited = sum(def, "tackles") - (coverage.get(defId) ?? 0);
       if (credited > stops) overStops += credited - stops;
       if (credited > stops - scores) overLive += credited - (stops - scores);
       tackles += credited;
