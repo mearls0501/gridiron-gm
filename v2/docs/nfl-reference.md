@@ -2179,6 +2179,8 @@ kickoff row; its margin is `-score_differential`.
 
 #### Onside attempt rate by situation — traced 2026-11-19, not locked
 
+Matt signed this table as the Stage 2 onside attempt rate on 2026-11-19. Nothing is built or gated on it yet.
+
 Added for kicking-game Stage 2 (`docs/decisions-kicking-game-2026-11-19.md`,
 line B3). The table above counts attempts. This one gives the denominator:
 every kickoff by a trailing club in the fourth quarter, and how many of them
