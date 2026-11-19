@@ -32,6 +32,8 @@ export interface SimOpts {
    * nothing and writes nothing, so a game plays the same with or without it.
    */
   onCoverageTackle?: (teamId: number, playerId: number, kind: "kickoff" | "punt") => void;
+  /** Told of each blocked field goal or extra point as it is credited. Reads only. */
+  onKickBlock?: (teamId: number, playerId: number) => void;
   /**
    * User-club offensive snaps only. Bulk-sim / Play Week omit this.
    * `"auto"` (or a short list) falls through to choosePass.

@@ -1,5 +1,7 @@
 # Onside kicks, blocked kicks, fair catches
 
+**Superseded 2026-11-19** by `docs/decisions-kicking-game-2026-11-19.md` (signed) and the Stage 1 build (`HANDOFF.md`). The text below is the proposal as written.
+
 **UNSIGNED.** Proposal only. This note changes no code, test, `scripts/` file, `docs/baselines.json`, `docs/nfl-reference.md`, or canary. Matt signs any change. No re-lock, no dial retune, no panel.
 
 **Traced 2026-11-13:** `docs/nfl-reference.md` §5.14 now holds onside, blocked-kick, fair-catch and return rows by kickoff rule era. The trace blocker below is cleared; the rest of this note is unchanged.

@@ -20,7 +20,7 @@ const STAT_KEYS = [
   "passAtt", "passCmp", "passYds", "passTd", "passInt", "sacked", "sackYds",
   "rushAtt", "rushYds", "rushTd", "fumbles", "fumblesLost",
   "targets", "rec", "recYds", "recTd",
-  "tackles", "tfl", "sacks", "ints", "intYds", "passDef", "ff", "fr", "defTd", "safeties",
+  "tackles", "tfl", "sacks", "ints", "intYds", "passDef", "ff", "fr", "defTd", "safeties", "blk",
   "fgm", "fga", "xpm", "xpa",
   "punts", "puntYds", "puntsInside20",
   "kr", "krYds", "krTd", "pr", "prYds", "prTd",

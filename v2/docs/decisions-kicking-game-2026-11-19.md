@@ -1,8 +1,8 @@
 # Kicking-game events — the decisions, with a recommendation on each
 
-**UNSIGNED.** Decisions only. This note changes no code, test, `scripts/` file, `docs/baselines.json`, `docs/nfl-reference.md` or canary. It is the short form of `docs/proposal-kicking-game-events-2026-11-11.md`, read against the rates traced since (`nfl-reference.md` §5.14, 2026-11-13) and against `main` at `937db70` (#257).
+**SIGNED by Matt, 2026-11-19: all six lines ("sign all six and build stage 1").** Stage 1 was built the same day (`HANDOFF.md`). Stage 2 is not started. Decisions only. This note changes no code, test, `scripts/` file, `docs/baselines.json`, `docs/nfl-reference.md` or canary. It is the short form of `docs/proposal-kicking-game-events-2026-11-11.md`, read against the rates traced since (`nfl-reference.md` §5.14, 2026-11-13) and against `main` at `937db70` (#257).
 
-Matt signs or reverses each line. Nothing is built until he does.
+The text below is the note as signed.
 
 ## What changed since the proposal was written
 
@@ -86,7 +86,7 @@ The calibration freeze allows a re-lock only for a playtest finding. Stage 2 is 
 
 For scale, from §5.14, league-wide per season: about **20** blocked field goals, **8** blocked extra points, **10** blocked punts, **51** onside kicks of which **3 or 4** are recovered, and about **590** punt fair catches. Stage 1 is mostly labels on plays that already happen. Stage 2 changes possession on roughly **14** plays a season and moves every canary to do it.
 
-## Sign here
+## Signed 2026-11-19
 
 | | decision | recommendation |
 |---|---|---|
