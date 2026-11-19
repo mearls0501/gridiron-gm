@@ -1,6 +1,6 @@
 # Special-teams tackles
 
-**BUILT 2026-11-19** on Matt's go-ahead ("do the special-teams tackles next"), with the §5.14 rows, the `tackles` field, the proposed pool, no hit, and a separate coverage stream (Decision 8). See `HANDOFF.md` 2026-11-19. The canary re-lock is measured and not signed. The text below is the proposal as written.
+**BUILT 2026-11-19** on Matt's go-ahead ("do the special-teams tackles next"), with the §5.14 rows, the `tackles` field, the proposed pool, no hit, and a separate coverage stream (Decision 8). See `HANDOFF.md` 2026-11-19. Signed by Matt 2026-11-19, canary re-lock included. The text below is the proposal as written.
 
 **UNSIGNED.** Proposal only. This note changes no code, test, `scripts/` file, `docs/baselines.json`, `docs/milestone-reference.json`, or canary. Matt signs any change. No re-lock, no dial retune, no panel.
 

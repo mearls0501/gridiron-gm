@@ -2,18 +2,18 @@
 
 ## 2026-11-19 — Special-teams tackles
 
-Unsigned. Matt asked for the build ("do the special-teams tackles next"). Proposal: `docs/proposal-special-teams-tackles-2026-11-11.md`. The rates are §5.14 of `nfl-reference.md`, traced 2026-11-13. `docs/baselines.json` did not move. No dial, no band, no panel. Four canary literals were re-measured and written into their tests; that re-lock needs Matt's signature.
+Signed by Matt, 2026-11-19, and merged as #257 on his "merge it and mark it signed". Matt asked for the build ("do the special-teams tackles next"). Proposal: `docs/proposal-special-teams-tackles-2026-11-11.md`. The rates are §5.14 of `nfl-reference.md`, traced 2026-11-13. `docs/baselines.json` did not move. No dial, no band, no panel. Four canary literals were re-measured and written into their tests; the signature covers that re-lock. Still owed: a Studio panel (`tails`, `drift`, `careers`) and a check of the four literals on the pinned Node 22.23.4.
 
 A live kickoff or punt return that does not score now credits one tackle to a coverage man on the kicking club, at the traced own-tackle rate: kickoff **2,740 / 3,585**, punt **2,935 / 3,656** (`COVERAGE_TACKLE_CREDIT` in `sim/game.ts`). A touchback, a fair catch, a downed punt and a return touchdown credit nobody.
 
-The proposal's eight decisions, as built. Matt did not rule on them one by one, so each is here to be signed or reversed.
+The proposal's eight decisions, as built. Matt did not rule on them one by one; he signed the build as a whole.
 
 1. **Trace.** Done before this build (§5.14).
 2. **Field.** `tackles`. §5.14 shows the weekly 712.3 includes kick and punt tackles, so the wider sim number is the right comparison.
 3. **Pool.** The depth-chart slots past the starters at LB, S and CB (LB3–4, S3, CB4), weight `max(1, tkl − 34)`. The whole LB, S and CB units only when no backup is dressed. Not traced; a design choice.
 4. **No hit.** A coverage tackle adds no injury exposure.
 5. **Staging.** Landed with the traced rows, not as zero-row plumbing.
-6. **Re-lock.** Measured on this build, Node v22.23.5 (the pin is 22.23.4): `userOffers` seed 42 tag **3242373722 → 4171186477**, FA **691387436 → 108340363**; `trimIdentity` seed 42 opening 2030 **1443 → 1412** cuts, rng **1785272726 → 3165849988**. Not signed. Re-measure on the pinned Node before signing.
+6. **Re-lock.** Measured on this build, Node v22.23.5 (the pin is 22.23.4): `userOffers` seed 42 tag **3242373722 → 4171186477**, FA **691387436 → 108340363**; `trimIdentity` seed 42 opening 2030 **1443 → 1412** cuts, rng **1785272726 → 3165849988**. Signed 2026-11-19 as measured. Not yet re-measured on the pinned Node.
 7. **Return volume.** The 0.62 touchback and 0.55 punt-return shares are unchanged.
 8. **Stream.** A separate per-game coverage stream, not `tackleCreditRng`. The proposal's diff shared the scrimmage stream, which would have re-rolled every later scrimmage credit in the game. With its own stream the scrimmage coins land where they did. The parent stream still moves, through `gameTackles` and the season prior in `tackleDrawWeight`.
 
