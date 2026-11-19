@@ -36,7 +36,7 @@ Shares in that sample: FG 20 / 168 = 0.119 (traced 0.122), XP 18 / 138 = 0.130 (
 
 **Not built** (signed out or Stage 2): blocked punts, onside kicks, kickoff fair catches, block returns, a defensive two-point return, a fair-catch count, an attribute tilt. `blk` is on the game box only; the season stats page does not show it yet.
 
-Ran: `tsc --noEmit` pass; `kickingEvents`, `coverageTackle`, `targetShare`, `playByPlay`, `trimIdentity` and `userOffers` tests pass. The fast gate was still running when this was written.
+Ran: `tsc --noEmit` pass; `kickingEvents`, `coverageTackle`, `targetShare`, `playByPlay`, `trimIdentity` and `userOffers` tests pass. Fast gate (`gate:serial`, this box, Node 22.23.5): **GATE PASS**, **71** metrics within baseline, exit **0**. Not run: `gate:full`, the Studio panel, the browser suite.
 
 ## 2026-11-19 — Kicking-game decisions written up
 
