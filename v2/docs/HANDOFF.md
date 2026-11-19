@@ -1,5 +1,18 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-19 — Onside attempt rate traced (§5.14)
+
+Unsigned. Reference only. Matt asked for it ("do 1 then 2", item 2). `docs/nfl-reference.md` §5.14 gains "Onside attempt rate by situation": onside kicks over kickoffs by a trailing club in the fourth quarter, by clock and deficit, 2021–23. This is the row signed line B3 of `docs/decisions-kicking-game-2026-11-19.md` was waiting for. No code, test, `scripts/` file, `baselines.json` row or canary moved. Nothing is locked or gated.
+
+- Down 1–16 in the last 5:00: **113 / 202 = 0.559**. Last 3:00: **94 / 118 = 0.797**. Last 2:00: **79 / 85 = 0.929**.
+- **The rate is not one number.** Down one score a club kicks deep until about 3:00 (1 of 58 between 5:00 and 3:01) and onside under 2:00 (58 of 60). Down two scores it kicks onside from 5:00 in (46 of 58). A single coin over the last 5:00, which is what B3 recommended, would have the wrong shape. **Stage 2 needs a decision: use the clock-by-deficit table as the attempt rate.** That is a traced table, not a fitted threshold.
+- **Finding, not tuned.** A trailing club down 1–16 kicked off in the last 5:00 0.124 times a team-game in the league. The engine measured 0.090 on 2026-11-11. With traced rates the sim will produce fewer onside kicks than the league's 0.077 a team-game.
+- **The source files changed.** nflverse republished all four play-by-play files; bytes and SHA-256 differ from §5.13. The new files give 153 onside kicks in 2021–23 where §5.14 has 154 (one fewer in 2021), and 2,777 / 2,698 kickoffs in 2021 / 2022 where it has 2,779 / 2,703. Recoveries are unchanged. The older §5.14 rows were not recomputed. New hashes are in the block.
+
+Still missing for Stage 2: the rulebook citation for the onside spot and for how a blocked punt is scored. Not attempted here.
+
+Ran: nothing in the repo. The trace is a one-off pandas script over the four files.
+
 ## 2026-11-19 — Blocks on the season stats page
 
 Unsigned. Display only. Matt asked for it ("do 1 then 2", item 1: finish the Stage 1 loose ends). `app/stats/page.tsx` gains a Blk column on the Defense tab, sortable like the others. Both pages read `blk ?? 0`, so a line built before the field existed shows 0. Nothing in `lib/core`, `scripts/` or `baselines.json` moved.

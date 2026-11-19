@@ -2177,6 +2177,68 @@ touchdown (`own_kickoff_recovery_td` 0). By season: 57 / 56 / 41 / 50
 attempts, 9 / 3 / 2 / 3 recovered. The kicking side is `defteam` on a
 kickoff row; its margin is `-score_differential`.
 
+#### Onside attempt rate by situation — traced 2026-11-19, not locked
+
+Added for kicking-game Stage 2 (`docs/decisions-kicking-game-2026-11-19.md`,
+line B3). The table above counts attempts. This one gives the denominator:
+every kickoff by a trailing club in the fourth quarter, and how many of them
+were onside. Same definitions as above (`kickoff_attempt` 1, onside by `desc`,
+the kicking side is `defteam`, its margin is `-score_differential`, clock is
+`game_seconds_remaining`). 2021–23, REG.
+
+Onside kicks over kickoffs, by clock left and the kicking club's deficit:
+
+| clock left | down 1–8 | down 9–16 | down 17+ |
+|---|---:|---:|---:|
+| 15:00–5:01 | 0 / 219 | 6 / 89 | 10 / 40 |
+| 5:00–3:01 | 1 / 58 | 18 / 26 | 6 / 11 |
+| 3:00–2:01 | 8 / 26 | 7 / 7 | 3 / 11 |
+| 2:00–1:01 | 28 / 29 | 13 / 13 | 2 / 6 |
+| 1:00–0:00 | 30 / 31 | 8 / 12 | 1 / 5 |
+
+Pooled windows, down 1–16:
+
+| window | onside / kickoffs | rate | recovered |
+|---|---:|---:|---:|
+| last 5:00 | 113 / 202 | **0.559** | 9 |
+| last 3:00 | 94 / 118 | **0.797** | 8 |
+| last 2:00 | 79 / 85 | **0.929** | 8 |
+
+What the rows say:
+
+- **One coin over the last 5:00 has the wrong shape.** A club down one score
+  kicks deep until about 3:00 (1 of 58 between 5:00 and 3:01) and kicks onside
+  almost every time under 2:00 (58 of 60). A club down two scores kicks onside
+  from 5:00 in (46 of 58).
+- A club down 17 or more rarely tries (12 of 33 in the last 5:00).
+- 141 of the 153 onside kicks in 2021–23 are in this table. The other 12 were
+  not by a trailing club in the fourth quarter.
+- Volume: a trailing club kicked off in the last 5:00 **235** times in 1,630
+  team-games, **0.144** a team-game; **202** of those were down 1–16, **0.124**.
+  The engine measured 0.090 a team-game for that row on 2026-11-11, before
+  #257. The engine has fewer late trailing kickoffs than the league. A finding,
+  not tuned.
+- 2024, for reference only (a different rule: the kick must be declared): 40 of
+  79 in the last 5:00 down 1–16, 31 of 38 in the last 2:00.
+
+**Files.** The four nflverse files were downloaded again on 2026-11-19 and
+have been republished since the block above was written. Their bytes and
+SHA-256 differ from the §5.13 table:
+
+| file | bytes | SHA-256 |
+|---|---:|---|
+| play_by_play_2021.csv.gz | 19,537,756 | `c4d090bad9c7a73c43be227aad27f1f0c2ce08a73f213447ba4cce9d61fc92e6` |
+| play_by_play_2022.csv.gz | 19,589,505 | `b5ed86bb48777dbbad57609dcd3203237d913c5fd6cd8de9d1712e5a3538dcd7` |
+| play_by_play_2023.csv.gz | 19,668,734 | `a5d1e76aa3f3857b356edd9de33cefb73bfd23f1cfbf3d5354f7a69e70fe80e9` |
+| play_by_play_2024.csv.gz | 19,570,836 | `04a20f23586401dc33f938d5f6c38447f4bf939c61a2308290862a0c4d0ce977` |
+
+Against the block above, the new files give 2,777 / 2,698 / 2,698 / 2,803
+kickoffs (was 2,779 / 2,703 / 2,698 / 2,803), 56 / 56 / 41 / 50 onside kicks
+(was 57 / 56 / 41 / 50) and 9 / 3 / 2 / 3 recovered (unchanged). 2021–23 is
+**153** attempts, **14** recovered, where the block above has 154 and 14. The
+rows above were not recomputed. The one-kick difference is the republished
+2021 file, not a change of definition.
+
 #### Punts (2021–24 pooled)
 
 No punt rule changed in the window that the rows show; by-season rates are
