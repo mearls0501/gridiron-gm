@@ -33,7 +33,7 @@ Mean **656.2 → 699.5**, +43.3 a club-season against the traced 44.6. The real 
 
 Tests. New `lib/core/sim/coverageTackle.test.ts`, registered in `package.json` and in `scripts/gate.ts` FAST and FULL (the #47 convention): the §5.14 counts; a return touchdown credits nobody; zero rows credit nobody; credits never exceed the live returns a club covered; 482 credits on 609 returns (0.791) over 96 games, all 482 to depth-chart backups (LB 249, S 121, CB 112); in the 95 of 96 games whose snaps are unchanged, team tackles equal scrimmage credits plus coverage credits; a linebacker makes coverage stops in the third slot and none in the first. `targetShare.test.ts` asserted that a defence's tackles never exceed the offence's live stops. That guard now subtracts coverage credits through the observer; the claim about scrimmage credits is unchanged.
 
-Ran: `tsc --noEmit` pass; `coverageTackle`, `tackleShare`, `targetShare`, `playByPlay`, `trimIdentity` and `userOffers` tests pass.
+Ran: `tsc --noEmit` pass; `coverageTackle`, `tackleShare`, `targetShare`, `playByPlay`, `trimIdentity` and `userOffers` tests pass. Fast gate (`gate:serial`, this box, Node 22.23.5): **GATE PASS**, **71** metrics within baseline, exit **0**. `tails.ts 16` (16 seasons, one seed): 15+ tackle games **4** of 4,352 team-games against the real **3** of 1,087 (p = 0.148, ok); 20+ tackle games **0**; 150+ and 180+ tackle seasons **0**; best game **15** tackles (real 19), best season **133** (real 128); `unmatchedTackleCategories` **0**; `milestonesOff` **9** (cap 16). Not run: `gate:full`, the Studio panel, the browser suite.
 
 ## 2026-11-19 — Return yards on the play-by-play row
 
