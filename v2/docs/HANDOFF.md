@@ -2,7 +2,7 @@
 
 ## 2026-11-19 — Kicking-game Stage 1: blocked kicks and fair catches, as labels
 
-Unsigned build on signed decisions. Matt signed lines A–C of `docs/decisions-kicking-game-2026-11-19.md` and asked for the build ("sign all six and build stage 1"). `docs/baselines.json` did not move. No canary moved. No dial, no band, no panel.
+Signed by Matt, 2026-11-19, and merged as #258 on his "merge it and mark it signed". Matt signed lines A–C of `docs/decisions-kicking-game-2026-11-19.md` and asked for the build ("sign all six and build stage 1"). `docs/baselines.json` did not move. No canary moved. No dial, no band, no panel.
 
 **What it does.** Three labels on plays the engine already rolls, at the §5.14 counts:
 
