@@ -2,7 +2,7 @@
 
 ## 2026-11-18 — Return yards on fumble returns and pick-sixes
 
-Unsigned. Matt asked for the fix ("fix the return yards on fumble returns and pick-sixes"). The two defects are the ones reported in `docs/proposal-phase1-play-leftovers-2026-11-11.md` (Packet B review caveat). Nothing in `scripts/` or `baselines.json` moved. No dial, no re-lock, no panel.
+Signed by Matt, 2026-11-19. **#254 is merged**: squash `731c2c1` on main, on Matt's "merge it" (2026-11-18). Matt asked for the fix ("fix the return yards on fumble returns and pick-sixes"). The two defects are the ones reported in `docs/proposal-phase1-play-leftovers-2026-11-11.md` (Packet B review caveat). Nothing in `scripts/` or `baselines.json` moved. No dial, no re-lock, no panel.
 
 - **Fumble return.** `defensiveTd` was handed `100 - spot`. `spot` is offence-relative, so the defence is `spot` yards from the end zone. A fumble at the offence's 9 printed a 91-yard return. It now prints 9.
 - **Pick-six.** The drawn return went into `intYds`, and `defensiveTd` then added `max(return, 20)` to the same line again. Neither figure looked at the field. The return is now `max(drawn return, line of scrimmage)`: the catch is at the line, or deeper when the drawn return is longer. It is booked once, in `defensiveTd`. The floor of 20 is gone. An interception that is not returned for a score is unchanged, as is the catch-point pick.
