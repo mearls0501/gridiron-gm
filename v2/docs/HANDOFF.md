@@ -1,5 +1,24 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-19 — Onside attempt rate traced (§5.14)
+
+Signed by Matt, 2026-11-19, and merged as #259 on his "merge it and mark it signed, use the table". Reference only. Matt asked for it ("do 1 then 2", item 2). `docs/nfl-reference.md` §5.14 gains "Onside attempt rate by situation": onside kicks over kickoffs by a trailing club in the fourth quarter, by clock and deficit, 2021–23. This is the row signed line B3 of `docs/decisions-kicking-game-2026-11-19.md` was waiting for. No code, test, `scripts/` file, `baselines.json` row or canary moved. Nothing is locked or gated.
+
+- Down 1–16 in the last 5:00: **113 / 202 = 0.559**. Last 3:00: **94 / 118 = 0.797**. Last 2:00: **79 / 85 = 0.929**.
+- **The rate is not one number.** Down one score a club kicks deep until about 3:00 (1 of 58 between 5:00 and 3:01) and onside under 2:00 (58 of 60). Down two scores it kicks onside from 5:00 in (46 of 58). A single coin over the last 5:00, which is what B3 recommended, would have the wrong shape. **Decided by Matt, 2026-11-19 ("use the table"): Stage 2 rolls the onside attempt at the clock-by-deficit rates in that table.** This replaces the single coin in signed line B3. It is a traced table, not a fitted threshold.
+- **Finding, not tuned.** A trailing club down 1–16 kicked off in the last 5:00 0.124 times a team-game in the league. The engine measured 0.090 on 2026-11-11. With traced rates the sim will produce fewer onside kicks than the league's 0.077 a team-game.
+- **The source files changed.** nflverse republished all four play-by-play files; bytes and SHA-256 differ from §5.13. The new files give 153 onside kicks in 2021–23 where §5.14 has 154 (one fewer in 2021), and 2,777 / 2,698 kickoffs in 2021 / 2022 where it has 2,779 / 2,703. Recoveries are unchanged. The older §5.14 rows were not recomputed. New hashes are in the block.
+
+Still missing for Stage 2: the rulebook citation for the onside spot and for how a blocked punt is scored. Not attempted here.
+
+Ran: nothing in the repo. The trace is a one-off pandas script over the four files.
+
+## 2026-11-19 — Blocks on the season stats page
+
+Signed by Matt, 2026-11-19, and merged as #259 on his "merge it and mark it signed, use the table". Display only. Matt asked for it ("do 1 then 2", item 1: finish the Stage 1 loose ends). `app/stats/page.tsx` gains a Blk column on the Defense tab, sortable like the others. Both pages read `blk ?? 0`, so a line built before the field existed shows 0. Nothing in `lib/core`, `scripts/` or `baselines.json` moved.
+
+Ran: `tsc --noEmit` pass; `next build` pass; the browser suite (`scripts/e2e.mjs`) **E2E PASSED**. Looked at in a browser on a fresh franchise: the Defense tab shows the Blk column with counts after ten weeks (one linebacker at 2), and the game box's Player stats view shows the Blk header. No box with a block in it turned up in the 13 user games opened, so a non-zero Blk cell on the game box was not seen.
+
 ## 2026-11-19 — Kicking-game Stage 1: blocked kicks and fair catches, as labels
 
 Signed by Matt, 2026-11-19, and merged as #258 on his "merge it and mark it signed". Matt signed lines A–C of `docs/decisions-kicking-game-2026-11-19.md` and asked for the build ("sign all six and build stage 1"). `docs/baselines.json` did not move. No canary moved. No dial, no band, no panel.
@@ -34,7 +53,7 @@ Shares in that sample: FG 20 / 168 = 0.119 (traced 0.122), XP 18 / 138 = 0.130 (
 
 **Canaries.** Unmoved, as the design requires: `trimIdentity` 1412 cuts, rng 3165849988; `userOffers` passes on its locked literals.
 
-**Not built** (signed out or Stage 2): blocked punts, onside kicks, kickoff fair catches, block returns, a defensive two-point return, a fair-catch count, an attribute tilt. `blk` is on the game box only; the season stats page does not show it yet.
+**Not built** (signed out or Stage 2): blocked punts, onside kicks, kickoff fair catches, block returns, a defensive two-point return, a fair-catch count, an attribute tilt. `blk` was on the game box only; the season stats page got it the same day (entry above).
 
 Ran: `tsc --noEmit` pass; `kickingEvents`, `coverageTackle`, `targetShare`, `playByPlay`, `trimIdentity` and `userOffers` tests pass. Fast gate (`gate:serial`, this box, Node 22.23.5): **GATE PASS**, **71** metrics within baseline, exit **0**. Not run: `gate:full`, the Studio panel, the browser suite.
 

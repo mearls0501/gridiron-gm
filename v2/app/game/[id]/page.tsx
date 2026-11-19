@@ -158,7 +158,7 @@ const GROUPS: Group[] = [
         <Cell>{s.passDef}</Cell>
         <Cell>{s.ff}</Cell>
         <Cell>{s.fr}</Cell>
-        <Cell>{s.blk}</Cell>
+        <Cell>{s.blk ?? 0}</Cell>
         <Cell>{s.defTd}</Cell>
       </>
     ),

@@ -271,6 +271,7 @@ export default function StatsPage() {
       { label: "INT", get: (l) => l.ints },
       { label: "PD", get: (l) => l.passDef },
       { label: "FF", get: (l) => l.ff },
+      { label: "Blk", get: (l) => l.blk ?? 0 },
     ],
     kicking: [
       { label: "FGM/FGA", get: (l) => l.fgm },
@@ -356,6 +357,7 @@ export default function StatsPage() {
             <Cell>{l.ints}</Cell>
             <Cell>{l.passDef}</Cell>
             <Cell>{l.ff}</Cell>
+            <Cell>{l.blk ?? 0}</Cell>
           </>
         );
       case "kicking":
