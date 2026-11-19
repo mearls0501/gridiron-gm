@@ -1,5 +1,22 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-19 — Kicking-game decisions written up
+
+Unsigned. Docs only. Matt asked for it ("write up the kicking-game decisions"). New file: `docs/decisions-kicking-game-2026-11-19.md`. No code, test, `scripts/` file, `baselines.json` row, reference row or canary moved.
+
+It is the short form of `docs/proposal-kicking-game-events-2026-11-11.md`, read against §5.14 and `main` at `937db70`. Six lines to sign:
+
+- **A. Era.** 2021–22 for kickoffs, the 2021–23 row for onside (14 / 154). No kickoff fair catch.
+- **B1. Stage 1.** Labels only: blocked FG (78 / 639 of non-made), blocked XP (31 / 247), punt fair catch (2,352 / 4,255 of unreturned), a `blk` stat. No canary moves. Can be built before the Studio panel.
+- **B2. Stage 2 scope.** Blocked punts (42 / 8,587; 3 safeties) and onside kicks. No block-return touchdown (0 of 78 and 0 of 42 traced), no defensive two-point return, no user prompt, no attribute tilt.
+- **B3. Onside attempt.** Not buildable yet: §5.14 has attempts (0.077 a team-game) but no rate over qualifying kickoffs. Trace that row and roll a coin; do not fit a clock threshold.
+- **B4. Blocked punt.** Counts as a punt, not as a turnover. Rule geometry and the punter's yards still need a rulebook citation in §4.
+- **C. Re-lock.** Freeze exception for the four canary literals only, after the owed Studio panel, measured on Node 22.23.4.
+
+Stale in the old proposal: its parity literal and its four canary values predate #257.
+
+Ran: nothing. No code changed.
+
 ## 2026-11-19 — Special-teams tackles
 
 Signed by Matt, 2026-11-19, and merged as #257 on his "merge it and mark it signed". Matt asked for the build ("do the special-teams tackles next"). Proposal: `docs/proposal-special-teams-tackles-2026-11-11.md`. The rates are §5.14 of `nfl-reference.md`, traced 2026-11-13. `docs/baselines.json` did not move. No dial, no band, no panel. Four canary literals were re-measured and written into their tests; the signature covers that re-lock. Still owed: a Studio panel (`tails`, `drift`, `careers`) and a check of the four literals on the pinned Node 22.23.4.
