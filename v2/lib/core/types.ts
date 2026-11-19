@@ -680,6 +680,8 @@ export interface PlayEvent {
   kickerId?: number;
   /** Interception or fumble returned for a touchdown on this snap: the returner. */
   returnerId?: number;
+  /** The length of that return. Absent on a box saved before the field existed. */
+  returnYards?: number;
   homeScore: number;
   awayScore: number;
 }

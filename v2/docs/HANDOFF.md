@@ -1,5 +1,18 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-19 — Return yards on the play-by-play row
+
+Signed by Matt, 2026-11-19, and merged as #256 on his "merge it and mark it signed". Matt asked for it ("do the return-yards display"). This is the `returnYards` field that Packet B left out on 2026-11-13 because the distances behind it were wrong. #254 fixed them. Nothing in `scripts/` or `baselines.json` moved. No dial, no re-lock, no panel.
+
+- `PlayEvent` gains optional `returnYards`, set on the same int/fumble row that carries `returnerId`. It is the number the scoring line already prints.
+- `formatPlay` prints "Brady pass intercepted — Smith returns it 40 yd for a TD". A box saved before the field existed has no `returnYards` and keeps the old text, "… returns it for a TD".
+
+No draw moves. 300 games, seed 12345, `Rng(999)`: rng **2955187877** and every summed stat are identical to the #254 tree. Save cost is one short number on each defensive-TD row of a persisted snap log.
+
+`playByPlay.test.ts` asserts the row's `returnYards` equals the yards on the scoring line for every defensive TD in its 120-game sample, and both display strings. Ran on Node v22.23.5 (the pin is 22.23.4): `tsc --noEmit` pass, `playByPlay.test.ts` pass, `liveGame.test.ts` pass, `next build` pass, `node scripts/e2e.mjs` passed. The gate, the full `npm test` and `e2e-interact.mjs` were not run on this change.
+
+`ROADMAP.md` was brought up to 2026-11-19 in the same change: the `93cfb23` panel and its signatures, the canaries as #248 left them, and the two rows waiting on a re-lock.
+
 ## 2026-11-18 — Return yards on fumble returns and pick-sixes
 
 Signed by Matt, 2026-11-19. **#254 is merged**: squash `731c2c1` on main, on Matt's "merge it" (2026-11-18). Matt asked for the fix ("fix the return yards on fumble returns and pick-sixes"). The two defects are the ones reported in `docs/proposal-phase1-play-leftovers-2026-11-11.md` (Packet B review caveat). Nothing in `scripts/` or `baselines.json` moved. No dial, no re-lock, no panel.

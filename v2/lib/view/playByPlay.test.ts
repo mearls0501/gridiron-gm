@@ -294,6 +294,7 @@ console.log("ok    playByPlay — SD 32, NYS 29 · Loss (OT)");
       // the line, a pick at the line or deeper.
       const desc = r.box.scoringPlays.filter((s) => /(interception|fumble) return TD/.test(s.desc))[returnedHere++].desc;
       const yds = Number(/(\d+) yd (interception|fumble) return TD/.exec(desc)![1]);
+      assert.equal(e.returnYards, yds, "the snap row carries the return the scoring line prints");
       if (e.result === "fumble") {
         assert.ok(yds >= e.yardLine && yds <= e.yardLine + 3, `fumble return ${yds} from the ${e.yardLine}`);
       } else {
@@ -322,6 +323,14 @@ console.log("ok    playByPlay — SD 32, NYS 29 · Loss (OT)");
   assert.equal(
     formatPlay({ ...base, kind: "run", result: "fumble", playerId: 1, returnerId: 2 } as PlayEvent, names),
     "Brady run, fumble — Smith returns it for a TD",
+  );
+  assert.equal(
+    formatPlay({ ...base, kind: "pass", result: "int", playerId: 1, returnerId: 2, returnYards: 40 } as PlayEvent, names),
+    "Brady pass intercepted — Smith returns it 40 yd for a TD",
+  );
+  assert.equal(
+    formatPlay({ ...base, kind: "run", result: "fumble", playerId: 1, returnerId: 2, returnYards: 41 } as PlayEvent, names),
+    "Brady run, fumble — Smith returns it 41 yd for a TD",
   );
   assert.equal(
     formatPlay({ ...base, kind: "kickoff", result: "touchback", kickerId: 3 } as PlayEvent, names),
