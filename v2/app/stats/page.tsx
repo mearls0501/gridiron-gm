@@ -91,6 +91,23 @@ const PLAYER_TABS = Object.keys(CATEGORY) as PlayerTab[];
 
 type SortDir = "asc" | "desc";
 
+/**
+ * Leader-table column sort. First click is descending on every column, and
+ * that direction is a plain numeric sort: the high totals lead.
+ *
+ * Ascending orders recorded totals from low to high, then the zeros. A zero
+ * on a counting stat is "none", and on a sparse column — blocks, forced
+ * fumbles, scores — that is most of the qualified list. Sorting those rows
+ * first ties them by player id, which stacks one club at the top and reads
+ * as unsorted until you scroll past the zeros. Volume columns are unaffected
+ * in practice: the table already drops players with none of the category's
+ * own stat, so their headline number is never zero.
+ */
+function compareLeader(a: number, b: number, dir: SortDir): number {
+  if (dir === "asc" && (a === 0) !== (b === 0)) return a === 0 ? 1 : -1;
+  return dir === "desc" ? b - a : a - b;
+}
+
 interface TeamCol {
   key: string;
   label: string;
@@ -239,7 +256,7 @@ export default function StatsPage() {
   }
 
   // Every column carries its own accessor so any header can sort the table.
-  const COLS: Record<PlayerTab, { label: string; get: (l: SeasonStatLine) => number }[]> = {
+  const COLS: Record<PlayerTab, { label: string; hint?: string; get: (l: SeasonStatLine) => number }[]> = {
     passing: [
       { label: "Cmp/Att", get: (l) => l.passCmp },
       { label: "Pct", get: cmpPct },
@@ -271,7 +288,7 @@ export default function StatsPage() {
       { label: "INT", get: (l) => l.ints },
       { label: "PD", get: (l) => l.passDef },
       { label: "FF", get: (l) => l.ff },
-      { label: "Blk", get: (l) => l.blk ?? 0 },
+      { label: "Blk", hint: "Blocked kicks (FG, PAT)", get: (l) => l.blk ?? 0 },
     ],
     kicking: [
       { label: "FGM/FGA", get: (l) => l.fgm },
@@ -306,8 +323,12 @@ export default function StatsPage() {
     const sorted =
       pSort !== null && sortCols[pSort]
         ? base.slice().sort((a, b) => {
-            const d = sortCols[pSort].get(b.line) - sortCols[pSort].get(a.line);
-            return (pDir === "desc" ? d : -d) || a.player.id - b.player.id;
+            const d = compareLeader(
+              sortCols[pSort].get(a.line),
+              sortCols[pSort].get(b.line),
+              pDir,
+            );
+            return d || a.player.id - b.player.id;
           })
         : base;
     return limit > 0 ? sorted.slice(0, limit) : sorted;
@@ -605,26 +626,30 @@ export default function StatsPage() {
                   "Rk",
                   L("Player"),
                   "GP",
-                  ...COLS[playerTab!].map((c, ci) => (
-                    <button
-                      key={c.label}
-                      onClick={() => {
-                        if (pSort === ci) setPDir(pDir === "desc" ? "asc" : "desc");
-                        else {
-                          setPSort(ci);
-                          setPDir("desc");
-                        }
-                      }}
-                      className={cx(
-                        "uppercase tracking-wider cursor-pointer hover:text-[var(--color-text)]",
-                        pSort === ci ? "text-[var(--color-accent)]" : ""
-                      )}
-                      title={`Sort by ${c.label}`}
-                    >
-                      {c.label}
-                      {pSort === ci ? (pDir === "desc" ? " ↓" : " ↑") : ""}
-                    </button>
-                  )),
+                  ...COLS[playerTab!].map((c, ci) => {
+                    const tip = c.hint ? `${c.hint}. Sort by ${c.label}` : `Sort by ${c.label}`;
+                    return (
+                      <button
+                        key={c.label}
+                        onClick={() => {
+                          if (pSort === ci) setPDir(pDir === "desc" ? "asc" : "desc");
+                          else {
+                            setPSort(ci);
+                            setPDir("desc");
+                          }
+                        }}
+                        className={cx(
+                          "uppercase tracking-wider cursor-pointer hover:text-[var(--color-text)]",
+                          pSort === ci ? "text-[var(--color-accent)]" : ""
+                        )}
+                        title={tip}
+                        aria-label={c.hint ? tip : undefined}
+                      >
+                        {c.label}
+                        {pSort === ci ? (pDir === "desc" ? " ↓" : " ↑") : ""}
+                      </button>
+                    );
+                  }),
                 ]}
               >
                 {rows.map((r, i) => (
