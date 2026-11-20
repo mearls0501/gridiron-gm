@@ -17,7 +17,7 @@ import { SnapCall } from "@/lib/core/types";
 import { playerMap } from "@/lib/core/select";
 import { PlayArt } from "@/components/PlayArt";
 import {
-  clockLabel, downDistance, driveBar, driveResultLabel, driveResultTone,
+  clockLabel, downDistance, driveBar, driveResultLabelFor, driveResultTone,
   formatVisiblePlay, playedResultLine, quarterLabel, spotLabel, visiblePlays, wentToOvertime,
 } from "@/lib/view/playByPlay";
 
@@ -426,7 +426,7 @@ export default function PlayPage() {
                       <span className="text-xs tnum text-[var(--color-muted)]">
                         {d.plays} · {d.yards > 0 ? "+" : ""}{d.yards}
                       </span>
-                      <Pill tone={driveResultTone(d.result)}>{driveResultLabel(d.result)}</Pill>
+                      <Pill tone={driveResultTone(d.result)}>{driveResultLabelFor(d, { plays: view.plays, drives: view.drives })}</Pill>
                     </span>
                   </div>
                   <div className="mt-1 h-1.5 rounded-full bg-[var(--color-surface-3)] relative overflow-hidden">
