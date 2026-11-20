@@ -17,7 +17,7 @@ import {
   Card, Cell, Empty, Pill, PlayerLink, PosBadge, Row, Stat, Table, Tabs, TeamMark, cx,
 } from "@/components/ui";
 import {
-  clockLabel, downDistance, driveBar, drivePlays, driveResultLabel, driveResultTone,
+  clockLabel, downDistance, driveBar, drivePlays, driveResultLabelFor, driveResultTone,
   formatVisiblePlay, quarterLabel, spotLabel, visiblePlays,
 } from "@/lib/view/playByPlay";
 
@@ -368,6 +368,11 @@ export default function GamePage() {
   const periodLabels = Array.from({ length: periods }, (_, i) => quarterLabel(i + 1));
   const pbpLinked = !!box.plays?.length;
   const hasDrives = !!(box.drives?.length || box.plays?.length);
+  const driveSource = {
+    plays: box.plays,
+    scoringPlays: box.scoringPlays,
+    drives: box.drives,
+  };
   const shown: BoxView = !hasDrives && view === "drives" ? "summary" : view;
 
   function jumpToDrive(n: number) {
@@ -652,6 +657,7 @@ export default function GamePage() {
                 const t = state.teams[d.offenseId];
                 const bar = driveBar(d);
                 const tone = driveResultTone(d.result);
+                const tag = driveResultLabelFor(d, driveSource);
                 const selected = pbpLinked && selectedDrive === d.n;
                 const row = (
                   <>
@@ -668,7 +674,7 @@ export default function GamePage() {
                         <span className="text-xs tnum text-[var(--color-muted)]">
                           {d.plays} play{d.plays === 1 ? "" : "s"} · {d.yards > 0 ? "+" : ""}{d.yards}
                         </span>
-                        <Pill tone={tone}>{driveResultLabel(d.result)}</Pill>
+                        <Pill tone={tone}>{tag}</Pill>
                       </span>
                     </div>
                     <div className="mt-1.5 h-2 rounded-full bg-[var(--color-surface-3)] relative overflow-hidden">
@@ -706,7 +712,7 @@ export default function GamePage() {
                     )}
                     aria-current={selected ? "true" : undefined}
                     aria-controls={pbpDriveId(d.n)}
-                    aria-label={`Drive ${d.n}, ${t.abbr}, ${driveResultLabel(d.result)}, ${d.plays} plays. Show snaps in play by play`}
+                    aria-label={`Drive ${d.n}, ${t.abbr}, ${tag}, ${d.plays} plays. Show snaps in play by play`}
                     data-drive-n={d.n}
                     data-selected={selected ? "true" : "false"}
                     onClick={() => jumpToDrive(d.n)}
@@ -756,7 +762,7 @@ export default function GamePage() {
                         )}
                       >
                         <TeamMark team={t} size={16} />
-                        Drive {d.n} · {t.abbr} · {driveResultLabel(d.result)}
+                        Drive {d.n} · {t.abbr} · {driveResultLabelFor(d, driveSource)}
                       </div>
                       {snaps.map((row, i) => (
                         <div key={`${d.n}-${i}`}>
