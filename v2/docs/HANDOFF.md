@@ -184,6 +184,25 @@ Seeds 42, 7, and 1, thirty season-loops each (2026 through the 2056 preseason), 
 
 No disagreement with the filter. The gate was not re-run on this head.
 
+## 2026-11-15 — Panel note brought up to main `5b922ec`
+
+**Docs only.** Matt signed (a), (b), and (c) on 2026-11-15, 4:29 PM EST, recorded below. This draft is not a merge. No code, test, `scripts/`, `baselines.json`, re-lock, or dial. The calibration freeze stands. Full note: `docs/panel-a453c24-investigation.md`, the section "Status on main `5b922ec`".
+
+The `a453c24` findings stay in that note. Against current main:
+
+- `trimIdentity` on `5b922ec` locks **1443** cuts, rng **1785272726**. That is the 13th re-lock since the #218 hoist (1506 / 2450416366). The Studio has read this test once, at `a453c24`, and got 1564 against the then-lock 1587. The current literal has not been read on the Studio, and neither has any of the 12 re-locks after #222.
+- This VM is Linux x64, Node 22.23.4 (V8 12.4.254.21-node.57, ICU 78.3). `npx tsc --noEmit` exited 0. `npm test` exited 0. The trim line was `ok    trim identity — seed 42 opens 2030, 1443 cuts, rng 1785272726`. A read-only trace of the same walk printed `cuts 1443` and `rng=1785272726`, and the id list equalled `CUTS`.
+- The same test file on Node 24.22.1 (V8 13.6.233.17-node.58, ICU 78.3), same machine and same commit, exited 1: `cut count 1423` against 1443. The same trace script printed `cuts 1423` and `rng=3000811523`. The two traces matched through the 2026 draft step and differed on the next line, with the parent rng still equal. `Math.pow` over 200,000 inputs hashes differently on the two Nodes (`d029b384abaa89d69799538968ba17a5` on 22.23.4, `444c7b55d5286c8b394fa0f71da211b8` on 24.22.1). `exp`, `log`, `cos`, `sqrt`, and `localeCompare` matched. When this entry was written the repo had no `.nvmrc`, no `.node-version`, and no `engines` field. The re-lock commits do not name a Node version. The runs in the panel note that name a version name 22.23.4.
+- #235 (`8ac573b`) is on main. `coverAfterCarryover` still restructures before `rewriteToMinimum`. The ten-season run with no bargain, and Baltimore opening 2033 with 69 active, is the `61b3a70` reading below. It was not re-run at `5b922ec`. `spendToFloor` still picks from every body on the club, practice squad included. The fix is draft #248. It is not merged.
+- Three read-only Studio checks are in the note, for a detached worktree of `origin/main`. They do not run the gate and they do not write a tracked file or `baselines.json`. Matt is running them (2026-11-15). The results are not in this note.
+
+**Signed by Matt, 2026-11-15, 4:29 PM EST.**
+
+- **(a) Accepted.** Seed-1 coherence 82.07 at `a453c24` (119 of 145) is noise. No change. Not re-measured on `5b922ec`.
+- **(b) The $0.9M bargain class is treated as fixed by #235**, pending the next Studio panel. The evidence remains the one `61b3a70` ten-season run. This does not sign #248, and it does not say the ten-season book was re-read at `5b922ec`.
+- **(c) Pin Node 22.23.4.** `v2/.nvmrc` containing `22.23.4`, and `v2/package.json` `"engines": { "node": "22.23.4" }`. Not in this draft. [#252](https://github.com/mearls0501/gridiron-gm/pull/252) applies those two files. No re-lock.
+- **(d)** Matt is running the three read-only Studio checks. Results come later.
+
 ## 2026-11-14 — Carryover: CPU clubs budget against half of it; the bank ceiling is 8%
 
 Asked for by Matt, 2026-11-14 ("investigate why clubs enter the new year over the cap", "merge the carryover fix once it passes", "do A at 8%", "ship the 8% ceiling"). Nothing in `scripts/` or `baselines.json` moved.
@@ -313,6 +332,14 @@ Validation on this VM:
 - `npx tsc --noEmit` — pass.
 - All 75 files in the `npm test` chain — pass.
 - `npm run gate` (fast tier) — **GATE PASS**, 71 metrics within baseline.
+
+## 2026-11-14 — Main `61b3a70` on the VM: bargains gone, one roster at 69
+
+**UNSIGNED.** Docs only, read-only replays on a Linux x64 VM. Matt asked for both runs. Detail and the reference trace: the addendum and Appendix C of `docs/panel-a453c24-investigation.md`.
+
+- `trimIdentity` passes on the VM at 1530 / 3780634271. That was the lock at `61b3a70`. It is not the lock now; see the 2026-11-15 entry. Every re-lock since #222 was measured on a VM. The Studio had read the test once, at `a453c24` (1564 against 1587), and had not read any later literal. The 2026-11-12 entry's first disagreement still stands.
+- `verify.ts 10`, seed 20260727: **1062/1063**. No minimum-rewrite bargain in ten seasons, against four failed checks at `b5c2a21`. #235's restructure-first cover holds on this machine.
+- **New.** Baltimore, CPU, opens 2033 with **69** active. After the roll, `spendLegalCpuBackToFloor` calls `spendToFloor`, which picks its worst-at-position from every body on the club, practice squad included, cuts him, and signs an active replacement. Sixteen swaps, 53 + 16. Nothing trims after it. Proposed, not built: have `spendToFloor` replace active players only. It may move the seed-42 fingerprints.
 
 ## 2026-11-14 — Retirement accelerates the remaining bonus, not the guaranteed base
 
@@ -503,6 +530,24 @@ Matt asked for this on 2026-11-13 ("do the phase 1 leftovers next"). The recomme
 - **C + D1.** `lib/view/playArt.ts` and `components/PlayArt.tsx` draw a field strip from the event: line of scrimmage, line to gain, end spot, and a glyph. No formation. It shows in the `/play` Last snap cards and on a clicked `/game/[id]` play-by-play row. Before the first snap, `/play` shows the opening kickoff with its kicker. The engine still opens on a touchback (D2 deferred).
 - **E3 (P5).** `dropCpuPlays` at the top of `simulateWeek` and `simulatePlayoffRound`. The week engine attaches the engine's `plays` to CPU boxes. A CPU box keeps its snap log while its week is the latest played. `simulateGame` still does not persist CPU logs. `scripts/e2e-desks.mjs` `checkPhase1BoxScores` now accepts a latest-week CPU log and fails a kept earlier-week one (the signed `scripts/` edit). The save cost was estimated at about +0.40 MB mid-season and about +0.03 MB at recap; not re-measured on `drift`.
 - Tests: `liveGame.test.ts` (stale key, legacy save, seal view), `playByPlay.test.ts` (P2 order, kicker, golden lines, P5 window, codec), and new `lib/view/playArt.test.ts`, registered in `package.json` and as `playart` in both gate tiers.
+
+## 2026-11-12 — Panel `a453c24`: GATE FAIL 4, read-only findings
+
+**UNSIGNED.** Docs only. No code, test, `scripts/`, `baselines.json`, re-lock, or dial. Full note: `docs/panel-a453c24-investigation.md`. The Studio log was not in the workspace; replays are from a Linux x64 VM.
+
+Studio `gate:full:serial`, 5 seeds, main `a453c24` (#222). Passed: `leadTackles` 111.2, `fgPct` 83.77, `staff.problems` 0, `milestonesOff` 10.0, `p0Failures` 0, drift, determinism, and the seed-42 `userOffers` pair. Failed: `trimidentity`, `verify` (exit and `verify.failures` 4), and `coherence` (seed 1).
+
+**Disagreements with signed packets.**
+
+1. **The signed `trimIdentity` re-locks are one machine's numbers.** 1587 / 19218870 (#222) is exactly what `a453c24` produces on a Linux x64 VM, and the lock head `0200ceb` has the same tree as `a453c24`. The Studio reads 1564 from that same code. It is not the camp nudge (1653 with it on) and not the gate's entry point. #229's 1600 / 2524091302 was measured the same way and will fail on the Studio for the same reason. I do not agree that either literal is a lock on the game. Each is a lock on the game as one kind of machine plays it after the first offseason.
+2. **"This VM has diverged from the Studio" is a determinism gap, not a VM quirk.** Three earlier panel notes recorded the same same-commit split on `verify` seed `20260727` and moved on. Year 0 agrees across the machines: `userOffers` held, and coherence on the VM reproduces the Studio's seed-1 82.07 and panel mean 88.12 at `a453c24`, and all five of its `ddc62bd` readings at `b5c2a21`. Something after the first free agency does not. `determinism` cannot see it because it compares a machine with itself. The cause is not found. The note has two probes for the Studio that would name the first step that differs; they need Matt's yes.
+3. **Sanchez was not one miss.** The accepted Sanchez line is the first of four failed bargain checks (five players) in the ten-season `verify` at `b5c2a21` on the VM, all post-carryover minimum rewrites. The five-season run stops before the other three. The Studio's four at `a453c24` (Ingersoll II, Moore II, Rodriguez, Grimaldi) are the same check with the same $0.9M hit. #222 changed the names, not the mechanism; the class is #214's. Whether accepting Sanchez accepted the class is Matt's call.
+
+**Coherence seed 1, 82.07.** Reproduced: 119 of 145. Same seed before #222: 89.61. Four seeds are inside and the mean rose from 87.65 to 88.12. The 26 unexplained games are the volume-without-a-talent-label shape of the seed-2 note. Recommend the same acceptance. Third panel running with one seed under 85, a different seed each time.
+
+**VM only.** The ten-season `verify` at `a453c24` on the VM also fails "healthy starters play a full season" once (2032, 55 of 442, 12.4% against 12%). It is not on the Studio summary. Not chased.
+
+**Not done.** An arm64 Node under emulation was refused by the session's permission check. No other Node major was tried. No Studio job was started. A Node 24.22.1 reading of the later lock is in the 2026-11-15 entry.
 
 ## 2026-11-12 — Tag-window residuals: void bonus and the Tag button
 
