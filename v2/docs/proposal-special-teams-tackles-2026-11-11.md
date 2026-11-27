@@ -1,5 +1,7 @@
 # Special-teams tackles
 
+**BUILT 2026-11-19** on Matt's go-ahead ("do the special-teams tackles next"), with the §5.14 rows, the `tackles` field, the proposed pool, no hit, and a separate coverage stream (Decision 8). See `HANDOFF.md` 2026-11-19. Signed by Matt 2026-11-19, canary re-lock included. The text below is the proposal as written.
+
 **UNSIGNED.** Proposal only. This note changes no code, test, `scripts/` file, `docs/baselines.json`, `docs/milestone-reference.json`, or canary. Matt signs any change. No re-lock, no dial retune, no panel.
 
 **Traced 2026-11-13:** `docs/nfl-reference.md` §5.14 now holds the weekly 712.3 already includes 44.6 kick/punt tackles a club-season (scrimmage-only 667.7), and the own-tackle rate on a live return. The trace blocker below is cleared; the rest of this note is unchanged.

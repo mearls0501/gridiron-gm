@@ -1,8 +1,8 @@
 # Gridiron GM — Roadmap
 
 Standing roadmap. Read after `AGENTS.md`, before `HANDOFF.md`. **Updated
-2026-11-13** against `main` at `2b5b81e` (#234). The last Studio panel on
-`main` is `ddc62bd` (#204, 2026-10-27). `HANDOFF.md` is the record; this file
+2026-11-19** against `main` at `23a2700` (#255). The last Studio panel on
+`main` is `93cfb23` (#252), signed 2026-11-17. `HANDOFF.md` is the record; this file
 is the plan. Dispatch rules for parallel agents are in `ORCHESTRATION.md`.
 
 Standing rules, unchanged:
@@ -80,18 +80,25 @@ entry.
 
 ### Gate status
 
-**Last Studio panel on `main`:** `ddc62bd` (#204), 2026-10-27, **GATE FAIL 1**:
-`coherence` seed 2 at 83.7 under the per-seed floor of 85 (mean 87.65). Not a
-sim bug; #205 reshuffled the seed-2 sample
-(`docs/gate-fail-ddc62bd-seed2-coherence.md`). Accepted as noise.
+**Last Studio panel on `main`:** `93cfb23` (#252), Matt signed 2026-11-17.
+Seven red lines, one bug (`docs/panel-93cfb23-investigation.md`). The bug was
+`spendToFloor` replacing practice-squad players, which left six sweep leagues
+with an illegal 53; fixed in #248 (`f39d9c0`). Three rows were signed as noise
+with no retune (seed 3 home win 50.985%, seed 1 coherence 82.86%, seed 1
+`EDGE.prs` wrong sign). Two were accepted for now and are not re-locked (the
+`careers` and `staff` rows below).
+
+The panel before it was `ddc62bd` (#204), 2026-10-27, **GATE FAIL 1**:
+`coherence` seed 2 at 83.7 under the per-seed floor of 85 (mean 87.65),
+accepted as noise (`docs/gate-fail-ddc62bd-seed2-coherence.md`).
 
 The #214 branch was panelled three times (`cf73d64`, `65e1284`, `a76092b`;
 GATE FAIL 4 / 4 / 7). Each led to a signed fix
 (`docs/panel-*-investigation.md`). The final #214 head was not panelled.
 
-**Unpanelled on `main` since `ddc62bd`:** #213, #214, #216, #218, #221, #222,
-#223, #225, #226, #227. `drift` and `careers` have not been read on any of
-them.
+**Unpanelled on `main` since `93cfb23`:** #248 (the roster fix, replayed clean
+on the six bad leagues), #254 (return yards) and the return-yards display.
+None moves a draw except #248.
 
 On a 4-core box, 2026-11-11, merge head `b5c2a21` plus the signed re-lock:
 `tsc --noEmit` pass; `npm test` pass; `verify.ts 5` 552/552; `determinism.ts
@@ -99,13 +106,13 @@ On a 4-core box, 2026-11-11, merge head `b5c2a21` plus the signed re-lock:
 
 | metric | reads | target | status | note |
 |---|---|---|---|---|
-| `userOffers` seed-42 canary | tag 1779302491, FA 1323223106 | literal | signed 2026-11-11 | Moved with #222/#223/#225/#226. |
-| `trimIdentity` seed-42 opening 2030 | 1587 cuts, rng 19218870 | literal | signed 2026-11-11 | Same re-lock. |
-| `calibrate.fgPct` | 81.995 (`calibrate.ts 300`, pre-merge #222 head) | floor 82.029 | **reported red** | Not re-measured or tuned. Read it on the next panel. |
-| `coherence.outlierExplainedPct` | seed 2 83.7 at `ddc62bd` | ≥ 85 per seed | noise | Per-seed floor; panel mean 87.65. |
-| `staff.leagueOvrDelta` | panel mean | ≤ 1.2 mean | lock changed | Signed 2026-10-27 (#204): the cap is the panel mean, not per seed. |
+| `userOffers` seed-42 canary | tag 3242373722, FA 691387436 | literal | held at #248 | Not re-locked by #248. |
+| `trimIdentity` seed-42 opening 2030 | 1443 cuts, rng 1785272726 | literal | held at #248 and #254 | Same. |
+| `calibrate.fgPct` | 84.868 at `93cfb23` | floor 82.029 | **PASS** | Field-goal range fixed in #235. |
+| `coherence.outlierExplainedPct` | seed 1 82.86 at `93cfb23` | ≥ 85 per seed | noise | Signed 2026-11-17, like the earlier 82.07. |
+| `staff.leagueOvrDelta` | 1.36 at `93cfb23` | ≤ 1.2 mean | accepted for now | From the signed #251 carryover rules. Re-lock from the next panel; not signed yet. |
 | `drift.medianPayrollPct` | 96.46 at `65e1284` | 90.602 ±6 | inside | Rose ~1.1 with BUG-A spending; the NFL note is 92. |
-| `careers.path2BurnInTop10PrPct` | 7/116 = 6.03% | 7–16% pooled | reported red | k-of-n noise. Left reported 2026-10-18. |
+| `careers.path2BurnInTop10PrPct` | 19/114 = 16.67% at `93cfb23` | 7–16% pooled | accepted for now | From the signed cap and cut rules. Re-lock from the next panel; not signed yet. |
 | `statcheck.rb5RushYds` | 1255.68 (100-seed, #185) | 1191 ±95 | **PASS** | Fixed 100-seed panel. |
 | `tails.milestonesOff` | 11 (`tails.ts 16`, #222) | ≤ 16 | **PASS** | Primary-tackle rows recomputed 2026-11-11. |
 | `drift.playerWeeksLost` | 1638.95 | 2158 ±700 | PASS, not re-locked | Measurement changed 2026-10-16. |
@@ -119,13 +126,11 @@ On a 4-core box, 2026-11-11, merge head `b5c2a21` plus the signed re-lock:
 
 ### Now — a Studio panel on `main`
 
-Run `npm run gate:full:serial` on the Mac Studio against `main` (`2b5b81e`)
-and post the GATE table to `HANDOFF.md`. It is the first `main` panel since
-`ddc62bd` and covers every merge since, including the BUG-A spend change
-(#214), the stat-tail bend (#222), the Hall of Fame rules (#225), rookie
-guarantees and the tag-window meter (#229, merged without a panel) and the
-Phase 1 leftovers (#234). Read `drift`, `careers`, `calibrate.fgPct` and
-`drift.medianPayrollPct` first. Protocol, unsigned:
+Run `npm run gate:full:serial` on the Mac Studio against `main` and post the
+GATE table to `HANDOFF.md`. It is the first panel with the #248 roster fix in
+it, so `sweep` should read clean. It is also where
+`careers.path2BurnInTop10PrPct` and `staff.leagueOvrDelta` get a new lock, and
+that re-lock needs Matt's sign-off on the values. Protocol, unsigned:
 `docs/proposal-studio-panel-and-camp-nudge-2026-11-11.md`.
 
 The two playtest-1028 proposals (dead-if-cut on rookie deals, tag-window
@@ -145,8 +150,8 @@ until its rates are in `nfl-reference.md`.
 
 | item | proposal | blocked on |
 |---|---|---|
-| Onside kicks, blocked kicks, fair catches | `proposal-kicking-game-events-2026-11-11.md` | **Traced** 2026-11-13 (§5.14; kickoff rates by rule era). Now Matt's decisions: kickoff era, staging, Stage 2 re-lock. |
-| Special-teams tackles | `proposal-special-teams-tackles-2026-11-11.md` | **Traced** 2026-11-13 (§5.14: the 712.3 includes them; 44.6 a club-season; coverage-tackle rate 0.764 KR, 0.803 PR). Now Matt's sign. |
+| Onside kicks, blocked kicks, fair catches | `proposal-kicking-game-events-2026-11-11.md` | **Traced** 2026-11-13 (§5.14; kickoff rates by rule era). Now Matt's decisions: kickoff era, staging, Stage 2 re-lock. All six lines of `decisions-kicking-game-2026-11-19.md` signed 2026-11-19. **Stage 1 built** the same day (block and fair-catch labels, `blk`; no canary moved; signed and merged as #258). Onside attempt rate traced 2026-11-19 (§5.14, by clock and deficit; signed, #259), and Matt signed using that table as the Stage 2 attempt rate. Stage 2 (blocked punts, onside) waits on the Studio panel and a rulebook citation. |
+| Special-teams tackles | `proposal-special-teams-tackles-2026-11-11.md` | **Built** 2026-11-19 at the §5.14 rates: team tackles 656 → 700 a club-season against a real 712.3. Signed by Matt 2026-11-19, merged as #257. Still owed: a Studio panel (`tails`, `drift`, `careers`) and a check of the four canary literals on Node 22.23.4. |
 | Per-position injury duration table (QB availability limitation) | `proposal-injury-duration-by-position-2026-11-11.md` | **QB traced** 2026-11-13 (§6.10: spell lengths; a third of QB1 missed games are not injuries, so the target is injury-only). QB table refit 2026-11-13, corrected (risk 1.50; the first refit, #239, compared all-cause to injury-only and is withdrawn). Held-out seeds land on injury-only and all-cause. `main`'s QB1s are hurt as often as real ones but out too long (3.1 missed a season against 2.7); no drift since October. Other positions' 17-game-era rows still untraced. Now Matt's decisions. |
 | Benching a passer, trick plays | `proposal-qb-benching-and-trick-plays-2026-11-11.md` | The 21.4% second-passer split by cause is untraced; the sim's shape is off (too many blowout reliefs). |
 | 6-veteran PS cap, international slot | `proposal-practice-squad-veteran-and-international-2026-11-11.md` | CBA text not cited; the sim has no accrued seasons and no international players. Not urgent. |
@@ -163,8 +168,8 @@ A, B, C, D1, E3): play art as a field strip (no formation drawing), the
 2026-10-01), the opening kick shown with its kicker, **P2** (`kickerId`,
 `returnerId`, defensive-TD row order) and **P5** as a one-week CPU snap log.
 Still out: a formation tree (no traced formation or personnel rates), the
-engine live opening kick (**D2**, with kicking-game Stage 2), and
-`returnYards` (the fumble-return distance and pick-six yards are wrong today).
+engine live opening kick (**D2**, with kicking-game Stage 2). `returnYards`
+shipped 2026-11-19 after the distances behind it were fixed (#254).
 
 ### Phase 5 — narration
 

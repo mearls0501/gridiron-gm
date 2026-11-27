@@ -1,5 +1,189 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-19 — Onside attempt rate traced (§5.14)
+
+Signed by Matt, 2026-11-19, and merged as #259 on his "merge it and mark it signed, use the table". Reference only. Matt asked for it ("do 1 then 2", item 2). `docs/nfl-reference.md` §5.14 gains "Onside attempt rate by situation": onside kicks over kickoffs by a trailing club in the fourth quarter, by clock and deficit, 2021–23. This is the row signed line B3 of `docs/decisions-kicking-game-2026-11-19.md` was waiting for. No code, test, `scripts/` file, `baselines.json` row or canary moved. Nothing is locked or gated.
+
+- Down 1–16 in the last 5:00: **113 / 202 = 0.559**. Last 3:00: **94 / 118 = 0.797**. Last 2:00: **79 / 85 = 0.929**.
+- **The rate is not one number.** Down one score a club kicks deep until about 3:00 (1 of 58 between 5:00 and 3:01) and onside under 2:00 (58 of 60). Down two scores it kicks onside from 5:00 in (46 of 58). A single coin over the last 5:00, which is what B3 recommended, would have the wrong shape. **Decided by Matt, 2026-11-19 ("use the table"): Stage 2 rolls the onside attempt at the clock-by-deficit rates in that table.** This replaces the single coin in signed line B3. It is a traced table, not a fitted threshold.
+- **Finding, not tuned.** A trailing club down 1–16 kicked off in the last 5:00 0.124 times a team-game in the league. The engine measured 0.090 on 2026-11-11. With traced rates the sim will produce fewer onside kicks than the league's 0.077 a team-game.
+- **The source files changed.** nflverse republished all four play-by-play files; bytes and SHA-256 differ from §5.13. The new files give 153 onside kicks in 2021–23 where §5.14 has 154 (one fewer in 2021), and 2,777 / 2,698 kickoffs in 2021 / 2022 where it has 2,779 / 2,703. Recoveries are unchanged. The older §5.14 rows were not recomputed. New hashes are in the block.
+
+Still missing for Stage 2: the rulebook citation for the onside spot and for how a blocked punt is scored. Not attempted here.
+
+Ran: nothing in the repo. The trace is a one-off pandas script over the four files.
+
+## 2026-11-19 — Blocks on the season stats page
+
+Signed by Matt, 2026-11-19, and merged as #259 on his "merge it and mark it signed, use the table". Display only. Matt asked for it ("do 1 then 2", item 1: finish the Stage 1 loose ends). `app/stats/page.tsx` gains a Blk column on the Defense tab, sortable like the others. Both pages read `blk ?? 0`, so a line built before the field existed shows 0. Nothing in `lib/core`, `scripts/` or `baselines.json` moved.
+
+Ran: `tsc --noEmit` pass; `next build` pass; the browser suite (`scripts/e2e.mjs`) **E2E PASSED**. Looked at in a browser on a fresh franchise: the Defense tab shows the Blk column with counts after ten weeks (one linebacker at 2), and the game box's Player stats view shows the Blk header. No box with a block in it turned up in the 13 user games opened, so a non-zero Blk cell on the game box was not seen.
+
+## 2026-11-19 — Kicking-game Stage 1: blocked kicks and fair catches, as labels
+
+Signed by Matt, 2026-11-19, and merged as #258 on his "merge it and mark it signed". Matt signed lines A–C of `docs/decisions-kicking-game-2026-11-19.md` and asked for the build ("sign all six and build stage 1"). `docs/baselines.json` did not move. No canary moved. No dial, no band, no panel.
+
+**What it does.** Three labels on plays the engine already rolls, at the §5.14 counts:
+
+| label | carved from | rate |
+|---|---|---|
+| blocked field goal | a field goal that was not made | 78 / 639 |
+| blocked extra point | an extra point that was not made | 31 / 247 |
+| punt fair catch | a punt that was not returned and not a touchback | 2,352 / 4,255 |
+
+The make chance, the miss spot, the punt spot and possession are untouched. A blocked kick credits one `blk` to a DT, EDGE or LB starter on the depth chart who has taken a snap that game. He already has a box row, so no row is added. A fair catch credits nothing.
+
+**Stream.** `kickEventRng`, keyed (seed, game id) with its own salt. No draw on the parent, the tackle-credit stream or the coverage stream.
+
+**Files.** `lib/core/sim/game.ts` (`KICK_EVENT`, `kickEventRate`, the three label sites, `creditBlock`), `lib/core/types.ts` (`blk`; `"blocked"` and `"fair_catch"` results), `lib/core/season/stats.ts` (`blk` in `STAT_KEYS`), `lib/core/callSheet.ts` (`onKickBlock`, a read-only observer), `lib/view/playByPlay.ts` (three strings), `app/game/[id]/page.tsx` (a Blk column on the defence table). New test `lib/core/sim/kickingEvents.test.ts`, registered in `package.json` and in `scripts/gate.ts` FAST and FULL as `kickevents`.
+
+**Parity, measured.** 300 calibrate-style games, seed 12345, `Rng(999)`, before and after on the same tree:
+
+| | before | after |
+|---|---:|---:|
+| parent rng state | 3913391126 | 3913391126 |
+| hash of scores, box rows (less `blk`), plays (labels folded back) | 6348687e1a60fa47 | 6348687e1a60fa47 |
+| box rows | 22,167 | 22,167 |
+| FG not made | 168 miss | 148 miss + **20** blocked |
+| XP not made | 138 miss | 120 miss + **18** blocked |
+| punts unreturned | 680 | 298 + **382** fair catch |
+| `blk` credits | 0 | 38 |
+
+Shares in that sample: FG 20 / 168 = 0.119 (traced 0.122), XP 18 / 138 = 0.130 (0.125), fair catch 382 / 680 = 0.562 (0.553). The proposal's old literal (3282470162) predates #257 and was not used.
+
+**Canaries.** Unmoved, as the design requires: `trimIdentity` 1412 cuts, rng 3165849988; `userOffers` passes on its locked literals.
+
+**Not built** (signed out or Stage 2): blocked punts, onside kicks, kickoff fair catches, block returns, a defensive two-point return, a fair-catch count, an attribute tilt. `blk` was on the game box only; the season stats page got it the same day (entry above).
+
+Ran: `tsc --noEmit` pass; `kickingEvents`, `coverageTackle`, `targetShare`, `playByPlay`, `trimIdentity` and `userOffers` tests pass. Fast gate (`gate:serial`, this box, Node 22.23.5): **GATE PASS**, **71** metrics within baseline, exit **0**. Not run: `gate:full`, the Studio panel, the browser suite.
+
+## 2026-11-19 — Kicking-game decisions written up
+
+Signed by Matt, 2026-11-19: all six lines ("sign all six and build stage 1"). Docs only. Matt asked for it ("write up the kicking-game decisions"). New file: `docs/decisions-kicking-game-2026-11-19.md`. No code, test, `scripts/` file, `baselines.json` row, reference row or canary moved.
+
+It is the short form of `docs/proposal-kicking-game-events-2026-11-11.md`, read against §5.14 and `main` at `937db70`. The six lines:
+
+- **A. Era.** 2021–22 for kickoffs, the 2021–23 row for onside (14 / 154). No kickoff fair catch.
+- **B1. Stage 1.** Labels only: blocked FG (78 / 639 of non-made), blocked XP (31 / 247), punt fair catch (2,352 / 4,255 of unreturned), a `blk` stat. No canary moves. Can be built before the Studio panel.
+- **B2. Stage 2 scope.** Blocked punts (42 / 8,587; 3 safeties) and onside kicks. No block-return touchdown (0 of 78 and 0 of 42 traced), no defensive two-point return, no user prompt, no attribute tilt.
+- **B3. Onside attempt.** Not buildable yet: §5.14 has attempts (0.077 a team-game) but no rate over qualifying kickoffs. Trace that row and roll a coin; do not fit a clock threshold.
+- **B4. Blocked punt.** Counts as a punt, not as a turnover. Rule geometry and the punter's yards still need a rulebook citation in §4.
+- **C. Re-lock.** Freeze exception for the four canary literals only, after the owed Studio panel, measured on Node 22.23.4.
+
+Stale in the old proposal: its parity literal and its four canary values predate #257.
+
+Ran: nothing. No code changed.
+
+## 2026-11-19 — Special-teams tackles
+
+Signed by Matt, 2026-11-19, and merged as #257 on his "merge it and mark it signed". Matt asked for the build ("do the special-teams tackles next"). Proposal: `docs/proposal-special-teams-tackles-2026-11-11.md`. The rates are §5.14 of `nfl-reference.md`, traced 2026-11-13. `docs/baselines.json` did not move. No dial, no band, no panel. Four canary literals were re-measured and written into their tests; the signature covers that re-lock. Still owed: a Studio panel (`tails`, `drift`, `careers`) and a check of the four literals on the pinned Node 22.23.4.
+
+A live kickoff or punt return that does not score now credits one tackle to a coverage man on the kicking club, at the traced own-tackle rate: kickoff **2,740 / 3,585**, punt **2,935 / 3,656** (`COVERAGE_TACKLE_CREDIT` in `sim/game.ts`). A touchback, a fair catch, a downed punt and a return touchdown credit nobody.
+
+The proposal's eight decisions, as built. Matt did not rule on them one by one; he signed the build as a whole.
+
+1. **Trace.** Done before this build (§5.14).
+2. **Field.** `tackles`. §5.14 shows the weekly 712.3 includes kick and punt tackles, so the wider sim number is the right comparison.
+3. **Pool.** The depth-chart slots past the starters at LB, S and CB (LB3–4, S3, CB4), weight `max(1, tkl − 34)`. The whole LB, S and CB units only when no backup is dressed. Not traced; a design choice.
+4. **No hit.** A coverage tackle adds no injury exposure.
+5. **Staging.** Landed with the traced rows, not as zero-row plumbing.
+6. **Re-lock.** Measured on this build, Node v22.23.5 (the pin is 22.23.4): `userOffers` seed 42 tag **3242373722 → 4171186477**, FA **691387436 → 108340363**; `trimIdentity` seed 42 opening 2030 **1443 → 1412** cuts, rng **1785272726 → 3165849988**. Signed 2026-11-19 as measured. Not yet re-measured on the pinned Node.
+7. **Return volume.** The 0.62 touchback and 0.55 punt-return shares are unchanged.
+8. **Stream.** A separate per-game coverage stream, not `tackleCreditRng`. The proposal's diff shared the scrimmage stream, which would have re-rolled every later scrimmage credit in the game. With its own stream the scrimmage coins land where they did. The parent stream still moves, through `gameTackles` and the season prior in `tackleDrawWeight`.
+
+One regular season, 272 games, the same build with the rows at zero against the rows filled:
+
+| seed | team tackles, rows zero (min–max) | rows filled (min–max) | leader | max game |
+|---|---|---|---|---|
+| 1 | 658.0 (614–786) | 700.0 (618–795) | 122 → 107 | 14 → 15 |
+| 2 | 653.1 (593–712) | 696.6 (630–753) | 104 → 104 | 14 → 14 |
+| 3 | 656.5 (576–731) | 700.5 (589–754) | 118 → 120 | 15 → 13 |
+| 4 | 655.7 (591–722) | 699.3 (641–763) | 116 → 114 | 18 → 17 |
+| 5 | 657.8 (605–732) | 701.3 (638–766) | 115 → 116 | 15 → 19 |
+
+Mean **656.2 → 699.5**, +43.3 a club-season against the traced 44.6. The real total is 712.3. The gap that is left is not tuned: the return volume the credit multiplies is the engine's own untraced 0.62 and 0.55. Seed 2's parent rng did not move in the regular season; the other four did, so their leader and max-game columns are a different league, not coverage credit on the leader. Every leader is inside the signed 92–128.
+
+`SimOpts` gains `onCoverageTackle`, a read-only observer the tests use to count coverage credits apart from scrimmage credits. It draws nothing and writes nothing.
+
+Tests. New `lib/core/sim/coverageTackle.test.ts`, registered in `package.json` and in `scripts/gate.ts` FAST and FULL (the #47 convention): the §5.14 counts; a return touchdown credits nobody; zero rows credit nobody; credits never exceed the live returns a club covered; 482 credits on 609 returns (0.791) over 96 games, all 482 to depth-chart backups (LB 249, S 121, CB 112); in the 95 of 96 games whose snaps are unchanged, team tackles equal scrimmage credits plus coverage credits; a linebacker makes coverage stops in the third slot and none in the first. `targetShare.test.ts` asserted that a defence's tackles never exceed the offence's live stops. That guard now subtracts coverage credits through the observer; the claim about scrimmage credits is unchanged.
+
+Ran: `tsc --noEmit` pass; `coverageTackle`, `tackleShare`, `targetShare`, `playByPlay`, `trimIdentity` and `userOffers` tests pass. Fast gate (`gate:serial`, this box, Node 22.23.5): **GATE PASS**, **71** metrics within baseline, exit **0**. `tails.ts 16` (16 seasons, one seed): 15+ tackle games **4** of 4,352 team-games against the real **3** of 1,087 (p = 0.148, ok); 20+ tackle games **0**; 150+ and 180+ tackle seasons **0**; best game **15** tackles (real 19), best season **133** (real 128); `unmatchedTackleCategories` **0**; `milestonesOff` **9** (cap 16). Not run: `gate:full`, the Studio panel, the browser suite.
+
+## 2026-11-19 — Return yards on the play-by-play row
+
+Signed by Matt, 2026-11-19, and merged as #256 on his "merge it and mark it signed". Matt asked for it ("do the return-yards display"). This is the `returnYards` field that Packet B left out on 2026-11-13 because the distances behind it were wrong. #254 fixed them. Nothing in `scripts/` or `baselines.json` moved. No dial, no re-lock, no panel.
+
+- `PlayEvent` gains optional `returnYards`, set on the same int/fumble row that carries `returnerId`. It is the number the scoring line already prints.
+- `formatPlay` prints "Brady pass intercepted — Smith returns it 40 yd for a TD". A box saved before the field existed has no `returnYards` and keeps the old text, "… returns it for a TD".
+
+No draw moves. 300 games, seed 12345, `Rng(999)`: rng **2955187877** and every summed stat are identical to the #254 tree. Save cost is one short number on each defensive-TD row of a persisted snap log.
+
+`playByPlay.test.ts` asserts the row's `returnYards` equals the yards on the scoring line for every defensive TD in its 120-game sample, and both display strings. Ran on Node v22.23.5 (the pin is 22.23.4): `tsc --noEmit` pass, `playByPlay.test.ts` pass, `liveGame.test.ts` pass, `next build` pass, `node scripts/e2e.mjs` passed. The gate, the full `npm test` and `e2e-interact.mjs` were not run on this change.
+
+`ROADMAP.md` was brought up to 2026-11-19 in the same change: the `93cfb23` panel and its signatures, the canaries as #248 left them, and the two rows waiting on a re-lock.
+
+## 2026-11-18 — Return yards on fumble returns and pick-sixes
+
+Signed by Matt, 2026-11-19. **#254 is merged**: squash `731c2c1` on main, on Matt's "merge it" (2026-11-18). Matt asked for the fix ("fix the return yards on fumble returns and pick-sixes"). The two defects are the ones reported in `docs/proposal-phase1-play-leftovers-2026-11-11.md` (Packet B review caveat). Nothing in `scripts/` or `baselines.json` moved. No dial, no re-lock, no panel.
+
+- **Fumble return.** `defensiveTd` was handed `100 - spot`. `spot` is offence-relative, so the defence is `spot` yards from the end zone. A fumble at the offence's 9 printed a 91-yard return. It now prints 9.
+- **Pick-six.** The drawn return went into `intYds`, and `defensiveTd` then added `max(return, 20)` to the same line again. Neither figure looked at the field. The return is now `max(drawn return, line of scrimmage)`: the catch is at the line, or deeper when the drawn return is longer. It is booked once, in `defensiveTd`. The floor of 20 is gone. An interception that is not returned for a score is unchanged, as is the catch-point pick.
+
+No draw was added, removed or reordered. 300 games, seed 12345, `Rng(999)`, before and after: rng **2955187877** on both, the same 454 interceptions, the same summed tackles, yards and defensive TDs. Only `intYds` moves, **6225 → 6831**. On that loop the 37 pick-sixes average **21.8 → 51.5** yards and the 28 fumble-return TDs **47.4 → 52.6**. Neither average is a calibrated number: no return-distance block is in `nfl-reference.md`, and the engine models no depth of throw. `intYds` and the `scoringPlays` description are read only by the box score, the stats page and the record text.
+
+`playByPlay.test.ts` now asserts, on its 120-game sample, that a fumble return is within three yards of the snap's offence-relative line, that a pick-six is at least the line of scrimmage, and that a pick-six books its yards once.
+
+Ran on Node v22.23.5 (the pin is 22.23.4; this box does not have it): `tsc --noEmit` pass, `playByPlay.test.ts` pass, `verify.ts 2` 246/246, `determinism.ts 1` deterministic with 0 banned API uses, `liveGame.test.ts` and `userOffers.test.ts` pass, trim identity **1443** cuts / rng **1785272726** unchanged. `node scripts/e2e.mjs` passed on the tree before the change. The full `npm test` was not finished here: it hit the cloud session's background limit before this change, with no failure printed. `returnYards` is still not a `PlayEvent` field. The numbers behind it are now right, so that is a display decision.
+
+## 2026-11-17 — Matt signed the 93cfb23 panel
+
+Signed by Matt, 2026-11-17, 9:09 AM EST. Nothing in `scripts/` or `baselines.json` moved. No re-lock. The values below are accepted. They are not new locks. A re-lock still needs Matt's sign-off on the numbers the next Studio panel reads. The write-up is `docs/panel-93cfb23-investigation.md`.
+
+**#248 is merged.** Squash `f39d9c0` on main: spend to the floor by replacing active players only. The six bad sweep leagues on the `93cfb23` panel were that bug. Fingerprints held at the merge: trim **1443** / **1785272726**, userOffers tag **3242373722**, free agency **691387436**.
+
+**Accepted as noise. No retune.**
+
+- Seed 3 home win **50.985%** (floor 51.439). #250 starting deals and the trade-acceleration price together.
+- Seed 1 coherence **82.86%** (floor 85). The same pair. The earlier signature on 82.07 still stands.
+- Seed 1 `EDGE.prs` points **27.0 → 27.5**, wrong sign. #235 field-goal range. Seeds 2–5 have the right sign.
+
+**Accepted for now. Re-lock from the next Studio panel, and that re-lock is not signed yet.**
+
+- `careers.path2BurnInTop10PrPct` **19/114** (16.67), cap 16.
+- `staff.leagueOvrDelta` **1.36**, cap 1.2. Seeds 1.50 / 1.42 / 1.10 / 1.00 / 1.80.
+
+Node `v22.23.4`.
+
+## 2026-11-17 — Panel 93cfb23: one real roster bug, five signatures
+
+The investigation, written before the signature above. Six sweep leagues, one bug: `spendToFloor` was replacing practice-squad bodies. Denver, 2028 preseason, Julian Lewis, OT, practice squad, cut for Preston Yeager, OT. #248 cleared all six on this VM. The other rows are the noise and the two "accepted for now" readings in the entry above. Do not tune them.
+
+## 2026-11-16 — Spend to the floor replaces active players only, remeasured after main 93cfb23
+
+Unsigned. Do not merge. Nothing in `scripts/` or `baselines.json` moved, and no fingerprint was re-locked.
+
+`claude/spend-to-floor-active-only` was merged with main `93cfb23` (the Node 22.23.4 pin and the cap commits through #252). The merge was clean. `spendToFloor` still chooses the man it replaces from the active roster only. Main's cap-cut order and the half-carryover / 8% bank are unchanged.
+
+Node `v22.23.4` on this VM.
+
+- `npx tsc --noEmit` — pass.
+- `npm test` — exit 0. 352 `ok` lines.
+- `npx tsx scripts/verify.ts 5` (seed 20260727) — 552/552, `verify.failures` 0.
+- `npx tsx scripts/determinism.ts 2` — pass, `determinism.failures` 0.
+
+**Fingerprints held.** Same locks as this main:
+
+- `userOffers` tag **3242373722**, free agency **691387436**.
+- `trimIdentity` **1443** cuts, rng **1785272726**.
+
+**Roster.** The ceiling is 53 except in camp (`offseason-draft` and `offseason-final`), where it is 90. Active count is `rosterCount`.
+
+Seed 20260727, the 2033 preseason where Baltimore had 69 on main `61b3a70`: Baltimore 53, and every club 53. From the 2026 open through that 2033 open, the most men on any active roster while the ceiling was 53 was 53 each year. Camp peaked at 87 in 2026 and 90 after that. No sample crossed the ceiling for its phase.
+
+Seeds 42, 7, and 1, thirty season-loops each (2026 through the 2056 preseason), the same advance path as `verify.ts`. The repo has no script that walks those three seeds for thirty seasons; `sweep.ts` is a different seed list and two seasons. On all three, the most men while the ceiling was 53 was 53 in every season. Camp peaked at 86 or 87 in 2026 and at 90 after that. No ceiling break.
+
+No disagreement with the filter. The gate was not re-run on this head.
+
 ## 2026-11-15 — Panel note brought up to main `5b922ec`
 
 **Docs only.** Matt signed (a), (b), and (c) on 2026-11-15, 4:29 PM EST, recorded below. This draft is not a merge. No code, test, `scripts/`, `baselines.json`, re-lock, or dial. The calibration freeze stands. Full note: `docs/panel-a453c24-investigation.md`, the section "Status on main `5b922ec`".

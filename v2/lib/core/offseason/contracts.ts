@@ -2015,8 +2015,10 @@ export function spendToFloor(state: GameState, teamId: number, rng: Rng): void {
     const shortfall = clamp((floor - payroll(state, teamId)) / floor, 0, 1);
     const overpay = 1 + shortfall * 1.6;
 
+    // Active only. Cutting a practice-squad or IR body for an active signing
+    // adds a man to the 53.
     const roster = state.players.filter(
-      (p) => p.teamId === teamId && !p.retired && !p.prospect
+      (p) => p.teamId === teamId && !p.retired && !p.prospect && isActiveRoster(p)
     );
     const worstAt = new Map<Position, Player>();
     for (const p of roster) {

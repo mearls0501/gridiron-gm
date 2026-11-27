@@ -267,6 +267,49 @@ export function creditsTackle(scoring: boolean, kind: TackleCreditKind, roll: nu
   return roll < tackleCreditRate(kind);
 }
 
+/**
+ * Coverage tackle on a live, non-scoring kick or punt return. The stop goes to
+ * one man on the kicking club at the 2021–2024 REG own-tackle rate on such a
+ * return (nfl-reference.md §5.14). A touchback, a fair catch, a downed punt
+ * and a return touchdown credit nobody.
+ */
+export type CoverageKind = "kickoff" | "punt";
+
+export const COVERAGE_TACKLE_CREDIT: Record<CoverageKind, { credited: number; plays: number }> = {
+  kickoff: { credited: 2740, plays: 3585 },
+  punt: { credited: 2935, plays: 3656 },
+};
+
+export function coverageCreditRate(kind: CoverageKind): number {
+  const row = COVERAGE_TACKLE_CREDIT[kind];
+  return row.plays > 0 ? row.credited / row.plays : 0;
+}
+
+/** A return touchdown credits nothing. Any other live return credits when `roll` is under the traced rate. */
+export function creditsCoverage(scoring: boolean, kind: CoverageKind, roll: number): boolean {
+  if (scoring) return false;
+  return roll < coverageCreditRate(kind);
+}
+
+/**
+ * Kick events that relabel a play the engine already rolled. A blocked field
+ * goal or extra point is a share of the kicks that were not made. A punt fair
+ * catch is a share of the punts that were not returned and not a touchback.
+ * Counts are 2021–2024 REG (nfl-reference.md §5.14). None changes an outcome.
+ */
+export type KickEventKind = "fgBlocked" | "xpBlocked" | "puntFairCatch";
+
+export const KICK_EVENT: Record<KickEventKind, { events: number; plays: number }> = {
+  fgBlocked: { events: 78, plays: 639 },
+  xpBlocked: { events: 31, plays: 247 },
+  puntFairCatch: { events: 2352, plays: 4255 },
+};
+
+export function kickEventRate(kind: KickEventKind): number {
+  const row = KICK_EVENT[kind];
+  return row.plays > 0 ? row.events / row.plays : 0;
+}
+
 const PLAYOFF_ROUND_INDEX: Record<PlayoffRound, number> = { WC: 0, DIV: 1, CONF: 2, SB: 3 };
 
 /**
@@ -520,6 +563,16 @@ function* runGameSim(
     (state.seed ^ Math.imul((game.id + 1) >>> 0, 0x9e3779b9) ^ 0x71a0c1e5) >>> 0,
   );
 
+  // Its own stream. A coverage draw must not move `rng` or re-roll a scrimmage credit.
+  const coverageRng = new Rng(
+    (state.seed ^ Math.imul((game.id + 1) >>> 0, 0x9e3779b9) ^ 0x5c07e4a6) >>> 0,
+  );
+
+  // Its own stream. A kick-event label must not move `rng` or either credit stream.
+  const kickEventRng = new Rng(
+    (state.seed ^ Math.imul((game.id + 1) >>> 0, 0x9e3779b9) ^ 0x2c1b3c6d) >>> 0,
+  );
+
   /**
    * A child stream for the play-economy mechanics — receiver carries and
    * kneel-downs. One parent draw seeds it, so however many decisions those
@@ -577,6 +630,51 @@ function* runGameSim(
     if (!tackleCreditRng.chance(tackleCreditRate(kind))) return;
     statFor(p, ctx).tackles++;
     gameTackles.set(ctx.team.id, (gameTackles.get(ctx.team.id) ?? 0) + 1);
+  };
+  /**
+   * Coverage tackle for the kicking club: the depth-chart slots past the
+   * starters at LB, S and CB, or those whole units when no backup is dressed.
+   * No hit. A zero rate draws nothing.
+   */
+  const creditCoverageTackle = (ctx: Ctx, kind: CoverageKind) => {
+    const rate = coverageCreditRate(kind);
+    if (!(rate > 0)) return;
+    if (!creditsCoverage(false, kind, coverageRng.next())) return;
+    const dressed = (unit: Player[]) => unit.filter((p) => !ctx.out.has(p.id));
+    const backups = dressed([
+      ...ctx.starters.LB.slice(STARTERS.LB),
+      ...ctx.starters.S.slice(STARTERS.S),
+      ...ctx.starters.CB.slice(STARTERS.CB),
+    ]);
+    const unit = backups.length
+      ? backups
+      : dressed([...ctx.starters.LB, ...ctx.starters.S, ...ctx.starters.CB]);
+    if (unit.length === 0) return;
+    const p = coverageRng.weighted(unit, (x) => Math.max(1, sc(x, "tkl") - 34));
+    statFor(p, ctx).tackles++;
+    gameTackles.set(ctx.team.id, (gameTackles.get(ctx.team.id) ?? 0) + 1);
+    opts?.onCoverageTackle?.(ctx.team.id, p.id, kind);
+  };
+  /** One coin on the kick-event stream. A zero rate draws nothing. */
+  const kickEvent = (kind: KickEventKind): boolean => {
+    const rate = kickEventRate(kind);
+    return rate > 0 && kickEventRng.chance(rate);
+  };
+  /**
+   * Credit a blocked kick to a DT, EDGE or LB starter on the depth chart who
+   * has taken a snap this game. That man already has a box row, so the credit
+   * adds no row. Nobody is credited when no such man exists.
+   */
+  const creditBlock = (ctx: Ctx) => {
+    const front = [
+      ...ctx.starters.DT.slice(0, STARTERS.DT),
+      ...ctx.starters.EDGE.slice(0, STARTERS.EDGE),
+      ...ctx.starters.LB.slice(0, STARTERS.LB),
+    ].filter((p) => !ctx.out.has(p.id) && (pstats.get(p.id)?.snaps ?? 0) >= 0.5);
+    if (front.length === 0) return;
+    const p = kickEventRng.pick(front);
+    statFor(p, ctx).blk++;
+    opts?.onKickBlock?.(ctx.team.id, p.id);
   };
   const playScores = (yl: number, yds: number) => yl + yds >= 100 || yl + yds <= 0;
   /** Bend a weighted tackle draw. A sack or a forced fumble still names the man who made the stop. */
@@ -932,7 +1030,7 @@ function* runGameSim(
   const scoringPlays: ScoringPlay[] = [];
   const playLog: PlayEvent[] = [];
   /** Set by `defensiveTd` so the snap row can name the returner. */
-  let lastDefTd: { id: number; home: boolean } | null = null;
+  let lastDefTd: { id: number; yards: number; home: boolean } | null = null;
   const emit = (
     e: Omit<PlayEvent, "q" | "clock" | "homeScore" | "awayScore"> &
       Partial<Pick<PlayEvent, "q" | "clock" | "homeScore" | "awayScore">>,
@@ -1107,8 +1205,10 @@ function* runGameSim(
       award(ctx.team.id, 1, "Extra point good");
       emit({ kind: "xp", result: "good", yards: 0, down: 0, toGo: 0, yardLine, offenseId: ctx.team.id, playerId: k.id });
     } else {
-      record(ctx.team.id, "Extra point MISSED");
-      emit({ kind: "xp", result: "miss", yards: 0, down: 0, toGo: 0, yardLine, offenseId: ctx.team.id, playerId: k.id });
+      const blocked = kickEvent("xpBlocked");
+      if (blocked) creditBlock(isHome ? ctxAway : ctxHome);
+      record(ctx.team.id, blocked ? "Extra point BLOCKED" : "Extra point MISSED");
+      emit({ kind: "xp", result: blocked ? "blocked" : "miss", yards: 0, down: 0, toGo: 0, yardLine, offenseId: ctx.team.id, playerId: k.id });
     }
   };
 
@@ -1168,6 +1268,7 @@ function* runGameSim(
       return;
     }
 
+    if (returner) creditCoverageTackle(kicking, "kickoff");
     startDrive(clamp(TOUCHBACK_YARDLINE + (ret - 23), 5, 60));
     emit({
       kind: "kickoff", result: "return", yards: ret,
@@ -1217,9 +1318,11 @@ function* runGameSim(
       });
       kickoff();
     } else {
-      record(ctx.team.id, `${k.lastName} ${distance} yd field goal is NO GOOD`);
+      const blocked = kickEvent("fgBlocked");
+      if (blocked) creditBlock(def());
+      record(ctx.team.id, `${k.lastName} ${distance} yd field goal is ${blocked ? "BLOCKED" : "NO GOOD"}`);
       emit({
-        kind: "fg", result: "miss", yards: distance,
+        kind: "fg", result: blocked ? "blocked" : "miss", yards: distance,
         down, toGo, yardLine, offenseId: ctx.team.id, playerId: k.id,
       });
       changePossession(clamp(100 - Math.max(yardLine - 8, 20), 1, 99));
@@ -1288,6 +1391,7 @@ function* runGameSim(
         kickoff();
         return;
       }
+      if (returner) creditCoverageTackle(ctx, "punt");
       spot = clamp(spot + ret, 1, 99);
       emit({
         kind: "punt", result: "return", yards: Math.round(gross),
@@ -1298,7 +1402,7 @@ function* runGameSim(
     }
 
     emit({
-      kind: "punt", result: "gain", yards: Math.round(gross),
+      kind: "punt", result: kickEvent("puntFairCatch") ? "fair_catch" : "gain", yards: Math.round(gross),
       down, toGo, yardLine, offenseId: ctx.team.id, playerId: p?.id,
     });
     changePossession(spot);
@@ -1306,7 +1410,7 @@ function* runGameSim(
 
   /** Interception or fumble returned all the way. */
   const defensiveTd = (defender: Player, defCtx: Ctx, kind: "INT" | "fumble", retYds: number) => {
-    lastDefTd = { id: defender.id, home: defCtx.team.id === home.id };
+    lastDefTd = { id: defender.id, yards: retYds, home: defCtx.team.id === home.id };
     const st = statFor(defender, defCtx);
     st.defTd++;
     if (kind === "INT") st.intYds += retYds;
@@ -1466,7 +1570,8 @@ function* runGameSim(
         if (recoverer) {
           statFor(recoverer, d).fr++;
           if (rng.chance(0.12 + (spot < 30 ? 0.08 : 0))) {
-            defensiveTd(recoverer, d, "fumble", 100 - spot);
+            // `spot` is offence-relative, so the defence is `spot` yards out.
+            defensiveTd(recoverer, d, "fumble", spot);
             return { ...NO_PLAY(rng.int(8, 16)), scored: true, result: "fumble", scorerId: carrier.id };
           }
         }
@@ -1770,11 +1875,14 @@ function* runGameSim(
         ds.ints++;
         ds.passDef++;
         const retYds = Math.round(clamp(rng.normal(12, 12), 0, 99));
-        ds.intYds += retYds;
         if (rng.chance(0.15)) {
-          defensiveTd(defender, d, "INT", Math.max(retYds, 20));
+          // A pick-six covers the field from the catch. The catch is at the
+          // line of scrimmage, or deeper when the drawn return is longer.
+          // `defensiveTd` books the yards, once.
+          defensiveTd(defender, d, "INT", Math.max(retYds, clamp(yardLine, 1, 99)));
           return { ...NO_PLAY(rng.int(8, 18)), scored: true, isPass: true, result: "int", passerId: qb.id, targetId: target.id };
         }
+        ds.intYds += retYds;
       }
       return {
         yards: 0, timeUsed: rng.int(8, 20), turnover: true, touchdown: false,
@@ -2192,7 +2300,7 @@ function* runGameSim(
         playerId: outcome.passerId ?? outcome.scorerId ?? undefined,
         targetId: outcome.targetId ?? (outcome.isPass ? outcome.scorerId ?? undefined : undefined),
       };
-      const defTd = lastDefTd as { id: number; home: boolean } | null;
+      const defTd = lastDefTd as { id: number; yards: number; home: boolean } | null;
       if (defTd) {
         // P2: the PAT and kickoff were logged inside the play function. Put
         // the snap ahead of them, with the score the return made.
@@ -2203,6 +2311,7 @@ function* runGameSim(
           awayScore: snapAway + (defTd.home ? 0 : 6),
           ...row,
           returnerId: defTd.id,
+          returnYards: defTd.yards,
         });
       } else {
         emit(row);

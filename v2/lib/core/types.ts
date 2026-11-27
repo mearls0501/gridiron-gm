@@ -218,6 +218,8 @@ export interface SeasonStatLine {
   // Defense
   tackles: number; tfl: number; sacks: number; ints: number; intYds: number;
   passDef: number; ff: number; fr: number; defTd: number; safeties: number;
+  /** Blocked field goals and extra points. */
+  blk: number;
 
   // Kicking
   fgm: number; fga: number; xpm: number; xpa: number; longFg: number;
@@ -652,6 +654,8 @@ export type PlayResult =
   | "td"
   | "good"
   | "miss"
+  | "blocked"
+  | "fair_catch"
   | "fail"
   | "gain"
   | "loss"
@@ -680,6 +684,8 @@ export interface PlayEvent {
   kickerId?: number;
   /** Interception or fumble returned for a touchdown on this snap: the returner. */
   returnerId?: number;
+  /** The length of that return. Absent on a box saved before the field existed. */
+  returnYards?: number;
   homeScore: number;
   awayScore: number;
 }

@@ -17,7 +17,7 @@ import {
   Card, Cell, Empty, Pill, PlayerLink, PosBadge, Row, Stat, Table, Tabs, TeamMark, cx,
 } from "@/components/ui";
 import {
-  clockLabel, downDistance, driveBar, drivePlays, driveResultLabel, driveResultTone,
+  clockLabel, downDistance, driveBar, drivePlays, driveResultLabelFor, driveResultTone,
   formatVisiblePlay, quarterLabel, spotLabel, visiblePlays,
 } from "@/lib/view/playByPlay";
 
@@ -81,10 +81,19 @@ function asLine(gs: PlayerGameStat): SeasonStatLine {
 interface Group {
   key: string;
   label: string;
-  head: string[];
+  head: ReactNode[];
   qualifies: (s: PlayerGameStat) => boolean;
   rank: (s: PlayerGameStat) => number;
   cells: (s: PlayerGameStat) => ReactNode;
+}
+
+/** Header gloss for an abbreviation. `blk` is field goals and extra points only. */
+function HeaderTip({ label, tip }: { label: string; tip: string }) {
+  return (
+    <abbr title={tip} className="no-underline cursor-help">
+      {label}
+    </abbr>
+  );
 }
 
 const GROUPS: Group[] = [
@@ -143,10 +152,14 @@ const GROUPS: Group[] = [
   {
     key: "defense",
     label: "Defense",
-    head: ["Tkl", "TFL", "Sacks", "INT", "INT Yds", "PD", "FF", "FR", "TD"],
+    head: [
+      "Tkl", "TFL", "Sacks", "INT", "INT Yds", "PD", "FF", "FR",
+      <HeaderTip key="blk" label="Blk" tip="Blocked kicks (FG, PAT)" />,
+      "TD",
+    ],
     qualifies: (s) =>
       s.tackles > 0 || s.sacks > 0 || s.ints > 0 || s.tfl > 0 ||
-      s.passDef > 0 || s.ff > 0 || s.fr > 0 || s.defTd > 0,
+      s.passDef > 0 || s.ff > 0 || s.fr > 0 || s.defTd > 0 || s.blk > 0,
     rank: (s) => s.tackles + s.sacks * 3 + s.ints * 4 + s.defTd * 6,
     cells: (s) => (
       <>
@@ -158,6 +171,7 @@ const GROUPS: Group[] = [
         <Cell>{s.passDef}</Cell>
         <Cell>{s.ff}</Cell>
         <Cell>{s.fr}</Cell>
+        <Cell>{s.blk ?? 0}</Cell>
         <Cell>{s.defTd}</Cell>
       </>
     ),
@@ -367,6 +381,11 @@ export default function GamePage() {
   const periodLabels = Array.from({ length: periods }, (_, i) => quarterLabel(i + 1));
   const pbpLinked = !!box.plays?.length;
   const hasDrives = !!(box.drives?.length || box.plays?.length);
+  const driveSource = {
+    plays: box.plays,
+    scoringPlays: box.scoringPlays,
+    drives: box.drives,
+  };
   const shown: BoxView = !hasDrives && view === "drives" ? "summary" : view;
 
   function jumpToDrive(n: number) {
@@ -401,6 +420,43 @@ export default function GamePage() {
     );
   }
 
+  function rowsFor(grp: Group, teamId: number) {
+    return box.players
+      .filter((s) => s.teamId === teamId && grp.qualifies(s))
+      .sort((a, b) => grp.rank(b) - grp.rank(a) || a.playerId - b.playerId);
+  }
+
+  function GroupTable({ grp, rows }: { grp: Group; rows: PlayerGameStat[] }) {
+    return (
+      <Table head={[L("Player"), ...grp.head]}>
+        {rows.map((s) => {
+          const p = players.get(s.playerId);
+          return (
+            <Row key={`${grp.key}-${s.playerId}`}>
+              <Cell align="left">
+                {p ? (
+                  <span className="flex items-center gap-2 min-w-0">
+                    <PosBadge pos={p.pos} />
+                    <PlayerLink p={p} className="min-w-0" />
+                    {s.started && <Pill>ST</Pill>}
+                    {s.twoPtAtt > 0 && (
+                      <Pill tone={s.twoPtMade > 0 ? "good" : "default"}>
+                        2PT {s.twoPtMade}/{s.twoPtAtt}
+                      </Pill>
+                    )}
+                  </span>
+                ) : (
+                  <span className="text-[var(--color-faint)]">Unknown player</span>
+                )}
+              </Cell>
+              {grp.cells(s)}
+            </Row>
+          );
+        })}
+      </Table>
+    );
+  }
+
   function TeamPlayerStats({ t }: { t: Team }) {
     const rows = box.players.filter((s) => s.teamId === t.id);
     if (rows.length === 0) {
@@ -410,10 +466,12 @@ export default function GamePage() {
         </Card>
       );
     }
-    const sections = GROUPS.map((grp) => ({
-      grp,
-      rows: rows.filter(grp.qualifies).sort((a, b) => grp.rank(b) - grp.rank(a) || a.playerId - b.playerId),
-    })).filter((s) => s.rows.length > 0);
+    // Returns carries a kick column and a punt column. Beside the other club
+    // that table is wider than the card, so PR Lng scrolls out of sight.
+    // It renders once, full width, under both clubs.
+    const sections = GROUPS.filter((grp) => grp.key !== "returns")
+      .map((grp) => ({ grp, rows: rowsFor(grp, t.id) }))
+      .filter((s) => s.rows.length > 0);
 
     return (
       <Card
@@ -435,32 +493,7 @@ export default function GamePage() {
               <div className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
                 {grp.label}
               </div>
-              <Table head={[L("Player"), ...grp.head]}>
-                {group.map((s) => {
-                  const p = players.get(s.playerId);
-                  return (
-                    <Row key={`${grp.key}-${s.playerId}`}>
-                      <Cell align="left">
-                        {p ? (
-                          <span className="flex items-center gap-2 min-w-0">
-                            <PosBadge pos={p.pos} />
-                            <PlayerLink p={p} className="min-w-0" />
-                            {s.started && <Pill>ST</Pill>}
-                            {s.twoPtAtt > 0 && (
-                              <Pill tone={s.twoPtMade > 0 ? "good" : "default"}>
-                                2PT {s.twoPtMade}/{s.twoPtAtt}
-                              </Pill>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-[var(--color-faint)]">Unknown player</span>
-                        )}
-                      </Cell>
-                      {grp.cells(s)}
-                    </Row>
-                  );
-                })}
-              </Table>
+              <GroupTable grp={grp} rows={group} />
             </div>
           ))
         )}
@@ -487,6 +520,33 @@ export default function GamePage() {
             </div>
           );
         })()}
+      </Card>
+    );
+  }
+
+  function ReturnsBoard() {
+    const grp = GROUPS.find((g) => g.key === "returns");
+    if (!grp) return null;
+    const blocks = [away, home]
+      .map((t) => ({ t, rows: rowsFor(grp, t.id) }))
+      .filter((b) => b.rows.length > 0);
+    if (blocks.length === 0) return null;
+    return (
+      <Card title="Returns" subtitle="Kickoff and punt returns" padded={false}>
+        {blocks.map(({ t, rows }) => (
+          <div
+            key={t.id}
+            className="border-b border-[var(--color-line-soft)] last:border-0"
+            data-box-group="returns"
+          >
+            <div className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-wider text-[var(--color-faint)] flex items-center gap-2">
+              <TeamMark team={t} size={16} />
+              <span className={cx(t.id === userTeamId && "text-[var(--color-accent)]")}>{t.abbr}</span>
+              <span className="normal-case tracking-normal">{t.city} {t.name}</span>
+            </div>
+            <GroupTable grp={grp} rows={rows} />
+          </div>
+        ))}
       </Card>
     );
   }
@@ -651,6 +711,7 @@ export default function GamePage() {
                 const t = state.teams[d.offenseId];
                 const bar = driveBar(d);
                 const tone = driveResultTone(d.result);
+                const tag = driveResultLabelFor(d, driveSource);
                 const selected = pbpLinked && selectedDrive === d.n;
                 const row = (
                   <>
@@ -667,7 +728,7 @@ export default function GamePage() {
                         <span className="text-xs tnum text-[var(--color-muted)]">
                           {d.plays} play{d.plays === 1 ? "" : "s"} · {d.yards > 0 ? "+" : ""}{d.yards}
                         </span>
-                        <Pill tone={tone}>{driveResultLabel(d.result)}</Pill>
+                        <Pill tone={tone}>{tag}</Pill>
                       </span>
                     </div>
                     <div className="mt-1.5 h-2 rounded-full bg-[var(--color-surface-3)] relative overflow-hidden">
@@ -705,7 +766,7 @@ export default function GamePage() {
                     )}
                     aria-current={selected ? "true" : undefined}
                     aria-controls={pbpDriveId(d.n)}
-                    aria-label={`Drive ${d.n}, ${t.abbr}, ${driveResultLabel(d.result)}, ${d.plays} plays. Show snaps in play by play`}
+                    aria-label={`Drive ${d.n}, ${t.abbr}, ${tag}, ${d.plays} plays. Show snaps in play by play`}
                     data-drive-n={d.n}
                     data-selected={selected ? "true" : "false"}
                     onClick={() => jumpToDrive(d.n)}
@@ -755,7 +816,7 @@ export default function GamePage() {
                         )}
                       >
                         <TeamMark team={t} size={16} />
-                        Drive {d.n} · {t.abbr} · {driveResultLabel(d.result)}
+                        Drive {d.n} · {t.abbr} · {driveResultLabelFor(d, driveSource)}
                       </div>
                       {snaps.map((row, i) => (
                         <div key={`${d.n}-${i}`}>
@@ -811,9 +872,12 @@ export default function GamePage() {
       )}
 
       {shown === "players" && (
-      <div className="grid gap-4 xl:grid-cols-2">
-        <TeamPlayerStats t={away} />
-        <TeamPlayerStats t={home} />
+      <div className="space-y-4">
+        <div className="grid gap-4 xl:grid-cols-2">
+          <TeamPlayerStats t={away} />
+          <TeamPlayerStats t={home} />
+        </div>
+        <ReturnsBoard />
       </div>
       )}
     </div>

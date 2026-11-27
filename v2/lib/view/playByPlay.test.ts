@@ -15,10 +15,10 @@ import { createLiveGame } from "../core/liveGame";
 import { setCallSheet, userSimOpts, boxAttempts } from "../core/callSheet";
 import { declareGamedayInactives } from "../core/inactives";
 import { startRegularSeason, advance } from "../core/season/engine";
-import { DriveSummary, PlayEvent } from "../core/types";
+import { DriveSummary, Game, PlayEvent, ScoringPlay } from "../core/types";
 import { encodeSave, decodeSave } from "../store/codec";
 import {
-  drivePlays, formatPlay, formatVisiblePlay, penaltyTeamId, playedResultLine,
+  drivePlays, driveResultLabelFor, formatPlay, formatVisiblePlay, penaltyTeamId, playedResultLine,
   spotLabel, visiblePlays, wentToOvertime,
 } from "./playByPlay";
 
@@ -262,6 +262,8 @@ console.log("ok    playByPlay — SD 32, NYS 29 · Loss (OT)");
   let returned = 0;
   let kicks = 0;
   let kicked = 0;
+  let sixYds = 0;
+  let sixLineYds = 0;
   for (let i = 0; i < 120; i++) {
     const g = {
       id: 9000 + i, season: st.season, week: 1, homeId: i % 32, awayId: (i * 7 + 3) % 32,
@@ -270,6 +272,7 @@ console.log("ok    playByPlay — SD 32, NYS 29 · Loss (OT)");
     if (g.homeId === g.awayId) continue;
     for (const p of st.players) { p.injuryWeeks = 0; p.injuryDesc = null; }
     const r = simulateGame(st, g, rng);
+    let returnedHere = 0;
     for (const line of r.box.players) defTd += line.defTd;
     for (let j = 0; j < r.plays.length; j++) {
       const e = r.plays[j];
@@ -286,11 +289,28 @@ console.log("ok    playByPlay — SD 32, NYS 29 · Loss (OT)");
       assert.notEqual(next.offenseId, e.offenseId, "the defence kicks the PAT");
       const delta = (e.homeScore + e.awayScore) - (prev.homeScore + prev.awayScore);
       assert.equal(delta, 6, "the snap row carries the six the return made");
+      // The return covers the field it had. `yardLine` is offence-relative,
+      // so the defence starts that far out: a fumble within three yards past
+      // the line, a pick at the line or deeper.
+      const desc = r.box.scoringPlays.filter((s) => /(interception|fumble) return TD/.test(s.desc))[returnedHere++].desc;
+      const yds = Number(/(\d+) yd (interception|fumble) return TD/.exec(desc)![1]);
+      assert.equal(e.returnYards, yds, "the snap row carries the return the scoring line prints");
+      if (e.result === "fumble") {
+        assert.ok(yds >= e.yardLine && yds <= e.yardLine + 3, `fumble return ${yds} from the ${e.yardLine}`);
+      } else {
+        assert.ok(yds >= e.yardLine && yds <= 99, `pick-six ${yds} from the ${e.yardLine}`);
+        const line = r.box.players.find((l) => l.playerId === e.returnerId)!;
+        assert.ok(line.intYds >= yds, "the pick-six yards are in the box");
+        sixYds += yds;
+        sixLineYds += line.ints === 1 ? line.intYds : yds;
+      }
     }
   }
   assert.ok(defTd > 0, "the sample has defensive touchdowns");
   assert.equal(returned, defTd, "every defensive TD names its returner on the snap row");
   assert.equal(kicked, kicks, "every kickoff row names the kicker");
+  assert.ok(sixYds > 0, "the sample has pick-sixes");
+  assert.equal(sixLineYds, sixYds, "a pick-six books its return yards once");
 
   const names = (id: number) => (id === 1 ? "Brady" : id === 2 ? "Smith" : id === 3 ? "Tucker" : "");
   const base = {
@@ -303,6 +323,14 @@ console.log("ok    playByPlay — SD 32, NYS 29 · Loss (OT)");
   assert.equal(
     formatPlay({ ...base, kind: "run", result: "fumble", playerId: 1, returnerId: 2 } as PlayEvent, names),
     "Brady run, fumble — Smith returns it for a TD",
+  );
+  assert.equal(
+    formatPlay({ ...base, kind: "pass", result: "int", playerId: 1, returnerId: 2, returnYards: 40 } as PlayEvent, names),
+    "Brady pass intercepted — Smith returns it 40 yd for a TD",
+  );
+  assert.equal(
+    formatPlay({ ...base, kind: "run", result: "fumble", playerId: 1, returnerId: 2, returnYards: 41 } as PlayEvent, names),
+    "Brady run, fumble — Smith returns it 41 yd for a TD",
   );
   assert.equal(
     formatPlay({ ...base, kind: "kickoff", result: "touchback", kickerId: 3 } as PlayEvent, names),
@@ -341,4 +369,127 @@ console.log("ok    playByPlay — SD 32, NYS 29 · Loss (OT)");
   const wireOf = (v: unknown) => JSON.parse(JSON.stringify(v));
   assert.deepEqual(wireOf(bg.boxScore?.plays), wireOf(cpuOf(w2)[0].boxScore!.plays), "codec round-trip keeps a CPU log");
   console.log("ok    playByPlay — P5 CPU snap logs live one week");
+}
+
+// A blocked field goal is stored as missed_fg. The chart reads the snap,
+// and when that log is gone it reads the scoring line the summary already shows.
+{
+  const fg = (over: Partial<PlayEvent>): PlayEvent => ({
+    q: 2, clock: 400, down: 4, toGo: 6, yardLine: 70,
+    offenseId: 1, kind: "fg", result: "miss", yards: 47,
+    homeScore: 0, awayScore: 0,
+    ...over,
+  });
+  const drive = (over: Partial<DriveSummary>): DriveSummary => ({
+    n: 1, offenseId: 1, q: 2, clock: 500, startYl: 40, endYl: 70,
+    plays: 4, yards: 30, result: "missed_fg", from: 0, to: 1,
+    ...over,
+  });
+  const line = (over: Partial<ScoringPlay>): ScoringPlay => ({
+    q: 2, clock: 400, teamId: 1, desc: "Hawthorne 47 yd field goal is BLOCKED",
+    homeScore: 0, awayScore: 0,
+    ...over,
+  });
+
+  const missed = drive({});
+  const missPlay = fg({ result: "miss" });
+  assert.equal(driveResultLabelFor(missed, { plays: [missPlay] }), "Missed FG");
+
+  const blockedPlay = fg({ result: "blocked" });
+  assert.equal(driveResultLabelFor(missed, { plays: [blockedPlay] }), "Blocked FG");
+  assert.equal(driveResultLabelFor(missed), "Missed FG", "no log and no scoring line stays a miss");
+
+  const made = drive({ result: "field_goal" });
+  assert.equal(
+    driveResultLabelFor(made, { plays: [fg({ result: "good" })] }),
+    "FG",
+    "a made kick is not relabeled",
+  );
+
+  const td = drive({ result: "touchdown", to: 2 });
+  const tdPlays = [
+    fg({ kind: "run", result: "td", yards: 4 }),
+    fg({ kind: "xp", result: "blocked", yards: 0, down: 0, toGo: 0 }),
+  ];
+  assert.equal(driveResultLabelFor(td, { plays: tdPlays }), "TD", "a blocked extra point stays on the TD drive");
+
+  // The kick is in the next quarter. The drive that contains it opened at the end of this one.
+  const span = drive({ n: 6, offenseId: 17, q: 1, clock: 32, from: 0, to: 1 });
+  const later = drive({ n: 8, offenseId: 17, q: 2, clock: 542, result: "field_goal", from: 1, to: 2 });
+  const spanLine = line({ q: 2, clock: 851, teamId: 17, desc: "Northcutt 44 yd field goal is BLOCKED" });
+  const spanSource = { scoringPlays: [spanLine], drives: [span, later] };
+  assert.equal(driveResultLabelFor(span, spanSource), "Blocked FG");
+  assert.equal(driveResultLabelFor(later, spanSource), "FG");
+
+  // Two misses in one quarter: the block belongs to the drive that started closer to the kick.
+  const early = drive({ n: 1, q: 2, clock: 800, from: 0, to: 1 });
+  const close = drive({ n: 2, q: 2, clock: 400, from: 1, to: 2 });
+  const both = {
+    scoringPlays: [line({ q: 2, clock: 350, desc: "Hawthorne 47 yd field goal is BLOCKED" })],
+    drives: [early, close],
+  };
+  assert.equal(driveResultLabelFor(close, both), "Blocked FG");
+  assert.equal(driveResultLabelFor(early, both), "Missed FG");
+
+  const wide = {
+    scoringPlays: [line({ desc: "Hawthorne 47 yd field goal is NO GOOD" })],
+    drives: [missed],
+  };
+  assert.equal(driveResultLabelFor(missed, wide), "Missed FG");
+
+  // The snap log wins when both are present, including a line that disagrees.
+  assert.equal(
+    driveResultLabelFor(missed, { plays: [missPlay], ...both, drives: [missed] }),
+    "Missed FG",
+  );
+
+  console.log("ok    playByPlay — a blocked field goal is not tagged as a miss");
+}
+
+{
+  const st = newGame({ seed: 42 });
+  const rng = new Rng(42);
+  let blocked = 0;
+  let missed = 0;
+  let spanned = 0;
+  for (let i = 0; i < 80; i++) {
+    const homeId = i % 32;
+    const awayId = (i * 7 + 3) % 32;
+    if (homeId === awayId) continue;
+    const g = {
+      id: 9000 + i, season: st.season, week: 1, homeId, awayId,
+      played: false, homeScore: 0, awayScore: 0, playoffRound: null, boxScore: null,
+    } as unknown as Game;
+    for (const p of st.players) { p.injuryWeeks = 0; p.injuryDesc = null; }
+    const r = simulateGame(st, g, rng);
+    const plays = r.plays;
+    const drives = r.box.drives ?? [];
+    const source = { plays, scoringPlays: r.box.scoringPlays, drives };
+    for (const e of plays) {
+      if (e.kind !== "fg") continue;
+      const idx = plays.indexOf(e);
+      const d = drives.find((row) => idx >= row.from && idx < row.to);
+      assert.ok(d, "every field goal sits on a drive");
+      const tag = driveResultLabelFor(d, source);
+      // An earlier week's CPU box keeps the scoring line and the drive chart, not the snaps.
+      const dropped = driveResultLabelFor(d, { scoringPlays: r.box.scoringPlays, drives });
+      if (e.result === "blocked") {
+        blocked++;
+        assert.equal(d.result, "missed_fg");
+        assert.equal(tag, "Blocked FG");
+        assert.equal(dropped, "Blocked FG", "the scoring line still names the drive after the snap log is dropped");
+        if (d.q !== e.q) spanned++;
+      } else if (e.result === "miss") {
+        missed++;
+        assert.equal(tag, "Missed FG");
+        assert.equal(dropped, "Missed FG");
+      } else if (e.result === "good") {
+        assert.equal(tag, "FG");
+        assert.equal(dropped, "FG");
+      }
+    }
+  }
+  assert.ok(blocked > 0, "the sample has a blocked field goal");
+  assert.ok(missed > 0, "the sample has a missed field goal");
+  console.log(`ok    playByPlay — ${blocked} blocked and ${missed} missed field goals, ${spanned} across a quarter`);
 }

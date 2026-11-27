@@ -1,5 +1,5 @@
 import {
-  DriveResult, DriveSummary, PlayEvent, PlayKind, PlayResult, Team,
+  DriveResult, DriveSummary, PlayEvent, PlayKind, PlayResult, ScoringPlay, Team,
 } from "../core/types";
 
 export function clockLabel(seconds: number): string {
@@ -115,8 +115,9 @@ export function formatPlay(
   sides?: PlaySides,
 ): string {
   if (e.returnerId !== undefined) {
-    const { returnerId, ...snap } = e;
-    return `${formatPlay(snap, names, sides)} — ${nameOf(returnerId, names) || "defender"} returns it for a TD`;
+    const { returnerId, returnYards, ...snap } = e;
+    const how = returnYards === undefined ? "returns it" : `returns it ${returnYards} yd`;
+    return `${formatPlay(snap, names, sides)} — ${nameOf(returnerId, names) || "defender"} ${how} for a TD`;
   }
   const who = nameOf(e.playerId, names);
   const tgt = nameOf(e.targetId, names);
@@ -130,10 +131,12 @@ export function formatPlay(
       if (e.result === "touchback") return `Punt ${e.yards} yds — touchback`;
       if (e.result === "td") return `${who || "Returner"} ${e.yards} yd punt return TD`;
       if (e.result === "return") return `Punt ${e.yards} yds — ${who || "returner"} returns`;
+      if (e.result === "fair_catch") return `Punt ${e.yards} yds — fair catch`;
       return `Punt ${e.yards} yds`;
     case "fg":
-      return `${who || "Kicker"} ${e.yards} yd field goal is ${e.result === "good" ? "GOOD" : "NO GOOD"}`;
+      return `${who || "Kicker"} ${e.yards} yd field goal is ${e.result === "good" ? "GOOD" : e.result === "blocked" ? "BLOCKED" : "NO GOOD"}`;
     case "xp":
+      if (e.result === "blocked") return "Extra point BLOCKED";
       return e.result === "good" ? "Extra point good" : "Extra point MISSED";
     case "two":
       return e.result === "good" ? "Two-point conversion GOOD" : "Two-point conversion FAILED";
@@ -201,6 +204,77 @@ export function driveResultTone(r: DriveResult): "good" | "bad" | "warn" | "defa
   if (r === "turnover" || r === "safety" || r === "downs") return "bad";
   if (r === "missed_fg") return "warn";
   return "default";
+}
+
+export interface DriveLabelSource {
+  /** Snap log. Present on a user game and on the latest week's CPU games. */
+  plays?: PlayEvent[] | null;
+  /** Kept after the snap log is dropped. A block is a non-scoring line. */
+  scoringPlays?: ScoringPlay[] | null;
+  /** The chart being labeled. Needed only when the snap log is gone. */
+  drives?: DriveSummary[] | null;
+}
+
+/**
+ * The chart tag. A blocked field goal is stored as `missed_fg` — the same
+ * result as a kick that sailed wide — so the label has to read the snap.
+ * When that log has been dropped, the scoring summary still says BLOCKED
+ * and names the drive the kick belongs to. An older save, with neither,
+ * stays "Missed FG".
+ */
+export function driveResultLabelFor(d: DriveSummary, source: DriveLabelSource = {}): string {
+  if (d.result === "missed_fg" && driveIsBlockedFg(d, source)) return "Blocked FG";
+  return driveResultLabel(d.result);
+}
+
+function driveIsBlockedFg(d: DriveSummary, source: DriveLabelSource): boolean {
+  const plays = source.plays;
+  // A bounded slice. An old drive row with no `to` must not scan the rest of the log.
+  if (plays && plays.length > 0 && typeof d.from === "number" && typeof d.to === "number") {
+    return drivePlays(plays, d).some((e) => e.kind === "fg" && e.result === "blocked");
+  }
+  const drives = source.drives;
+  const scoring = source.scoringPlays;
+  if (!drives?.length || !scoring?.length) return false;
+  return blockedFgDriveNums(drives, scoring).has(d.n);
+}
+
+/** Earlier moments are larger. The gap is wider than a quarter, so 0:00 still precedes the next quarter's 15:00. */
+function kickMoment(q: number, clock: number): number {
+  return (8 - q) * 1000 + clock;
+}
+
+/**
+ * Which missed-FG drives the scoring summary calls blocked.
+ * The kick ends the drive, so it belongs to the missed-FG possession of
+ * that club that started latest at or before the kick — including one
+ * that opened in the previous quarter.
+ */
+function blockedFgDriveNums(drives: DriveSummary[], scoring: ScoringPlay[]): Set<number> {
+  const used = new Set<number>();
+  const blocks = scoring
+    .map((sp, i) => ({ sp, i }))
+    .filter(({ sp }) => sp.desc.endsWith("field goal is BLOCKED"));
+  blocks.sort((a, b) => kickMoment(b.sp.q, b.sp.clock) - kickMoment(a.sp.q, a.sp.clock) || a.i - b.i);
+  for (const { sp } of blocks) {
+    const at = kickMoment(sp.q, sp.clock);
+    let best: DriveSummary | null = null;
+    let bestAt = Infinity;
+    for (const d of drives) {
+      if (used.has(d.n) || d.result !== "missed_fg" || d.offenseId !== sp.teamId) continue;
+      const started = kickMoment(d.q, d.clock);
+      if (started < at) continue;
+      if (
+        started < bestAt ||
+        (started === bestAt && best !== null && d.n > best.n)
+      ) {
+        best = d;
+        bestAt = started;
+      }
+    }
+    if (best) used.add(best.n);
+  }
+  return used;
 }
 
 /** 0–100 bar: start and end from the offense's spot. */
