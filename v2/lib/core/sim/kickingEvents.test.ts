@@ -6,12 +6,21 @@
  * The field-goal coin is the traced share of misses. The extra-point coin is
  * the traced rate per attempt, divided by that kick's miss probability.
  *
+ * Stage 2, onside kicks only. A trailing club in the fourth quarter attempts
+ * at the §5.14 clock-by-deficit table. Recovery is 14/154. The spot is the
+ * restraining line. The coins ride onsideRng, not the parent and not the
+ * kick-event stream. Blocked punts are not in this file.
+ *
  * Run: npx tsx lib/core/sim/kickingEvents.test.ts
  */
 import assert from "node:assert/strict";
 import { newGame } from "../newGame";
 import { Rng } from "../rng";
-import { KICK_EVENT, blockRateGivenMiss, kickEventRate, simulateGame } from "./game";
+import {
+  KICK_EVENT, ONSIDE_ATTEMPT, ONSIDE_KICK_SPOT, ONSIDE_RECOVERY, ONSIDE_RESTRAINING_YARDLINE,
+  blockRateGivenMiss, kickEventRate, onsideRecoveryRate, simulateGame, trailingOnsideRate,
+} from "./game";
+import type { OnsideClockBin, OnsideDeficitBin } from "./game";
 import { STARTERS } from "../types";
 import type { Game, GameState, PlayEvent } from "../types";
 import { formatPlay } from "../../view/playByPlay";
@@ -202,4 +211,249 @@ console.log(
   assert.equal(formatPlay({ ...base, kind: "punt", result: "fair_catch" } as PlayEvent, () => ""), "Punt 47 yds — fair catch");
   assert.equal(formatPlay({ ...base, kind: "punt", result: "gain" } as PlayEvent, () => ""), "Punt 47 yds");
   console.log("ok    kickingEvents — the play-by-play rows read BLOCKED and fair catch");
+}
+
+// ---------------------------------------------------------------------------
+// Stage 2 — onside kicks. The table is §5.14. The spot is §4.
+// ---------------------------------------------------------------------------
+
+function isOnside(e: PlayEvent): boolean {
+  return e.kind === "kickoff" && (e.result === "gain" || e.result === "loss") && e.yards === 0 && e.playerId === undefined;
+}
+
+const CLOCKS: OnsideClockBin[] = ["15:00-5:01", "5:00-3:01", "3:00-2:01", "2:00-1:01", "1:00-0:00"];
+const DEFS: OnsideDeficitBin[] = ["1-8", "9-16", "17+"];
+const LATE: OnsideClockBin[] = ["5:00-3:01", "3:00-2:01", "2:00-1:01", "1:00-0:00"];
+
+function cellSum(clocks: readonly OnsideClockBin[], defs: readonly OnsideDeficitBin[]) {
+  let onsides = 0;
+  let kickoffs = 0;
+  for (const c of clocks) for (const d of defs) {
+    onsides += ONSIDE_ATTEMPT[c][d].onsides;
+    kickoffs += ONSIDE_ATTEMPT[c][d].kickoffs;
+  }
+  return { onsides, kickoffs };
+}
+
+{
+  const lateOne = cellSum(LATE, ["1-8", "9-16"]);
+  assert.deepEqual(lateOne, { onsides: 113, kickoffs: 202 });
+  const underTwo = cellSum(["2:00-1:01", "1:00-0:00"], ["1-8"]);
+  assert.deepEqual(underTwo, { onsides: 58, kickoffs: 60 });
+  const twoScore = cellSum(LATE, ["9-16"]);
+  assert.deepEqual(twoScore, { onsides: 46, kickoffs: 58 });
+  const deep = cellSum(LATE, ["17+"]);
+  assert.deepEqual(deep, { onsides: 12, kickoffs: 33 });
+  assert.equal(cellSum(CLOCKS, DEFS).onsides, 141);
+  assert.equal(ONSIDE_KICK_SPOT, 35);
+  assert.equal(ONSIDE_RESTRAINING_YARDLINE, 45);
+  assert.equal(100 - ONSIDE_RESTRAINING_YARDLINE, 55);
+  assert.deepEqual(ONSIDE_RECOVERY, { recovered: 14, attempts: 154 });
+  assert.equal(onsideRecoveryRate(), 14 / 154);
+
+  assert.equal(trailingOnsideRate(4, false, 900, 4), 0);
+  assert.equal(trailingOnsideRate(4, false, 301, 4), 0);
+  assert.equal(trailingOnsideRate(4, false, 300, 4), 1 / 58);
+  assert.equal(trailingOnsideRate(4, false, 181, 8), 1 / 58);
+  assert.equal(trailingOnsideRate(4, false, 180, 8), 8 / 26);
+  assert.equal(trailingOnsideRate(4, false, 121, 8), 8 / 26);
+  assert.equal(trailingOnsideRate(4, false, 120, 8), 28 / 29);
+  assert.equal(trailingOnsideRate(4, false, 61, 8), 28 / 29);
+  assert.equal(trailingOnsideRate(4, false, 60, 8), 30 / 31);
+  assert.equal(trailingOnsideRate(4, false, 0, 8), 30 / 31);
+  assert.equal(trailingOnsideRate(4, false, -5, 8), 30 / 31);
+  assert.equal(trailingOnsideRate(4, false, 900, 9), 6 / 89);
+  assert.equal(trailingOnsideRate(4, false, 250, 9), 18 / 26);
+  assert.equal(trailingOnsideRate(4, false, 250, 16), 18 / 26);
+  assert.equal(trailingOnsideRate(4, false, 250, 17), 6 / 11);
+  assert.equal(trailingOnsideRate(4, false, 100, 12), 1);
+  assert.equal(trailingOnsideRate(4, false, 140, 10), 1);
+  assert.equal(trailingOnsideRate(4, false, 250, 0), 0);
+  assert.equal(trailingOnsideRate(4, false, 250, -3), 0);
+  assert.equal(trailingOnsideRate(3, false, 60, 7), 0);
+  assert.equal(trailingOnsideRate(1, false, 30, 7), 0);
+  assert.equal(trailingOnsideRate(5, true, 60, 7), 0);
+  assert.equal(trailingOnsideRate(4, true, 60, 7), 0);
+  assert.equal(trailingOnsideRate(4, false, 901, 7), 0);
+  console.log("ok    kickingEvents — onside table is the §5.14 cells, recovery 14/154, spot 45");
+}
+
+const savedAttempt = JSON.parse(JSON.stringify(ONSIDE_ATTEMPT)) as typeof ONSIDE_ATTEMPT;
+const savedRecovery = { recovered: ONSIDE_RECOVERY.recovered, attempts: ONSIDE_RECOVERY.attempts };
+
+function restoreOnside() {
+  for (const c of CLOCKS) for (const d of DEFS) {
+    ONSIDE_ATTEMPT[c][d].onsides = savedAttempt[c][d].onsides;
+    ONSIDE_ATTEMPT[c][d].kickoffs = savedAttempt[c][d].kickoffs;
+  }
+  ONSIDE_RECOVERY.recovered = savedRecovery.recovered;
+  ONSIDE_RECOVERY.attempts = savedRecovery.attempts;
+}
+
+function setAttempt(onsides: number, kickoffs: number) {
+  for (const c of CLOCKS) for (const d of DEFS) {
+    ONSIDE_ATTEMPT[c][d].onsides = onsides;
+    ONSIDE_ATTEMPT[c][d].kickoffs = kickoffs;
+  }
+}
+
+function runIsolated(n: number, idBase: number) {
+  const frozen = JSON.stringify(newGame({ seed: 12345 }));
+  const out: (NonNullable<ReturnType<typeof play>> | null)[] = [];
+  for (let i = 0; i < n; i++) {
+    const st = JSON.parse(frozen) as GameState;
+    out.push(play(st, i, idBase + i));
+  }
+  return out;
+}
+
+const onsideCount = (rows: { r: { plays: PlayEvent[] } }[]) =>
+  rows.reduce((n, x) => n + x.r.plays.filter(isOnside).length, 0);
+
+assert.equal(onsideCount(on), onsideCount(off), "an onside coin does not share the kick-event stream");
+
+{
+  let attempts = 0;
+  let recovered = 0;
+  for (const x of on) {
+    assert.equal(x.r.plays[0].result, "touchback", "the opening kick is the stub, not an onside");
+    let kr = 0;
+    for (const line of x.r.box.players) kr += line.kr;
+    const krPlays = x.r.plays.filter((e) =>
+      e.kind === "kickoff" && e.playerId !== undefined && (e.result === "return" || e.result === "td")).length;
+    assert.equal(kr, krPlays, "an onside writes no kick-return line");
+    for (let j = 0; j < x.r.plays.length; j++) {
+      const e = x.r.plays[j];
+      if (e.kind === "kickoff" && e.q !== 4) assert.ok(!isOnside(e), "no onside before the fourth quarter");
+      if (!isOnside(e)) continue;
+      attempts++;
+      assert.equal(e.q, 4);
+      assert.ok(e.kickerId !== undefined, "the kickoff names the kicker");
+      const kicker = roster.get(e.kickerId!)!;
+      assert.equal(kicker.pos, "K");
+      const kickHome = kicker.teamId === x.g.homeId;
+      const kickPts = kickHome ? e.homeScore : e.awayScore;
+      const recvPts = kickHome ? e.awayScore : e.homeScore;
+      const deficit = recvPts - kickPts;
+      assert.ok(deficit >= 1, "the kicking club is trailing");
+      assert.ok(trailingOnsideRate(4, false, e.clock, deficit) > 0, "the logged clock is a cell that attempts");
+      if (e.result === "gain") {
+        recovered++;
+        assert.equal(e.yardLine, ONSIDE_RESTRAINING_YARDLINE);
+        assert.equal(e.offenseId, kicker.teamId, "a recovery belongs to the kicking club");
+      } else {
+        assert.equal(e.result, "loss");
+        assert.equal(e.yardLine, 100 - ONSIDE_RESTRAINING_YARDLINE);
+        assert.notEqual(e.offenseId, kicker.teamId, "a failed onside belongs to the receiving club");
+      }
+      const prev: PlayEvent | undefined = x.r.plays[j - 1];
+      assert.ok(prev);
+      assert.equal(prev.homeScore, e.homeScore);
+      assert.equal(prev.awayScore, e.awayScore, "an onside does not score");
+      const next: PlayEvent | undefined = x.r.plays[j + 1];
+      if (next) {
+        assert.equal(next.offenseId, e.offenseId, "the next play is the club that came up with the ball");
+        assert.equal(next.yardLine, e.yardLine);
+      }
+      const drive = (x.r.box.drives ?? []).find((d) => d.from === j);
+      assert.ok(drive, "the onside opens a drive");
+      assert.equal(drive!.offenseId, e.offenseId);
+      assert.equal(drive!.startYl, e.yardLine);
+      assert.ok(!x.r.box.scoringPlays.some((s) => /onside/i.test(s.desc)));
+    }
+  }
+  assert.ok(attempts > 0, "the sample attempts an onside");
+  console.log(
+    `ok    kickingEvents — ${attempts} onsides in the label sample, ${recovered} recovered, ` +
+    `no return, no score, spot on the restraining line`,
+  );
+}
+
+try {
+  const N = 80;
+  const quiet = runIsolated(N, 11000);
+  setAttempt(0, 1);
+  const zeroed = runIsolated(N, 11000);
+  restoreOnside();
+  let tried = 0;
+  let held = 0;
+  for (let i = 0; i < quiet.length; i++) {
+    const a = quiet[i];
+    const b = zeroed[i];
+    assert.equal(a === null, b === null);
+    if (!a || !b) continue;
+    assert.equal(b.r.plays.filter(isOnside).length, 0, "a zero table attempts nothing");
+    if (a.r.plays.some(isOnside)) {
+      tried++;
+      continue;
+    }
+    held++;
+    assert.equal(a.rngState, b.rngState, "a kickoff that is not an onside does not move the parent");
+    assert.equal(a.r.homeScore, b.r.homeScore);
+    assert.equal(a.r.awayScore, b.r.awayScore);
+  }
+  assert.ok(tried > 0, "the isolated sample attempts an onside");
+  assert.ok(held > 0, "the isolated sample has games with no onside");
+
+  setAttempt(1, 1_000_000_000);
+  const rare = runIsolated(N, 11000);
+  let leaks = 0;
+  let rareOnsides = 0;
+  for (let i = 0; i < rare.length; i++) {
+    const a = rare[i];
+    const b = zeroed[i];
+    if (!a || !b) continue;
+    rareOnsides += a.r.plays.filter(isOnside).length;
+    if (a.r.plays.some(isOnside)) continue;
+    if (a.rngState !== b.rngState) leaks++;
+  }
+  assert.equal(rareOnsides, 0, "a one-in-a-billion cell does not attempt");
+  assert.equal(leaks, 0, "a declined onside draws on the side stream, not the parent");
+
+  setAttempt(1, 1);
+  ONSIDE_RECOVERY.recovered = ONSIDE_RECOVERY.attempts;
+  const kept = runIsolated(40, 21000);
+  ONSIDE_RECOVERY.recovered = 0;
+  const lost = runIsolated(40, 21000);
+  let keeps = 0;
+  let losses = 0;
+  for (const x of kept) {
+    if (!x) continue;
+    for (const e of x.r.plays) {
+      if (!isOnside(e)) continue;
+      keeps++;
+      assert.equal(e.result, "gain");
+      assert.equal(e.yardLine, 45);
+      assert.equal(e.offenseId, roster.get(e.kickerId!)!.teamId);
+    }
+  }
+  for (const x of lost) {
+    if (!x) continue;
+    for (const e of x.r.plays) {
+      if (!isOnside(e)) continue;
+      losses++;
+      assert.equal(e.result, "loss");
+      assert.equal(e.yardLine, 55);
+      assert.notEqual(e.offenseId, roster.get(e.kickerId!)!.teamId);
+    }
+  }
+  assert.ok(keeps > 0, "a forced recovery gives the ball to the kicking club at its 45");
+  assert.ok(losses > 0, "a forced failure gives the ball to the receiving club at its 55");
+
+  const sequence = (id: number) => {
+    const rows = runIsolated(24, id);
+    return rows.map((x) => x ? x.r.plays.filter(isOnside).map((e) => e.result).join(",") : "").join("|");
+  };
+  ONSIDE_RECOVERY.recovered = 1;
+  ONSIDE_RECOVERY.attempts = 2;
+  const first = sequence(30000);
+  assert.equal(sequence(30000), first, "one game id gives one onside sequence");
+  assert.notEqual(sequence(80000), first, "another game id gives another onside sequence");
+  assert.ok(first.includes("gain") || first.includes("loss"), "the key sample attempts");
+  console.log(
+    `ok    kickingEvents — onside stream is not the parent ` +
+    `(${tried} games attempted, ${held} did not; forced ${keeps} recoveries and ${losses} failures)`,
+  );
+} finally {
+  restoreOnside();
 }
