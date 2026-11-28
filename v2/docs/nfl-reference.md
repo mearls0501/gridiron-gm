@@ -834,7 +834,9 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   (−1 run … +1 pass) and `aggression` (0–100) already in `simulateGame`.
   It is a player control, not a measured league rate. No new mix target
   and no formation tree — the play loop has down / toGo / yardLine /
-  passBias / aggression and a victory kneel, nothing else. Ungated.
+  passBias / aggression and a victory kneel, nothing else. Public
+  personnel, package, coverage, blitz, and alignment rates are
+  collected in §4.1. The tree is still unbuilt. Ungated.
 - **Holdouts sit from year 0.** Added 2026-09-14 (Wave 3.8 Packet 3,
   Matt SIGNED). The year-0 `history.length === 0` carve-out in
   `isHoldoutInactive` is removed. Holdouts are gameday inactive in the
@@ -1386,6 +1388,360 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
     (<https://www.nflgsis.com/gsis/Documentation/StadiumGuides/Events_And_Attributes.pdf>,
     last modified 4/22/2009) was not used. It is sixteen years older
     than the guide above.
+
+### 4.1 Personnel, package, coverage, blitz, alignment — quoted 2026-11-28, not a lock
+
+Added 2026-11-28. Not in T/D/S/P. Not recomputed in this session.
+Every rate below is quoted from the named page, with that page's
+season and whatever sample it prints. A figure the pages do not give
+is marked **not sourced**. Nothing here is a `baselines.json` row.
+Nothing is signed. The formation / personnel / coverage / blitz tree
+is still unbuilt.
+
+Charting houses do not share a denominator. Two rates are the same
+claim only when the pages say so. Where they do not, both numbers
+stand and the gap is left open.
+
+#### Offensive personnel
+
+PFF, Nic Bodiford, 2026-05-27, "NFL Personnel Trends"
+(<https://www.pff.com/news/fantasy-football-nfl-personnel-trends-how-heavier-groupings-are-shrinking-the-fantasy-flex-pool>).
+League-wide averages, 2023–2025. He prints rates for every grouping
+except 13, which he prints as totals. The play count is not printed.
+The unit of the 13 column is not named past "totals".
+
+| grouping | 2023 | 2024 | 2025 |
+|---|---:|---:|---:|
+| 11 (1 RB, 1 TE, 3 WR) | 63.36% | 62.30% | 58.11% |
+| 12 (1 RB, 2 TE, 2 WR) | 20.43% | 23.01% | 24.26% |
+| 21 (2 RB, 1 TE, 2 WR) | 7.55% | 6.41% | 6.85% |
+| 22 (2 RB, 2 TE, 1 WR) | 2.00% | 2.31% | 3.00% |
+| 13 (totals, not a rate) | 46.13 | 44.63 | 65.06 |
+
+The four rate rows sum to 93.34 / 94.03 / 92.22. The page does not
+name the remainder.
+
+**Not sourced.** 10 personnel (1 RB, 0 TE, 4 WR) as its own share.
+Personnel share by down and distance. 21 and 22 inside the red zone.
+A 13-personnel *rate* on the PFF page (the cells above are totals).
+
+Red zone, 2025 only, from Fantasy Points Data Suite as printed by
+Corbin Young, 2026-07-26
+(<https://corbinyoung.substack.com/p/11-12-and-13-personnel-usage-in-the>).
+"Last season" in that July 2026 note is 2025. Play count not printed.
+
+| grouping | red zone | outside the red zone |
+|---|---:|---:|
+| 11 | 51.7% | not printed |
+| 12 | 21.3% | 22.5% |
+| 13 | 6.7% | 5.1% |
+
+PFF's 2025 all-play 12-personnel rate is 24.26%. Fantasy Points prints
+22.5% outside the red zone and 21.3% inside it. Those are different
+houses and different play sets. Left as a conflict.
+
+Width of the formation, which is not the same code as 11 or 12.
+Sharp Football, Rich Hribar, 2026-07-13, "NFL Offensive Trends"
+(<https://www.sharpfootballanalysis.com/fantasy/nfl-offensive-trends-fantasy-football/>).
+The page prints the table back to 2016. The 2021–2025 rows:
+
+| year | under center | 3+ WR | 2+ TE | 6+ OL |
+|---|---:|---:|---:|---:|
+| 2021 | 34.6% | 62.3% | 28.8% | 3.9% |
+| 2022 | 33.0% | 62.9% | 27.8% | 3.1% |
+| 2023 | 28.7% | 64.8% | 27.0% | 2.6% |
+| 2024 | 30.3% | 62.6% | 30.2% | 2.9% |
+| 2025 | 34.8% | 57.9% | 33.4% | 5.3% |
+
+Play count not printed. 3+ WR includes 11 and 10 and any other
+three-wide set. 2+ TE includes 12, 13, 22, and any other two-tight set.
+
+The same site's personnel page, Sharp Football Staff, 2026-11-24
+(<https://www.sharpfootballanalysis.com/stats-nfl/nfl-offensive-personnel/>),
+prints a rounded 2+ TE series: 2021 28%, 2022 27%, 2023 26%, 2024 30%,
+2025 33%. Hribar's 2022 and 2023 cells are 27.8% and 27.0%. About a
+point apart, same site, filter not stated on the rounded page. The
+2026 figure on that page is 35% "through three games". That is a
+partial season, not a full-season rate.
+
+2025 is the year the two 11-vs-3+WR series cross. PFF 11 personnel is
+58.11%. Hribar 3+ WR is 57.9%. If both counted the same plays, 11
+would sit inside 3+ WR. In 2023 and 2024 it does (63.36 vs 64.8,
+62.30 vs 62.6). In 2025 it does not. Left as a conflict.
+
+#### Defensive package
+
+Both public series are by defensive-back count. PFF says base is four
+defensive backs, nickel five, dime six. Neither page splits base into
+a 4-3 front and a 3-4 front.
+
+**Not sourced.** The 4-3 / 3-4 front share. The package mix on
+3rd-and-long.
+
+PFF, Nic Bodiford, 2026-06-08
+(<https://www.pff.com/news/fantasy-football-tracking-base-nickel-and-dime-trends-to-exploit-2026-fantasy-matchups>).
+League averages, 2023–2025. Play count not printed.
+
+| package | 2023 | 2024 | 2025 |
+|---|---:|---:|---:|
+| base (4 DB) | 21.22% | 23.29% | 29.64% |
+| nickel (5 DB) | 67.16% | 65.21% | 59.04% |
+| dime (6 DB) | 9.87% | 9.88% | 9.36% |
+
+The three rows sum to 98.25 / 98.38 / 98.04. The page does not name
+the remainder.
+
+Sharp, same Hribar article, nickel and dime only, which match the PFF
+nickel and dime cells within 0.2 points for 2023–2025. He also prints
+2021 and 2022, which the PFF article does not.
+
+| year | nickel | dime |
+|---|---:|---:|
+| 2021 | 60.8% | 13.4% |
+| 2022 | 63.3% | 10.4% |
+| 2023 | 67.2% | 9.8% |
+| 2024 | 65.1% | 9.8% |
+| 2025 | 59.1% | 9.3% |
+
+The closest sourced situational split is not 3rd-and-long. It is how
+often the defense has five or more defensive backs against a heavy
+offensive look. Same Hribar article, "Rates of Snaps With 5+ DBs on
+the Field vs. Multiple TE Looks":
+
+| year | vs 2+ TE | vs 3 TE |
+|---|---:|---:|
+| 2021 | 40.5% | 43.6% |
+| 2022 | 37.9% | 41.2% |
+| 2023 | 44.3% | 48.7% |
+| 2024 | 40.0% | 44.0% |
+| 2025 | 32.2% | 36.0% |
+
+#### Coverage shell
+
+2024 league shares, Fantasy Points Data Suite, as printed by Doug Orth,
+FF Today, 2025-07-15
+(<https://www.fftoday.com/articles/orth/25_zone.html>).
+"All information courtesy of Fantasy Points Data Suite." He gives the
+league shares and a 32-team table. The league play count is not
+printed. His team examples are shares of dropbacks. The league
+headings are the same shells and do not restate the denominator.
+
+| shell | 2024 |
+|---|---:|
+| Cover 0 | 3.7% |
+| Cover 1 | 22.2% |
+| Cover 2 zone | 15.2% |
+| Cover 2 man | 1.9% |
+| Cover 3 | 29.9% |
+| Cover 4 | 14.2% |
+| Cover 6 | 8.0% |
+
+Those seven cells sum to 95.1. The page does not name the other 4.9
+points. His "zone defense accounts for roughly 75 percent nowadays"
+is not a season and is not entered as a rate.
+
+PFF snap counts, not rates. Bradley Locker, 2025-05-28
+(<https://www.pff.com/news/nfl-schematic-lessons-learned-2024-nfl-season>).
+2024: 10,905 Cover 3 snaps, the fewest since 2020, frequency down in
+each of the prior two years. 7,740 Cover 1 snaps, the most since 2021.
+24 teams ran Cover 3 on at least 25% of snaps, and 25 teams used it
+more than any other shell. Nine teams ran Cover 1 on at least 25% of
+snaps. The page does not print a league share, and these two counts
+are not divided into one here.
+
+Sharp, same Hribar article, 2025 prose only. Quarters (Cover 4) 14.4%,
+"the highest recorded in our sample seasons." Cover 1 17.4%, "the
+lowest in the sample seasons." He does not print the earlier years of
+either series, and he does not print Cover 0, Cover 2, Cover 3, or
+Cover 6. Fantasy Points' 2024 Cover 1 is 22.2% and its Cover 4 is
+14.2%. Different season. Not averaged.
+
+TruMedia, as printed by Jared Dubin, CBS Sports, 2024-09-19
+(<https://www.cbssports.com/nfl/news/whats-really-behind-the-nfls-offensive-struggles-through-two-weeks-and-how-they-can-be-fixed/>).
+The article's frame is the first two weeks of 2024, so the 2024 row
+is that partial season. The 2019–2023 rows are printed as seasons.
+Play count not printed. The Two-High column equals Cover 2 + Cover 4
++ Cover 6 on every printed row. It is those three shells, not every
+split-safety look.
+
+| season | Cover 0 | Cover 1 | Cover 2 | Cover 3 | Cover 4 | Cover 6 | two-high |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 2021 | 4.1% | 22.5% | 11.4% | 34.2% | 11.5% | 8.2% | 31.1% |
+| 2022 | 3.5% | 19.8% | 11.4% | 36.5% | 12.8% | 8.3% | 32.5% |
+| 2023 | 4.1% | 19.0% | 10.5% | 35.6% | 14.2% | 9.5% | 34.2% |
+| 2024 through week 2 | 3.9% | 20.9% | 10.7% | 33.7% | 15.4% | 8.5% | 34.6% |
+
+RotoWire, Jerry Donabedian, page updated 2025-01-10
+(<https://www.rotowire.com/football/article/nfl-state-of-the-union-2024-season-preview-84647>).
+The coverage table prints 2018–2023 and has no 2024 or 2025 row. The
+charting vendor is not named. 2021–2023:
+
+| year | single-high | two-deep | man | zone | Cover 1 | Cover 2 | Cover 3 | Cover 4 | Cover 6 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 2021 | 56.5% | 38.9% | 30.6% | 69.4% | 24.0% | 13.6% | 32.5% | 14.4% | 8.5% |
+| 2022 | 55.0% | 40.9% | 29.1% | 70.9% | 23.2% | 13.9% | 31.8% | 15.9% | 8.7% |
+| 2023 | 53.4% | 42.1% | 28.4% | 71.6% | 22.2% | 12.7% | 31.1% | 17.5% | 9.8% |
+
+Man and zone sum to 100 on each printed row. Single-high and two-deep
+do not (2023: 53.4 + 42.1 = 95.5). The five named shells sum to 93.3
+in 2023. Cover 0 is absent. A second table on the same page counts
+dropbacks by the pre-snap to post-snap safety change. Its 2023 cells
+are 6,408 (single-high stayed), 7,223 (two-high stayed), 1,413
+(single-high to two-high), and 4,549 (two-high to single-high). Those
+four cells sum to 19,593 dropbacks. That is the sample of the disguise
+table, not a stated denominator for the shell-share table.
+
+Same season, three houses, three Cover 3 numbers. TruMedia 2023 Cover
+3 is 35.6%. RotoWire 2023 Cover 3 is 31.1%. TruMedia 2023 Cover 1 is
+19.0%. RotoWire 2023 Cover 1 is 22.2%. TruMedia's two-high (Cover 2 +
+4 + 6) is 34.2% in 2023. RotoWire's two-deep is 42.1%. Sharp's MOFO,
+defined on the page as middle-of-field open *pre-snap*, is 43.8% in
+2023 (table below). Pre-snap open middle, post-snap two-deep, and the
+sum of three shells are different claims. Left in conflict.
+
+Man share, Sharp, same Hribar table. Zone is not printed.
+
+| year | man | MOFO (pre-snap) |
+|---|---:|---:|
+| 2021 | 27.9% | 40.8% |
+| 2022 | 24.4% | 42.2% |
+| 2023 | 24.0% | 43.8% |
+| 2024 | 26.0% | 43.4% |
+| 2025 | 22.6% | 45.7% |
+
+RotoWire's 2023 man rate is 28.4%. Sharp's is 24.0%. Bill Barnwell,
+TSN, 2026-09-17, citing ESPN's coverage tracking
+(<https://www.tsn.ca/nfl/article/why-nfl-offences-are-going-under-center-more-often-in-2026-n1-49956804/>):
+man 55% in 2016, zone overtook man in 2017, and the zone figure "had
+jumped above 58%" in 2025. That is a bound, not a point. Sharp's 2025
+man rate is 22.6%. The two 2025 descriptions do not meet. Left in
+conflict. ESPN's year-by-year table is not printed.
+
+**Not sourced from these pages.** A completed-season Cover 0 / 1 / 2 /
+3 / 4 / 6 mix from NFL Next Gen Stats. The public trends page
+(<https://www.nfl.com/stats/ngs/trends>) is a live dashboard with a
+season selector back to 2018. A static fetch on 2026-11-28 did not
+isolate a finished season, so no NGS rate is entered. Sumer Sports:
+the public week notes that were opened do not print a league shell
+mix. One such note is
+<https://sumersports.com/the-zone/the-monday-morning-mashup-nfl-week-5-the-nfc-north-is-the-best-division-in-football/>.
+
+#### Blitz (5+ rushers)
+
+FTN, Bryan Knowles, 2025-05-27
+(<https://ftnfantasy.com/nfl/2024-blitz-rates-the-blitz-is-back>).
+2024 charting: at least five pass rushers on 26.8% of dropbacks, and
+at least six on 6.6%. He calls both the highest in FTN's charting.
+Play count not printed. The team table is a change list, not the
+league sample.
+
+**Not sourced.** The same 5+ rate for 2021, 2022, 2023, or 2025 on
+that page. Blitz rate by down, from FTN or from anyone else read here.
+
+Sharp, same Hribar table, a column headed Blitz%. The article does
+not define it as five rushers, and it does not print the denominator.
+
+| year | Sharp Blitz% |
+|---|---:|
+| 2021 | 25.3% |
+| 2022 | 25.8% |
+| 2023 | 26.0% |
+| 2024 | 25.3% |
+| 2025 | 25.9% |
+
+2024 is the overlap. FTN's five-rusher dropback rate is 26.8%. Sharp's
+Blitz% is 25.3%. Definition and denominator are not shown to be the
+same. Left in conflict.
+
+PFF blitz by package, not an overall rate and not a down rate. Nic
+Bodiford, 2026-06-08
+(<https://www.pff.com/news/fantasy-football-emerging-blitz-trends-and-scheme-rates>).
+
+| package | 2023 | 2024 | 2025 |
+|---|---:|---:|---:|
+| base | 34.32% | 25.76% | 30.24% |
+| nickel | 28.41% | 27.37% | 29.63% |
+| dime | 27.34% | 24.11% | 22.56% |
+
+These are not weighted into a league blitz rate here. The weights
+would be the package shares above, and the page does not publish the
+product.
+
+One alignment split, 2025 only, same Hribar article, column
+"Blitz/DB%" on dropbacks: shotgun 23.2%, under center 40.0%. That is
+not a down split.
+
+#### Shotgun, under center, pistol, play-action
+
+Under center, all offensive plays, is the first column of Hribar's
+table in the personnel block: 2021 34.6%, 2022 33.0%, 2023 28.7%,
+2024 30.3%, 2025 34.8%. He does not print a shotgun share or a pistol
+share. The complement of under center is not labeled.
+
+Barnwell, same TSN article. He folds pistol in with shotgun.
+
+| season | under center | shotgun or pistol |
+|---|---:|---:|
+| 2023 | 29% | 71% |
+| 2024 | 30.5% | not printed |
+| 2025 | 35% | not printed |
+
+Play count not printed. Week 1 of 2026 is 42.5% under center. That is
+one week, and it is not entered as a season rate.
+
+Robbie Marriage, 2025-07-28
+(<https://gridirondeepdive.substack.com/p/under-center-vs-shotgun-in-modern>).
+He defines shotgun as any snap on which the quarterback has to catch
+the ball, and he names pistol inside that definition. 2024, including
+the playoffs: 36,725 offensive plays, 25,959 catch-the-snap, 10,766
+under center. He states the catch-the-snap share as 70.7% (25,959 /
+36,725) and the 2023 high as 72.1%. The 2023 play count is not
+printed. Under center in that 2024 sample is 10,766 / 36,725 = 29.3%.
+
+Three under-center readings for 2024: Hribar 30.3%, Barnwell 30.5%,
+Marriage 29.3% on 10,766 / 36,725 plays including the playoffs, with
+pistol inside the other bucket. The first two do not say they include
+the playoffs. Left in conflict. 2023 is closer (Hribar 28.7%,
+Barnwell 29%). 2025 is closer (Hribar 34.8%, Barnwell 35%).
+
+**Not sourced.** Pistol as its own share. Every season rate found
+either folds pistol into shotgun or does not mention it.
+
+Formation by down, one cell only. Ryan Dahnke, October 2025, nflfastR
+play-by-play, 2024
+(<https://ryandahnke.com/shotgun/>).
+3rd and long, defined on the page as 8 or more yards: 15 under-center
+plays (10 of them first downs) and 795 shotgun plays. He does not
+mention pistol. His league-wide "more than 70%" and goal-line "almost
+40%" are chart prose, not printed rates, and they are not entered.
+
+Play-action, PFF, Nic Bodiford, 2026-06-01
+(<https://www.pff.com/news/fantasy-football-2026-how-play-action-pre-snap-motion-and-rpo-rates-define-2026-fantasy-value>).
+The table is league rates. The prose calls them attempts and compares
+yards per attempt. The denominator (attempts versus dropbacks) is not
+printed. Play count not printed.
+
+| year | PFF play-action |
+|---|---:|
+| 2023 | 23.36% |
+| 2024 | 24.94% |
+| 2025 | 25.65% |
+
+FTN, as described by Muffed, page updated 2026-09-16
+(<https://muffed.ai/glossary/play-action-rate>).
+2025: 23.1% of dropbacks. "FTN charts every dropback for whether the
+offense showed a run fake." Rams 34.6%, Chiefs 15.2%. PFF's own 2025
+Rams cell on the Bodiford page is 34.40%. The team tail is close. The
+league rate is not: 25.65% against 23.1% of dropbacks. Left in
+conflict. The 2026 team board on the Muffed page is a partial season
+and is not entered.
+
+Sharp, 2025 dropbacks only, same Hribar article. Play-action on 12.5%
+of shotgun dropbacks and on 85.7% of under-center dropbacks. That is
+not an overall rate, and it is not multiplied by the under-center
+play share here.
+
+**Not sourced.** A league play-action rate for 2021 or 2022.
 
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 
