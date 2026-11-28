@@ -292,22 +292,39 @@ export function creditsCoverage(scoring: boolean, kind: CoverageKind, roll: numb
 }
 
 /**
- * Kick events that relabel a play the engine already rolled. A blocked field
- * goal or extra point is a share of the kicks that were not made. A punt fair
- * catch is a share of the punts that were not returned and not a touchback.
- * Counts are 2021–2024 REG (nfl-reference.md §5.14). None changes an outcome.
+ * Kick events that relabel a play the engine already rolled.
+ *
+ * A blocked field goal is a flat share of the misses (`plays`). A blocked
+ * extra point is drawn only on a miss, at `(events / attempts) / missProb`,
+ * so the unconditional rate stays the traced blocked-per-attempt figure when
+ * this engine misses more often than the league. A punt fair catch is a share
+ * of the punts that were not returned and not a touchback (`plays`). Counts
+ * are 2021–2024 REG (nfl-reference.md §5.14). None changes an outcome.
  */
 export type KickEventKind = "fgBlocked" | "xpBlocked" | "puntFairCatch";
 
-export const KICK_EVENT: Record<KickEventKind, { events: number; plays: number }> = {
+export const KICK_EVENT: Record<KickEventKind, { events: number; plays: number; attempts?: number }> = {
   fgBlocked: { events: 78, plays: 639 },
-  xpBlocked: { events: 31, plays: 247 },
+  xpBlocked: { events: 31, plays: 247, attempts: 4854 },
   puntFairCatch: { events: 2352, plays: 4255 },
 };
 
 export function kickEventRate(kind: KickEventKind): number {
   const row = KICK_EVENT[kind];
   return row.plays > 0 ? row.events / row.plays : 0;
+}
+
+/**
+ * Block probability for an extra point the engine has already ruled a miss.
+ * `events / attempts` is the traced rate per attempt. Dividing by this kick's
+ * miss probability keeps that rate when the make chance is not the league's.
+ * A zero row draws nothing. The coin is capped at 1.
+ */
+export function blockRateGivenMiss(kind: "xpBlocked", missProb: number): number {
+  const row = KICK_EVENT[kind];
+  const attempts = row.attempts ?? 0;
+  if (!(row.events > 0) || !(attempts > 0) || !(missProb > 0)) return 0;
+  return Math.min(1, (row.events / attempts) / missProb);
 }
 
 const PLAYOFF_ROUND_INDEX: Record<PlayoffRound, number> = { WC: 0, DIV: 1, CONF: 2, SB: 3 };
@@ -1200,12 +1217,14 @@ function* runGameSim(
     const st = statFor(k, ctx);
     st.xpa++;
     st.snaps++;
-    if (rng.chance(clamp(0.86 + (att(k, "kac") - 50) * 0.0022, 0.80, 0.985))) {
+    const makeP = clamp(0.86 + (att(k, "kac") - 50) * 0.0022, 0.80, 0.985);
+    if (rng.chance(makeP)) {
       st.xpm++;
       award(ctx.team.id, 1, "Extra point good");
       emit({ kind: "xp", result: "good", yards: 0, down: 0, toGo: 0, yardLine, offenseId: ctx.team.id, playerId: k.id });
     } else {
-      const blocked = kickEvent("xpBlocked");
+      const rate = blockRateGivenMiss("xpBlocked", 1 - makeP);
+      const blocked = rate > 0 && kickEventRng.chance(rate);
       if (blocked) creditBlock(isHome ? ctxAway : ctxHome);
       record(ctx.team.id, blocked ? "Extra point BLOCKED" : "Extra point MISSED");
       emit({ kind: "xp", result: blocked ? "blocked" : "miss", yards: 0, down: 0, toGo: 0, yardLine, offenseId: ctx.team.id, playerId: k.id });

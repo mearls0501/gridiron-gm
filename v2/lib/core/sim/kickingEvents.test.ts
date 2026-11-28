@@ -3,24 +3,35 @@
  * label on a kick the engine already missed. A punt fair catch is a label on
  * a punt the engine already did not return. The coins ride their own stream,
  * so no score, possession, stat or parent draw moves (nfl-reference.md §5.14).
+ * The field-goal coin is the traced share of misses. The extra-point coin is
+ * the traced rate per attempt, divided by that kick's miss probability.
  *
  * Run: npx tsx lib/core/sim/kickingEvents.test.ts
  */
 import assert from "node:assert/strict";
 import { newGame } from "../newGame";
 import { Rng } from "../rng";
-import { KICK_EVENT, kickEventRate, simulateGame } from "./game";
+import { KICK_EVENT, blockRateGivenMiss, kickEventRate, simulateGame } from "./game";
 import { STARTERS } from "../types";
 import type { Game, GameState, PlayEvent } from "../types";
 import { formatPlay } from "../../view/playByPlay";
 
 // The §5.14 counts, exactly.
 assert.deepEqual(KICK_EVENT.fgBlocked, { events: 78, plays: 639 });
-assert.deepEqual(KICK_EVENT.xpBlocked, { events: 31, plays: 247 });
+assert.deepEqual(KICK_EVENT.xpBlocked, { events: 31, plays: 247, attempts: 4854 });
 assert.deepEqual(KICK_EVENT.puntFairCatch, { events: 2352, plays: 4255 });
 assert.equal(kickEventRate("fgBlocked"), 78 / 639);
 assert.equal(kickEventRate("xpBlocked"), 31 / 247);
 assert.equal(kickEventRate("puntFairCatch"), 2352 / 4255);
+// At the league's own miss rate the attempt coin is the share of misses.
+{
+  const atLeagueMiss = blockRateGivenMiss("xpBlocked", 247 / 4854);
+  assert.ok(Math.abs(atLeagueMiss - 31 / 247) < 1e-12, `league miss coin ${atLeagueMiss}`);
+}
+// A miss chance above the league's lowers the coin so blocks per attempt stay 31/4854.
+assert.equal(blockRateGivenMiss("xpBlocked", 0.09), (31 / 4854) / 0.09);
+assert.equal(blockRateGivenMiss("xpBlocked", 0.001), 1);
+assert.equal(blockRateGivenMiss("xpBlocked", 0), 0);
 console.log("ok    kickingEvents — the §5.14 rows");
 
 type Block = { teamId: number; playerId: number };
@@ -54,7 +65,7 @@ const saved = {
   puntFairCatch: { ...KICK_EVENT.puntFairCatch },
 };
 const zero = () => {
-  for (const k of Object.keys(saved) as (keyof typeof saved)[]) KICK_EVENT[k] = { events: 0, plays: saved[k].plays };
+  for (const k of Object.keys(saved) as (keyof typeof saved)[]) KICK_EVENT[k] = { ...saved[k], events: 0 };
 };
 const fill = () => {
   for (const k of Object.keys(saved) as (keyof typeof saved)[]) KICK_EVENT[k] = { ...saved[k] };
@@ -125,9 +136,11 @@ assert.ok(blockCredits <= blocks, "at most one credit a block");
 const fgShare = fgBlocked / (fgBlocked + fgMiss);
 const xpShare = xpBlocked / (xpBlocked + xpMiss);
 const fairShare = fair / (fair + plain);
-// Wide on purpose: about 70 kicks a row. The rate itself is pinned above.
+// Wide on purpose: about 70 kicks a row. The coins themselves are pinned above.
+// The extra-point sample is a handful of blocks, so it only checks the coin
+// did not revert to a double-digit share of misses.
 assert.ok(fgShare > 0.03 && fgShare < 0.25, `FG block share ${fgShare}`);
-assert.ok(xpShare > 0.03 && xpShare < 0.25, `XP block share ${xpShare}`);
+assert.ok(xpShare < 0.11, `XP block share ${xpShare}`);
 assert.ok(fairShare > 0.47 && fairShare < 0.63, `fair-catch share ${fairShare}`);
 console.log(
   `ok    kickingEvents — ${on.length} games play the same with the rows filled: ` +

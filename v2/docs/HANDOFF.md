@@ -1,5 +1,35 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-27 — Blocked extra points use the attempt rate
+
+Approved by Matt, 2026-11-27, as an exception to the calibration freeze. Production QA after #259 read about 1.4 blocked kicks (field goals and extra points) per team per season through Week 10. §5.14's volume is (78 + 31) / 128 team-seasons = **0.852**. `docs/baselines.json` did not move. No re-lock. No merge.
+
+**Cause.** Blocks were already carved out of misses, on `kickEventRng`, and the two kicks did not share one constant. A missed field goal is blocked at 78/639. A missed extra point was blocked at 31/247. Those shares are almost the same (0.122 and 0.126). Each equals its traced blocked-per-attempt rate only at the league's own miss rate.
+
+Field goals miss at about the league rate, so 78/639 already reproduces 78/4264 = 0.0183. Five regular seasons (seeds 1, 11, 42, 99, 12345) blocked 104 of 5,475 field goals (**0.0190**). That coin was left alone.
+
+Extra points do not. Those seasons made 5,577 of 6,077 (**91.8%**). The league made 4,607 of 4,854 (**94.9%**), which is a miss rate of 247/4854 = 5.09%. A flat 31/247 of a miss pool almost twice that size blocked 79 of 6,077 attempts (**0.0130**), against 31/4854 = **0.0064**. That excess is the whole gap. Combined, the five seasons blocked 183 kicks, **1.14** per team. Seeds 11 and 42 read 1.34 and 1.31, which is the "about 1.4" sample. Applying 0.12 to every attempt would have been several blocks a team; that is not what the code did.
+
+**What changed.** A missed extra point is blocked with probability `(31 / 4854) / missProb`, on the same `kickEventRng` draw as before. No draw when the row is zero, and no draw on a make. At the league's miss rate the coin is still 31/247. A make is never relabeled, so FG% and PAT% stay put. Field goals and punt fair catches are unchanged.
+
+**Disagreement with the signed Stage 1 line.** The 2026-11-19 entry and decision B1 say the extra-point label is a flat 31/247 of kicks that were not made. That is §5.14's blocked/not-made cell, and it is the wrong volume once this engine misses more extra points than the league. The cell QA is grading is blocked/attempts, 31/4854. Both cells are already in §5.14. The reference was not edited.
+
+**Measured** here, Node 22.23.4, five regular seasons, same seeds:
+
+| | before | after | §5.14 |
+|---|---:|---:|---:|
+| FG blocked / attempt | 0.0190 | 0.0190 | 0.0183 |
+| PAT blocked / attempt | 0.0130 | 0.0067 | 0.0064 |
+| blocks per team-season | 1.14 | 0.91 | 0.85 |
+| FG% | 86.0 | 86.0 | |
+| PAT% | 91.8 | 91.8 | |
+
+Week 10 on the same seeds, annualized to 17 games: **1.13** before (0.63 per team through the ten weeks; seed 42 alone was 1.52) and **0.91** after (0.51 observed). A 2,000-game calibrate loop: PAT blocked/attempt 0.0095 → **0.0065**, FG% 85.13 and PAT% 91.10 both times. The 300-game loop's PAT block count (20 → 16 on 1,481 attempts) is a small sample; the attempt rate expects about 9.
+
+**Canaries.** Unmoved: `trimIdentity` **1412** cuts, rng **3165849988**; `userOffers` tag **4171186477**, FA **108340363**. Nothing draws on the parent. A block that no longer happens also skips its `pick` on `kickEventRng`, so a later fair-catch label in that same game can move. Scores and makes do not.
+
+Not run: the Studio panel. No baseline edit is asked for.
+
 ## 2026-11-19 — Onside attempt rate traced (§5.14)
 
 Signed by Matt, 2026-11-19, and merged as #259 on his "merge it and mark it signed, use the table". Reference only. Matt asked for it ("do 1 then 2", item 2). `docs/nfl-reference.md` §5.14 gains "Onside attempt rate by situation": onside kicks over kickoffs by a trailing club in the fourth quarter, by clock and deficit, 2021–23. This is the row signed line B3 of `docs/decisions-kicking-game-2026-11-19.md` was waiting for. No code, test, `scripts/` file, `baselines.json` row or canary moved. Nothing is locked or gated.
