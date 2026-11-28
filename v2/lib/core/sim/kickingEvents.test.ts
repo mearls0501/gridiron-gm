@@ -6,10 +6,14 @@
  * The field-goal coin is the traced share of misses. The extra-point coin is
  * the traced rate per attempt, divided by that kick's miss probability.
  *
- * Stage 2, onside kicks only. A trailing club in the fourth quarter attempts
- * at the §5.14 clock-by-deficit table. Recovery is 14/154. The spot is the
+ * Stage 2, onside kicks. A trailing club in the fourth quarter attempts at
+ * the §5.14 clock-by-deficit table. Recovery is 14/154. The spot is the
  * restraining line. The coins ride onsideRng, not the parent and not the
- * kick-event stream. Blocked punts are not in this file.
+ * kick-event stream.
+ *
+ * Stage 2, blocked punts. 42/8587 of punts, on blockedPuntRng. The punter is
+ * not charged. The ball is dead on the line. 3/42 are safeties. No return
+ * and no touchdown. A miss does not move the parent.
  *
  * Run: npx tsx lib/core/sim/kickingEvents.test.ts
  */
@@ -17,12 +21,13 @@ import assert from "node:assert/strict";
 import { newGame } from "../newGame";
 import { Rng } from "../rng";
 import {
-  KICK_EVENT, ONSIDE_ATTEMPT, ONSIDE_KICK_SPOT, ONSIDE_RECOVERY, ONSIDE_RESTRAINING_YARDLINE,
-  blockRateGivenMiss, kickEventRate, onsideRecoveryRate, simulateGame, trailingOnsideRate,
+  BLOCKED_PUNT, KICK_EVENT, ONSIDE_ATTEMPT, ONSIDE_KICK_SPOT, ONSIDE_RECOVERY, ONSIDE_RESTRAINING_YARDLINE,
+  blockRateGivenMiss, blockedPuntRate, blockedPuntSafetyRate, blockedPuntSpot,
+  kickEventRate, onsideRecoveryRate, simulateGame, trailingOnsideRate,
 } from "./game";
 import type { OnsideClockBin, OnsideDeficitBin } from "./game";
 import { STARTERS } from "../types";
-import type { Game, GameState, PlayEvent } from "../types";
+import type { DriveSummary, Game, GameState, PlayEvent } from "../types";
 import { formatPlay } from "../../view/playByPlay";
 
 // The §5.14 counts, exactly.
@@ -80,7 +85,17 @@ const fill = () => {
   for (const k of Object.keys(saved) as (keyof typeof saved)[]) KICK_EVENT[k] = { ...saved[k] };
 };
 
+// The label comparison is kick events only. A blocked punt changes the play.
+const savedBlock = { blocked: BLOCKED_PUNT.blocked, punts: BLOCKED_PUNT.punts, safeties: BLOCKED_PUNT.safeties };
+const muteBlocks = () => { BLOCKED_PUNT.blocked = 0; BLOCKED_PUNT.safeties = 0; };
+const restoreBlocks = () => {
+  BLOCKED_PUNT.blocked = savedBlock.blocked;
+  BLOCKED_PUNT.punts = savedBlock.punts;
+  BLOCKED_PUNT.safeties = savedBlock.safeties;
+};
+
 // Rows at zero against rows filled, same seed, same games.
+muteBlocks();
 zero();
 const off: NonNullable<ReturnType<typeof play>>[] = [];
 {
@@ -156,6 +171,7 @@ console.log(
   `FG ${fgBlocked} blocked of ${fgBlocked + fgMiss} not made, XP ${xpBlocked} of ${xpBlocked + xpMiss}, ` +
   `fair catch ${fair} of ${fair + plain} unreturned (${fairShare.toFixed(3)}); ${blockCredits} block credits`,
 );
+restoreBlocks();
 
 // The stream is keyed by seed and game id: one id repeats, another does not.
 {
@@ -456,4 +472,204 @@ try {
   );
 } finally {
   restoreOnside();
+}
+
+// ---------------------------------------------------------------------------
+// Stage 2 — blocked punts. The rate is §5.14. The charge and the spot are §4.
+// ---------------------------------------------------------------------------
+
+assert.equal(BLOCKED_PUNT.blocked, 42);
+assert.equal(BLOCKED_PUNT.punts, 8587);
+assert.equal(BLOCKED_PUNT.safeties, 3);
+assert.equal(blockedPuntRate(), 42 / 8587);
+assert.equal(blockedPuntSafetyRate(), 3 / 42);
+assert.equal(blockedPuntSpot(30), 70);
+assert.equal(blockedPuntSpot(1), 99);
+assert.equal(blockedPuntSpot(99), 1);
+console.log("ok    kickingEvents — blocked punt is 42/8587, safety 3/42, dead on the line");
+
+function otherTeam(g: Game, id: number): number {
+  return id === g.homeId ? g.awayId : g.homeId;
+}
+
+function pointsFromBox(x: NonNullable<ReturnType<typeof play>>, teamId: number): number {
+  let n = 0;
+  for (const p of x.r.box.players) {
+    if (p.teamId !== teamId) continue;
+    n += (p.passTd + p.rushTd + p.defTd + p.krTd + p.prTd) * 6;
+    n += p.xpm + p.twoPtMade * 2 + p.fgm * 3 + p.safeties * 2;
+  }
+  return n;
+}
+
+function isBlockedPunt(e: PlayEvent): boolean {
+  return e.kind === "punt" && e.result === "blocked";
+}
+
+function driveCovering(rows: DriveSummary[] | undefined, index: number): DriveSummary | undefined {
+  for (const row of rows ?? []) {
+    if (index >= row.from && index < row.to) return row;
+  }
+  return undefined;
+}
+
+const fgEvents = KICK_EVENT.fgBlocked.events;
+const xpEvents = KICK_EVENT.xpBlocked.events;
+try {
+  BLOCKED_PUNT.blocked = 0;
+  BLOCKED_PUNT.safeties = 0;
+  const quiet = runIsolated(48, 51000);
+  BLOCKED_PUNT.blocked = 1;
+  BLOCKED_PUNT.punts = 1_000_000_000;
+  const rare = runIsolated(48, 51000);
+  let rareBlocks = 0;
+  for (let i = 0; i < quiet.length; i++) {
+    const a = quiet[i];
+    const b = rare[i];
+    assert.equal(a === null, b === null);
+    if (!a || !b) continue;
+    rareBlocks += b.r.plays.filter(isBlockedPunt).length;
+    assert.equal(b.rngState, a.rngState, "a declined block draws on the side stream, not the parent");
+    assert.deepEqual(b.r.plays, a.r.plays, "a declined block does not change the game");
+  }
+  assert.equal(rareBlocks, 0, "a one-in-a-billion row does not block");
+
+  restoreBlocks();
+  const live = runIsolated(48, 51000);
+  let held = 0;
+  for (let i = 0; i < quiet.length; i++) {
+    const a = quiet[i];
+    const b = live[i];
+    if (!a || !b) continue;
+    if (b.r.plays.some(isBlockedPunt)) continue;
+    held++;
+    assert.equal(b.rngState, a.rngState, "no block, so the parent stays");
+    assert.deepEqual(b.r.plays, a.r.plays, "no block, so the plays stay");
+  }
+  assert.ok(held > 0, "the live sample has a game with no blocked punt");
+
+  // Every punt is blocked. None is a safety. Kick-event blocks are off, so
+  // `blk` is the punt blocks only.
+  BLOCKED_PUNT.blocked = savedBlock.punts;
+  BLOCKED_PUNT.punts = savedBlock.punts;
+  BLOCKED_PUNT.safeties = 0;
+  KICK_EVENT.fgBlocked.events = 0;
+  KICK_EVENT.xpBlocked.events = 0;
+  const dead = runIsolated(16, 61000);
+  let deadPunts = 0;
+  for (const x of dead) {
+    if (!x) continue;
+    assert.equal(pointsFromBox(x, x.g.homeId), x.r.homeScore, "the box is the home score");
+    assert.equal(pointsFromBox(x, x.g.awayId), x.r.awayScore, "the box is the away score");
+    let punts = 0, puntYds = 0, pr = 0, prTd = 0, blk = 0, safeties = 0;
+    for (const line of x.r.box.players) {
+      punts += line.punts;
+      puntYds += line.puntYds;
+      pr += line.pr;
+      prTd += line.prTd;
+      blk += line.blk;
+      safeties += line.safeties;
+    }
+    const plays = x.r.plays;
+    const blocked = plays.filter(isBlockedPunt);
+    assert.ok(blocked.length > 0, "a forced block produces a punt");
+    deadPunts += blocked.length;
+    assert.equal(plays.filter((e) => e.kind === "punt").length, blocked.length, "every punt is blocked");
+    assert.equal(punts, 0, "the punter is not charged with the punt");
+    assert.equal(puntYds, 0, "no yardage is credited");
+    assert.equal(pr, 0, "a block is not a punt return");
+    assert.equal(prTd, 0, "no return touchdown");
+    assert.equal(safeties, 0, "a zero safety row is not a safety");
+    assert.equal(blk, blocked.length, "one blk credit a blocked punt");
+    const turnPlays = plays.filter((e) => e.result === "int" || e.result === "fumble").length;
+    assert.equal(x.r.box.home.turnovers + x.r.box.away.turnovers, turnPlays, "a block is not a turnover");
+    for (const c of x.blocks) {
+      const p = roster.get(c.playerId)!;
+      assert.ok(p.pos === "DT" || p.pos === "EDGE" || p.pos === "LB", `${p.pos} credited on a blocked punt`);
+    }
+    for (let j = 0; j < plays.length; j++) {
+      const e = plays[j];
+      if (!isBlockedPunt(e)) continue;
+      const prev = plays[j - 1];
+      if (prev && prev.q === e.q) assert.equal(e.clock, prev.clock, "a blocked punt takes no clock");
+      assert.equal(e.yards, 0);
+      const recv = otherTeam(x.g, e.offenseId);
+      const nxt = plays[j + 1];
+      assert.ok(nxt, "the receiving club takes the ball");
+      assert.notEqual(nxt.kind, "safety");
+      assert.equal(nxt.offenseId, recv, "the defence takes the ball");
+      assert.equal(nxt.yardLine, blockedPuntSpot(e.yardLine), "dead on the line of scrimmage");
+      assert.equal(nxt.down, 1);
+      if (prev) {
+        assert.equal(e.homeScore, prev.homeScore);
+        assert.equal(e.awayScore, prev.awayScore, "a non-safety block does not score");
+      }
+      assert.equal(driveCovering(x.r.box.drives, j)?.result, "punt");
+    }
+  }
+  assert.ok(deadPunts > 0);
+
+  BLOCKED_PUNT.safeties = BLOCKED_PUNT.blocked;
+  const safes = runIsolated(12, 71000);
+  let safePunts = 0;
+  for (const x of safes) {
+    if (!x) continue;
+    assert.equal(pointsFromBox(x, x.g.homeId), x.r.homeScore);
+    assert.equal(pointsFromBox(x, x.g.awayId), x.r.awayScore);
+    let safeties = 0, prTd = 0;
+    for (const line of x.r.box.players) {
+      safeties += line.safeties;
+      prTd += line.prTd;
+    }
+    const plays = x.r.plays;
+    const blocked = plays.filter(isBlockedPunt);
+    const safetyPlays = plays.filter((e) => e.kind === "safety");
+    assert.equal(safetyPlays.length, blocked.length, "every forced block is a safety");
+    assert.equal(safeties, blocked.length, "the safety is on a player's line");
+    safePunts += blocked.length;
+    assert.equal(prTd, 0);
+    assert.equal(plays.filter((e) => e.kind === "punt" && e.result === "td").length, 0);
+    for (let j = 0; j < plays.length; j++) {
+      const e = plays[j];
+      if (!isBlockedPunt(e)) continue;
+      const nxt = plays[j + 1];
+      assert.ok(nxt && nxt.kind === "safety");
+      assert.equal(nxt.offenseId, e.offenseId, "the safety is the kicking club's ball, dead");
+      const recv = otherTeam(x.g, e.offenseId);
+      const recvBefore: number = recv === x.g.homeId ? e.homeScore : e.awayScore;
+      const recvAfter: number = recv === x.g.homeId ? nxt.homeScore : nxt.awayScore;
+      assert.equal(recvAfter, recvBefore + 2, "the safety is two points");
+      const after = plays[j + 2];
+      if (after && after.kind !== "kickoff") {
+        assert.equal(after.offenseId, recv, "the club that scored takes over");
+        assert.equal(after.yardLine, 45);
+        assert.equal(after.down, 1);
+      }
+      assert.equal(driveCovering(x.r.box.drives, j)?.result, "punt");
+      assert.equal(driveCovering(x.r.box.drives, j + 1)?.result, "safety");
+    }
+  }
+  assert.ok(safePunts > 0, "the safety sample blocks a punt");
+
+  const signature = (id: number) => {
+    const rows = runIsolated(8, id);
+    return rows.map((x) => x
+      ? x.r.plays.filter((e) => e.kind === "punt" || e.kind === "safety").map((e) => e.kind === "safety" ? "S" : "B").join("")
+      : "").join("|");
+  };
+  BLOCKED_PUNT.blocked = savedBlock.punts;
+  BLOCKED_PUNT.punts = savedBlock.punts;
+  BLOCKED_PUNT.safeties = Math.floor(savedBlock.punts / 2);
+  const same = signature(81000);
+  assert.equal(signature(81000), same, "one game id gives one blocked-punt sequence");
+  assert.notEqual(signature(91000), same, "another game id gives another sequence");
+  assert.ok(same.includes("B") && same.includes("S"), "the key sample has both endings");
+  console.log(
+    `ok    kickingEvents — blocked punts stay off the parent ` +
+    `(${held} games had none; ${deadPunts} dead-ball blocks, ${safePunts} safeties)`,
+  );
+} finally {
+  restoreBlocks();
+  KICK_EVENT.fgBlocked.events = fgEvents;
+  KICK_EVENT.xpBlocked.events = xpEvents;
 }

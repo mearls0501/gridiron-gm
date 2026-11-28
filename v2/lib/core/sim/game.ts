@@ -380,6 +380,33 @@ export function onsideRecoveryRate(): number {
 }
 
 /**
+ * Blocked punts, 2021–24 REG (nfl-reference.md §5.14). The ball does not
+ * cross the line. It is a team punt, not charged to the punter, and the
+ * guide states no yardage. 3 of the 42 are safeties. None was a touchdown.
+ * A zero block row draws nothing.
+ */
+export const BLOCKED_PUNT = { blocked: 42, punts: 8587, safeties: 3 };
+
+export function blockedPuntRate(): number {
+  return BLOCKED_PUNT.punts > 0 ? BLOCKED_PUNT.blocked / BLOCKED_PUNT.punts : 0;
+}
+
+/** Share of blocked punts that are safeties. A zero block row draws nothing. */
+export function blockedPuntSafetyRate(): number {
+  return BLOCKED_PUNT.blocked > 0 ? BLOCKED_PUNT.safeties / BLOCKED_PUNT.blocked : 0;
+}
+
+/**
+ * Receiving club's yard line when a blocked punt is dead on the line of
+ * scrimmage. That line is the only spot the block definition names.
+ * `lineOfScrimmage` is the kicking club's own yard line.
+ */
+export function blockedPuntSpot(lineOfScrimmage: number): number {
+  const yl = clamp(Math.round(lineOfScrimmage), 1, 99);
+  return clamp(100 - yl, 1, 99);
+}
+
+/**
  * Attempt rate for one kickoff. Zero unless the kicking club trails in the
  * fourth quarter, and then the §5.14 cell. A negative clock is the 0:00 bin.
  * Overtime, a lead, and a tie are zero. A zero cell draws nothing.
@@ -671,6 +698,12 @@ function* runGameSim(
     (state.seed ^ Math.imul((game.id + 1) >>> 0, 0x9e3779b9) ^ 0x0a51de11) >>> 0,
   );
 
+  // Its own stream. A blocked-punt coin must not move `rng`, the kick-event
+  // labels, the onside coins, or either credit stream. A miss draws here only.
+  const blockedPuntRng = new Rng(
+    (state.seed ^ Math.imul((game.id + 1) >>> 0, 0x9e3779b9) ^ 0xb10c6e07) >>> 0,
+  );
+
   /**
    * A child stream for the play-economy mechanics — receiver carries and
    * kneel-downs. One parent draw seeds it, so however many decisions those
@@ -763,16 +796,25 @@ function* runGameSim(
    * has taken a snap this game. That man already has a box row, so the credit
    * adds no row. Nobody is credited when no such man exists.
    */
-  const creditBlock = (ctx: Ctx) => {
+  const creditBlock = (ctx: Ctx, draw: Rng = kickEventRng): Player | undefined => {
     const front = [
       ...ctx.starters.DT.slice(0, STARTERS.DT),
       ...ctx.starters.EDGE.slice(0, STARTERS.EDGE),
       ...ctx.starters.LB.slice(0, STARTERS.LB),
     ].filter((p) => !ctx.out.has(p.id) && (pstats.get(p.id)?.snaps ?? 0) >= 0.5);
-    if (front.length === 0) return;
-    const p = kickEventRng.pick(front);
+    if (front.length === 0) return undefined;
+    const p = draw.pick(front);
     statFor(p, ctx).blk++;
     opts?.onKickBlock?.(ctx.team.id, p.id);
+    return p;
+  };
+  /** A dressed defender, for a safety the block credit could not name. No draw. */
+  const dressedFront = (ctx: Ctx): Player | undefined => {
+    const pool = [
+      ...ctx.starters.DT, ...ctx.starters.EDGE, ...ctx.starters.LB,
+      ...ctx.starters.CB, ...ctx.starters.S,
+    ].filter((pl) => !ctx.out.has(pl.id));
+    return pool[0];
   };
   const playScores = (yl: number, yds: number) => yl + yds >= 100 || yl + yds <= 0;
   /** Bend a weighted tackle draw. A sack or a forced fumble still names the man who made the stop. */
@@ -1454,6 +1496,39 @@ function* runGameSim(
     const ctx = off();
     const receiving = offenseIsHome ? ctxAway : ctxHome;
     const p = ctx.starters.P[0];
+
+    // Before the gross. A miss leaves every parent draw where it was. A block
+    // skips the gross, the clock burn, the return, and the punt exposure.
+    // The punter is not charged and no length is credited (§4). The ball is
+    // dead on the line. A safety is the traced 3/42, then the same handoff
+    // as a tackle in the end zone. No return and no touchdown (0 of 42).
+    const blockRate = blockedPuntRate();
+    if (blockRate > 0 && blockedPuntRng.chance(blockRate)) {
+      if (p) statFor(p, ctx).snaps++;
+      const blocker = creditBlock(receiving, blockedPuntRng);
+      const safetyRate = blockedPuntSafetyRate();
+      const safety = safetyRate > 0 && blockedPuntRng.chance(safetyRate);
+      emit({
+        kind: "punt", result: "blocked", yards: 0,
+        down, toGo, yardLine, offenseId: ctx.team.id, playerId: p?.id,
+      });
+      if (safety) {
+        const who = blocker ?? dressedFront(receiving);
+        if (who) statFor(who, receiving).safeties++;
+        award(
+          receiving.team.id, 2,
+          who ? `Safety — blocked punt by ${who.lastName}` : "Safety — blocked punt",
+        );
+        emit({
+          kind: "safety", result: "safety", yards: 0,
+          down, toGo, yardLine, offenseId: ctx.team.id, playerId: who?.id,
+        });
+        changePossession(45);
+        return;
+      }
+      changePossession(blockedPuntSpot(yardLine));
+      return;
+    }
 
     const gross = Math.round(clamp(
       (45 + (p ? (att(p, "kpw") - 50) * 0.16 : 0) + rng.normal(0, 7)) * wx.puntDistance

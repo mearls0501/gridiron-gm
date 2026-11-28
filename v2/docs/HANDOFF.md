@@ -1,5 +1,58 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-28 — Blocked punts (kicking-game Stage 2, this half)
+
+Blocked punts only. Onside kicks are already on main (#267). The coin is 42/8,587 on `blockedPuntRng`, keyed (seed, game id), the same shape as `onsideRng`. A miss draws on that stream only, so the parent gross, the clock burn, the return, and the fair-catch label stay where they were. A block skips them. `docs/baselines.json` did not move. `scripts/` did not move. `nfl-reference.md` did not move. The four canary literals were measured and left as they were.
+
+**What a block does.** The play log records a team punt, `kind: "punt"`, `result: "blocked"`. The punter's `punts` and `puntYds` do not move. One `blk` goes to a DT, EDGE, or LB starter who has taken a snap, drawn on the blocked-punt stream. The defence takes the ball on the line of scrimmage, first and 10, and does not advance. Three of 42 are safeties: two points, the safety on the blocker's line, then `changePossession(45)`, the same handoff as a tackle in the end zone. No return, no touchdown, no turnover, no attribute tilt.
+
+**Measured, five regular seasons, seeds 1, 11, 42, 99, 12345.** 1,360 games, 2,720 team-games, 160 team-seasons. Node v22.23.4.
+
+| | before | after | §5.14 |
+|---|---:|---:|---:|
+| blocked punts | 0 | 47 | |
+| per team-season | 0 | **0.294** | **0.328** (42/128) |
+| per punt | 0 | 47/9,834 = **0.00478** | 42/8,587 = **0.00489** |
+| safeties among the blocks | | 7/47 = 0.149 | 3/42 = 0.071 |
+| return rate, punts not a touchback and not blocked | 0.554 | **0.558** | engine coin 0.55 |
+| punt returns | 4,632 | 4,647 | |
+| yards per return | 8.72 | 8.80 | |
+| punt-return touchdowns | 18 | 20 | |
+| points per team-game | 22.02 | 21.91 | |
+| safeties | 61 | 62 | |
+| defensive touchdowns | 343 | 306 | |
+| kick-return and punt-return touchdowns | 45 | 40 | |
+| punter punts per team-game | 3.590 | 3.598 | |
+
+The per-punt rate is the coin. Per team-season sits under 0.328 because this engine punts about 3.62 times a team-game, and the league punts 3.95. At this engine's volume the coin expects about 0.30 a team-season. The sample is 0.294. The seven block safeties against an expected 3.4 are the same small count. The return rate on the punts that still happen is the old 0.55 coin. Points, defensive touchdowns, and return touchdowns moved because the first block in a season changes every later parent draw. A block adds no return and no defensive touchdown.
+
+**Canaries, measured, not rewritten.** A block changes the parent stream, so both fingerprints move. The inquiry check in `userOffers` still passes: seeds 11, 42, and 99 add no parent draws past the empty shop.
+
+| | locked (#267) | measured |
+|---|---:|---:|
+| `trimIdentity` seed 42, opening 2030, cuts | 1358 | **1461** |
+| `trimIdentity` rng | 2445514809 | **2032218481** |
+| `userOffers` tag | 1753242794 | **3823591383** |
+| `userOffers` FA | 281680557 | **3423876895** |
+
+The tests still hold the #267 literals.
+
+**Gate, Node v22.23.4, `npm run gate:serial`.** Before: **GATE PASS**, 71 metrics, exit 0. After: **GATE FAIL**, 2 problems, both canary exits (`useroffers`, `trimidentity`). 47 of the 71 metrics moved and stayed inside their bands. `calibrate.scoreMismatches` 0. `verify` 348 checks, 0 failures. `determinism.failures` 0. On the 300-game calibrate sample: points 24.37 → 23.77, punts 3.313 → 3.347, turnovers 1.303 → 1.282, tie rate 0 → 0.333%, punt returns 1.53 for 8.6 → 1.59 for 8.5, defensive touchdowns 0.14 → 0.12, return touchdowns 0.02 → 0.01, safeties 0.02 → 0.04. No band was edited.
+
+**Disagreements and gaps, left as written.**
+
+- **The punter's yards.** §4 charges the punt to the team and not to the punter, and it states no length: not zero, not the distance back to the recovery, not a negative. Signed line B4 says a blocked punt counts as a punt, so `calibrate.punts` would keep its meaning. That harness sums the punter's `punts`. Charging him needs a yardage the guide does not give. This build leaves `punts` and `puntYds` alone. The play log is the team punt, with `yards: 0` because the field is required. That 0 is not a credited length. The punter still takes the snap he takes on any punt, which is the engine's count of being on the field. On the 300-game sample `calibrate.punts` moved 3.313 → 3.347 because the games after the first block are a different slate, not because the blocks were added to his line.
+- **The spot.** The signed line gives the defence the ball behind the line. §4 names no distribution short of the line. A block is the ball not going beyond the line, so the dead spot here is that line. A yard short of it would be an invented distance. The receiving club does not advance: a defensive advance is miscellaneous yards, the guide states no length, and 0 of 42 were touchdowns.
+- **Who recovers.** The rule lets the kicking club recover behind the line and continue the series. No rate is sourced for that. The signed line gives the ball to the defence on every block that is not a safety.
+- **The safety.** It is the traced 3/42, then `changePossession(45)`. That is this engine's handoff for a tackle in the end zone. A free kick from the 20 is the same gap the onside packet recorded: this engine does not kick after a safety. A receiving-club recovery in the end zone would be a touchdown. That route is 0 of 42 and is not rolled. The safety is the coin, not a geometric roll into the end zone, because no spot distribution is sourced. The safety stat goes to the blocker, the guide's "player who blocks the kick and the ball goes out of the end zone." Its cornerback example is marked as not a rate. When nobody with a snap is dressed, the safety falls to the first dressed defender, with no draw, so the box still reconciles.
+- **The clock.** No blocked-punt duration is sourced. The parent clock burn is one of the draws a block skips, so the play takes no time, the same way a kickoff takes none.
+- **The drive chart.** The punt row closes the drive as a punt, because every punt is already a terminal. The safety then opens a second drive. `events.ts` was left alone.
+- **Display.** `formatPlay` still prints the row as "Punt 0 yds". `playByPlay.ts` is outside this packet.
+- **Line C.** The canaries moved and were not rewritten. The values above are the measurement.
+- **Signed out, and not built.** A block returned for a touchdown, a defensive two-point return, a user prompt, an attribute tilt.
+
+Ran: `tsc --noEmit` pass. `kickingEvents`, `coverageTackle`, and `playByPlay` pass. The five-season count above. `gate:serial` before and after, as in the table.
+
 ## 2026-11-28 — Canary re-lock signed
 
 Matt signed the re-lock on 2026-11-27, 10:10 PM ET ("do it"). Re-measured on Node v22.23.4 before the literals were written, and the four values reproduced: `trimIdentity` seed 42, opening 2030, **1358** cuts, rng **2445514809**; `userOffers` tag **1753242794**, FA **281680557**. Those four are now the literals in the tests. The cut list in `trimIdentity.test.ts` is the 1358 ids from that walk. `scripts/` and `docs/baselines.json` did not move. `npm run gate:serial` on Node v22.23.4: **GATE PASS**, 71 metrics, exit 0. No merge.

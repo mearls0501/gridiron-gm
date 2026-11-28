@@ -218,7 +218,7 @@ export interface SeasonStatLine {
   // Defense
   tackles: number; tfl: number; sacks: number; ints: number; intYds: number;
   passDef: number; ff: number; fr: number; defTd: number; safeties: number;
-  /** Blocked field goals and extra points. */
+  /** Blocked field goals, extra points, and punts. */
   blk: number;
 
   // Kicking
