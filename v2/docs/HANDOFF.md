@@ -1,5 +1,9 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-28 — Canary re-lock signed
+
+Matt signed the re-lock on 2026-11-27, 10:10 PM ET ("do it"). Re-measured on Node v22.23.4 before the literals were written, and the four values reproduced: `trimIdentity` seed 42, opening 2030, **1358** cuts, rng **2445514809**; `userOffers` tag **1753242794**, FA **281680557**. Those four are now the literals in the tests. The cut list in `trimIdentity.test.ts` is the 1358 ids from that walk. `scripts/` and `docs/baselines.json` did not move. `npm run gate:serial` on Node v22.23.4: **GATE PASS**, 71 metrics, exit 0. No merge.
+
 ## 2026-11-28 — Onside kicks (kicking-game Stage 2, this half only)
 
 Onside kicks only. Blocked punts stay a later packet. The attempt is the §5.14 clock-by-deficit table for a trailing club in the fourth quarter (Matt, 2026-11-19, "use the table"). Recovery is the signed 2021–23 row, 14/154. The ball is dead on the restraining line in §4: the kick is from the 35, ten yards in advance is the kicking club's 45, and that same spot is the receiving club's 55. No return, no touchdown, no user prompt, no attribute tilt. `docs/baselines.json` did not move. `scripts/` did not move. `nfl-reference.md` did not move. The four canary literals were measured and left as they were.
