@@ -1114,6 +1114,279 @@ churn model was tuned against; the real values are 70.7% / 65.2% / 53.6% /
   pages. HANDOFF, 2026-10-12, records the path that printed a $6.91M
   punter ask. No baseline in this note.
 
+- **Onside kick spot and legal recovery.** Added 2026-11-27. The
+  citation kicking-game Stage 2 was blocked on
+  (`docs/decisions-kicking-game-2026-11-19.md`, lines B2 and B3).
+  Not a rate. The attempt rates stay in §5.14. Ungated. No baseline.
+
+  **2021–23, the signed era.** A free kick, onside included, is one
+  kick. The 2023 book does not name an onside kick and does not
+  require a declaration. Read from the 2023 Official Playing Rules
+  of the National Football League (copyright © 2023, National
+  Football League; Roger Goodell, Commissioner),
+  <https://nyc3.digitaloceanspaces.com/sportsarchive-documents/prod/653cbada531b8/2023-rulebook_final.pdf>.
+  An NFL-hosted copy of that edition was not found in this session.
+  The PDF's own title page is what was read.
+
+  - Rule 6, Section 1, Article 1. The kick is made from any point on
+    the kicking team's restraining line, between the inbounds lines.
+  - Article 2. That line is the kicking team's 35-yard line on a
+    kickoff, and its 20-yard line on a safety kick, unless a distance
+    penalty moves it. The receiving team's restraining line is the
+    yard line 10 yards in advance of the kicking team's line.
+  - "In advance" is nearer the goal the receiving team is defending
+    (the same book's definition of forward, beyond, or in advance).
+    The 2025 book, cited below, numbers that definition Rule 3,
+    Section 12, Article 2, and names a yard line by the yards from
+    that team's goal (Rule 3, Section 11, Article 9: 19 yards from
+    Team A's goal is A's 19). Read with those two sentences, 10 yards
+    in advance of the kicking team's 35 is the kicking team's 45.
+    The 2023 book contains the same two sentences, including the
+    A's-19 / B's-49 example. The 45 is that reading. It is not a
+    separate number printed in Rule 6.
+  - Article 4(c). The kicking team may legally touch, catch, or
+    recover the ball only if it first touches a receiving-team
+    player, or if it reaches or crosses the receiving team's
+    restraining line.
+  - Article 4(d)(1). A catch or recovery by the kicking team is dead.
+    A legal one belongs to the kicking team at the dead-ball spot.
+    The kicking team does not advance it.
+  - Article 4(a). If the receiving team catches or recovers the ball,
+    it may advance.
+  - Article 4(e). If the ball comes to rest and no player tries to
+    possess it, it is dead and belongs to the receiving team there.
+  - Section 2, Article 4, Item 1. Touching, catching, or recovering
+    before the ball reaches the receiving team's restraining line,
+    unless a receiving-team player has already touched it, is illegal
+    touching. The penalty is a loss of five yards, or the receiving
+    team takes possession at the spot of the illegal touch.
+  - Article 5. A free kick downed in the end zone, out of bounds
+    behind the receiving team's goal line, striking the goal, or
+    touching the ground in the end zone before the receiving team
+    touches it, is a touchback. The dead-ball spot is the 25.
+
+  **2024 dynamic kickoff.** A 2024 Official Playing Rules PDF was not
+  retrieved. What was read is NFL.com, "2024 NFL Season: Explaining
+  rules for new dynamic kickoff",
+  <https://www.nfl.com/news/2024-nfl-season-explaining-rules-for-new-dynamic-kickoff>,
+  and "NFL owners pass new hybrid kickoff rule at Annual League
+  Meeting",
+  <https://www.nfl.com/news/nfl-owners-pass-new-kickoff-rule-at-annual-league-meeting>.
+  The operations.nfl.com URL named in §5.14
+  (<https://operations.nfl.com/updates/football-ops/new-nfl-kickoff-rule/>)
+  returned 404 and was not read.
+
+  - The ball is still kicked from the 35. The other 10 kicking-team
+    players line up with one foot on the receiving team's 40. The
+    receiving team's setup zone is the five yards between its 35 and
+    its 30. The landing zone runs from the receiving team's goal line
+    to its 20. The owners-meeting report says this rule was for 2024
+    only, subject to renewal in 2025.
+  - Onside kicks: only in the fourth quarter, only when trailing, and
+    only after declaring the kick to the officials. The explainer's
+    next sentence is "There are no changes to the rules concerning
+    onside kicks." That sentence is what leaves the 2023 10-yard
+    recovery in place. The page does not restate the 10-yard line,
+    the 45, or a rule/section/article.
+  - Touchbacks on that page, which are not the onside kick: a kick
+    that hits the landing zone and is then downed in the end zone is
+    spotted at the 20; a kick into the end zone that is downed there,
+    or that goes out the back, is spotted at the 30; a kick short of
+    the landing zone, or out of bounds, is spotted at the 40.
+  - A limit of two onside kicks a game is not on either page. It is
+    not used below. Not sourced.
+
+  **2025, the form made permanent.** 2025 Official Playing Rules,
+  <https://static.www.nfl.com/image/upload/fl_attachment/league/tautmcaqh6x5stgtl2yl.pdf>.
+  The front matter says Rule 6 makes permanent the kickoff form used
+  in 2024, and that 6-1-6 changes the kicking team's alignment on an
+  onside kick and lets a trailing team declare one at any time.
+
+  - Rule 3, Section 17, Article 5, Item 3. An onside kick is a free
+    kick the kicking team tries to recover legally, from its
+    restraining line out to the far edge of the onside setup zone.
+  - Rule 6, Section 1, Article 1(c). It is the trailing team that
+    puts the ball in play, and it must declare that form to the
+    officials.
+  - Article 6. At any time during the game, a trailing team may
+    declare an onside kick by telling the Referee before the play
+    clock starts. That clock is the 25-second clock that starts after
+    the Back Judge hands the kicker the ball. The Referee tells the
+    receiving team before starting it.
+  - Article 6(b). The kicking team's restraining line is its 35, or
+    its 20 after a safety, unless a distance penalty moves it.
+  - Article 6(g). The receiving team's restraining line is 10 yards
+    in advance of that line. From an unmoved 35, that is the kicking
+    team's 45, by the yard-line definition above.
+  - Article 6(e). Legal touching, catching, or recovery by the
+    kicking team requires that the ball first touch a receiving-team
+    player, or that it reach or cross the receiving team's
+    restraining line.
+  - Article 6(f). A kicking-team catch or recovery is dead. A legal
+    one belongs to the kicking team at the dead-ball spot.
+  - Article 6(i). A receiving-team catch or recovery may be advanced.
+  - Article 6(h). Until the kick, every receiving-team player is
+    inbounds and behind his restraining line, and at least eight but
+    no more than nine stand between that line and a spot 15 yards
+    behind it. That strip is the onside kick setup zone.
+  - Article 6(j). A ball that comes to rest, with nobody trying to
+    possess it, is dead and belongs to the receiving team there.
+  - Article 6(k), and the penalty under it. An onside kick that goes
+    untouched past the setup zone is dead, belongs to the receiving
+    team, and costs 15 yards from the kicking team's restraining line.
+  - Section 2, Article 5, Item 1. The same illegal-touch rule as
+    2023: five yards, or the receiving team takes the ball at the
+    spot of the touch.
+  - Article 2 is the ordinary kickoff, not the onside kick. The
+    kicker's line is the 35 (the 20 after a safety). The other ten
+    players line up on the receiving team's 40. The receiving team's
+    restraining line is its own 35. Its setup zone is the five yards
+    back to its 30. The landing zone is from its 20 to its goal line.
+  - Article 5 of the 2025 book does not use the 2024 page's 30. A
+    kick that has touched the ground or a player in the landing zone,
+    and is then downed in the end zone by the receiving team or goes
+    out of bounds behind the goal line, is dead at the 20. A kick that
+    has not first touched the landing zone, and goes out of bounds
+    behind the goal line, strikes the goal, or lands at or beyond the
+    goal line and is downed in the end zone by the receiving team, is
+    dead at the 35. A kick short of the landing zone
+    is a different penalty (Section 2, Article 4): the receiving team
+    may take the ball 25 yards from the spot of the kick, at the
+    out-of-bounds spot, or at the short spot if that is less than 25
+    yards. The book does not print "the 40" for that penalty.
+
+  **2026 change table. The articles were not read.**
+  <https://operations.nfl.com/rules-officiating/2026-nfl-rulebook>
+  is a contents page plus a change table. It describes 6-1-6 as
+  "Permits the kicking team to declare an onside kick at any time
+  during the game." That sentence does not mention trailing. It
+  describes 6-1-3 as modifying the receiving team's alignment in the
+  setup zone, and 6-1-5 as modifying the dead-ball spot after a
+  touchback when the kickoff is from the 50. The 2026 text of those
+  articles is not on the page. The 35, the 10-yard line, the setup
+  zone, and the 2025 touchback spots are not re-confirmed for 2026.
+  Not sourced past those three sentences.
+
+- **Blocked punt: the charge, the yards, the recovery, the safety.**
+  Added 2026-11-27. The citation line B4 was blocked on. Not a rate.
+  The 42 / 8,587 count stays in §5.14. Ungated. No baseline.
+
+  **Whether it counts as a punt, and the punter's yards.** NFL Guide
+  for Statisticians, copyright © 2025, National Football League, last
+  modified 2025,
+  <https://www.nflgsis.com/gsis/documentation/stadiumguides/guide_for_statisticians.pdf>.
+  The Punts section, the Blocked Kicks section, and the punting
+  qualification line.
+
+  - A blocked punt is scored only when the punted ball does not go
+    beyond the line of scrimmage. A deflected punt that travels beyond
+    the line, in the air or on the ground, is not a blocked punt.
+  - It is charged as a punt to the team, and not to the individual
+    punter. The qualification line repeats it: blocked punts are not
+    charged to the individual punter.
+  - A player is not charged with a punt unless he actually punts the
+    ball. If the snap is good and he is tackled before he punts, or
+    while he is running, the play is a rush. A fake is a rush, a pass,
+    or a sack.
+  - The original blocked punt is still recorded after whatever
+    follows, except a second kick by the kicking team. If they
+    recover and kick again, only the final kick is counted.
+  - On the team report, punts equal punt returns plus fair catches
+    plus punts out of bounds plus punt touchbacks plus punts downed
+    plus punts blocked. The block is its own term in that sum.
+  - The guide's fumble definitions, which were read, do not mention a
+    blocked punt. The guide does not use the word turnover for this
+    play. The sourced claim is the one above: it is a team punt.
+  - **The punter's yards are not stated, because he is not charged.**
+    Punts in general are measured from the line of scrimmage to where
+    the impetus ends, or the ball goes out of bounds, or it is downed.
+    No example applies that sentence to a blocked punt. The guide
+    prints no length for one: not zero, not the distance back to the
+    recovery, not a negative. Do not invent one.
+  - If the kicking team recovers behind the line and runs, that
+    advance is miscellaneous yardage. A first down or a touchdown on
+    the run is credited as a first down rushing, and the yards stay
+    miscellaneous. A forward pass after the recovery is a pass. Being
+    tackled behind the line after the recovery is not "yards lost
+    attempting to pass."
+  - A defensive player's advance of a blocked punt is not a punt
+    return. It is miscellaneous yards.
+
+  **Recovery behind the line, and beyond it.** 2025 Official Playing
+  Rules, the same PDF as the onside row, Rule 9. The 2023 book, the
+  same PDF as the onside row, was checked on two of these sentences
+  and they match: a scrimmage kick that touches the kickers' goal
+  post is a safety (Rule 9, Section 4, Article 3), and the receivers
+  may advance any kick they catch or recover (Rule 9, Section 3,
+  Article 3). The rest of this geometry is from the 2025 articles,
+  which were read through.
+
+  - Section 1, Article 1. A punt is from on or behind the line of
+    scrimmage. The kick is beyond the line only when the kicker's
+    entire body and the ball are beyond the line at the kick.
+  - Section 2, Article 1. Touching behind the line by a kicking-team
+    player is legal, including after the ball has crossed the line
+    and come back.
+  - Section 2, Article 2, Note 2. A receiving-team player who is
+    touched by the kick in the immediate vicinity of the line, while
+    trying to block it, is deemed not to have touched it.
+  - Section 3, Article 1. The kicking team may advance a catch or
+    recovery behind the line, including one that crossed and came
+    back. If the ball came back untouched by the receiving team
+    beyond the line, the same series continues, unless the advance
+    reaches the line to gain. If the receiving team had touched it
+    beyond the line, the kicking team's recovery is a new series.
+  - Section 3, Article 3. The receiving team may advance any kick it
+    catches or recovers. That includes a recovery behind the line.
+  - Section 3, Article 2. A kicking-team catch or recovery beyond the
+    line is dead at the spot. It is a new series for the kickers only
+    if the receiving team has touched the ball beyond the line.
+    Otherwise the receivers get the ball there, first and 10.
+    Touching by the receiving team behind the line does not make a
+    recovery beyond the line legal.
+  - Section 3, Article 4, and Section 4, Article 4. A ball recovered
+    by both teams at once, or lying in the field with nobody trying
+    to recover it, or going out of bounds between the goal lines,
+    belongs to the receiving team at the dead-ball spot.
+
+  **When it is a safety.** The same 2025 rulebook, plus the Safeties
+  section of the Guide for Statisticians.
+
+  - Rule 3, Section 16. The impetus of a kick belongs to the team that
+    kicked it, unless an opponent muffs a ball that is at rest or
+    nearly at rest, bats a kicked or fumbled ball, bats a grounded
+    backward pass, or illegally kicks the ball. Blocking the kick is
+    not on that list.
+  - Rule 3, Section 28, and Rule 11, Section 5, Article 1(b). It is a
+    safety when a team's impetus sends the ball behind its own goal
+    line, and the ball is dead in the end zone in that team's
+    possession, or out of bounds behind the goal line.
+  - Rule 9, Section 4, Article 3. A scrimmage kick that touches the
+    kickers' goal post, upright, or crossbar is dead, and it is a
+    safety.
+  - Rule 9, Section 5, Article 1, Exception 1. A foul by the offense
+    in its own end zone is a safety if the defense chooses to enforce
+    the penalty there.
+  - Rule 11, Section 2, Article 1(d). A player who is legally inbounds
+    and secures a loose ball on, above, or behind the opponent's goal
+    line scores a touchdown. A receiving-team recovery in the kicking
+    team's end zone is that case. It is not a safety. The safety
+    requires the ball dead in the kicking team's possession, or out
+    of bounds from the kicking team's impetus.
+  - The guide credits a safety to the player who downs an opponent
+    behind that opponent's goal line, who causes him to step out of
+    bounds there, or who blocks a kick and the ball goes out of the
+    end zone. Its Example I is a punt blocked at the offense's 4, the
+    punter recovering in the end zone, and a cornerback downing him
+    there. The safety is credited to the cornerback. The example is
+    the guide's own illustration. It is not a measured rate.
+  - **Not sourced.** A length for the team punt on a block. A length
+    for the punter. A sentence that calls the play a turnover. The
+    2009 GSIS event manual
+    (<https://www.nflgsis.com/gsis/Documentation/StadiumGuides/Events_And_Attributes.pdf>,
+    last modified 4/22/2009) was not used. It is sixteen years older
+    than the guide above.
+
 These stay ungated. A guard on a number nobody knows is worse than no guard.
 
 ---
