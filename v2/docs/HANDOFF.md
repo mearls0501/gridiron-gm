@@ -1,5 +1,55 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-28 — Onside kicks (kicking-game Stage 2, this half only)
+
+Onside kicks only. Blocked punts stay a later packet. The attempt is the §5.14 clock-by-deficit table for a trailing club in the fourth quarter (Matt, 2026-11-19, "use the table"). Recovery is the signed 2021–23 row, 14/154. The ball is dead on the restraining line in §4: the kick is from the 35, ten yards in advance is the kicking club's 45, and that same spot is the receiving club's 55. No return, no touchdown, no user prompt, no attribute tilt. `docs/baselines.json` did not move. `scripts/` did not move. `nfl-reference.md` did not move. The four canary literals were measured and left as they were.
+
+**Stream.** `onsideRng`, keyed (seed, game id) with its own salt, the same shape as `kickEventRng`. A cell of zero draws nothing. A decline draws on that stream only, so the parent touchback draw stays put. An attempt skips the parent touchback and return draws. It does not draw on the parent, the kick-event stream, or either tackle stream.
+
+**What an attempt does.** The kicking club keeps the ball on a recovery, at its own 45, first and 10, and the play is dead there. Otherwise the receiving club takes it at its own 55, the same spot, and does not advance. The row is a kickoff with `yards` 0 and no returner: `gain` when the kicking club recovers, `loss` when it does not. No `kr` line, no points, no turnover. A safety is still `changePossession(45)`, not a kickoff, so a free kick after a safety never consults the table.
+
+**Measured, five regular seasons, seeds 1, 11, 42, 99, 12345.** 6,800 games, 13,600 team-games. Node v22.23.4.
+
+| | sim | §5.14 |
+|---|---:|---:|
+| onside attempts | 1,083 (43.3 a season) | ~51 a season, all situations |
+| attempts per team-game | **0.0796** | |
+| last 5:00, trailing, any deficit | 911, **0.0670** a team-game | **0.077** (126 / 1,630) |
+| last 5:00, down 1–16 | 792, **0.0582** a team-game | 113 / 202 of those kickoffs |
+| qualifying kickoffs, last 5:00, down 1–16 | 1,256, **0.0924** a team-game | **0.124** |
+| recovered | 100 / 1,083 = **0.0923** | 14 / 154 = **0.0909** |
+| outside the fourth quarter | 0 | 12 of 153 were outside trailing-Q4 |
+
+The 0.077 is last-5:00 trailing attempts per team-game, not every onside. This build's all-attempt rate is 0.0796 because the table also kicks onside earlier in the quarter when the deficit is two scores or more. The last-5:00 slice is 0.0670, under 0.077, for the reason already written on 2026-11-19: the engine has fewer of those kickoffs (0.0924 a team-game here, 0.090 on 2026-11-11, 0.124 in the league). Not tuned.
+
+**Canaries, measured, not rewritten.** An attempt changes the parent stream, so both fingerprints move. The first one lands in the opening regular season, before the tag window, and the same shift is still in the stream at the 2030 cutdown.
+
+| | locked | measured |
+|---|---:|---:|
+| `trimIdentity` seed 42, opening 2030, cuts | 1412 | **1358** |
+| `trimIdentity` rng | 3165849988 | **2445514809** |
+| `userOffers` tag | 4171186477 | **1753242794** |
+| `userOffers` FA | 108340363 | **281680557** |
+
+The inquiry check in `userOffers` still passes: seeds 11, 42, and 99 add no parent draws past the empty shop. The two absolute states are what fail.
+
+**Gate, Node v22.23.4, `npm run gate:serial`.** Before: **GATE PASS**, 71 metrics, exit 0. After: **GATE FAIL**, 2 problems, both canary exits (`useroffers`, `trimidentity`). 48 of the 71 metrics moved and stayed inside their bands. `calibrate.scoreMismatches` 0. `verify` 348 checks, 0 failures. `determinism.failures` 0. On the 300-game calibrate sample: points 23.52 → 24.37, tie rate 0.667% → 0, punts 3.247 → 3.313, turnovers 1.275 → 1.303, fumbles 1.108 → 1.173. No band was edited.
+
+**Disagreements with the signed lines, left as written.**
+
+- **Line C.** Stage 2 was to wait for the Studio panel, then re-lock the four canary literals only, measured on Node 22.23.4. This packet builds the onside half now and does not write the new literals. The values above are the measurement. The tests still hold the #257 literals, which is why the gate is red there.
+- **Line B2** also names blocked punts (42 / 8,587, with safeties). Not built.
+- **Line B3** as first signed said one coin. The 2026-11-19 entry replaces that with the table. This build uses the table.
+- **Spot.** §4 gives the restraining line and says a kicking-club recovery is dead there. It gives no distribution past the 45, so there is no spread. Rule 6 lets the receiving club advance a recovery. The signed line is no return, and §5.14 has no onside return-yard row, so the receiving club does not advance. `own_kickoff_recovery_td` is 0.
+- **Safety kicks.** §5.14's kickoff denominator includes free kicks after a safety. This engine does not kick those.
+- **Surprise, opening, second half.** Signed out. The opening kick and the second-half kick are stubs and never reach `kickoff()`. Measured onsides outside Q4: 0.
+- **Recovery denominator.** The signed row is 14/154. The republished 2021 file is 14/153, and §5.14 says that row was not recomputed. The coin is 14/154.
+- **Display.** `formatPlay` still reads the row as a kickoff return. `playArt` treats every kickoff row's offense as the receiving club, so a recovery draws on the wrong side of the field. Both files are outside this packet's cluster.
+- **Where the coin runs.** The table is regular season. `kickoff()` is one function, so a fourth-quarter kickoff in the playoffs uses the same cells. The `advance()` path does not play preseason weeks.
+- **Not sourced, so not built.** Illegal touching before the 10 yards (five yards, or the ball at the spot). An onside into the end zone (touchback at the 25). The 2025 penalty for a kick that goes untouched past the setup zone. The 2026 article text, which §4 marks unread.
+
+Ran: `tsc --noEmit` pass. `kickingEvents`, `coverageTackle`, and `playByPlay` pass. The five-season count above. `gate:serial` before and after, as in the table.
+
 ## 2026-11-27 — Onside spot and blocked-punt scoring cited (§4)
 
 Reference only. `docs/nfl-reference.md` §4 gains the two rows kicking-game Stage 2 was blocked on (`docs/decisions-kicking-game-2026-11-19.md`, lines B2, B3, and B4). One is the onside spot and the legal recovery: the kick at the 35, the receiving line 10 yards in advance, and the 2024+ declared setup, with the 2025 rulebook's articles and the 2026 change table kept apart. The other is the blocked punt: a team punt, not charged to the punter, recovery behind and beyond the line of scrimmage, and when that play is a safety. The Guide for Statisticians states no yardage for a blocked punt, and the 2026 page that was read is a change table rather than the article text. Both gaps are marked in the rows. No code, test, `scripts/` file, `baselines.json` row, or canary moved. Nothing is locked. Stage 2 is now unblocked on these citations.

@@ -327,6 +327,82 @@ export function blockRateGivenMiss(kind: "xpBlocked", missProb: number): number 
   return Math.min(1, (row.events / attempts) / missProb);
 }
 
+/**
+ * Onside attempts by a trailing club in the fourth quarter, 2021–23 REG.
+ * Onside kicks over kickoffs, by clock left and deficit (nfl-reference.md
+ * §5.14). A cell of zero draws nothing. Matt signed this table as the
+ * attempt rate ("use the table"); it is not one coin and not a threshold.
+ */
+export type OnsideClockBin = "15:00-5:01" | "5:00-3:01" | "3:00-2:01" | "2:00-1:01" | "1:00-0:00";
+export type OnsideDeficitBin = "1-8" | "9-16" | "17+";
+
+export const ONSIDE_ATTEMPT: Record<
+  OnsideClockBin,
+  Record<OnsideDeficitBin, { onsides: number; kickoffs: number }>
+> = {
+  "15:00-5:01": {
+    "1-8": { onsides: 0, kickoffs: 219 },
+    "9-16": { onsides: 6, kickoffs: 89 },
+    "17+": { onsides: 10, kickoffs: 40 },
+  },
+  "5:00-3:01": {
+    "1-8": { onsides: 1, kickoffs: 58 },
+    "9-16": { onsides: 18, kickoffs: 26 },
+    "17+": { onsides: 6, kickoffs: 11 },
+  },
+  "3:00-2:01": {
+    "1-8": { onsides: 8, kickoffs: 26 },
+    "9-16": { onsides: 7, kickoffs: 7 },
+    "17+": { onsides: 3, kickoffs: 11 },
+  },
+  "2:00-1:01": {
+    "1-8": { onsides: 28, kickoffs: 29 },
+    "9-16": { onsides: 13, kickoffs: 13 },
+    "17+": { onsides: 2, kickoffs: 6 },
+  },
+  "1:00-0:00": {
+    "1-8": { onsides: 30, kickoffs: 31 },
+    "9-16": { onsides: 8, kickoffs: 12 },
+    "17+": { onsides: 1, kickoffs: 5 },
+  },
+};
+
+/** 2021–23 recoveries, the signed row. The republished count is 14/153; §5.14 did not recompute it. */
+export const ONSIDE_RECOVERY = { recovered: 14, attempts: 154 };
+
+/** Kickoff restraining line, 2021–23 Rule 6. A safety kick is the 20; this engine does not kick those. */
+export const ONSIDE_KICK_SPOT = 35;
+/** Ten yards in advance of that line: the kicking team's 45 (§4). The receiving club's own yard line for the same spot is 55. */
+export const ONSIDE_RESTRAINING_YARDLINE = ONSIDE_KICK_SPOT + 10;
+
+export function onsideRecoveryRate(): number {
+  return ONSIDE_RECOVERY.attempts > 0 ? ONSIDE_RECOVERY.recovered / ONSIDE_RECOVERY.attempts : 0;
+}
+
+/**
+ * Attempt rate for one kickoff. Zero unless the kicking club trails in the
+ * fourth quarter, and then the §5.14 cell. A negative clock is the 0:00 bin.
+ * Overtime, a lead, and a tie are zero. A zero cell draws nothing.
+ */
+export function trailingOnsideRate(
+  quarter: number,
+  overtime: boolean,
+  clockSeconds: number,
+  deficit: number,
+): number {
+  if (quarter !== 4 || overtime || !(deficit >= 1)) return 0;
+  const s = clockSeconds < 0 ? 0 : clockSeconds;
+  if (s > QUARTER_SECONDS) return 0;
+  const clock: OnsideClockBin = s >= 301 ? "15:00-5:01"
+    : s >= 181 ? "5:00-3:01"
+    : s >= 121 ? "3:00-2:01"
+    : s >= 61 ? "2:00-1:01"
+    : "1:00-0:00";
+  const bucket: OnsideDeficitBin = deficit <= 8 ? "1-8" : deficit <= 16 ? "9-16" : "17+";
+  const row = ONSIDE_ATTEMPT[clock][bucket];
+  return row.kickoffs > 0 ? row.onsides / row.kickoffs : 0;
+}
+
 const PLAYOFF_ROUND_INDEX: Record<PlayoffRound, number> = { WC: 0, DIV: 1, CONF: 2, SB: 3 };
 
 /**
@@ -588,6 +664,11 @@ function* runGameSim(
   // Its own stream. A kick-event label must not move `rng` or either credit stream.
   const kickEventRng = new Rng(
     (state.seed ^ Math.imul((game.id + 1) >>> 0, 0x9e3779b9) ^ 0x2c1b3c6d) >>> 0,
+  );
+
+  // Its own stream. An onside coin must not move `rng`, the kick-event labels, or either credit stream.
+  const onsideRng = new Rng(
+    (state.seed ^ Math.imul((game.id + 1) >>> 0, 0x9e3779b9) ^ 0x0a51de11) >>> 0,
   );
 
   /**
@@ -1241,6 +1322,27 @@ function* runGameSim(
     const receiving = receivingIsHome ? ctxHome : ctxAway;
     const kicking = receivingIsHome ? ctxAway : ctxHome;
     const kickerId = kicking.starters.K[0]?.id;
+    // Trailing, fourth quarter only. The coin is onsideRng. A decline leaves
+    // the parent touchback draw where it was. An attempt skips it. Recovery
+    // is the flat 2021–23 rate. The ball is dead on the restraining line:
+    // the kicking club's 45, which is the receiving club's 55. No return.
+    const deficit = -scoreDiffFor(kicking.team.id === home.id);
+    const attemptRate = trailingOnsideRate(quarter, overtime, clock, deficit);
+    if (attemptRate > 0 && onsideRng.chance(attemptRate)) {
+      const recoveryRate = onsideRecoveryRate();
+      const recovered = recoveryRate > 0 && onsideRng.chance(recoveryRate);
+      offenseIsHome = recovered ? kicking.team.id === home.id : receivingIsHome;
+      startDrive(recovered ? ONSIDE_RESTRAINING_YARDLINE : 100 - ONSIDE_RESTRAINING_YARDLINE);
+      emit({
+        kind: "kickoff",
+        result: recovered ? "gain" : "loss",
+        yards: 0,
+        down, toGo, yardLine,
+        offenseId: off().team.id,
+        ...(kickerId !== undefined ? { kickerId } : {}),
+      });
+      return;
+    }
     offenseIsHome = receivingIsHome;
 
     if (rng.chance(0.62)) {
