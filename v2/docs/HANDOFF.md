@@ -1,5 +1,11 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-27 — Onside spot and blocked-punt scoring cited (§4)
+
+Reference only. `docs/nfl-reference.md` §4 gains the two rows kicking-game Stage 2 was blocked on (`docs/decisions-kicking-game-2026-11-19.md`, lines B2, B3, and B4). One is the onside spot and the legal recovery: the kick at the 35, the receiving line 10 yards in advance, and the 2024+ declared setup, with the 2025 rulebook's articles and the 2026 change table kept apart. The other is the blocked punt: a team punt, not charged to the punter, recovery behind and beyond the line of scrimmage, and when that play is a safety. The Guide for Statisticians states no yardage for a blocked punt, and the 2026 page that was read is a change table rather than the article text. Both gaps are marked in the rows. No code, test, `scripts/` file, `baselines.json` row, or canary moved. Nothing is locked. Stage 2 is now unblocked on these citations.
+
+Ran: nothing. The rows quote the rulebooks and the statisticians' guide.
+
 ## 2026-11-27 — Blocked extra points use the attempt rate
 
 Approved by Matt, 2026-11-27, as an exception to the calibration freeze. Production QA after #259 read about 1.4 blocked kicks (field goals and extra points) per team per season through Week 10. §5.14's volume is (78 + 31) / 128 team-seasons = **0.852**. `docs/baselines.json` did not move. No re-lock. No merge.
