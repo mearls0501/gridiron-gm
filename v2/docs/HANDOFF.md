@@ -1,5 +1,7 @@
 # HANDOFF — 2026-08-02
 
+2026-11-28 — Matt said yes (10:42 AM ET): the canaries are re-locked to trimIdentity 1461 cuts / rng 2032218481 and userOffers tag 3823591383 / FA 3423876895.
+
 ## 2026-11-28 — Blocked punts (kicking-game Stage 2, this half)
 
 Blocked punts only. Onside kicks are already on main (#267). The coin is 42/8,587 on `blockedPuntRng`, keyed (seed, game id), the same shape as `onsideRng`. A miss draws on that stream only, so the parent gross, the clock burn, the return, and the fair-catch label stay where they were. A block skips them. `docs/baselines.json` did not move. `scripts/` did not move. `nfl-reference.md` did not move. The four canary literals were measured and left as they were.
