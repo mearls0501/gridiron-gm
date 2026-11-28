@@ -1,5 +1,11 @@
 # HANDOFF — 2026-08-02
 
+## 2026-11-28 — Personnel, coverage, and alignment rates quoted (§4.1)
+
+Reference only. `docs/nfl-reference.md` §4.1 quotes public 2021–2025 rates for offensive personnel, defensive package by defensive-back count, coverage shell, blitz, under-center, and play-action, with the season, the sample the page prints, and the conflicts between houses. 10 personnel, the 4-3/3-4 front, personnel by down and distance, the package mix on 3rd-and-long, blitz by down, pistol as its own share, and a finished-season Next Gen Stats shell mix are marked not sourced. No code, test, `scripts/` file, `baselines.json` row, or canary moved. Nothing is locked. The formation / personnel / coverage / blitz tree is still unbuilt and unsigned.
+
+Ran: nothing. The rows quote the pages named in §4.1.
+
 ## 2026-11-28 — Canary re-lock signed
 
 Matt signed the re-lock on 2026-11-27, 10:10 PM ET ("do it"). Re-measured on Node v22.23.4 before the literals were written, and the four values reproduced: `trimIdentity` seed 42, opening 2030, **1358** cuts, rng **2445514809**; `userOffers` tag **1753242794**, FA **281680557**. Those four are now the literals in the tests. The cut list in `trimIdentity.test.ts` is the 1358 ids from that walk. `scripts/` and `docs/baselines.json` did not move. `npm run gate:serial` on Node v22.23.4: **GATE PASS**, 71 metrics, exit 0. No merge.
